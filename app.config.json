@@ -2,13 +2,16 @@
   "$schema": "./.dt-app/app.config.schema.json",
   "environmentUrl": "https://ihh1992h.sprint.apps.dynatracelabs.com/",
   "app": {
-    "name": "gcc",
-    "version": "0.0.0",
-    "description": "A starting project with routing, fetching data, and charting",
-    "id": "my.gcc",
+    "name": "GenAI Control Center",
+    "version": "1.0.0",
+    "description": "Proactive AI Service Management - Health Dashboard, AI Architect, Davis Assistant & Remediation Library",
+    "id": "my.genai.control.center",
     "scopes": [
-      { "name": "storage:logs:read", "comment": "default template" },
-      { "name": "storage:buckets:read", "comment": "default template" }
+      { "name": "storage:logs:read", "comment": "Read logs for AI service analysis" },
+      { "name": "storage:buckets:read", "comment": "Read data buckets" },
+      { "name": "storage:spans:read", "comment": "Read gen_ai spans for service discovery" },
+      { "name": "automation:workflows:read", "comment": "Read workflow definitions" },
+      { "name": "automation:workflows:run", "comment": "Execute remediation workflows" }
     ]
   }
 }
