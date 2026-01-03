@@ -10,6 +10,10 @@
       { "name": "storage:logs:read", "comment": "Read logs for AI service analysis" },
       { "name": "storage:buckets:read", "comment": "Read data buckets" },
       { "name": "storage:spans:read", "comment": "Read gen_ai spans for service discovery" },
+      { "name": "storage:metrics:read", "comment": "Read metrics for SegmentSelector" },
+      { "name": "storage:filter-segments:read", "comment": "Read filter segments for SegmentSelector" },
+      { "name": "storage:filter-segments:write", "comment": "Write filter segments for SegmentSelector" },
+      { "name": "storage:entities:read", "comment": "Read entities for filtering" },
       { "name": "automation:workflows:read", "comment": "Read workflow definitions" },
       { "name": "automation:workflows:run", "comment": "Execute remediation workflows" }
     ]

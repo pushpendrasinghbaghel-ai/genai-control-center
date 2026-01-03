@@ -33,27 +33,49 @@ export const buildTimeRangeClause = (timeRange: string): string => {
 };
 
 /**
+ * Sanitize a value for use in DQL filter - remove any problematic characters
+ */
+const sanitizeFilterValue = (value: string): string => {
+  if (!value) return '';
+  let sanitized = value.trim();
+  // Remove surrounding quotes if present
+  if ((sanitized.startsWith('"') && sanitized.endsWith('"')) ||
+      (sanitized.startsWith("'") && sanitized.endsWith("'"))) {
+    sanitized = sanitized.slice(1, -1);
+  }
+  // Remove any backslashes and quotes that shouldn't be there
+  sanitized = sanitized.replace(/[\\"']/g, '');
+  return sanitized.trim();
+};
+
+/**
  * Build service filter clause for DQL queries
  */
 export const buildServiceFilter = (serviceName?: string): string => {
-  if (!serviceName || serviceName === '') return '';
-  return `| filter service.name == "${serviceName}"`;
+  if (!serviceName) return '';
+  const sanitized = sanitizeFilterValue(serviceName);
+  if (!sanitized) return '';
+  return `| filter service.name == "${sanitized}"`;
 };
 
 /**
  * Build provider filter clause for DQL queries
  */
 export const buildProviderFilter = (provider?: string): string => {
-  if (!provider || provider === '') return '';
-  return `| filter gen_ai.system == "${provider}"`;
+  if (!provider) return '';
+  const sanitized = sanitizeFilterValue(provider);
+  if (!sanitized) return '';
+  return `| filter gen_ai.system == "${sanitized}"`;
 };
 
 /**
  * Build model filter clause for DQL queries
  */
 export const buildModelFilter = (model?: string): string => {
-  if (!model || model === '') return '';
-  return `| filter gen_ai.model_name == "${model}"`;
+  if (!model) return '';
+  const sanitized = sanitizeFilterValue(model);
+  if (!sanitized) return '';
+  return `| filter gen_ai.model_name == "${sanitized}"`;
 };
 
 export interface QueryFilters {

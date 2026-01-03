@@ -82,6 +82,7 @@ export const AIArchitect: React.FC = () => {
   // Filter state with native Dynatrace timeframe
   const [filters, setFilters] = useState<FilterOptions>({
     timeframe: null, // null means use default (last 24h)
+    filterQuery: '',
     serviceFilter: '',
     providerFilter: '',
     modelFilter: ''
@@ -160,11 +161,6 @@ export const AIArchitect: React.FC = () => {
       <FilterBar
         filters={filters}
         onFiltersChange={setFilters}
-        services={availableServices || []}
-        providers={availableProviders || []}
-        showServiceFilter={true}
-        showProviderFilter={true}
-        showModelFilter={false}
         onRefresh={refetch}
       />
 

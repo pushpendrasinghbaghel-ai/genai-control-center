@@ -81,50 +81,66 @@ export function calculateOverallHealth(services: AIService[]): HealthMetrics {
 /**
  * Format large numbers for display
  */
-export function formatNumber(num: number): string {
-  if (num >= 1_000_000_000) {
-    return `${(num / 1_000_000_000).toFixed(2)}B`;
+export function formatNumber(num: number | string | null | undefined): string {
+  const n = Number(num);
+  if (isNaN(n) || num === null || num === undefined) {
+    return '0';
   }
-  if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000_000_000) {
+    return `${(n / 1_000_000_000).toFixed(2)}B`;
   }
-  if (num >= 1_000) {
-    return `${(num / 1_000).toFixed(2)}K`;
+  if (n >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(2)}M`;
   }
-  return num.toFixed(2);
+  if (n >= 1_000) {
+    return `${(n / 1_000).toFixed(2)}K`;
+  }
+  return n.toFixed(2);
 }
 
 /**
  * Format duration in milliseconds to human readable
  */
-export function formatDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${ms.toFixed(0)}ms`;
+export function formatDuration(ms: number | string | null | undefined): string {
+  const n = Number(ms);
+  if (isNaN(n) || ms === null || ms === undefined) {
+    return '0ms';
   }
-  if (ms < 60000) {
-    return `${(ms / 1000).toFixed(2)}s`;
+  if (n < 1000) {
+    return `${n.toFixed(0)}ms`;
   }
-  return `${(ms / 60000).toFixed(2)}min`;
+  if (n < 60000) {
+    return `${(n / 1000).toFixed(2)}s`;
+  }
+  return `${(n / 60000).toFixed(2)}min`;
 }
 
 /**
  * Format latency from nanoseconds (DQL returns ns)
  */
-export function formatLatencyFromNs(ns: number): string {
-  const ms = ns / 1_000_000;
+export function formatLatencyFromNs(ns: number | string | null | undefined): string {
+  const n = Number(ns);
+  if (isNaN(n) || ns === null || ns === undefined) {
+    return '0ms';
+  }
+  const ms = n / 1_000_000;
   return formatDuration(ms);
 }
 
 /**
  * Format currency
  */
-export function formatCurrency(amount: number, currency: string = 'USD'): string {
+export function formatCurrency(amount: number | string | null | undefined, currency: string = 'USD'): string {
+  const n = Number(amount);
+  if (isNaN(n) || amount === null || amount === undefined) {
+    return '$0.00';
+  }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 4
-  }).format(amount);
+  }).format(n);
 }
 
 /**

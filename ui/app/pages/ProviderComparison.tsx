@@ -31,7 +31,15 @@ const ProviderCard: React.FC<{
 
   const normalizedProvider = normalizeProviderName(provider);
   const color = providerColors[normalizedProvider] || 'var(--dt-colors-charts-categorical-default-1)';
-  const barWidth = (stats.totalRequests / maxRequests) * 100;
+  
+  // Safely convert all numeric values
+  const totalRequests = Number(stats.totalRequests) || 0;
+  const avgLatency = Number(stats.avgLatency) || 0;
+  const errorRate = Number(stats.errorRate) || 0;
+  const totalTokens = Number(stats.totalTokens) || 0;
+  const estimatedCost = Number(stats.estimatedCost) || 0;
+  
+  const barWidth = maxRequests > 0 ? (totalRequests / maxRequests) * 100 : 0;
 
   return (
     <Surface>
@@ -45,7 +53,7 @@ const ProviderCard: React.FC<{
             <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{provider}</span>
           </Flex>
           <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-            {formatNumber(stats.totalRequests)} requests
+            {formatNumber(totalRequests)} requests
           </span>
         </Flex>
 
@@ -63,19 +71,19 @@ const ProviderCard: React.FC<{
         {/* Stats Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
           <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{stats.avgLatency.toFixed(0)}ms</span>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>{avgLatency.toFixed(0)}ms</span>
             <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Avg Latency</div>
           </div>
           <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{stats.errorRate.toFixed(2)}%</span>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>{errorRate.toFixed(2)}%</span>
             <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Error Rate</div>
           </div>
           <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatNumber(stats.totalTokens)}</span>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatNumber(totalTokens)}</span>
             <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</div>
           </div>
           <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrency(stats.estimatedCost)}</span>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrency(estimatedCost)}</span>
             <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Est. Cost</div>
           </div>
         </div>
@@ -117,21 +125,28 @@ const ModelTable: React.FC<{
           </tr>
         </thead>
         <tbody>
-          {models.map((model, index) => (
-            <tr key={index} style={{ borderBottom: '1px solid var(--dt-colors-border-default)' }}>
-              <td style={{ padding: '12px 8px', fontWeight: 500 }}>{model.modelName}</td>
-              <td style={{ padding: '12px 8px', textTransform: 'capitalize' }}>{model.provider}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(model.requestCount)}</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right' }}>{model.avgLatency.toFixed(0)}ms</td>
-              <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(model.avgTokensPerRequest)}</td>
-              <td style={{ 
-                padding: '12px 8px', textAlign: 'right',
-                color: model.errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
-              }}>
-                {model.errorRate.toFixed(2)}%
-              </td>
-            </tr>
-          ))}
+          {models.map((model, index) => {
+            const avgLatency = Number(model.avgLatency) || 0;
+            const errorRate = Number(model.errorRate) || 0;
+            const avgTokens = Number(model.avgTokensPerRequest) || 0;
+            const requestCount = Number(model.requestCount) || 0;
+            
+            return (
+              <tr key={index} style={{ borderBottom: '1px solid var(--dt-colors-border-default)' }}>
+                <td style={{ padding: '12px 8px', fontWeight: 500 }}>{model.modelName}</td>
+                <td style={{ padding: '12px 8px', textTransform: 'capitalize' }}>{model.provider}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(requestCount)}</td>
+                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{avgLatency.toFixed(0)}ms</td>
+                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(avgTokens)}</td>
+                <td style={{ 
+                  padding: '12px 8px', textAlign: 'right',
+                  color: errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
+                }}>
+                  {errorRate.toFixed(2)}%
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -142,6 +157,7 @@ export const ProviderComparison: React.FC = () => {
   // Filter state with native Dynatrace timeframe
   const [filters, setFilters] = useState<FilterOptions>({
     timeframe: null, // null means use default (last 24h)
+    filterQuery: '',
     serviceFilter: '',
     providerFilter: '',
     modelFilter: ''
@@ -192,10 +208,6 @@ export const ProviderComparison: React.FC = () => {
       <FilterBar
         filters={filters}
         onFiltersChange={setFilters}
-        services={availableServices || []}
-        showServiceFilter={true}
-        showProviderFilter={false}
-        showModelFilter={false}
         onRefresh={handleRefresh}
       />
 
