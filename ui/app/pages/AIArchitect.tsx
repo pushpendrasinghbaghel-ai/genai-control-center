@@ -10,7 +10,7 @@ import { useAIServicesDiscovery, useAIArchitect, getSeverityColor, useDistinctSe
 import { FilterBar, FilterOptions } from '../components/FilterBar';
 import type { ArchitectRecommendation } from '../types';
 
-// Recommendation Card Component
+// Recommendation Card Component - Compact
 const RecommendationCard: React.FC<{
   recommendation: ArchitectRecommendation;
   onApply?: () => void;
@@ -25,54 +25,51 @@ const RecommendationCard: React.FC<{
   };
 
   return (
-    <Surface>
-      <Flex padding={16} flexDirection="column" gap={12}>
-        <Flex justifyContent="space-between" alignItems="flex-start">
-          <Flex alignItems="center" gap={12}>
-            <span style={{ fontSize: 28 }}>{icons[recommendation.type] || '💡'}</span>
-            <div>
-              <Flex alignItems="center" gap={8}>
-                <span style={{ fontWeight: 600 }}>{recommendation.title}</span>
-                <span style={{ 
-                  fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                  backgroundColor: getSeverityColor(recommendation.severity) + '20',
-                  color: getSeverityColor(recommendation.severity),
-                  textTransform: 'uppercase', fontWeight: 600
-                }}>
-                  {recommendation.severity}
-                </span>
-              </Flex>
-              {recommendation.affectedService && (
-                <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-                  Affects: {recommendation.affectedService}
-                </span>
-              )}
-            </div>
-          </Flex>
+    <Flex 
+      padding={12} 
+      gap={12}
+      alignItems="flex-start"
+      style={{ 
+        background: 'var(--dt-colors-surface-default)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-border-neutral-default)'
+      }}
+    >
+      <span style={{ fontSize: 20 }}>{icons[recommendation.type] || '💡'}</span>
+      <div style={{ flex: 1 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 4 }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>{recommendation.title}</span>
+          <span style={{ 
+            fontSize: 9, padding: '2px 5px', borderRadius: 3,
+            backgroundColor: getSeverityColor(recommendation.severity) + '20',
+            color: getSeverityColor(recommendation.severity),
+            textTransform: 'uppercase', fontWeight: 600
+          }}>
+            {recommendation.severity}
+          </span>
           {recommendation.estimatedImpact && (
             <span style={{ 
-              fontSize: 14, fontWeight: 600,
+              fontSize: 12, fontWeight: 600, marginLeft: 'auto',
               color: recommendation.type === 'cost_optimization' ? 'var(--dt-colors-feedback-success-default)' : 'inherit'
             }}>
               {recommendation.estimatedImpact}
             </span>
           )}
         </Flex>
-
-        <span style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)' }}>
+        {recommendation.affectedService && (
+          <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+            {recommendation.affectedService}
+          </span>
+        )}
+        <p style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', margin: '6px 0 0' }}>
           {recommendation.description}
-        </span>
-
-        <Flex gap={8} justifyContent="flex-end">
-          {onInvestigate && (
-            <Button onClick={onInvestigate}>Investigate</Button>
-          )}
-          {onApply && (
-            <Button variant="accent" onClick={onApply}>Apply Fix</Button>
-          )}
-        </Flex>
+        </p>
+      </div>
+      <Flex gap={6}>
+        {onInvestigate && <Button onClick={onInvestigate}>Investigate</Button>}
+        {onApply && <Button variant="accent" onClick={onApply}>Apply</Button>}
       </Flex>
-    </Surface>
+    </Flex>
   );
 };
 
@@ -113,10 +110,10 @@ export const AIArchitect: React.FC = () => {
 
   if (loading || analyzing) {
     return (
-      <Flex justifyContent="center" alignItems="center" style={{ height: '50vh' }}>
-        <Flex flexDirection="column" alignItems="center" gap={16}>
+      <Flex justifyContent="center" alignItems="center" style={{ height: '40vh' }}>
+        <Flex flexDirection="column" alignItems="center" gap={12}>
           <ProgressCircle />
-          <span>{analyzing ? 'Analyzing patterns...' : 'Loading services...'}</span>
+          <span style={{ fontSize: 13 }}>{analyzing ? 'Analyzing patterns...' : 'Loading services...'}</span>
         </Flex>
       </Flex>
     );
@@ -140,19 +137,19 @@ export const AIArchitect: React.FC = () => {
   const highCount = recommendations.filter(r => r.severity === 'high').length;
 
   return (
-    <Flex flexDirection="column" gap={24} padding={24}>
+    <Flex flexDirection="column" gap={16} padding={16}>
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
         <div>
-          <Heading level={3}>AI Architect</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            Intelligent pattern detection and optimization recommendations
+          <Heading level={4}>AI Architect</Heading>
+          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
+            Pattern detection and optimization recommendations
           </span>
         </div>
-        <Flex gap={12}>
-          <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
+        <Flex gap={8}>
+          <Button onClick={() => navigate('/')}>Dashboard</Button>
           <Button variant="accent" onClick={() => navigate('/remediation')}>
-            Remediation Library
+            Remediation
           </Button>
         </Flex>
       </Flex>
@@ -164,54 +161,60 @@ export const AIArchitect: React.FC = () => {
         onRefresh={refetch}
       />
 
-      {/* Summary Stats */}
-      <Surface>
-        <Flex padding={16} gap={32} alignItems="center">
-          <div>
-            <span style={{ fontSize: 32, fontWeight: 700 }}>{recommendations.length}</span>
-            <span style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
-              Total Recommendations
-            </span>
-          </div>
-          <div style={{ borderLeft: '1px solid var(--dt-colors-border-default)', paddingLeft: 32 }}>
-            <Flex gap={24}>
+      {/* Summary Stats - Compact */}
+      <Flex gap={16} alignItems="center" padding={12} style={{ 
+        background: 'var(--dt-colors-surface-default)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-border-neutral-default)'
+      }}>
+        <div>
+          <span style={{ fontSize: 24, fontWeight: 700 }}>{recommendations.length}</span>
+          <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 6 }}>
+            Recommendations
+          </span>
+        </div>
+        {(criticalCount > 0 || highCount > 0) && (
+          <div style={{ borderLeft: '1px solid var(--dt-colors-border-default)', paddingLeft: 16 }}>
+            <Flex gap={16}>
               {criticalCount > 0 && (
-                <Flex alignItems="center" gap={8}>
-                  <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--dt-colors-feedback-critical-default)' }}>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-critical-default)' }}>
                     {criticalCount}
                   </span>
-                  <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>Critical</span>
+                  <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Critical</span>
                 </Flex>
               )}
               {highCount > 0 && (
-                <Flex alignItems="center" gap={8}>
-                  <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--dt-colors-feedback-warning-default)' }}>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-warning-default)' }}>
                     {highCount}
                   </span>
-                  <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>High</span>
+                  <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High</span>
                 </Flex>
               )}
             </Flex>
           </div>
-        </Flex>
-      </Surface>
+        )}
+      </Flex>
 
       {/* Recommendations by Type */}
       {recommendations.length === 0 ? (
-        <Surface>
-          <Flex padding={48} flexDirection="column" alignItems="center" gap={16}>
-            <span style={{ fontSize: 48 }}>✨</span>
-            <Heading level={4}>All Clear!</Heading>
-            <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center' }}>
-              No issues detected. Your AI services are following best practices.
-            </span>
-          </Flex>
-        </Surface>
+        <Flex padding={32} flexDirection="column" alignItems="center" gap={12} style={{
+          background: 'var(--dt-colors-surface-default)',
+          borderRadius: 6,
+          border: '1px solid var(--dt-colors-border-neutral-default)'
+        }}>
+          <span style={{ fontSize: 36 }}>✨</span>
+          <Heading level={5}>All Clear!</Heading>
+          <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', fontSize: 13 }}>
+            No issues detected. Your AI services are following best practices.
+          </span>
+        </Flex>
       ) : (
         Object.entries(groupedRecommendations).map(([type, recs]) => (
-          <Flex key={type} flexDirection="column" gap={12}>
-            <Heading level={5}>{typeLabels[type] || type}</Heading>
-            <Flex flexDirection="column" gap={8}>
+          <Flex key={type} flexDirection="column" gap={8}>
+            <Heading level={6}>{typeLabels[type] || type}</Heading>
+            <Flex flexDirection="column" gap={6}>
               {recs
                 .sort((a, b) => {
                   const order = { critical: 0, high: 1, medium: 2, low: 3 };

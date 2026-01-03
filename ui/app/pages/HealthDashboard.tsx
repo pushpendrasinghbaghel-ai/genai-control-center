@@ -48,20 +48,29 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
   );
 };
 
-// Metric Card Component
+// Metric Card Component - Compact horizontal layout
 const MetricCard: React.FC<{ 
   value: string | number; 
   label: string; 
   icon: string; 
   color?: string 
 }> = ({ value, label, icon, color }) => (
-  <Surface>
-    <Flex padding={16} flexDirection="column" alignItems="center" gap={8}>
-      <span style={{ fontSize: 24 }}>{icon}</span>
-      <span style={{ fontSize: 28, fontWeight: 700, color: color || 'inherit' }}>{value}</span>
-      <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</span>
-    </Flex>
-  </Surface>
+  <Flex 
+    alignItems="center" 
+    gap={8} 
+    padding={12}
+    style={{ 
+      background: 'var(--dt-colors-surface-default)',
+      borderRadius: 6,
+      border: '1px solid var(--dt-colors-border-neutral-default)'
+    }}
+  >
+    <span style={{ fontSize: 18 }}>{icon}</span>
+    <div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+    </div>
+  </Flex>
 );
 
 /**
@@ -80,72 +89,77 @@ const openEntityInServices = (entityId: string): void => {
   );
 };
 
-// Service Card Component with deep linking
-const ServiceCard: React.FC<{ 
+// Service Row Component - Compact table-style layout
+const ServiceRow: React.FC<{ 
   service: AIService; 
   onInvestigate: (name: string) => void 
 }> = ({ service, onInvestigate }) => {
   
   const handleOpenInServices = () => {
     if (service.entityId) {
-      // Use Dynatrace SDK navigation to open entity in Services app
       openEntityInServices(service.entityId);
     }
   };
 
   return (
-    <Surface>
-      <Flex padding={16} justifyContent="space-between" alignItems="center">
-        <Flex alignItems="center" gap={16}>
-          <HealthStatusBadge status={service.healthStatus} />
-          <div>
-            <Flex alignItems="center" gap={8}>
-              <Text style={{ fontWeight: 600 }}>{service.serviceName}</Text>
-              {service.entityId && (
-                <Button 
-                  variant="default" 
-                  onClick={handleOpenInServices}
-                  title="Open in Services app"
-                  style={{ padding: 4, minWidth: 'auto' }}
-                >
-                  <ExternalLinkIcon />
-                </Button>
-              )}
-            </Flex>
-            <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-              {service.modelName || 'Unknown model'} • {service.provider || 'Unknown provider'}
-            </Text>
-          </div>
-        </Flex>
-        
-        <Flex alignItems="center" gap={24}>
-          <div style={{ textAlign: 'right' }}>
-            <Text style={{ fontSize: 12, fontWeight: 600 }}>
-              {formatNumber(service.totalTokens)} tokens
-            </Text>
-            <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-              {Number(service.avgLatency || 0).toFixed(0)}ms avg
-            </Text>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <Text style={{ fontSize: 12, fontWeight: 600 }}>
-              {formatCurrency(service.estimatedCost)}
-            </Text>
-            <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-              {Number(service.errorRate || 0).toFixed(1)}% errors
-            </Text>
-          </div>
-          {service.entityId && (
-            <Button variant="default" onClick={handleOpenInServices}>
-              View in Services
-            </Button>
-          )}
-          <Button variant="accent" onClick={() => onInvestigate(service.serviceName)}>
-            Investigate
-          </Button>
-        </Flex>
+    <Flex 
+      padding={12} 
+      justifyContent="space-between" 
+      alignItems="center"
+      style={{ 
+        borderBottom: '1px solid var(--dt-colors-border-neutral-default)'
+      }}
+    >
+      <Flex alignItems="center" gap={12} style={{ flex: 2 }}>
+        <HealthStatusBadge status={service.healthStatus} />
+        <div>
+          <Flex alignItems="center" gap={6}>
+            <Text style={{ fontWeight: 600, fontSize: 13 }}>{service.serviceName}</Text>
+            {service.entityId && (
+              <Button 
+                variant="default"
+                onClick={handleOpenInServices}
+                title="Open in Services"
+                style={{ padding: 2, minWidth: 'auto' }}
+              >
+                <ExternalLinkIcon />
+              </Button>
+            )}
+          </Flex>
+          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+            {service.modelName || 'Unknown'} • {service.provider || 'Unknown'}
+          </Text>
+        </div>
       </Flex>
-    </Surface>
+      
+      <Flex alignItems="center" gap={20} style={{ flex: 2 }}>
+        <div style={{ textAlign: 'right', minWidth: 70 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.totalTokens)}</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>tokens</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 50 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{Number(service.avgLatency || 0).toFixed(0)}ms</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>latency</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 60 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(service.estimatedCost)}</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>cost</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 50 }}>
+          <div style={{ 
+            fontSize: 12, fontWeight: 600,
+            color: Number(service.errorRate || 0) > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
+          }}>
+            {Number(service.errorRate || 0).toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>errors</div>
+        </div>
+      </Flex>
+      
+      <Button variant="accent" onClick={() => onInvestigate(service.serviceName)}>
+        Investigate
+      </Button>
+    </Flex>
   );
 };
 
@@ -182,8 +196,8 @@ export const HealthDashboard: React.FC = () => {
   // Loading state
   if (loading) {
     return (
-      <Flex justifyContent="center" alignItems="center" style={{ height: '50vh' }}>
-        <Flex flexDirection="column" alignItems="center" gap={16}>
+      <Flex justifyContent="center" alignItems="center" style={{ height: '40vh' }}>
+        <Flex flexDirection="column" alignItems="center" gap={12}>
           <ProgressCircle />
           <Text>Discovering AI services...</Text>
         </Flex>
@@ -194,12 +208,12 @@ export const HealthDashboard: React.FC = () => {
   // Error state
   if (error) {
     return (
-      <Flex justifyContent="center" alignItems="center" style={{ height: '50vh' }}>
+      <Flex justifyContent="center" alignItems="center" style={{ height: '40vh' }}>
         <Surface>
-          <Flex padding={32} flexDirection="column" alignItems="center" gap={16}>
-            <span style={{ fontSize: 48 }}>⚠️</span>
-            <Heading level={4}>Error Loading Data</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+          <Flex padding={24} flexDirection="column" alignItems="center" gap={12}>
+            <span style={{ fontSize: 36 }}>⚠️</span>
+            <Heading level={5}>Error Loading Data</Heading>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
               {error.message}
             </Text>
             <Button variant="accent" onClick={refetch}>Retry</Button>
@@ -212,11 +226,11 @@ export const HealthDashboard: React.FC = () => {
   // Empty state
   if (!services || services.length === 0) {
     return (
-      <Flex flexDirection="column" gap={24} padding={24}>
+      <Flex flexDirection="column" gap={16} padding={16}>
         <Flex justifyContent="space-between" alignItems="center">
           <div>
-            <Heading level={3}>Health Dashboard</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+            <Heading level={4}>Health Dashboard</Heading>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
               Searching for AI services...
             </Text>
           </div>
@@ -232,19 +246,19 @@ export const HealthDashboard: React.FC = () => {
           availableModels={availableModels || []}
         />
 
-        <Flex justifyContent="center" alignItems="center" style={{ minHeight: '40vh' }}>
+        <Flex justifyContent="center" alignItems="center" style={{ minHeight: '35vh' }}>
           <Surface>
-            <Flex padding={32} flexDirection="column" alignItems="center" gap={16}>
-              <span style={{ fontSize: 48 }}>🔍</span>
-              <Heading level={4}>No AI Services Found</Heading>
+            <Flex padding={24} flexDirection="column" alignItems="center" gap={12}>
+              <span style={{ fontSize: 36 }}>🔍</span>
+              <Heading level={5}>No AI Services Found</Heading>
               <Text style={{ 
                 color: 'var(--dt-colors-text-secondary-default)', 
                 textAlign: 'center', 
-                maxWidth: 400 
+                maxWidth: 380,
+                fontSize: 13 
               }}>
-                No services with gen_ai.* attributes were detected in the selected time range. 
-                Try adjusting the time frame or ensure your AI services are instrumented with 
-                OpenTelemetry semantic conventions for GenAI.
+                No services with gen_ai.* attributes were detected. 
+                Adjust the time range or ensure your AI services are instrumented.
               </Text>
               <Button variant="accent" onClick={refetch}>Refresh</Button>
             </Flex>
@@ -257,17 +271,17 @@ export const HealthDashboard: React.FC = () => {
   const healthMetrics = calculateOverallHealth(services);
 
   return (
-    <Flex flexDirection="column" gap={24} padding={24}>
-      {/* Header */}
+    <Flex flexDirection="column" gap={16} padding={16}>
+      {/* Header - Compact */}
       <Flex justifyContent="space-between" alignItems="center">
         <div>
-          <Heading level={3}>Health Dashboard</Heading>
-          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            Auto-discovered {services.length} AI service{services.length !== 1 ? 's' : ''}
+          <Heading level={4}>Health Dashboard</Heading>
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
+            {services.length} AI service{services.length !== 1 ? 's' : ''} discovered
           </Text>
         </div>
         <Button variant="accent" onClick={() => navigate('/architect')}>
-          View Recommendations
+          Recommendations
         </Button>
       </Flex>
 
@@ -282,11 +296,22 @@ export const HealthDashboard: React.FC = () => {
         availableModels={availableModels || []}
       />
 
-      {/* Overall Health Status */}
-      <Surface>
-        <Flex alignItems="center" gap={16} padding={16}>
+      {/* Health Status + Metrics Row - Compact inline */}
+      <Flex gap={12} alignItems="stretch" flexWrap="wrap">
+        {/* Health Status */}
+        <Flex 
+          alignItems="center" 
+          gap={12} 
+          padding={12}
+          style={{ 
+            background: 'var(--dt-colors-surface-default)',
+            borderRadius: 6,
+            border: '1px solid var(--dt-colors-border-neutral-default)',
+            minWidth: 180
+          }}
+        >
           <HealthStatusBadge status={healthMetrics.overallHealth} size="large" />
-          <Text>
+          <Text style={{ fontSize: 12 }}>
             {healthMetrics.criticalCount > 0 && (
               <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
                 {healthMetrics.criticalCount} critical
@@ -299,73 +324,57 @@ export const HealthDashboard: React.FC = () => {
               </span>
             )}
             {healthMetrics.criticalCount === 0 && healthMetrics.warningCount === 0 && (
-              <span style={{ color: 'var(--dt-colors-feedback-success-default)' }}>
-                All services are healthy
-              </span>
+              <span style={{ color: 'var(--dt-colors-feedback-success-default)' }}>All healthy</span>
             )}
           </Text>
         </Flex>
-      </Surface>
 
-      {/* Summary Metrics */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-        gap: 16 
-      }}>
-        <MetricCard value={services.length} label="AI Services" icon="🤖" />
+        {/* Metrics - Compact */}
+        <MetricCard value={services.length} label="Services" icon="🤖" />
+        <MetricCard value={formatNumber(healthMetrics.totalTokensToday)} label="Tokens" icon="📊" />
+        <MetricCard value={formatCurrency(healthMetrics.totalCostToday)} label="Cost" icon="💰" />
+        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Latency" icon="⚡" />
         <MetricCard 
-          value={formatNumber(healthMetrics.totalTokensToday)} 
-          label="Total Tokens" 
-          icon="📊" 
-        />
-        <MetricCard 
-          value={formatCurrency(healthMetrics.totalCostToday)} 
-          label="Estimated Cost" 
-          icon="💰" 
-        />
-        <MetricCard 
-          value={`${healthMetrics.avgLatency.toFixed(0)}ms`} 
-          label="Avg Latency" 
-          icon="⚡" 
-        />
-        <MetricCard 
-          value={`${healthMetrics.avgErrorRate.toFixed(2)}%`} 
-          label="Avg Error Rate" 
+          value={`${healthMetrics.avgErrorRate.toFixed(1)}%`} 
+          label="Errors" 
           icon="❌"
           color={healthMetrics.avgErrorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : undefined}
         />
-      </div>
-
-      {/* Service List */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Heading level={5}>Discovered AI Services</Heading>
-        <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-          Sorted by token usage
-        </Text>
       </Flex>
 
-      <Flex flexDirection="column" gap={8}>
-        {services
-          .sort((a, b) => b.totalTokens - a.totalTokens)
-          .map((service, index) => (
-            <ServiceCard 
-              key={`${service.serviceName}-${service.modelName}-${index}`} 
-              service={service} 
-              onInvestigate={handleInvestigate} 
-            />
-          ))}
-      </Flex>
-
-      {/* Quick Actions */}
+      {/* Service List - Table Style */}
       <Surface>
-        <Flex padding={16} gap={16} alignItems="center" justifyContent="center">
-          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            Quick Actions:
-          </Text>
-          <Button onClick={() => navigate('/davis')}>Ask Davis AI</Button>
-          <Button onClick={() => navigate('/providers')}>Compare Providers</Button>
-          <Button onClick={() => navigate('/remediation')}>Remediation Actions</Button>
+        <Flex flexDirection="column">
+          {/* Table Header */}
+          <Flex 
+            padding={12} 
+            style={{ 
+              borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
+              background: 'var(--dt-colors-background-default-secondary)'
+            }}
+          >
+            <Text style={{ flex: 2, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>
+              Service
+            </Text>
+            <Flex style={{ flex: 2 }} gap={20}>
+              <Text style={{ textAlign: 'right', minWidth: 70, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</Text>
+              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</Text>
+              <Text style={{ textAlign: 'right', minWidth: 60, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Cost</Text>
+              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Errors</Text>
+            </Flex>
+            <div style={{ width: 90 }} />
+          </Flex>
+          
+          {/* Service Rows */}
+          {services
+            .sort((a, b) => b.totalTokens - a.totalTokens)
+            .map((service, index) => (
+              <ServiceRow 
+                key={`${service.serviceName}-${service.modelName}-${index}`} 
+                service={service} 
+                onInvestigate={handleInvestigate} 
+              />
+            ))}
         </Flex>
       </Surface>
     </Flex>

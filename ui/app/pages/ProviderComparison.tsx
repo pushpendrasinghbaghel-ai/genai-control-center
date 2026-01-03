@@ -8,7 +8,7 @@ import { useProviderComparison, useModelComparison, useDistinctServices, QueryFi
 import { FilterBar, FilterOptions } from '../components/FilterBar';
 import { formatNumber, formatCurrency, normalizeProviderName } from '../utils';
 
-// Provider Card Component
+// Provider Card Component - Compact
 const ProviderCard: React.FC<{
   provider: string;
   stats: {
@@ -32,7 +32,6 @@ const ProviderCard: React.FC<{
   const normalizedProvider = normalizeProviderName(provider);
   const color = providerColors[normalizedProvider] || 'var(--dt-colors-charts-categorical-default-1)';
   
-  // Safely convert all numeric values
   const totalRequests = Number(stats.totalRequests) || 0;
   const avgLatency = Number(stats.avgLatency) || 0;
   const errorRate = Number(stats.errorRate) || 0;
@@ -42,57 +41,55 @@ const ProviderCard: React.FC<{
   const barWidth = maxRequests > 0 ? (totalRequests / maxRequests) * 100 : 0;
 
   return (
-    <Surface>
-      <Flex padding={16} flexDirection="column" gap={12}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <Flex alignItems="center" gap={8}>
-            <div style={{ 
-              width: 12, height: 12, borderRadius: '50%', 
-              backgroundColor: color 
-            }} />
-            <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{provider}</span>
-          </Flex>
-          <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-            {formatNumber(totalRequests)} requests
-          </span>
+    <Flex 
+      padding={12} 
+      flexDirection="column" 
+      gap={8}
+      style={{ 
+        background: 'var(--dt-colors-surface-default)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-border-neutral-default)'
+      }}
+    >
+      <Flex justifyContent="space-between" alignItems="center">
+        <Flex alignItems="center" gap={6}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+          <span style={{ fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{provider}</span>
         </Flex>
-
-        {/* Request Bar */}
-        <div style={{ 
-          height: 8, borderRadius: 4, 
-          backgroundColor: 'var(--dt-colors-background-default-secondary)'
-        }}>
-          <div style={{ 
-            width: `${barWidth}%`, height: '100%', borderRadius: 4,
-            backgroundColor: color
-          }} />
-        </div>
-
-        {/* Stats Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{avgLatency.toFixed(0)}ms</span>
-            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Avg Latency</div>
-          </div>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{errorRate.toFixed(2)}%</span>
-            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Error Rate</div>
-          </div>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatNumber(totalTokens)}</span>
-            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</div>
-          </div>
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrency(estimatedCost)}</span>
-            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Est. Cost</div>
-          </div>
-        </div>
+        <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+          {formatNumber(totalRequests)} requests
+        </span>
       </Flex>
-    </Surface>
+
+      <div style={{ height: 6, borderRadius: 3, backgroundColor: 'var(--dt-colors-background-default-secondary)' }}>
+        <div style={{ width: `${barWidth}%`, height: '100%', borderRadius: 3, backgroundColor: color }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{avgLatency.toFixed(0)}ms</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Latency</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit' }}>
+            {errorRate.toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Errors</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{formatNumber(totalTokens)}</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{formatCurrency(estimatedCost)}</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Cost</div>
+        </div>
+      </div>
+    </Flex>
   );
 };
 
-// Model Table Component
+// Model Table Component - Compact
 const ModelTable: React.FC<{
   models: Array<{
     modelName: string;
@@ -105,7 +102,7 @@ const ModelTable: React.FC<{
 }> = ({ models }) => {
   if (!models || models.length === 0) {
     return (
-      <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+      <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>
         No model data available
       </span>
     );
@@ -116,12 +113,12 @@ const ModelTable: React.FC<{
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--dt-colors-border-default)' }}>
-            <th style={{ textAlign: 'left', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Model</th>
-            <th style={{ textAlign: 'left', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Provider</th>
-            <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Requests</th>
-            <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Avg Latency</th>
-            <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Avg Tokens</th>
-            <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12, fontWeight: 600 }}>Error Rate</th>
+            <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Model</th>
+            <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Provider</th>
+            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Requests</th>
+            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</th>
+            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</th>
+            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Errors</th>
           </tr>
         </thead>
         <tbody>
@@ -133,16 +130,16 @@ const ModelTable: React.FC<{
             
             return (
               <tr key={index} style={{ borderBottom: '1px solid var(--dt-colors-border-default)' }}>
-                <td style={{ padding: '12px 8px', fontWeight: 500 }}>{model.modelName}</td>
-                <td style={{ padding: '12px 8px', textTransform: 'capitalize' }}>{model.provider}</td>
-                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(requestCount)}</td>
-                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{avgLatency.toFixed(0)}ms</td>
-                <td style={{ padding: '12px 8px', textAlign: 'right' }}>{formatNumber(avgTokens)}</td>
+                <td style={{ padding: '8px 6px', fontWeight: 500, fontSize: 12 }}>{model.modelName}</td>
+                <td style={{ padding: '8px 6px', textTransform: 'capitalize', fontSize: 12 }}>{model.provider}</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right', fontSize: 12 }}>{formatNumber(requestCount)}</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right', fontSize: 12 }}>{avgLatency.toFixed(0)}ms</td>
+                <td style={{ padding: '8px 6px', textAlign: 'right', fontSize: 12 }}>{formatNumber(avgTokens)}</td>
                 <td style={{ 
-                  padding: '12px 8px', textAlign: 'right',
+                  padding: '8px 6px', textAlign: 'right', fontSize: 12,
                   color: errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
                 }}>
-                  {errorRate.toFixed(2)}%
+                  {errorRate.toFixed(1)}%
                 </td>
               </tr>
             );
@@ -193,13 +190,13 @@ export const ProviderComparison: React.FC = () => {
   }), { requests: 0, tokens: 0, cost: 0 });
 
   return (
-    <Flex flexDirection="column" gap={24} padding={24}>
+    <Flex flexDirection="column" gap={16} padding={16}>
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
         <div>
-          <Heading level={3}>Provider Comparison</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            Unified governance view across all AI providers
+          <Heading level={4}>Provider Comparison</Heading>
+          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
+            Unified governance view across AI providers
           </span>
         </div>
       </Flex>
@@ -211,64 +208,52 @@ export const ProviderComparison: React.FC = () => {
         onRefresh={handleRefresh}
       />
 
-      {/* Summary Stats */}
+      {/* Summary Stats - Compact inline */}
       {totals && (
-        <Surface>
-          <Flex padding={24} gap={48} justifyContent="center">
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 32, fontWeight: 700 }}>
-                {providerData?.length || 0}
-              </span>
-              <div style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)' }}>
-                Providers
-              </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 32, fontWeight: 700 }}>
-                {formatNumber(totals.requests)}
-              </span>
-              <div style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)' }}>
-                Total Requests
-              </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 32, fontWeight: 700 }}>
-                {formatNumber(totals.tokens)}
-              </span>
-              <div style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)' }}>
-                Total Tokens
-              </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: 32, fontWeight: 700 }}>
-                {formatCurrency(totals.cost)}
-              </span>
-              <div style={{ fontSize: 14, color: 'var(--dt-colors-text-secondary-default)' }}>
-                Estimated Cost
-              </div>
-            </div>
-          </Flex>
-        </Surface>
+        <Flex gap={24} padding={12} alignItems="center" style={{
+          background: 'var(--dt-colors-surface-default)',
+          borderRadius: 6,
+          border: '1px solid var(--dt-colors-border-neutral-default)'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{providerData?.length || 0}</div>
+            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Providers</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{formatNumber(totals.requests)}</div>
+            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Requests</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{formatNumber(totals.tokens)}</div>
+            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{formatCurrency(totals.cost)}</div>
+            <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Cost</div>
+          </div>
+        </Flex>
       )}
 
       {/* Provider Cards */}
-      <Flex flexDirection="column" gap={16}>
-        <Heading level={5}>Providers</Heading>
+      <div>
+        <Heading level={6} style={{ marginBottom: 8 }}>Providers</Heading>
         {loading ? (
-          <Flex justifyContent="center" padding={32}>
+          <Flex justifyContent="center" padding={24}>
             <ProgressCircle />
           </Flex>
         ) : !providerData || providerData.length === 0 ? (
-          <Surface>
-            <Flex padding={32} justifyContent="center" alignItems="center" flexDirection="column" gap={16}>
-              <span style={{ fontSize: 48 }}>📊</span>
-              <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                No provider data available for the selected time range
-              </span>
-            </Flex>
-          </Surface>
+          <Flex padding={24} justifyContent="center" alignItems="center" flexDirection="column" gap={12} style={{
+            background: 'var(--dt-colors-surface-default)',
+            borderRadius: 6,
+            border: '1px solid var(--dt-colors-border-neutral-default)'
+          }}>
+            <span style={{ fontSize: 36 }}>📊</span>
+            <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
+              No provider data available
+            </span>
+          </Flex>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
             {providerData.map(provider => (
               <ProviderCard
                 key={provider.provider}
@@ -285,14 +270,14 @@ export const ProviderComparison: React.FC = () => {
             ))}
           </div>
         )}
-      </Flex>
+      </div>
 
       {/* Model Comparison Table */}
       <Surface>
-        <Flex flexDirection="column" gap={16} padding={16}>
-          <Heading level={5}>Model Performance</Heading>
+        <Flex flexDirection="column" gap={12} padding={12}>
+          <Heading level={6}>Model Performance</Heading>
           {loadingModels ? (
-            <Flex justifyContent="center" padding={16}>
+            <Flex justifyContent="center" padding={12}>
               <ProgressCircle />
             </Flex>
           ) : (

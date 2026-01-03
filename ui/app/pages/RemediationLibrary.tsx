@@ -10,7 +10,7 @@ import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { useRemediation, useRemediationActions, useAIServicesDiscovery } from '../hooks';
 import type { RemediationAction, WorkflowExecution } from '../types';
 
-// Action Card Component
+// Action Card Component - Compact
 const ActionCard: React.FC<{
   action: RemediationAction;
   onExecute: (action: RemediationAction) => void;
@@ -25,90 +25,95 @@ const ActionCard: React.FC<{
   };
 
   return (
-    <Surface>
-      <Flex 
-        flexDirection="column" 
-        padding={16} 
-        gap={12}
-        style={{ 
-          borderLeft: action.isDestructive 
-            ? '4px solid var(--dt-colors-feedback-critical-default)' 
-            : '4px solid var(--dt-colors-charts-categorical-default-1)'
-        }}
-      >
-        <Flex alignItems="center" gap={12}>
-          <span style={{ fontSize: 28 }}>{icons[action.type] || '🔧'}</span>
-          <div style={{ flex: 1 }}>
-            <Flex alignItems="center" gap={8}>
-              <span style={{ fontWeight: 600 }}>{action.name}</span>
-              {action.isDestructive && (
-                <span style={{ 
-                  fontSize: 10, padding: '2px 6px', 
-                  background: 'var(--dt-colors-feedback-critical-subtle)',
-                  color: 'var(--dt-colors-feedback-critical-default)',
-                  borderRadius: 4, textTransform: 'uppercase', fontWeight: 600
-                }}>
-                  Destructive
-                </span>
-              )}
-            </Flex>
-          </div>
-        </Flex>
-        <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-          {action.description}
-        </span>
-        <Flex justifyContent="flex-end">
-          <Button 
-            color={action.isDestructive ? 'critical' : 'primary'}
-            onClick={() => onExecute(action)}
-          >
-            Configure & Execute
-          </Button>
-        </Flex>
+    <Flex 
+      flexDirection="column" 
+      padding={12} 
+      gap={8}
+      style={{ 
+        background: 'var(--dt-colors-surface-default)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-border-neutral-default)',
+        borderLeft: action.isDestructive 
+          ? '3px solid var(--dt-colors-feedback-critical-default)' 
+          : '3px solid var(--dt-colors-charts-categorical-default-1)'
+      }}
+    >
+      <Flex alignItems="center" gap={8}>
+        <span style={{ fontSize: 20 }}>{icons[action.type] || '🔧'}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{action.name}</span>
+        {action.isDestructive && (
+          <span style={{ 
+            fontSize: 9, padding: '2px 5px', 
+            background: 'var(--dt-colors-feedback-critical-subtle)',
+            color: 'var(--dt-colors-feedback-critical-default)',
+            borderRadius: 3, textTransform: 'uppercase', fontWeight: 600
+          }}>
+            Destructive
+          </span>
+        )}
       </Flex>
-    </Surface>
+      <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>
+        {action.description}
+      </span>
+      <Flex justifyContent="flex-end">
+        <Button 
+          color={action.isDestructive ? 'critical' : 'primary'}
+          onClick={() => onExecute(action)}
+        >
+          Configure
+        </Button>
+      </Flex>
+    </Flex>
   );
 };
 
-// Execution History Component
+// Execution History Component - Compact
 const ExecutionHistory: React.FC<{ executions: WorkflowExecution[] }> = ({ executions }) => {
   if (executions.length === 0) {
     return (
-      <span style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 16 }}>
+      <span style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 12, fontSize: 12 }}>
         No executions yet.
       </span>
     );
   }
 
   return (
-    <Flex flexDirection="column" gap={8}>
+    <Flex flexDirection="column" gap={6}>
       {executions.map(execution => (
-        <Surface key={execution.id}>
-          <Flex padding={12} justifyContent="space-between" alignItems="center">
-            <Flex alignItems="center" gap={12}>
-              <span style={{ 
-                fontSize: 12, padding: '4px 8px', borderRadius: 4,
-                background: execution.status === 'completed' 
-                  ? 'var(--dt-colors-feedback-success-subtle)'
-                  : execution.status === 'failed'
-                    ? 'var(--dt-colors-feedback-critical-subtle)'
-                    : 'var(--dt-colors-feedback-info-subtle)',
-                color: execution.status === 'completed'
-                  ? 'var(--dt-colors-feedback-success-default)'
-                  : execution.status === 'failed'
-                    ? 'var(--dt-colors-feedback-critical-default)'
-                    : 'var(--dt-colors-feedback-info-default)',
-                textTransform: 'uppercase', fontWeight: 600
-              }}>
-                {execution.status}
-              </span>
-              <span>{execution.workflowId}</span>
-            </Flex>
-            <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
-              {execution.startTime.toLocaleTimeString()}
+        <Flex 
+          key={execution.id} 
+          padding={8} 
+          justifyContent="space-between" 
+          alignItems="center"
+          style={{
+            background: 'var(--dt-colors-surface-default)',
+            borderRadius: 4,
+            border: '1px solid var(--dt-colors-border-neutral-default)'
+          }}
+        >
+          <Flex alignItems="center" gap={8}>
+            <span style={{ 
+              fontSize: 10, padding: '3px 6px', borderRadius: 3,
+              background: execution.status === 'completed' 
+                ? 'var(--dt-colors-feedback-success-subtle)'
+                : execution.status === 'failed'
+                  ? 'var(--dt-colors-feedback-critical-subtle)'
+                  : 'var(--dt-colors-feedback-info-subtle)',
+              color: execution.status === 'completed'
+                ? 'var(--dt-colors-feedback-success-default)'
+                : execution.status === 'failed'
+                  ? 'var(--dt-colors-feedback-critical-default)'
+                  : 'var(--dt-colors-feedback-info-default)',
+              textTransform: 'uppercase', fontWeight: 600
+            }}>
+              {execution.status}
             </span>
+            <span style={{ fontSize: 12 }}>{execution.workflowId}</span>
           </Flex>
-        </Surface>
+          <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+            {execution.startTime.toLocaleTimeString()}
+          </span>
+        </Flex>
       ))}
     </Flex>
   );
@@ -152,37 +157,38 @@ export const RemediationLibrary: React.FC = () => {
   };
 
   return (
-    <Flex flexDirection="column" gap={24} padding={24}>
+    <Flex flexDirection="column" gap={16} padding={16}>
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
         <div>
-          <Heading level={3}>Remediation Library</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+          <Heading level={4}>Remediation Library</Heading>
+          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
             One-click automation actions for AI service issues
           </span>
         </div>
       </Flex>
 
-      {/* Warning Banner */}
-      <Surface>
-        <Flex padding={16} alignItems="center" gap={12}>
-          <span style={{ fontSize: 24 }}>⚠️</span>
-          <div>
-            <span style={{ fontWeight: 600 }}>Important Safety Information</span>
-            <div style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-              Destructive actions (marked in red) can impact production services. 
-              Always verify the target service before executing.
-            </div>
-          </div>
-        </Flex>
-      </Surface>
+      {/* Warning Banner - Compact */}
+      <Flex padding={12} alignItems="center" gap={8} style={{
+        background: 'var(--dt-colors-feedback-warning-subtle)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-feedback-warning-default)'
+      }}>
+        <span style={{ fontSize: 18 }}>⚠️</span>
+        <div>
+          <span style={{ fontWeight: 600, fontSize: 12 }}>Safety Notice</span>
+          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, marginLeft: 6 }}>
+            Destructive actions (red) can impact production. Verify target before executing.
+          </span>
+        </div>
+      </Flex>
 
       {/* Two Column Layout */}
-      <Flex gap={24}>
+      <Flex gap={16}>
         {/* Actions Grid */}
-        <Flex flexDirection="column" gap={16} style={{ flex: 2 }}>
-          <Heading level={5}>Available Actions</Heading>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+        <Flex flexDirection="column" gap={12} style={{ flex: 2 }}>
+          <Heading level={6}>Available Actions</Heading>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
             {actions.map(action => (
               <ActionCard key={action.id} action={action} onExecute={handleExecute} />
             ))}
@@ -190,8 +196,8 @@ export const RemediationLibrary: React.FC = () => {
         </Flex>
 
         {/* Execution History */}
-        <Flex flexDirection="column" gap={16} style={{ flex: 1 }}>
-          <Heading level={5}>Execution History</Heading>
+        <Flex flexDirection="column" gap={12} style={{ flex: 1, minWidth: 220 }}>
+          <Heading level={6}>Execution History</Heading>
           <ExecutionHistory executions={executions} />
         </Flex>
       </Flex>
