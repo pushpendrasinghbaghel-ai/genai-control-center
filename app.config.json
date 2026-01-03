@@ -1,10 +1,10 @@
 {
   "$schema": "./.dt-app/app.config.schema.json",
-  "environmentUrl": "https://ihh1992h.sprint.apps.dynatracelabs.com/",
+  "environmentUrl": "https://guu84124.apps.dynatrace.com/",
   "app": {
     "name": "GenAI Control Center",
     "version": "1.0.0",
-    "description": "Proactive AI Service Management - Health Dashboard, AI Architect, Davis Assistant & Remediation Library",
+    "description": "Unified GenAI observability: Health, AI Architect, Davis Assistant & Remediation",
     "id": "my.genai.control.center",
     "scopes": [
       { "name": "storage:logs:read", "comment": "Read logs for AI service analysis" },
