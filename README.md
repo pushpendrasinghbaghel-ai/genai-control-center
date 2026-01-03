@@ -136,6 +136,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Built with ❤️ by the GenAI Observability Team**
+**Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
 *Version 1.0.0 | © 2026*
+
+---
+
+## ⚠️ Disclaimer
+
+This application is provided "as is" without warranty of any kind, express or implied. The author(s) and contributor(s) are not liable for any claims, damages, or other liability arising from the use of this software. This project is a personal initiative and does not represent the views, policies, or endorsements of any employer, organization, or affiliated entity. Use at your own risk.
