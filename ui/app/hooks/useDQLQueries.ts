@@ -19,6 +19,37 @@ import { estimateCost, calculateHealthStatus } from '../utils';
 
 export type { QueryFilters } from '../queries/dql-queries';
 
+/**
+ * Derive provider name from model name when gen_ai.system is null
+ */
+function deriveProviderFromModel(modelName: string): string {
+  const lower = modelName.toLowerCase();
+  
+  // OpenAI / Azure OpenAI models
+  if (lower.includes('gpt-') || lower.includes('text-embedding') || lower.includes('ada')) {
+    return 'OpenAI';
+  }
+  // Anthropic Claude models
+  if (lower.includes('claude')) {
+    return 'Anthropic';
+  }
+  // Google models
+  if (lower.includes('gemini') || lower.includes('gecko')) {
+    return 'Google';
+  }
+  // Amazon Bedrock / Titan models
+  if (lower.includes('titan') || lower.includes('amazon.')) {
+    return 'Amazon Bedrock';
+  }
+  // Ollama / local models
+  if (lower.includes('llama') || lower.includes('mistral') || lower.includes('orca') || lower.includes('deepseek')) {
+    return 'Ollama';
+  }
+  // Default - use the model name prefix as provider
+  const parts = modelName.split(/[-:]/);
+  return parts[0] || 'Unknown';
+}
+
 interface UseQueryResult<T> {
   data: T | null;
   loading: boolean;
@@ -84,16 +115,21 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
       const promptTokens = Number(record.prompt_tokens || tokens * 0.3);
       const completionTokens = Number(record.completion_tokens || tokens * 0.7);
       
+      // Use gen_ai.request.model as primary, fall back to gen_ai.model_name or gen_ai.system
+      const modelName = record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown';
+      // Prefer gen_ai.provider.name, then gen_ai.system, then derive from model name
+      const provider = record['gen_ai.provider.name'] || record['gen_ai.system'] || deriveProviderFromModel(modelName);
+      
       return {
         serviceName: record['service.name'] || 'Unknown',
-        modelName: record['gen_ai.model_name'] || 'Unknown',
-        provider: record['gen_ai.system'] || 'Unknown',
+        modelName: modelName,
+        provider: provider,
         totalTokens: tokens,
         avgLatency: latencyMs,
         errorRate: errorRate,
         requestCount: Number(record.request_count || 0),
         estimatedCost: estimateCost(
-          record['gen_ai.system'] || 'default',
+          provider,
           promptTokens,
           completionTokens
         ),
@@ -114,20 +150,28 @@ export function useProviderComparison(filters?: QueryFilters) {
   const query = useMemo(() => PROVIDER_COMPARISON_QUERY(filters), [filters]);
   
   const transform = useCallback((records: unknown[]) => {
-    return records.map((record: any) => ({
-      provider: record['gen_ai.system'] || 'Unknown',
-      models: record.models || [],
-      totalRequests: record.total_requests || 0,
-      avgLatency: (record.avg_latency || 0) / 1_000_000,
-      errorRate: record.error_rate || 0,
-      totalTokens: record.total_tokens || 0,
-      successRate: record.success_rate || 0,
-      estimatedCost: estimateCost(
-        record['gen_ai.system'] || 'default',
-        record.total_tokens * 0.3,
-        record.total_tokens * 0.7
-      )
-    }));
+    return records.map((record: any) => {
+      // The query now groups by coalesce(gen_ai.provider.name, gen_ai.system, gen_ai.request.model)
+      const provider = record['coalesce(gen_ai.provider.name, gen_ai.system, gen_ai.request.model)'] || 
+                       record['gen_ai.provider.name'] || 
+                       record['gen_ai.system'] || 
+                       record['gen_ai.request.model'] || 
+                       'Unknown';
+      return {
+        provider: provider,
+        models: record.models || [],
+        totalRequests: record.total_requests || 0,
+        avgLatency: (record.avg_latency || 0) / 1_000_000,
+        errorRate: record.error_rate || 0,
+        totalTokens: record.total_tokens || 0,
+        successRate: record.success_rate || 0,
+        estimatedCost: estimateCost(
+          provider,
+          record.total_tokens * 0.3,
+          record.total_tokens * 0.7
+        )
+      };
+    });
   }, []);
 
   return useDQLQuery(query, transform);
@@ -140,14 +184,18 @@ export function useModelComparison(filters?: QueryFilters) {
   const query = useMemo(() => MODEL_COMPARISON_QUERY(filters), [filters]);
   
   const transform = useCallback((records: unknown[]) => {
-    return records.map((record: any) => ({
-      modelName: record['gen_ai.model_name'] || 'Unknown',
-      provider: record['gen_ai.system'] || 'Unknown',
-      avgLatency: (record.avg_latency || 0) / 1_000_000,
-      avgTokensPerRequest: record.avg_tokens || 0,
-      errorRate: record.error_rate || 0,
-      requestCount: record.request_count || 0
-    }));
+    return records.map((record: any) => {
+      const modelName = record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown';
+      const provider = record['gen_ai.system'] || deriveProviderFromModel(modelName);
+      return {
+        modelName: modelName,
+        provider: provider,
+        avgLatency: (record.avg_latency || 0) / 1_000_000,
+        avgTokensPerRequest: record.avg_tokens || 0,
+        errorRate: record.error_rate || 0,
+        requestCount: record.request_count || 0
+      };
+    });
   }, []);
 
   return useDQLQuery(query, transform);
@@ -162,7 +210,7 @@ export function useHighLatencyServices(filters?: QueryFilters) {
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => ({
       serviceName: record['service.name'] || 'Unknown',
-      modelName: record['gen_ai.model_name'] || 'Unknown',
+      modelName: record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown',
       slowRequests: record.slow_requests || 0,
       avgDuration: (record.avg_duration || 0) / 1_000_000,
       maxDuration: (record.max_duration || 0) / 1_000_000

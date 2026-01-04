@@ -58,73 +58,73 @@ async function analyzeWithDQL(query: string, serviceName?: string): Promise<stri
     if (query.toLowerCase().includes('health') || query.toLowerCase().includes('check')) {
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
         | summarize {
-            tokens = sum(gen_ai.usage.total_tokens),
+            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
             latency_ms = avg(duration) / 1000000,
             error_rate = countIf(status.code == "ERROR") / count() * 100,
             request_count = count()
-          }, by: { service.name, gen_ai.model_name, gen_ai.system }
+          }, by: { service.name, gen_ai.request.model }
         | sort error_rate desc
         | limit 20
       `;
     } else if (query.toLowerCase().includes('cost')) {
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
         | summarize {
-            total_tokens = sum(gen_ai.usage.total_tokens),
-            prompt_tokens = sum(gen_ai.usage.prompt_tokens),
-            completion_tokens = sum(gen_ai.usage.completion_tokens)
-          }, by: { service.name, gen_ai.system }
+            total_tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
+            prompt_tokens = sum(coalesce(gen_ai.usage.prompt_tokens, gen_ai.usage.input_tokens, 0)),
+            completion_tokens = sum(coalesce(gen_ai.usage.completion_tokens, gen_ai.usage.output_tokens, 0))
+          }, by: { service.name, gen_ai.request.model }
         | sort total_tokens desc
       `;
     } else if (query.toLowerCase().includes('latency') || query.toLowerCase().includes('slow')) {
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
         ${serviceName ? `| filter service.name == "${serviceName}"` : ''}
         | summarize {
             avg_latency = avg(duration) / 1000000,
             p95_latency = percentile(duration, 95) / 1000000,
             p99_latency = percentile(duration, 99) / 1000000,
             slow_count = countIf(duration > 5000000000)
-          }, by: { service.name, gen_ai.model_name }
+          }, by: { service.name, gen_ai.request.model }
         | sort p99_latency desc
       `;
     } else if (query.toLowerCase().includes('error') || query.toLowerCase().includes('429')) {
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
-        | filter status.code == "ERROR"
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
+        | filter status.code == "ERROR" OR contains(status.message, "429")
         ${serviceName ? `| filter service.name == "${serviceName}"` : ''}
-        | summarize error_count = count(), by: { service.name, gen_ai.system, status.message }
+        | summarize error_count = count(), by: { service.name, gen_ai.request.model, status.message }
         | sort error_count desc
         | limit 20
       `;
     } else if (query.toLowerCase().includes('provider') || query.toLowerCase().includes('compare')) {
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
         | summarize {
             requests = count(),
             avg_latency = avg(duration) / 1000000,
             success_rate = countIf(status.code == "OK") / count() * 100,
-            tokens = sum(gen_ai.usage.total_tokens)
-          }, by: { gen_ai.system }
+            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0)))
+          }, by: { gen_ai.request.model }
         | sort requests desc
       `;
     } else {
       // Default: general overview
       dqlQuery = `
         fetch spans
-        | filter isNotNull(gen_ai.system)
+        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
         | summarize {
-            tokens = sum(gen_ai.usage.total_tokens),
+            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
             latency = avg(duration) / 1000000,
             error_rate = countIf(status.code == "ERROR") / count() * 100,
             requests = count()
-          }, by: { service.name, gen_ai.model_name }
+          }, by: { service.name, gen_ai.request.model }
         | sort tokens desc
         | limit 10
       `;
@@ -159,7 +159,7 @@ async function analyzeWithDQL(query: string, serviceName?: string): Promise<stri
       if (critical.length > 0) {
         analysis += `### Critical Services\n`;
         critical.forEach((r: any) => {
-          analysis += `- **${r['service.name']}** (${r['gen_ai.model_name']}): ${(r.error_rate || 0).toFixed(1)}% error rate\n`;
+          analysis += `- **${r['service.name']}** (${r['gen_ai.request.model'] || 'unknown'}): ${(r.error_rate || 0).toFixed(1)}% error rate\n`;
         });
       }
     } else if (query.toLowerCase().includes('cost')) {
@@ -177,7 +177,7 @@ async function analyzeWithDQL(query: string, serviceName?: string): Promise<stri
     } else if (query.toLowerCase().includes('provider') || query.toLowerCase().includes('compare')) {
       analysis += `### Provider Comparison\n\n`;
       records.forEach((r: any, i: number) => {
-        analysis += `${i + 1}. **${r['gen_ai.system']}**\n`;
+        analysis += `${i + 1}. **${r['gen_ai.request.model'] || 'unknown'}**\n`;
         analysis += `   - Requests: ${(r.requests || 0).toLocaleString()}\n`;
         analysis += `   - Avg Latency: ${(r.avg_latency || 0).toFixed(0)}ms\n`;
         analysis += `   - Success Rate: ${(r.success_rate || 0).toFixed(1)}%\n\n`;
@@ -185,7 +185,7 @@ async function analyzeWithDQL(query: string, serviceName?: string): Promise<stri
     } else {
       analysis += `### Service Data\n`;
       records.slice(0, 5).forEach((r: any) => {
-        analysis += `- **${r['service.name']}** (${r['gen_ai.model_name'] || 'unknown'})\n`;
+        analysis += `- **${r['service.name']}** (${r['gen_ai.request.model'] || 'unknown'})\n`;
         if (r.tokens) analysis += `  - Tokens: ${(r.tokens || 0).toLocaleString()}\n`;
         if (r.latency) analysis += `  - Latency: ${(r.latency || 0).toFixed(0)}ms\n`;
         if (r.error_rate !== undefined) analysis += `  - Error Rate: ${(r.error_rate || 0).toFixed(1)}%\n`;
