@@ -15,7 +15,10 @@
       { "name": "storage:filter-segments:write", "comment": "Write filter segments for SegmentSelector" },
       { "name": "storage:entities:read", "comment": "Read entities for filtering" },
       { "name": "automation:workflows:read", "comment": "Read workflow definitions" },
-      { "name": "automation:workflows:run", "comment": "Execute remediation workflows" }
+      { "name": "automation:workflows:run", "comment": "Execute remediation workflows" },
+      { "name": "davis-copilot:nl2dql:execute", "comment": "Convert natural language to DQL queries" },
+      { "name": "davis-copilot:dql2nl:execute", "comment": "Explain DQL queries in natural language" },
+      { "name": "davis-copilot:conversations:execute", "comment": "Davis CoPilot conversation recommender" }
     ]
   }
 }

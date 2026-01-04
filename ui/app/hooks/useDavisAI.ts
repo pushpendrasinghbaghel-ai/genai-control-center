@@ -1,6 +1,8 @@
 // Davis AI Integration Hook for GenAI Control Center
+// Using real Davis CoPilot SDK for natural language processing
 
 import { useState, useCallback } from 'react';
+import { publicClient } from '@dynatrace-sdk/client-davis-copilot';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { ConversationMessage } from '../types';
 import { generateId } from '../utils';
@@ -47,154 +49,169 @@ export const INVESTIGATION_PROMPTS = {
 };
 
 /**
- * Analyze service data using DQL and generate insights
+ * Analyze query using Davis CoPilot NL2DQL to generate DQL from natural language
+ * Then execute the DQL and explain results using DQL2NL
  */
-async function analyzeWithDQL(query: string, serviceName?: string): Promise<string> {
+async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Promise<string> {
   try {
-    let dqlQuery = '';
-    let analysis = '';
+    // Add context about GenAI monitoring to help Davis understand
+    const enhancedQuery = serviceName 
+      ? `For GenAI service "${serviceName}": ${query}. Focus on gen_ai spans with OpenTelemetry semantic conventions (gen_ai.usage.total_tokens, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, gen_ai.request.model, gen_ai.system).`
+      : `For GenAI/AI observability: ${query}. Query gen_ai spans using OpenTelemetry semantic conventions (gen_ai.usage.total_tokens, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, gen_ai.request.model, gen_ai.system).`;
 
-    // Build DQL query based on user intent
-    if (query.toLowerCase().includes('health') || query.toLowerCase().includes('check')) {
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        | summarize {
-            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
-            latency_ms = avg(duration) / 1000000,
-            error_rate = countIf(status.code == "ERROR") / count() * 100,
-            request_count = count()
-          }, by: { service.name, gen_ai.request.model }
-        | sort error_rate desc
-        | limit 20
-      `;
-    } else if (query.toLowerCase().includes('cost')) {
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        | summarize {
-            total_tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
-            prompt_tokens = sum(coalesce(gen_ai.usage.prompt_tokens, gen_ai.usage.input_tokens, 0)),
-            completion_tokens = sum(coalesce(gen_ai.usage.completion_tokens, gen_ai.usage.output_tokens, 0))
-          }, by: { service.name, gen_ai.request.model }
-        | sort total_tokens desc
-      `;
-    } else if (query.toLowerCase().includes('latency') || query.toLowerCase().includes('slow')) {
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        ${serviceName ? `| filter service.name == "${serviceName}"` : ''}
-        | summarize {
-            avg_latency = avg(duration) / 1000000,
-            p95_latency = percentile(duration, 95) / 1000000,
-            p99_latency = percentile(duration, 99) / 1000000,
-            slow_count = countIf(duration > 5000000000)
-          }, by: { service.name, gen_ai.request.model }
-        | sort p99_latency desc
-      `;
-    } else if (query.toLowerCase().includes('error') || query.toLowerCase().includes('429')) {
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        | filter status.code == "ERROR" OR contains(status.message, "429")
-        ${serviceName ? `| filter service.name == "${serviceName}"` : ''}
-        | summarize error_count = count(), by: { service.name, gen_ai.request.model, status.message }
-        | sort error_count desc
-        | limit 20
-      `;
-    } else if (query.toLowerCase().includes('provider') || query.toLowerCase().includes('compare')) {
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        | summarize {
-            requests = count(),
-            avg_latency = avg(duration) / 1000000,
-            success_rate = countIf(status.code == "OK") / count() * 100,
-            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0)))
-          }, by: { gen_ai.request.model }
-        | sort requests desc
-      `;
-    } else {
-      // Default: general overview
-      dqlQuery = `
-        fetch spans
-        | filter isNotNull(gen_ai.system) OR isNotNull(gen_ai.request.model)
-        | summarize {
-            tokens = sum(coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))),
-            latency = avg(duration) / 1000000,
-            error_rate = countIf(status.code == "ERROR") / count() * 100,
-            requests = count()
-          }, by: { service.name, gen_ai.request.model }
-        | sort tokens desc
-        | limit 10
-      `;
-    }
-
-    // Execute DQL query
-    const response = await queryExecutionClient.queryExecute({
+    // Step 1: Use Davis CoPilot NL2DQL to convert natural language to DQL
+    const nl2dqlResponse = await publicClient.nl2dql({
       body: {
-        query: dqlQuery,
-        requestTimeoutMilliseconds: 60000,
-        fetchTimeoutSeconds: 60
+        text: enhancedQuery
       }
     });
 
-    const records = response.result?.records || [];
-
-    if (records.length === 0) {
-      return `No data found for your query. Make sure your AI services are instrumented with OpenTelemetry gen_ai.* semantic conventions.`;
+    if (nl2dqlResponse.status === 'FAILED') {
+      // Fall back to conversation mode if DQL generation fails
+      return await askDavisCoPilotConversation(query, serviceName);
     }
 
-    analysis = `## Analysis Results\n\nI found ${records.length} relevant data points.\n\n`;
+    const generatedDQL = nl2dqlResponse.dql;
 
-    if (query.toLowerCase().includes('health')) {
-      const critical = records.filter((r: any) => (r.error_rate || 0) > 5);
-      const warning = records.filter((r: any) => (r.error_rate || 0) > 1 && (r.error_rate || 0) <= 5);
-      
-      analysis += `### Health Overview\n`;
-      analysis += `- 🔴 **Critical issues**: ${critical.length} services with error rate > 5%\n`;
-      analysis += `- 🟡 **Warnings**: ${warning.length} services with elevated error rates\n`;
-      analysis += `- ✅ **Healthy**: ${records.length - critical.length - warning.length} services\n\n`;
+    // Step 2: Execute the generated DQL
+    let queryResult;
+    try {
+      queryResult = await queryExecutionClient.queryExecute({
+        body: {
+          query: generatedDQL,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60
+        }
+      });
+    } catch (queryError) {
+      // If query fails, provide the DQL and explain what was attempted
+      return `## Davis CoPilot Analysis\n\n` +
+        `I generated the following DQL query based on your request:\n\n` +
+        `\`\`\`\n${generatedDQL}\n\`\`\`\n\n` +
+        `However, the query couldn't be executed. This might be because:\n` +
+        `- No gen_ai spans are being ingested yet\n` +
+        `- The attribute names differ from standard OpenTelemetry semantic conventions\n\n` +
+        `**Suggestion**: Ensure your AI services are instrumented with OpenTelemetry gen_ai.* attributes.`;
+    }
 
-      if (critical.length > 0) {
-        analysis += `### Critical Services\n`;
-        critical.forEach((r: any) => {
-          analysis += `- **${r['service.name']}** (${r['gen_ai.request.model'] || 'unknown'}): ${(r.error_rate || 0).toFixed(1)}% error rate\n`;
-        });
-      }
-    } else if (query.toLowerCase().includes('cost')) {
-      let totalTokens = 0;
-      records.forEach((r: any) => totalTokens += (r.total_tokens || 0));
-      const estimatedCost = (totalTokens / 1000) * 0.01;
-      
-      analysis += `### Token Usage Summary\n`;
-      analysis += `- **Total tokens**: ${totalTokens.toLocaleString()}\n`;
-      analysis += `- **Estimated cost**: $${estimatedCost.toFixed(2)}\n\n`;
-      analysis += `### By Service\n`;
-      records.slice(0, 5).forEach((r: any) => {
-        analysis += `- **${r['service.name']}**: ${(r.total_tokens || 0).toLocaleString()} tokens\n`;
+    const records = queryResult.result?.records || [];
+
+    // Step 3: Use Davis CoPilot DQL2NL to explain the query
+    let explanation = '';
+    try {
+      const dql2nlResponse = await publicClient.dql2nl({
+        body: {
+          dql: generatedDQL
+        }
       });
-    } else if (query.toLowerCase().includes('provider') || query.toLowerCase().includes('compare')) {
-      analysis += `### Provider Comparison\n\n`;
-      records.forEach((r: any, i: number) => {
-        analysis += `${i + 1}. **${r['gen_ai.request.model'] || 'unknown'}**\n`;
-        analysis += `   - Requests: ${(r.requests || 0).toLocaleString()}\n`;
-        analysis += `   - Avg Latency: ${(r.avg_latency || 0).toFixed(0)}ms\n`;
-        analysis += `   - Success Rate: ${(r.success_rate || 0).toFixed(1)}%\n\n`;
-      });
+      explanation = dql2nlResponse.explanation || dql2nlResponse.summary || '';
+    } catch {
+      // Explanation is optional, continue without it
+    }
+
+    // Step 4: Format the results
+    let analysis = `## Davis CoPilot Analysis\n\n`;
+    
+    if (explanation) {
+      analysis += `**Query Explanation**: ${explanation}\n\n`;
+    }
+
+    analysis += `**Generated DQL**:\n\`\`\`\n${generatedDQL}\n\`\`\`\n\n`;
+
+    if (records.length === 0) {
+      analysis += `No data found. Ensure your AI services are instrumented with OpenTelemetry gen_ai.* semantic conventions.\n`;
     } else {
-      analysis += `### Service Data\n`;
-      records.slice(0, 5).forEach((r: any) => {
-        analysis += `- **${r['service.name']}** (${r['gen_ai.request.model'] || 'unknown'})\n`;
-        if (r.tokens) analysis += `  - Tokens: ${(r.tokens || 0).toLocaleString()}\n`;
-        if (r.latency) analysis += `  - Latency: ${(r.latency || 0).toFixed(0)}ms\n`;
-        if (r.error_rate !== undefined) analysis += `  - Error Rate: ${(r.error_rate || 0).toFixed(1)}%\n`;
+      analysis += `### Results (${records.length} records)\n\n`;
+      
+      // Create a formatted table-like output
+      const firstRecord = records[0] as Record<string, unknown>;
+      const keys = Object.keys(firstRecord).filter(k => firstRecord[k] !== null && firstRecord[k] !== undefined);
+      
+      // Show up to 10 records in a readable format
+      records.slice(0, 10).forEach((record: unknown, index: number) => {
+        const rec = record as Record<string, unknown>;
+        analysis += `**${index + 1}.** `;
+        
+        // Try to find a name/identifier field
+        const nameField = keys.find(k => k.includes('name') || k.includes('service') || k.includes('model'));
+        if (nameField && rec[nameField]) {
+          analysis += `**${rec[nameField]}**\n`;
+        } else {
+          analysis += `Record ${index + 1}\n`;
+        }
+        
+        keys.forEach(key => {
+          if (key !== nameField && rec[key] !== null && rec[key] !== undefined) {
+            const value = rec[key];
+            const formattedValue = typeof value === 'number' 
+              ? (Number.isInteger(value) ? value.toLocaleString() : (value as number).toFixed(2))
+              : String(value);
+            analysis += `   - ${key}: ${formattedValue}\n`;
+          }
+        });
+        analysis += '\n';
       });
+
+      if (records.length > 10) {
+        analysis += `*...and ${records.length - 10} more records*\n`;
+      }
     }
 
     return analysis;
+
   } catch (err) {
-    throw new Error(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    // If Davis CoPilot SDK fails, try fallback to conversation
+    console.error('Davis CoPilot NL2DQL failed, trying conversation mode:', err);
+    return await askDavisCoPilotConversation(query, serviceName);
+  }
+}
+
+/**
+ * Use Davis CoPilot Conversation Recommender for general questions
+ */
+async function askDavisCoPilotConversation(query: string, serviceName?: string): Promise<string> {
+  try {
+    const contextText = serviceName 
+      ? `I'm analyzing GenAI service "${serviceName}" in Dynatrace. Using OpenTelemetry gen_ai semantic conventions for AI observability.`
+      : `I'm working with GenAI observability in Dynatrace. Looking at AI services instrumented with OpenTelemetry gen_ai semantic conventions.`;
+
+    const response = await publicClient.recommenderConversation({
+      body: {
+        text: query,
+        context: [
+          {
+            type: 'supplementary',
+            value: contextText
+          }
+        ]
+      }
+    });
+
+    // Handle both streaming and non-streaming responses
+    if (Array.isArray(response)) {
+      // Streaming response - collect tokens
+      const tokens: string[] = [];
+      for (const event of response) {
+        if ('data' in event) {
+          if ('tokens' in (event.data || {})) {
+            tokens.push(...((event.data as { tokens?: string[] }).tokens || []));
+          } else if ('answer' in (event.data || {})) {
+            return `## Davis CoPilot Response\n\n${(event.data as { answer?: string }).answer}`;
+          }
+        }
+      }
+      if (tokens.length > 0) {
+        return `## Davis CoPilot Response\n\n${tokens.join('')}`;
+      }
+    } else {
+      // Non-streaming response
+      return `## Davis CoPilot Response\n\n${response.text}`;
+    }
+
+    return `Davis CoPilot couldn't generate a response for this query. Try rephrasing your question.`;
+
+  } catch (err) {
+    throw new Error(`Davis CoPilot conversation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
 }
 
@@ -234,7 +251,7 @@ export function useDavisAI(): UseDavisAIResult {
       const serviceMatch = context?.match(/service[:\s]+["']?([^"'\n]+)["']?/i);
       const serviceName = serviceMatch ? serviceMatch[1] : undefined;
 
-      const analysisResult = await analyzeWithDQL(query, serviceName);
+      const analysisResult = await analyzeWithDavisCoPilot(query, serviceName);
 
       const davisResponse: ConversationMessage = {
         id: generateId(),

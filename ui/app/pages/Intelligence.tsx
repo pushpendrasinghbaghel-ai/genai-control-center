@@ -1,13 +1,17 @@
 // GenAI Control Center - Intelligence Dashboard
 // AI-Powered Investigation and Insights
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
+import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useDavisInvestigation } from '../hooks/useDavisAI';
+import { useAIServicesDiscovery, useProviderComparison } from '../hooks/useDQLQueries';
+import { DavisResponse } from '../components/DavisResponse';
+import type { QueryFilters } from '../hooks/useDQLQueries';
 
 interface InsightCard {
   id: string;
@@ -54,6 +58,12 @@ const QUICK_INVESTIGATIONS = [
 
 export const Intelligence: React.FC = () => {
   const [customQuery, setCustomQuery] = useState('');
+  const [filters] = useState<QueryFilters>({});
+  
+  // Real-time data hooks
+  const { data: services, loading: servicesLoading } = useAIServicesDiscovery(filters);
+  const { data: providers, loading: providersLoading } = useProviderComparison(filters);
+  
   const { 
     messages, 
     isLoading, 
@@ -65,6 +75,37 @@ export const Intelligence: React.FC = () => {
     compareProviders,
     clearConversation,
   } = useDavisInvestigation();
+
+  // Calculate real-time insights from data
+  const realTimeInsights = useMemo(() => {
+    if (!services || !providers) return null;
+    
+    const criticalServices = services.filter(s => s.errorRate > 5);
+    const warningServices = services.filter(s => s.errorRate > 1 && s.errorRate <= 5);
+    const slowServices = services.filter(s => s.avgLatency > 3000);
+    const totalTokens = services.reduce((sum, s) => sum + (s.totalTokens || 0), 0);
+    const avgErrorRate = services.length > 0 
+      ? services.reduce((sum, s) => sum + s.errorRate, 0) / services.length 
+      : 0;
+    const avgLatency = services.length > 0
+      ? services.reduce((sum, s) => sum + s.avgLatency, 0) / services.length
+      : 0;
+
+    return {
+      criticalCount: criticalServices.length,
+      warningCount: warningServices.length,
+      healthyCount: services.length - criticalServices.length - warningServices.length,
+      slowCount: slowServices.length,
+      totalTokens,
+      totalServices: services.length,
+      totalProviders: providers.length,
+      avgErrorRate,
+      avgLatency,
+      criticalServices,
+      warningServices,
+      slowServices,
+    };
+  }, [services, providers]);
 
   const handleQuickInvestigation = useCallback((category: string) => {
     switch (category) {
@@ -102,13 +143,126 @@ export const Intelligence: React.FC = () => {
         <Flex flexDirection="column" gap={4}>
           <Heading level={4}>Intelligence - AI-Powered Investigation</Heading>
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Conversational AI analysis powered by Davis and DQL
+            Real-time AI analysis powered by DQL queries
           </Text>
         </Flex>
         <Button variant="default" onClick={clearConversation}>
           Clear Conversation
         </Button>
       </Flex>
+
+      {/* Real-time Status Overview */}
+      {(servicesLoading || providersLoading) ? (
+        <Surface style={{ padding: 16, textAlign: 'center' }}>
+          <Flex alignItems="center" justifyContent="center" gap={8}>
+            <ProgressCircle size="small" />
+            <Text>Loading real-time data from Dynatrace...</Text>
+          </Flex>
+        </Surface>
+      ) : realTimeInsights && (
+        <Flex gap={12}>
+          <Surface style={{ flex: 1, padding: 12 }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Services</Text>
+              <Heading level={3}>{realTimeInsights.totalServices}</Heading>
+              <Flex gap={8}>
+                <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
+                  ✅ {realTimeInsights.healthyCount}
+                </Text>
+                {realTimeInsights.warningCount > 0 && (
+                  <Text textStyle="small" style={{ color: Colors.Text.Warning.Default }}>
+                    ⚠️ {realTimeInsights.warningCount}
+                  </Text>
+                )}
+                {realTimeInsights.criticalCount > 0 && (
+                  <Text textStyle="small" style={{ color: Colors.Text.Critical.Default }}>
+                    🔴 {realTimeInsights.criticalCount}
+                  </Text>
+                )}
+              </Flex>
+            </Flex>
+          </Surface>
+
+          <Surface style={{ flex: 1, padding: 12 }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Providers</Text>
+              <Heading level={3}>{realTimeInsights.totalProviders}</Heading>
+              <Text textStyle="small">Active AI providers</Text>
+            </Flex>
+          </Surface>
+
+          <Surface style={{ flex: 1, padding: 12 }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Tokens (24h)</Text>
+              <Heading level={3}>{realTimeInsights.totalTokens.toLocaleString()}</Heading>
+              <Text textStyle="small">Total consumed</Text>
+            </Flex>
+          </Surface>
+
+          <Surface style={{ flex: 1, padding: 12 }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Avg Latency</Text>
+              <Heading level={3}>{realTimeInsights.avgLatency.toFixed(0)}ms</Heading>
+              <Text textStyle="small" style={{ 
+                color: realTimeInsights.slowCount > 0 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Subdued 
+              }}>
+                {realTimeInsights.slowCount > 0 ? `⚠️ ${realTimeInsights.slowCount} slow` : 'All within SLA'}
+              </Text>
+            </Flex>
+          </Surface>
+
+          <Surface style={{ flex: 1, padding: 12 }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Error Rate</Text>
+              <Heading level={3} style={{
+                color: realTimeInsights.avgErrorRate > 5 ? Colors.Text.Critical.Default :
+                       realTimeInsights.avgErrorRate > 1 ? Colors.Text.Warning.Default :
+                       Colors.Text.Success.Default
+              }}>
+                {realTimeInsights.avgErrorRate.toFixed(1)}%
+              </Heading>
+              <Text textStyle="small">Average across services</Text>
+            </Flex>
+          </Surface>
+        </Flex>
+      )}
+
+      {/* Automated Insights */}
+      {realTimeInsights && (realTimeInsights.criticalCount > 0 || realTimeInsights.slowCount > 0) && (
+        <Surface style={{ padding: 12, backgroundColor: 'rgba(255, 100, 0, 0.08)' }}>
+          <Flex flexDirection="column" gap={8}>
+            <Heading level={6}>🔔 Automated Insights</Heading>
+            {realTimeInsights.criticalServices.slice(0, 3).map((svc, idx) => (
+              <Flex key={idx} justifyContent="space-between" alignItems="center">
+                <Text>
+                  🔴 <strong>{svc.serviceName}</strong> has {svc.errorRate.toFixed(1)}% error rate ({svc.modelName})
+                </Text>
+                <Button 
+                  variant="default" 
+                  onClick={() => sendQuery(`Investigate errors for service ${svc.serviceName}`)}
+                  disabled={isLoading}
+                >
+                  Investigate
+                </Button>
+              </Flex>
+            ))}
+            {realTimeInsights.slowServices.slice(0, 2).map((svc, idx) => (
+              <Flex key={`slow-${idx}`} justifyContent="space-between" alignItems="center">
+                <Text>
+                  ⏱️ <strong>{svc.serviceName}</strong> has high latency ({svc.avgLatency.toFixed(0)}ms)
+                </Text>
+                <Button 
+                  variant="default" 
+                  onClick={() => investigateLatency(svc.serviceName)}
+                  disabled={isLoading}
+                >
+                  Investigate
+                </Button>
+              </Flex>
+            ))}
+          </Flex>
+        </Surface>
+      )}
 
       <Flex gap={16} style={{ flex: 1, minHeight: 0 }}>
         {/* Quick Investigations Panel */}
@@ -195,9 +349,14 @@ export const Intelligence: React.FC = () => {
                         {msg.type === 'user' ? '👤 You' : '🤖 Davis AI'}
                       </Text>
                       {msg.isLoading ? (
-                        <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-                          Analyzing...
-                        </Text>
+                        <Flex alignItems="center" gap={8}>
+                          <ProgressCircle size="small" />
+                          <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+                            Analyzing...
+                          </Text>
+                        </Flex>
+                      ) : msg.type === 'davis' ? (
+                        <DavisResponse content={msg.content} />
                       ) : (
                         <Text style={{ whiteSpace: 'pre-wrap' }}>
                           {msg.content}

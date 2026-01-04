@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressBar } from '@dynatrace/strato-components/content';
+import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { useAIServicesDiscovery, useProviderComparison } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
@@ -48,6 +48,53 @@ interface BudgetAlert {
   provider: string;
   threshold: number;
   current: number;
+}
+
+interface ForecastData {
+  day: number;
+  projectedCost: number;
+  projectedTokens: number;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+// Simple linear regression for forecasting
+function calculateForecast(
+  currentCost: number,
+  currentTokens: number,
+  daysOfData: number = 7
+): ForecastData[] {
+  // Calculate daily average based on current period
+  const dailyAvgCost = currentCost / Math.max(daysOfData, 1);
+  const dailyAvgTokens = currentTokens / Math.max(daysOfData, 1);
+  
+  // Assume slight growth trend (5% weekly increase typical for AI adoption)
+  const dailyGrowthRate = 1.007; // ~0.7% daily growth
+  
+  const forecast: ForecastData[] = [];
+  
+  for (let day = 1; day <= 30; day++) {
+    const growthFactor = Math.pow(dailyGrowthRate, day);
+    const projectedDailyCost = dailyAvgCost * growthFactor;
+    const projectedDailyTokens = dailyAvgTokens * growthFactor;
+    
+    // Cumulative projection
+    const projectedCost = currentCost + (projectedDailyCost * day);
+    const projectedTokens = currentTokens + (projectedDailyTokens * day);
+    
+    // Confidence decreases over time
+    let confidence: 'high' | 'medium' | 'low' = 'high';
+    if (day > 14) confidence = 'low';
+    else if (day > 7) confidence = 'medium';
+    
+    forecast.push({
+      day,
+      projectedCost,
+      projectedTokens,
+      confidence,
+    });
+  }
+  
+  return forecast;
 }
 
 export const FinOps: React.FC = () => {
@@ -132,6 +179,22 @@ export const FinOps: React.FC = () => {
     return alerts;
   }, [costBreakdown, totalCost, budgetLimit]);
 
+  // Calculate cost forecast
+  const costForecast = useMemo(() => {
+    return calculateForecast(totalCost, totalTokens, 7);
+  }, [totalCost, totalTokens]);
+
+  // Forecast projections
+  const forecast7Day = costForecast.find(f => f.day === 7);
+  const forecast14Day = costForecast.find(f => f.day === 14);
+  const forecast30Day = costForecast.find(f => f.day === 30);
+
+  // Budget breach prediction
+  const budgetBreachDay = useMemo(() => {
+    const breachPoint = costForecast.find(f => f.projectedCost >= budgetLimit);
+    return breachPoint?.day || null;
+  }, [costForecast, budgetLimit]);
+
   const loading = servicesLoading || providersLoading;
 
   return (
@@ -213,6 +276,162 @@ export const FinOps: React.FC = () => {
           </Flex>
         </Surface>
       </Flex>
+
+      {/* Cost Forecast Section */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Heading level={6}>📈 Cost Forecast</Heading>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              Based on 7-day rolling average with growth trend
+            </Text>
+          </Flex>
+          
+          <Flex gap={16}>
+            {/* 7-Day Projection */}
+            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  7-Day Projection
+                </Text>
+                <Heading level={3}>
+                  ${forecast7Day?.projectedCost.toFixed(2) || '0.00'}
+                </Heading>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ 
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: Colors.Charts.Apdex.Excellent.Default
+                  }} />
+                  <Text textStyle="small">High confidence</Text>
+                </Flex>
+              </Flex>
+            </Surface>
+
+            {/* 14-Day Projection */}
+            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  14-Day Projection
+                </Text>
+                <Heading level={3}>
+                  ${forecast14Day?.projectedCost.toFixed(2) || '0.00'}
+                </Heading>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ 
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: Colors.Charts.Apdex.Good.Default
+                  }} />
+                  <Text textStyle="small">Medium confidence</Text>
+                </Flex>
+              </Flex>
+            </Surface>
+
+            {/* 30-Day Projection */}
+            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  30-Day Projection
+                </Text>
+                <Heading level={3}>
+                  ${forecast30Day?.projectedCost.toFixed(2) || '0.00'}
+                </Heading>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ 
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: Colors.Charts.Apdex.Poor.Default
+                  }} />
+                  <Text textStyle="small">Low confidence</Text>
+                </Flex>
+              </Flex>
+            </Surface>
+
+            {/* Budget Breach Prediction */}
+            <Surface style={{ 
+              flex: 1, 
+              padding: 12, 
+              backgroundColor: budgetBreachDay 
+                ? budgetBreachDay <= 7 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 165, 0, 0.1)'
+                : 'rgba(0, 200, 100, 0.1)'
+            }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Budget Breach ETA
+                </Text>
+                <Heading level={3} style={{
+                  color: budgetBreachDay 
+                    ? budgetBreachDay <= 7 ? Colors.Text.Critical.Default : Colors.Text.Warning.Default
+                    : Colors.Text.Success.Default
+                }}>
+                  {budgetBreachDay 
+                    ? budgetBreachDay === 1 ? 'Tomorrow!' : `${budgetBreachDay} days`
+                    : 'On Track ✓'}
+                </Heading>
+                <Text textStyle="small">
+                  {budgetBreachDay 
+                    ? `Projected to exceed $${budgetLimit} budget`
+                    : 'Within budget for next 30 days'}
+                </Text>
+              </Flex>
+            </Surface>
+          </Flex>
+
+          {/* Forecast Trend Visualization */}
+          <Surface style={{ padding: 12, backgroundColor: 'rgba(0,0,0,0.02)' }}>
+            <Flex flexDirection="column" gap={8}>
+              <Text textStyle="small" style={{ fontWeight: 500 }}>Projected Cost Trend</Text>
+              <Flex alignItems="flex-end" gap={2} style={{ height: 60 }}>
+                {costForecast.filter((_, i) => i % 3 === 0).map((f, idx) => {
+                  const maxCost = Math.max(forecast30Day?.projectedCost || 1, budgetLimit);
+                  const height = Math.min((f.projectedCost / maxCost) * 100, 100);
+                  const isOverBudget = f.projectedCost > budgetLimit;
+                  
+                  return (
+                    <Flex key={idx} flexDirection="column" alignItems="center" style={{ flex: 1 }}>
+                      <div style={{
+                        width: '100%',
+                        maxWidth: 20,
+                        height: `${height}%`,
+                        minHeight: 4,
+                        backgroundColor: isOverBudget 
+                          ? Colors.Charts.Apdex.Poor.Default 
+                          : f.confidence === 'high' 
+                            ? Colors.Charts.Apdex.Excellent.Default
+                            : f.confidence === 'medium'
+                              ? Colors.Charts.Apdex.Good.Default
+                              : 'rgba(99, 102, 241, 0.5)',
+                        borderRadius: 2,
+                      }} />
+                      <Text textStyle="small" style={{ fontSize: 9, marginTop: 4 }}>
+                        D{f.day}
+                      </Text>
+                    </Flex>
+                  );
+                })}
+              </Flex>
+              {/* Budget line indicator */}
+              <Flex alignItems="center" gap={8}>
+                <div style={{ 
+                  height: 2, 
+                  flex: 1, 
+                  background: `repeating-linear-gradient(90deg, ${Colors.Text.Warning.Default}, ${Colors.Text.Warning.Default} 4px, transparent 4px, transparent 8px)` 
+                }} />
+                <Text textStyle="small" style={{ color: Colors.Text.Warning.Default }}>
+                  Budget: ${budgetLimit}
+                </Text>
+              </Flex>
+            </Flex>
+          </Surface>
+        </Flex>
+      </Surface>
 
       {/* Budget Alerts */}
       {budgetAlerts.length > 0 && (
