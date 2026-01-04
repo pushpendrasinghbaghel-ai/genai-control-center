@@ -1,4 +1,5 @@
 // GenAI Control Center - Navigation Header
+// Industry-standard naming: Overview, FinOps, Governance, Intelligence, Operations
 import React from "react";
 import { Link } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
@@ -10,29 +11,29 @@ export const Header = () => {
         {/* App Home Link */}
         <AppHeader.AppNavLink as={Link} to="/" />
         
-        {/* Pillar A: Health Dashboard */}
+        {/* Overview: Health Dashboard */}
         <AppHeader.NavItem as={Link} to="/">
-          Health Dashboard
+          Overview
         </AppHeader.NavItem>
         
-        {/* Pillar B: AI Architect */}
-        <AppHeader.NavItem as={Link} to="/architect">
-          AI Architect
+        {/* FinOps: AI Cost Management */}
+        <AppHeader.NavItem as={Link} to="/finops">
+          FinOps
         </AppHeader.NavItem>
         
-        {/* Pillar C: Davis Assistant */}
-        <AppHeader.NavItem as={Link} to="/davis">
-          Davis Assistant
+        {/* Governance: Compliance & Risk */}
+        <AppHeader.NavItem as={Link} to="/governance">
+          Governance
         </AppHeader.NavItem>
         
-        {/* Pillar D: Remediation Library */}
-        <AppHeader.NavItem as={Link} to="/remediation">
-          Remediation
+        {/* Intelligence: AI-Powered Investigation */}
+        <AppHeader.NavItem as={Link} to="/intelligence">
+          Intelligence
         </AppHeader.NavItem>
         
-        {/* Provider Comparison */}
-        <AppHeader.NavItem as={Link} to="/providers">
-          Providers
+        {/* Operations: Runbooks & Remediation */}
+        <AppHeader.NavItem as={Link} to="/operations">
+          Operations
         </AppHeader.NavItem>
       </AppHeader.NavItems>
     </AppHeader>

@@ -5,10 +5,10 @@ import { Route, Routes } from "react-router-dom";
 import { Header } from "./components/Header";
 import { 
   HealthDashboard, 
-  AIArchitect, 
-  DavisAssistant, 
-  RemediationLibrary,
-  ProviderComparison 
+  FinOps,
+  Governance,
+  Intelligence,
+  Operations
 } from "./pages";
 
 export const App = () => {
@@ -19,20 +19,20 @@ export const App = () => {
       </Page.Header>
       <Page.Main>
         <Routes>
-          {/* Pillar A: Health Dashboard - Auto-discovery and health monitoring */}
+          {/* Overview: Health Dashboard - Auto-discovery and monitoring */}
           <Route path="/" element={<HealthDashboard />} />
           
-          {/* Pillar B: AI Architect - Pattern detection and recommendations */}
-          <Route path="/architect" element={<AIArchitect />} />
+          {/* FinOps: AI Cost Management and Optimization */}
+          <Route path="/finops" element={<FinOps />} />
           
-          {/* Pillar C: Davis Assistant - Chat-based deep dive analysis */}
-          <Route path="/davis" element={<DavisAssistant />} />
+          {/* Governance: Compliance, Risk, and Policy Management */}
+          <Route path="/governance" element={<Governance />} />
           
-          {/* Pillar D: Remediation Library - One-click automation */}
-          <Route path="/remediation" element={<RemediationLibrary />} />
+          {/* Intelligence: AI-Powered Investigation and Analysis */}
+          <Route path="/intelligence" element={<Intelligence />} />
           
-          {/* Provider Comparison - Unified governance view */}
-          <Route path="/providers" element={<ProviderComparison />} />
+          {/* Operations: Runbooks and Remediation */}
+          <Route path="/operations" element={<Operations />} />
         </Routes>
       </Page.Main>
     </Page>
