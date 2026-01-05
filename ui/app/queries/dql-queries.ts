@@ -103,6 +103,11 @@ const getTimeClause = (filters?: QueryFilters): string => {
  * Populates the Health-at-a-Glance dashboard
  * Includes dt.entity.service for deep linking to Services app
  * Uses gen_ai.provider.name (always populated) with fallback to gen_ai.request.model
+ * 
+ * Quality Metrics for GenAI developers:
+ * - error_rate: Traditional span errors (status.code == "ERROR")
+ * - slow_request_rate: Requests > 5 seconds (potential timeouts/issues)
+ * - low_output_rate: Responses with < 10 output tokens (potential truncation/failures)
  */
 export const AI_SERVICES_DISCOVERY_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
@@ -119,11 +124,13 @@ ${modelFilter}
 | summarize {
     tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     latency = avg(duration),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
     request_count = count(),
     prompt_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     completion_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    entity_id = takeFirst(dt.entity.service)
+    entity_id = takeFirst(dt.entity.service),
+    error_rate = countIf(status.code == "ERROR") / count() * 100,
+    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
+    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100
   }, by: { service.name, gen_ai.request.model, gen_ai.provider.name }
 | sort tokens desc
 `;
@@ -152,6 +159,10 @@ ${serviceFilter}
 /**
  * Query for provider comparison
  * Groups by gen_ai.provider.name with fallback to gen_ai.request.model
+ * Enhanced with GenAI-specific quality metrics:
+ * - slow_request_rate: % of requests > 5 seconds
+ * - low_output_rate: % of responses with minimal tokens
+ * - avg_output_tokens: Average response size (quality indicator)
  */
 export const PROVIDER_COMPARISON_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
@@ -164,12 +175,14 @@ ${serviceFilter}
 | summarize {
     total_requests = count(),
     avg_latency = avg(duration),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
     total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    success_rate = countIf(status.code == "OK") / count() * 100,
-    models = collectDistinct(gen_ai.request.model)
+    models = collectDistinct(gen_ai.request.model),
+    error_rate = countIf(status.code == "ERROR") / count() * 100,
+    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
+    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100,
+    avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
   }, by: { coalesce(gen_ai.provider.name, gen_ai.request.model) }
 | sort total_requests desc
 `;
@@ -177,6 +190,7 @@ ${serviceFilter}
 
 /**
  * Query for model-level comparison
+ * Enhanced with GenAI-specific quality metrics
  */
 export const MODEL_COMPARISON_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
@@ -191,10 +205,13 @@ ${providerFilter}
 | summarize {
     avg_latency = avg(duration),
     avg_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
     request_count = count(),
     input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
-    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    error_rate = countIf(status.code == "ERROR") / count() * 100,
+    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
+    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100,
+    avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
   }, by: { gen_ai.request.model, gen_ai.response.model, gen_ai.provider.name }
 | sort request_count desc
 `;

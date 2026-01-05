@@ -17,6 +17,9 @@ const ProviderCard: React.FC<{
     errorRate: number;
     totalTokens: number;
     estimatedCost: number;
+    slowRequestRate?: number;
+    lowOutputRate?: number;
+    avgOutputTokens?: number;
   };
   maxRequests: number;
 }> = ({ provider, stats, maxRequests }) => {
@@ -34,7 +37,7 @@ const ProviderCard: React.FC<{
   
   const totalRequests = Number(stats.totalRequests) || 0;
   const avgLatency = Number(stats.avgLatency) || 0;
-  const errorRate = Number(stats.errorRate) || 0;
+  const slowRequestRate = Number(stats.slowRequestRate) || 0;
   const totalTokens = Number(stats.totalTokens) || 0;
   const estimatedCost = Number(stats.estimatedCost) || 0;
   
@@ -71,10 +74,10 @@ const ProviderCard: React.FC<{
           <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Latency</div>
         </div>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit' }}>
-            {errorRate.toFixed(1)}%
+          <div style={{ fontSize: 14, fontWeight: 600, color: slowRequestRate > 10 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit' }}>
+            {slowRequestRate.toFixed(1)}%
           </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Errors</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>Slow</div>
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 600 }}>{formatNumber(totalTokens)}</div>
@@ -98,6 +101,9 @@ const ModelTable: React.FC<{
     avgTokensPerRequest: number;
     errorRate: number;
     requestCount: number;
+    slowRequestRate?: number;
+    lowOutputRate?: number;
+    avgOutputTokens?: number;
   }>;
 }> = ({ models }) => {
   if (!models || models.length === 0) {
@@ -118,13 +124,13 @@ const ModelTable: React.FC<{
             <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Requests</th>
             <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</th>
             <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</th>
-            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Errors</th>
+            <th style={{ textAlign: 'right', padding: '8px 6px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow %</th>
           </tr>
         </thead>
         <tbody>
           {models.map((model, index) => {
             const avgLatency = Number(model.avgLatency) || 0;
-            const errorRate = Number(model.errorRate) || 0;
+            const slowRequestRate = Number(model.slowRequestRate) || 0;
             const avgTokens = Number(model.avgTokensPerRequest) || 0;
             const requestCount = Number(model.requestCount) || 0;
             
@@ -137,9 +143,9 @@ const ModelTable: React.FC<{
                 <td style={{ padding: '8px 6px', textAlign: 'right', fontSize: 12 }}>{formatNumber(avgTokens)}</td>
                 <td style={{ 
                   padding: '8px 6px', textAlign: 'right', fontSize: 12,
-                  color: errorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
+                  color: slowRequestRate > 10 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit'
                 }}>
-                  {errorRate.toFixed(1)}%
+                  {slowRequestRate.toFixed(1)}%
                 </td>
               </tr>
             );

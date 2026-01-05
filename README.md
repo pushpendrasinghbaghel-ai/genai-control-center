@@ -11,14 +11,16 @@
 
 **GenAI Control Center** is a Dynatrace AppEngine application that provides **enterprise AI observability and governance** for organizations running GenAI workloads. It auto-discovers AI services instrumented with OpenTelemetry GenAI semantic conventions and provides comprehensive management across four key domains:
 
-### 🏠 Four Pillars of AI Management
+### 🏠 Application Structure
 
 | Page | Purpose | Key Features |
 |------|---------|--------------|
-| 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider cost comparison, budget alerts |
-| 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, PII detection, prompt analysis, enterprise governance challenges |
+| 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
+| 📊 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
+| 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
+| 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, PII detection, prompt analysis, governance challenges |
 | 🧠 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
-| 🔧 **Operations** | Health & Performance Monitoring | Service health, latency tracking, error rates, auto-remediation |
+| 🔧 **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
 
 ## 👥 Target Personas
 
@@ -61,12 +63,14 @@
 - **Query Explanation** - Understand generated queries
 - **Collapsible Responses** - Clean output with expandable details
 
-### 🔧 Operations - Health & Performance
-- **Service Auto-Discovery** - Finds all `gen_ai.*` instrumented services
-- **Health Indicators** - Traffic light status (Healthy/Warning/Critical)
-- **Performance Metrics** - Latency, throughput, error rates
-- **Deep Linking** - Jump to Dynatrace Services app
-- **Remediation Playbooks** - Automated fix suggestions
+### 🔧 Operations - Automation & Remediation
+- **Runbooks** - Pre-built automation scripts for common issues
+- **Analytics** - Operational insights and trends
+- **Quick Actions** - One-click remediation for:
+  - 🔄 Restart overloaded services
+  - 🧹 Clear stale caches
+  - 📈 Scale up capacity
+  - 🔔 Create alert for monitoring
 
 ## 🚀 Quick Start
 
@@ -129,18 +133,25 @@ gcc/
 ├── ui/
 │   └── app/
 │       ├── components/       # Reusable UI components
-│       │   ├── FilterBar.tsx
-│       │   ├── MetricCard.tsx
-│       │   ├── ServiceRow.tsx
-│       │   └── DavisResponse.tsx
+│       │   ├── Card.tsx          # Generic card component
+│       │   ├── FilterBar.tsx     # Time range & filters
+│       │   ├── Header.tsx        # Navigation header
+│       │   └── DavisResponse.tsx # AI response display
 │       ├── pages/            # Main application pages
+│       │   ├── Home.tsx          # Executive dashboard
+│       │   ├── HealthDashboard.tsx # Service health
 │       │   ├── FinOps.tsx        # Cost management
-│       │   ├── Governance.tsx    # Compliance & prompt analysis
+│       │   ├── Governance.tsx    # Compliance & risk
 │       │   ├── Intelligence.tsx  # Davis CoPilot AI
-│       │   └── Operations.tsx    # Health monitoring
+│       │   ├── Operations.tsx    # Runbooks & quick actions
+│       │   ├── Data.tsx          # GenAI data explorer
+│       │   ├── ProviderComparison.tsx # Provider analysis
+│       │   └── AIArchitect.tsx   # Architecture insights
 │       ├── hooks/            # Data fetching hooks
 │       │   ├── useDQLQueries.ts
-│       │   └── useDavisAI.ts
+│       │   ├── useDavisAI.ts
+│       │   ├── useAIArchitect.ts
+│       │   └── useRemediation.ts
 │       ├── queries/          # DQL query definitions
 │       ├── utils/            # Helper functions
 │       └── types/            # TypeScript type definitions
@@ -213,11 +224,21 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.0.0 | © 2026*
+*Version 2.1.0 | © 2026*
 
 ---
 
 ## 📋 Changelog
+
+### v2.1.0 (January 2026)
+- 🆕 **Executive Dashboard**: New Home page with health overview and pillar navigation
+- 🆕 **Health Dashboard**: Dedicated page for AI service health with quality metrics
+- 🆕 **Quick Actions**: One-click remediation actions in Operations
+- 🆕 **GenAI Data Explorer**: Preset DQL queries for GenAI-specific analysis
+- ✨ **Quality Metrics**: Slow request rate (>5s), low output rate (<10 tokens), token efficiency
+- ✨ **Disclaimers**: Clear labeling of estimated/reference data in FinOps & Governance
+- 🗑️ **Removed Duplicates**: Consolidated duplicate pages and metrics
+- 🔗 **Improved Navigation**: Direct routes to all pages with redirects for legacy URLs
 
 ### v2.0.0 (January 2026)
 - 🆕 **Four-pillar architecture**: FinOps, Governance, Intelligence, Operations

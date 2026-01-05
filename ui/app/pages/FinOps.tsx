@@ -218,6 +218,17 @@ export const FinOps: React.FC = () => {
         </Flex>
       </Flex>
 
+      {/* Estimation Disclaimer */}
+      <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
+        <Flex alignItems="center" gap={8}>
+          <span>ℹ️</span>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+            <strong>Note:</strong> Cost estimates use public pricing (OpenAI $0.50-$15/MTok, Anthropic $3-$75/MTok). 
+            Token split assumes 30% input / 70% output. Forecasts use 0.7% daily growth projection.
+          </Text>
+        </Flex>
+      </Surface>
+
       <FilterBar
         filters={filters}
         onFiltersChange={handleFiltersChange}

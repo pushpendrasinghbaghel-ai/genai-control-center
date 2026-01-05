@@ -6,6 +6,8 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
+import { Modal } from '@dynatrace/strato-components-preview/overlays';
+import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { useAIServicesDiscovery } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -33,7 +35,16 @@ interface ActiveIncident {
   suggestedRunbook: string;
 }
 
-// Pre-defined runbooks for GenAI operations
+interface QuickAction {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  icon: string;
+  isDestructive: boolean;
+}
+
+// Pre-defined runbooks for GenAI operations (Sample Data)
 const RUNBOOKS: Runbook[] = [
   {
     id: 'rate-limit-429',
@@ -99,44 +110,23 @@ const RUNBOOKS: Runbook[] = [
     automated: true,
     successRate: 98,
   },
-  {
-    id: 'model-deprecation',
-    name: 'Model Deprecation Response',
-    category: 'security',
-    trigger: 'Model version marked as deprecated by provider',
-    description: 'Migration playbook for deprecated AI models',
-    steps: [
-      '1. Identify all services using deprecated model',
-      '2. Test replacement model in staging',
-      '3. Update configuration to new model version',
-      '4. Deploy changes with canary rollout',
-      '5. Monitor for regression in quality/performance',
-    ],
-    automated: false,
-    successRate: 100,
-  },
-  {
-    id: 'prompt-injection',
-    name: 'Prompt Injection Detection',
-    category: 'security',
-    trigger: 'Unusual prompt patterns detected',
-    description: 'Security response for potential prompt injection attacks',
-    steps: [
-      '1. Analyze flagged prompts for injection patterns',
-      '2. Block suspicious requests at gateway',
-      '3. Review affected user sessions',
-      '4. Enable enhanced input sanitization',
-      '5. Report to security team for investigation',
-    ],
-    automated: false,
-    successRate: 85,
-  },
+];
+
+// Quick Actions for one-click remediation (Sample - requires Workflow integration)
+const QUICK_ACTIONS: QuickAction[] = [
+  { id: 'kill_switch', name: 'Kill Switch', type: 'kill_switch', description: 'Immediately stop all AI requests to a provider', icon: '⛔', isDestructive: true },
+  { id: 'fallback_trigger', name: 'Trigger Fallback', type: 'fallback_trigger', description: 'Route traffic to backup provider', icon: '🔄', isDestructive: false },
+  { id: 'rate_limit', name: 'Apply Rate Limit', type: 'rate_limit', description: 'Throttle requests to prevent overload', icon: '⚡', isDestructive: false },
+  { id: 'cache_enable', name: 'Enable Caching', type: 'cache_enable', description: 'Enable response caching for common queries', icon: '💾', isDestructive: false },
 ];
 
 export const Operations: React.FC = () => {
   const [filters] = useState<QueryFilters>({});
-  const [selectedTab, setSelectedTab] = useState<'runbooks' | 'incidents' | 'automation'>('runbooks');
+  const [selectedTab, setSelectedTab] = useState<'runbooks' | 'incidents' | 'automation' | 'actions'>('runbooks');
   const [executingRunbook, setExecutingRunbook] = useState<string | null>(null);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<QuickAction | null>(null);
+  const [actionTarget, setActionTarget] = useState('');
   
   const { data: services, loading } = useAIServicesDiscovery(filters);
 
@@ -147,11 +137,13 @@ export const Operations: React.FC = () => {
     const incidents: ActiveIncident[] = [];
     
     services.forEach((service) => {
-      if (service.errorRate > 5) {
+      // Use slowRequestRate for GenAI-specific quality monitoring (error rate is typically 0% for GenAI spans)
+      const slowRate = service.slowRequestRate || 0;
+      if (slowRate > 10) {
         incidents.push({
-          id: `err-${service.serviceName}`,
-          title: `High error rate on ${service.serviceName}`,
-          severity: service.errorRate > 10 ? 'critical' : 'high',
+          id: `slow-${service.serviceName}`,
+          title: `High slow request rate on ${service.serviceName}`,
+          severity: slowRate > 20 ? 'critical' : 'high',
           service: service.serviceName,
           model: service.modelName,
           detectedAt: new Date(Date.now() - Math.random() * 3600000).toISOString(),
@@ -301,12 +293,29 @@ export const Operations: React.FC = () => {
           Active Incidents ({activeIncidents.length})
         </Button>
         <Button
+          variant={selectedTab === 'actions' ? 'emphasized' : 'default'}
+          onClick={() => setSelectedTab('actions')}
+        >
+          Quick Actions
+        </Button>
+        <Button
           variant={selectedTab === 'automation' ? 'emphasized' : 'default'}
           onClick={() => setSelectedTab('automation')}
         >
           Automation Rules
         </Button>
       </Flex>
+
+      {/* Sample Data Disclaimer */}
+      <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
+        <Flex alignItems="center" gap={8}>
+          <span>ℹ️</span>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+            <strong>Note:</strong> Runbook success rates and quick actions are sample templates. 
+            Connect to Dynatrace Workflows for production automation.
+          </Text>
+        </Flex>
+      </Surface>
 
       {/* Tab Content */}
       {selectedTab === 'runbooks' && (
@@ -412,6 +421,62 @@ export const Operations: React.FC = () => {
         </Surface>
       )}
 
+      {selectedTab === 'actions' && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex justifyContent="space-between" alignItems="center">
+              <Heading level={6}>Quick Actions</Heading>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                One-click remediation for common issues
+              </Text>
+            </Flex>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+              {QUICK_ACTIONS.map((action) => (
+                <Surface key={action.id} style={{ 
+                  padding: 16,
+                  borderLeft: action.isDestructive 
+                    ? '4px solid var(--dt-colors-feedback-critical-default)'
+                    : '4px solid var(--dt-colors-charts-categorical-default-1)'
+                }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Flex alignItems="center" gap={8}>
+                      <span style={{ fontSize: 24 }}>{action.icon}</span>
+                      <Text style={{ fontWeight: 600 }}>{action.name}</Text>
+                      {action.isDestructive && (
+                        <Text textStyle="small" style={{ 
+                          padding: '2px 6px',
+                          backgroundColor: 'var(--dt-colors-feedback-critical-subtle)',
+                          color: 'var(--dt-colors-feedback-critical-default)',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          textTransform: 'uppercase'
+                        }}>
+                          Destructive
+                        </Text>
+                      )}
+                    </Flex>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                      {action.description}
+                    </Text>
+                    <Button 
+                      variant="default"
+                      color={action.isDestructive ? 'critical' : undefined}
+                      onClick={() => {
+                        setSelectedAction(action);
+                        setShowActionModal(true);
+                      }}
+                    >
+                      Configure & Execute
+                    </Button>
+                  </Flex>
+                </Surface>
+              ))}
+            </div>
+          </Flex>
+        </Surface>
+      )}
+
       {selectedTab === 'automation' && (
         <Surface style={{ padding: 16 }}>
           <Flex flexDirection="column" gap={12}>
@@ -443,6 +508,79 @@ export const Operations: React.FC = () => {
           </Flex>
         </Surface>
       )}
+
+      {/* Quick Action Confirmation Modal */}
+      <Modal
+        title={`Execute: ${selectedAction?.name || ''}`}
+        show={showActionModal}
+        onDismiss={() => {
+          setShowActionModal(false);
+          setSelectedAction(null);
+          setActionTarget('');
+        }}
+      >
+        <Flex flexDirection="column" gap={16} padding={16}>
+          <Text>{selectedAction?.description}</Text>
+          
+          {selectedAction?.isDestructive && (
+            <Surface style={{ backgroundColor: 'var(--dt-colors-feedback-critical-subtle)', padding: 12 }}>
+              <Flex alignItems="center" gap={8}>
+                <span>⚠️</span>
+                <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
+                  This is a destructive action and may impact production services.
+                </Text>
+              </Flex>
+            </Surface>
+          )}
+
+          <div>
+            <Text textStyle="small" style={{ fontWeight: 600, marginBottom: 8, display: 'block' }}>
+              Target Service / Provider
+            </Text>
+            <TextInput
+              value={actionTarget}
+              onChange={(value) => setActionTarget(value)}
+              placeholder="Enter service or provider name..."
+            />
+          </div>
+
+          {services && services.length > 0 && (
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              Available: {services.slice(0, 5).map(s => s.serviceName).join(', ')}
+              {services.length > 5 && ` +${services.length - 5} more`}
+            </Text>
+          )}
+
+          <Surface style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', padding: 12 }}>
+            <Text textStyle="small">
+              <strong>Demo Mode:</strong> This action is simulated. Connect to Dynatrace Workflows for production use.
+            </Text>
+          </Surface>
+
+          <Flex gap={12} justifyContent="flex-end">
+            <Button onClick={() => {
+              setShowActionModal(false);
+              setSelectedAction(null);
+              setActionTarget('');
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="accent"
+              color={selectedAction?.isDestructive ? 'critical' : undefined}
+              onClick={() => {
+                // Simulate execution
+                setShowActionModal(false);
+                setSelectedAction(null);
+                setActionTarget('');
+              }}
+              disabled={!actionTarget.trim()}
+            >
+              Execute
+            </Button>
+          </Flex>
+        </Flex>
+      </Modal>
     </Flex>
   );
 };

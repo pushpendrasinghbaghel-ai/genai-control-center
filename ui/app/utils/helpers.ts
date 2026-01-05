@@ -38,16 +38,26 @@ export function estimateCost(
 
 /**
  * Calculate health status based on metrics
+ * Enhanced for GenAI with quality metrics:
+ * - errorRate: Traditional span errors
+ * - slowRequestRate: % of requests > 5 seconds
+ * - lowOutputRate: % of responses with minimal tokens (potential failures)
  */
 export function calculateHealthStatus(
   errorRate: number,
   latency: number,
+  slowRequestRate: number = 0,
+  lowOutputRate: number = 0,
   latencyThreshold: number = 3000
 ): HealthStatus {
-  if (errorRate > 10 || latency > latencyThreshold * 2) {
+  // Calculate a combined "issue rate" for GenAI-specific problems
+  // Weight: errors most severe, slow requests moderate, low output minor
+  const issueScore = errorRate * 2 + slowRequestRate * 1 + lowOutputRate * 0.5;
+  
+  if (errorRate > 10 || latency > latencyThreshold * 2 || issueScore > 30) {
     return 'critical';
   }
-  if (errorRate > 5 || latency > latencyThreshold) {
+  if (errorRate > 5 || latency > latencyThreshold || issueScore > 15 || slowRequestRate > 20) {
     return 'warning';
   }
   return 'healthy';
@@ -55,6 +65,7 @@ export function calculateHealthStatus(
 
 /**
  * Calculate overall health metrics from service list
+ * Enhanced with GenAI quality metrics
  */
 export function calculateOverallHealth(services: AIService[]): HealthMetrics {
   const healthyCount = services.filter(s => s.healthStatus === 'healthy').length;
@@ -81,6 +92,12 @@ export function calculateOverallHealth(services: AIService[]): HealthMetrics {
       : 0,
     avgErrorRate: services.length > 0
       ? services.reduce((sum, s) => sum + s.errorRate, 0) / services.length
+      : 0,
+    avgSlowRequestRate: services.length > 0
+      ? services.reduce((sum, s) => sum + (s.slowRequestRate || 0), 0) / services.length
+      : 0,
+    avgLowOutputRate: services.length > 0
+      ? services.reduce((sum, s) => sum + (s.lowOutputRate || 0), 0) / services.length
       : 0
   };
 }

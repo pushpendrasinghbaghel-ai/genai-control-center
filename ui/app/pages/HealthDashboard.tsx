@@ -148,11 +148,20 @@ const ServiceRow: React.FC<{
         <div style={{ textAlign: 'right', minWidth: 50 }}>
           <div style={{ 
             fontSize: 12, fontWeight: 600,
-            color: Number(service.errorRate || 0) > 5 ? 'var(--dt-colors-feedback-critical-default)' : 'inherit'
+            color: Number(service.slowRequestRate || 0) > 10 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit'
           }}>
-            {Number(service.errorRate || 0).toFixed(1)}%
+            {Number(service.slowRequestRate || 0).toFixed(1)}%
           </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>errors</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>slow</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 50 }}>
+          <div style={{ 
+            fontSize: 12, fontWeight: 600,
+            color: Number(service.lowOutputRate || 0) > 20 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit'
+          }}>
+            {Number(service.lowOutputRate || 0).toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>low output</div>
         </div>
       </Flex>
       
@@ -329,17 +338,11 @@ export const HealthDashboard: React.FC = () => {
           </Text>
         </Flex>
 
-        {/* Metrics - Compact */}
+        {/* Metrics - Compact - Key aggregates only (avoid duplicating per-row data) */}
         <MetricCard value={services.length} label="Services" icon="🤖" />
         <MetricCard value={formatNumber(healthMetrics.totalTokensToday)} label="Tokens" icon="📊" />
         <MetricCard value={formatCurrency(healthMetrics.totalCostToday)} label="Cost" icon="💰" />
-        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Latency" icon="⚡" />
-        <MetricCard 
-          value={`${healthMetrics.avgErrorRate.toFixed(1)}%`} 
-          label="Errors" 
-          icon="❌"
-          color={healthMetrics.avgErrorRate > 5 ? 'var(--dt-colors-feedback-critical-default)' : undefined}
-        />
+        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Avg Latency" icon="⚡" />
       </Flex>
 
       {/* Service List - Table Style */}
@@ -360,7 +363,8 @@ export const HealthDashboard: React.FC = () => {
               <Text style={{ textAlign: 'right', minWidth: 70, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</Text>
               <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</Text>
               <Text style={{ textAlign: 'right', minWidth: 60, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Cost</Text>
-              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Errors</Text>
+              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow %</Text>
+              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Low Out %</Text>
             </Flex>
             <div style={{ width: 90 }} />
           </Flex>

@@ -1,5 +1,5 @@
 // GenAI Control Center - Navigation Header
-// Industry-standard naming: Overview, FinOps, Governance, Intelligence, Operations
+// Consolidated navigation with all pillars
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
@@ -30,9 +30,14 @@ export const Header = () => {
         {/* App Home Link */}
         <AppHeader.AppNavLink as={Link} to="/" />
         
-        {/* Overview: Health Dashboard */}
+        {/* Home: Executive Dashboard */}
         <AppHeader.NavItem as={Link} to="/" style={getNavItemStyle('/')}>
-          Overview
+          Home
+        </AppHeader.NavItem>
+        
+        {/* Health Dashboard: Service Health & Monitoring */}
+        <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')}>
+          Health
         </AppHeader.NavItem>
         
         {/* FinOps: AI Cost Management */}
@@ -50,7 +55,7 @@ export const Header = () => {
           Intelligence
         </AppHeader.NavItem>
         
-        {/* Operations: Runbooks & Remediation */}
+        {/* Operations: Runbooks & Automation */}
         <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')}>
           Operations
         </AppHeader.NavItem>

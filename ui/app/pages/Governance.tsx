@@ -609,6 +609,17 @@ export const Governance: React.FC = () => {
         </Flex>
       </Flex>
 
+      {/* Provider Data Disclaimer */}
+      <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
+        <Flex alignItems="center" gap={8}>
+          <span>ℹ️</span>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+            <strong>Note:</strong> Provider certifications and data residency are reference data based on public information. 
+            Verify with your provider agreements. Governance challenges are sample scenarios.
+          </Text>
+        </Flex>
+      </Surface>
+
       {/* Filter Bar */}
       <FilterBar
         filters={filterBarOptions}

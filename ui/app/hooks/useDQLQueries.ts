@@ -112,6 +112,9 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
     return records.map((record: any) => {
       const latencyMs = Number(record.latency || 0) / 1_000_000; // Convert ns to ms
       const errorRate = Number(record.error_rate || 0);
+      const slowRequestRate = Number(record.slow_request_rate || 0);
+      const lowOutputRate = Number(record.low_output_rate || 0);
+      const avgOutputTokens = Number(record.avg_output_tokens || 0);
       const tokens = Number(record.tokens || 0);
       const promptTokens = Number(record.prompt_tokens || tokens * 0.3);
       const completionTokens = Number(record.completion_tokens || tokens * 0.7);
@@ -128,6 +131,9 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
         totalTokens: tokens,
         avgLatency: latencyMs,
         errorRate: errorRate,
+        slowRequestRate: slowRequestRate,
+        lowOutputRate: lowOutputRate,
+        avgOutputTokens: avgOutputTokens,
         requestCount: Number(record.request_count || 0),
         estimatedCost: estimateCost(
           provider,
@@ -135,7 +141,7 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
           completionTokens
         ),
         lastSeen: new Date().toISOString(),
-        healthStatus: calculateHealthStatus(errorRate, latencyMs),
+        healthStatus: calculateHealthStatus(errorRate, latencyMs, slowRequestRate, lowOutputRate),
         entityId: record.entity_id || undefined
       };
     });
@@ -169,7 +175,11 @@ export function useProviderComparison(filters?: QueryFilters) {
           provider,
           record.input_tokens || record.total_tokens * 0.3,
           record.output_tokens || record.total_tokens * 0.7
-        )
+        ),
+        // GenAI Quality Metrics
+        slowRequestRate: record.slow_request_rate || 0,
+        lowOutputRate: record.low_output_rate || 0,
+        avgOutputTokens: record.avg_output_tokens || 0
       };
     });
   }, []);
@@ -193,7 +203,11 @@ export function useModelComparison(filters?: QueryFilters) {
         avgLatency: (record.avg_latency || 0) / 1_000_000,
         avgTokensPerRequest: record.avg_tokens || 0,
         errorRate: record.error_rate || 0,
-        requestCount: record.request_count || 0
+        requestCount: record.request_count || 0,
+        // GenAI Quality Metrics
+        slowRequestRate: record.slow_request_rate || 0,
+        lowOutputRate: record.low_output_rate || 0,
+        avgOutputTokens: record.avg_output_tokens || 0
       };
     });
   }, []);

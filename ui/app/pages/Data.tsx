@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 
-import { Flex } from "@dynatrace/strato-components/layouts";
-import { Heading, Paragraph } from "@dynatrace/strato-components/typography";
+import { Flex, Surface } from "@dynatrace/strato-components/layouts";
+import { Heading, Paragraph, Text } from "@dynatrace/strato-components/typography";
+import { Button } from "@dynatrace/strato-components/buttons";
 import {
   RunQueryButton,
   type QueryStateType,
@@ -15,9 +16,55 @@ import Colors from "@dynatrace/strato-design-tokens/colors";
 import { CriticalIcon } from "@dynatrace/strato-icons";
 import { useDql } from "@dynatrace-sdk/react-hooks";
 
+// GenAI-specific preset queries
+const PRESET_QUERIES = [
+  {
+    name: 'GenAI Requests Over Time',
+    query: `fetch spans, from: now()-24h
+| filter isNotNull(gen_ai.request.model)
+| summarize count(), by:{bin(timestamp, 1h)}`,
+  },
+  {
+    name: 'Token Usage by Model',
+    query: `fetch spans, from: now()-24h
+| filter isNotNull(gen_ai.request.model)
+| summarize 
+    total_input = sum(gen_ai.usage.input_tokens),
+    total_output = sum(gen_ai.usage.output_tokens)
+  by:{gen_ai.request.model}
+| sort total_input desc`,
+  },
+  {
+    name: 'Average Latency by Provider',
+    query: `fetch spans, from: now()-24h
+| filter isNotNull(gen_ai.provider.name)
+| summarize avg_latency_ms = avg(duration) / 1000000
+  by:{gen_ai.provider.name}
+| sort avg_latency_ms desc`,
+  },
+  {
+    name: 'Slow Requests (>5s)',
+    query: `fetch spans, from: now()-24h
+| filter isNotNull(gen_ai.request.model) AND duration > 5000000000
+| fields timestamp, service.name, gen_ai.request.model, duration / 1000000000 [as] "duration_seconds"
+| sort duration desc
+| limit 50`,
+  },
+  {
+    name: 'Error Rate by Service',
+    query: `fetch spans, from: now()-24h
+| filter isNotNull(gen_ai.request.model)
+| summarize 
+    total = count(),
+    errors = countIf(status.code == "ERROR"),
+    error_rate = countIf(status.code == "ERROR") / count() * 100
+  by:{service.name}
+| sort error_rate desc`,
+  },
+];
+
 export const Data = () => {
-  const initialQuery =
-    "fetch logs \n| summarize count(), by:{bin(timestamp, 1m)}";
+  const initialQuery = PRESET_QUERIES[0].query;
 
   const [editorQueryString, setEditorQueryString] =
     useState<string>(initialQuery);
@@ -37,6 +84,11 @@ export const Data = () => {
     }
   }
 
+  const loadPreset = (query: string) => {
+    setEditorQueryString(query);
+    setQueryString(query);
+  };
+
   let queryState: QueryStateType;
   if (error) {
     queryState = "error";
@@ -49,24 +101,37 @@ export const Data = () => {
   }
 
   return (
-    <>
-      <Flex flexDirection="column" alignItems="center" padding={32}>
-        <img
-          src="./assets/Dynatrace_Logo.svg"
-          alt="Dynatrace Logo"
-          width={150}
-          height={150}
-          style={{ paddingBottom: 32 }}
-        ></img>
-        <Heading level={2}>
-          Explore the data in your environment by using the Dynatrace Query
-          Language
-        </Heading>
+    <Flex flexDirection="column" padding={24} gap={16}>
+      {/* Header */}
+      <Flex flexDirection="column" gap={4}>
+        <Heading level={4}>🔍 GenAI Data Explorer</Heading>
+        <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+          Query your GenAI spans and metrics using DQL
+        </Text>
       </Flex>
-      <Flex flexDirection="column" padding={32}>
-        <Paragraph>Use a query which has time series data:</Paragraph>
+
+      {/* Preset Queries */}
+      <Surface style={{ padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+        <Flex flexDirection="column" gap={8}>
+          <Text style={{ fontWeight: 600, fontSize: 12 }}>Quick Queries:</Text>
+          <Flex gap={8} flexWrap="wrap">
+            {PRESET_QUERIES.map((preset, idx) => (
+              <Button 
+                key={idx} 
+                variant="default" 
+                onClick={() => loadPreset(preset.query)}
+              >
+                {preset.name}
+              </Button>
+            ))}
+          </Flex>
+        </Flex>
+      </Surface>
+
+      {/* DQL Editor */}
+      <Flex flexDirection="column" gap={8}>
         <DQLEditor
-          value={queryString}
+          value={editorQueryString}
           onChange={(event) => setEditorQueryString(event)}
         />
         <Flex justifyContent={error ? "space-between" : "flex-end"}>
@@ -82,16 +147,28 @@ export const Data = () => {
           <RunQueryButton
             onClick={onClickQuery}
             queryState={queryState}
-          ></RunQueryButton>
+          />
         </Flex>
-        {data?.records && (
+      </Flex>
+
+      {/* Results */}
+      {data?.records && data.records.length > 0 && (
+        <Surface style={{ padding: 16 }}>
           <TimeseriesChart
             data={convertToTimeseries(data.records, data.types)}
             gapPolicy="connect"
             variant="line"
           />
-        )}
-      </Flex>
-    </>
+        </Surface>
+      )}
+
+      {data?.records && data.records.length === 0 && (
+        <Surface style={{ padding: 24, textAlign: 'center' }}>
+          <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+            No results found. Try adjusting your query or timeframe.
+          </Text>
+        </Surface>
+      )}
+    </Flex>
   );
 };

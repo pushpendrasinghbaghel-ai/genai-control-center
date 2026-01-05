@@ -17,6 +17,10 @@ export interface AIService {
   healthStatus: HealthStatus;
   /** Dynatrace entity ID for deep linking to Services app */
   entityId?: string;
+  /** GenAI Quality Metrics */
+  slowRequestRate?: number;  // % of requests > 5 seconds
+  lowOutputRate?: number;    // % of responses with < 10 output tokens
+  avgOutputTokens?: number;  // Average output tokens per request
 }
 
 export interface AIServiceMetrics {
@@ -42,6 +46,9 @@ export interface HealthMetrics {
   totalCostToday: number;
   avgLatency: number;
   avgErrorRate: number;
+  /** GenAI Quality Metrics */
+  avgSlowRequestRate: number;
+  avgLowOutputRate: number;
 }
 
 // ============================================

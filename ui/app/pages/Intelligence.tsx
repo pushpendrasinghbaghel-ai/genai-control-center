@@ -288,15 +288,19 @@ export const Intelligence: React.FC = () => {
               ))}
             </Flex>
 
-            {/* AI Insights Preview */}
-            <Heading level={6} style={{ marginTop: 16 }}>🧠 AI Capabilities</Heading>
-            <Flex flexDirection="column" gap={4}>
-              <Text textStyle="small">• Anomaly detection</Text>
-              <Text textStyle="small">• Cost forecasting</Text>
-              <Text textStyle="small">• Performance correlation</Text>
-              <Text textStyle="small">• Root cause analysis</Text>
-              <Text textStyle="small">• Optimization recommendations</Text>
-            </Flex>
+            {/* Quick action to go to Health Dashboard */}
+            <Button
+              variant="default"
+              onClick={() => window.location.href = '/health'}
+              style={{ textAlign: 'left', justifyContent: 'flex-start' }}
+            >
+              <Flex flexDirection="column" alignItems="flex-start" gap={2}>
+                <Text>📊 View Health Dashboard</Text>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  See all services and metrics
+                </Text>
+              </Flex>
+            </Button>
           </Flex>
         </Surface>
 
