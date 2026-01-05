@@ -1,34 +1,21 @@
 // GenAI Control Center - FinOps Dashboard
 // Industry-standard AI cost management and optimization
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
-import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
+import { ProgressBar } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { useAIServicesDiscovery, useProviderComparison } from '../hooks/useDQLQueries';
+import Colors from '@dynatrace/strato-design-tokens/colors';
+import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
+import { 
+  useProviderComparison, 
+  useDistinctServices, 
+  useDistinctProviders, 
+  useDistinctModels 
+} from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
-import { Colors } from '@dynatrace/strato-design-tokens';
-
-// Cost tiers for budget management
-const COST_TIERS = {
-  low: { max: 100, color: Colors.Charts.Apdex.Excellent.Default },
-  medium: { max: 500, color: Colors.Charts.Apdex.Good.Default },
-  high: { max: Infinity, color: Colors.Charts.Apdex.Poor.Default },
-};
-
-// Provider cost rates (per 1K tokens)
-const PROVIDER_RATES: Record<string, { input: number; output: number }> = {
-  'openai': { input: 0.01, output: 0.03 },
-  'azure': { input: 0.01, output: 0.03 },
-  'anthropic': { input: 0.008, output: 0.024 },
-  'google': { input: 0.00025, output: 0.0005 },
-  'vertexai': { input: 0.00025, output: 0.0005 },
-  'amazon': { input: 0.0008, output: 0.0024 },
-  'ollama': { input: 0, output: 0 }, // Self-hosted
-  'default': { input: 0.01, output: 0.03 },
-};
+import { estimateCost } from '../utils';
 
 interface CostBreakdown {
   provider: string;
@@ -98,30 +85,52 @@ function calculateForecast(
 }
 
 export const FinOps: React.FC = () => {
-  const [filters, setFilters] = useState<QueryFilters>({});
+  const [filters, setFilters] = useState<FilterOptions>({
+    timeframe: createDefaultTimeframe(),
+    filterQuery: '',
+    serviceFilter: '',
+    providerFilter: '',
+    modelFilter: ''
+  });
   const [budgetLimit, setBudgetLimit] = useState<number>(1000);
   
-  const { data: services, loading: servicesLoading } = useAIServicesDiscovery(filters);
-  const { data: providers, loading: providersLoading } = useProviderComparison(filters);
+  const queryFilters = useMemo<QueryFilters>(() => ({
+    timeframe: filters.timeframe,
+    serviceName: filters.serviceFilter || undefined,
+    provider: filters.providerFilter || undefined,
+    model: filters.modelFilter || undefined
+  }), [filters]);
+  
+  const { data: providers, loading: providersLoading, refetch } = useProviderComparison(queryFilters);
+  const { data: availableServices } = useDistinctServices(queryFilters);
+  const { data: availableProviders } = useDistinctProviders(queryFilters);
+  const { data: availableModels } = useDistinctModels(queryFilters);
+  
+  const handleFiltersChange = useCallback((next: FilterOptions) => {
+    setFilters(next);
+  }, []);
+  
+  const handleRefresh = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   // Calculate cost breakdown by provider
   const costBreakdown = useMemo((): CostBreakdown[] => {
     if (!providers) return [];
     
     return providers.map((p: any) => {
-      const providerKey = p.provider?.toLowerCase() || 'default';
-      const rates = PROVIDER_RATES[providerKey] || PROVIDER_RATES.default;
-      
-      const inputTokens = p.totalTokens * 0.3; // Estimate 30% input
-      const outputTokens = p.totalTokens * 0.7; // Estimate 70% output
-      const estimatedCost = (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output;
+      const providerName = p.provider || 'Unknown';
+      const totalTokens = p.totalTokens || 0;
+      const inputTokens = totalTokens * 0.3; // Estimate 30% input share
+      const outputTokens = totalTokens - inputTokens; // Remaining as completion
+      const estimatedCost = estimateCost(providerName, inputTokens, outputTokens);
       
       return {
-        provider: p.provider || 'Unknown',
-        totalTokens: p.totalTokens || 0,
+        provider: providerName,
+        totalTokens,
         inputTokens: Math.round(inputTokens),
         outputTokens: Math.round(outputTokens),
-        estimatedCost: estimatedCost,
+        estimatedCost,
         requestCount: p.totalRequests || 0,
         avgCostPerRequest: p.totalRequests > 0 ? estimatedCost / p.totalRequests : 0,
         costTrend: 'stable' as const,
@@ -195,7 +204,7 @@ export const FinOps: React.FC = () => {
     return breachPoint?.day || null;
   }, [costForecast, budgetLimit]);
 
-  const loading = servicesLoading || providersLoading;
+  const loading = providersLoading;
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -208,6 +217,16 @@ export const FinOps: React.FC = () => {
           </Text>
         </Flex>
       </Flex>
+
+      <FilterBar
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onRefresh={handleRefresh}
+        isLoading={loading}
+        availableServices={availableServices || []}
+        availableProviders={availableProviders || []}
+        availableModels={availableModels || []}
+      />
 
       {/* Budget Overview */}
       <Flex gap={16}>
@@ -268,7 +287,7 @@ export const FinOps: React.FC = () => {
             </Text>
             <TextInput
               value={budgetLimit.toString()}
-              onChange={(e) => setBudgetLimit(Number(e) || 1000)}
+              onChange={(value) => setBudgetLimit(Number(value) || 1000)}
             />
             <Text textStyle="small">
               Set monthly/daily budget threshold

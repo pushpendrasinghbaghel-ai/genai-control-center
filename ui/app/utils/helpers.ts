@@ -6,13 +6,19 @@ import type { AIService, HealthStatus, HealthMetrics } from '../types';
  * Cost estimation based on provider and token count
  */
 const COST_PER_1K_TOKENS: Record<string, { input: number; output: number }> = {
-  'openai': { input: 0.01, output: 0.03 },
-  'azure_openai': { input: 0.01, output: 0.03 },
-  'anthropic': { input: 0.008, output: 0.024 },
-  'google': { input: 0.0005, output: 0.0015 },
-  'cohere': { input: 0.0004, output: 0.0004 },
-  'local': { input: 0, output: 0 },
-  'default': { input: 0.005, output: 0.015 }
+  openai: { input: 0.01, output: 0.03 },
+  azure_openai: { input: 0.01, output: 0.03 },
+  azure: { input: 0.01, output: 0.03 },
+  anthropic: { input: 0.008, output: 0.024 },
+  google: { input: 0.0005, output: 0.0015 },
+  vertexai: { input: 0.00025, output: 0.0005 },
+  amazon: { input: 0.0008, output: 0.0024 },
+  amazon_bedrock: { input: 0.0008, output: 0.0024 },
+  cohere: { input: 0.0004, output: 0.0004 },
+  local: { input: 0, output: 0 },
+  ollama: { input: 0, output: 0 },
+  langchain: { input: 0.005, output: 0.015 },
+  default: { input: 0.005, output: 0.015 }
 };
 
 /**
@@ -23,7 +29,8 @@ export function estimateCost(
   promptTokens: number,
   completionTokens: number
 ): number {
-  const rates = COST_PER_1K_TOKENS[provider.toLowerCase()] || COST_PER_1K_TOKENS['default'];
+  const normalizedProvider = provider?.toLowerCase().trim() || 'default';
+  const rates = COST_PER_1K_TOKENS[normalizedProvider] || COST_PER_1K_TOKENS.default;
   const inputCost = (promptTokens / 1000) * rates.input;
   const outputCost = (completionTokens / 1000) * rates.output;
   return inputCost + outputCost;

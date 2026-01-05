@@ -79,7 +79,7 @@ const MetricCard: React.FC<{
  */
 const openEntityInServices = (entityId: string): void => {
   // Use dt.entity.service for service entities
-  // Use 'dynatrace.services' for the new Services app (not classic)
+  // Use 'dynatrace.services' for the Services app
   sendIntent(
     { 'dt.entity.service': entityId },
     {

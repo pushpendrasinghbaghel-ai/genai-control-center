@@ -27,18 +27,18 @@ export interface FilterOptions {
   modelFilter: string;
 }
 
-/** Create a default Timeframe object (last 30 minutes) */
+/** Create a default Timeframe object (last 24 hours) */
 export const createDefaultTimeframe = (): Timeframe => ({
-  from: { value: 'now()-30m', type: 'expression', absoluteDate: new Date().toISOString() },
+  from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
 
 /** Convert a Timeframe to DQL-compatible from clause */
 export const getTimeframeDqlClause = (timeframe: Timeframe | null): string => {
   if (!timeframe) {
-    return 'from: now()-30m, to: now()';
+    return 'from: now()-24h, to: now()';
   }
-  const fromValue = timeframe.from?.value || 'now()-30m';
+  const fromValue = timeframe.from?.value || 'now()-24h';
   const toValue = timeframe.to?.value || 'now()';
   return `from: ${fromValue}, to: ${toValue}`;
 };
@@ -63,7 +63,7 @@ interface FilterBarProps {
 // Filter keys matching Dynatrace entity naming conventions
 const FILTER_KEYS = {
   SERVICE: 'dt.entity.service.name',
-  PROVIDER: 'gen_ai.system',
+  PROVIDER: 'gen_ai.provider.name',
   MODEL: 'gen_ai.request.model'
 } as const;
 
@@ -251,7 +251,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           onFilter={handleFilterSubmit}
           validatorMap={validatorMap}
           autoSuggestions
-          placeholder="Filter by dt.entity.service.name, gen_ai.system, gen_ai.request.model..."
+          placeholder="Filter by dt.entity.service.name, gen_ai.provider.name, gen_ai.request.model..."
         >
           <FilterField.Suggestions>
             {/* Key suggestions only - values come from validatorMap valuePredicate */}

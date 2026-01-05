@@ -1,31 +1,36 @@
 /**
  * GenAI Control Center - DQL Query Test Suite
  * 
- * Tests for verifying DQL queries work correctly with both:
- * - Production environment (prompt_tokens, completion_tokens)
- * - Demo environment (gen_ai.usage.input_tokens, gen_ai.usage.output_tokens)
+ * Tests for verifying DQL queries work correctly with Dynatrace Grail data.
+ * Based on actual field availability (validated from production data):
+ * - gen_ai.provider.name: 100% available (primary provider field)
+ * - gen_ai.usage.input_tokens: 59% available (primary token field)
+ * - gen_ai.usage.output_tokens: 45% available
+ * - gen_ai.usage.prompt_tokens: 9% available (fallback token field)
+ * - gen_ai.usage.completion_tokens: 14% available (fallback token field)
+ * - gen_ai.system: 0% available (NEVER populated - do not rely on this)
+ * - gen_ai.model_name: 0% available (NEVER populated - do not rely on this)
+ * - gen_ai.usage.total_tokens: 0% available (NEVER populated - compute from parts)
  */
 
-import { DQL_QUERIES } from '../dql-queries';
+import { estimateCost } from '../utils/helpers';
 
-// Mock data representing different environment schemas
-const DEMO_ENVIRONMENT_SPAN = {
+// Mock data representing typical Grail span schema
+const STANDARD_SPAN = {
   'gen_ai.usage.input_tokens': 150,
   'gen_ai.usage.output_tokens': 350,
-  'gen_ai.usage.total_tokens': 500,
   'gen_ai.provider.name': 'Azure',
   'gen_ai.request.model': 'gpt-4',
-  'gen_ai.system': null,
+  'gen_ai.response.model': 'gpt-4',
   'status.code': null,
   'duration': 2500000000, // 2.5 seconds in nanoseconds
 };
 
-const PRODUCTION_ENVIRONMENT_SPAN = {
-  'prompt_tokens': 150,
-  'completion_tokens': 350,
-  'gen_ai.system': 'openai',
+const SPAN_WITH_LEGACY_TOKENS = {
+  'gen_ai.usage.prompt_tokens': 150,
+  'gen_ai.usage.completion_tokens': 350,
+  'gen_ai.provider.name': 'openai',
   'gen_ai.request.model': 'gpt-4-turbo',
-  'gen_ai.provider.name': null,
   'status.code': 'ERROR',
   'duration': 3000000000, // 3 seconds in nanoseconds
 };
@@ -53,21 +58,20 @@ function deriveProviderFromModel(modelName: string): string {
 
 describe('DQL Query Compatibility', () => {
   describe('Token Calculation with Coalesce', () => {
-    test('should calculate total tokens from demo environment fields', () => {
-      const span = DEMO_ENVIRONMENT_SPAN;
+    test('should calculate total tokens from input/output fields', () => {
+      const span = STANDARD_SPAN;
       
       // This mirrors the coalesce logic in our DQL queries:
-      // coalesce(gen_ai.usage.total_tokens, coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))
-      const totalTokens = coalesce(
-        span['gen_ai.usage.total_tokens'],
-        coalesce(span['gen_ai.usage.input_tokens'], 0) + coalesce(span['gen_ai.usage.output_tokens'], 0)
-      );
+      // coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+      const inputTokens = coalesce(span['gen_ai.usage.input_tokens'], span['gen_ai.usage.prompt_tokens'], 0);
+      const outputTokens = coalesce(span['gen_ai.usage.output_tokens'], span['gen_ai.usage.completion_tokens'], 0);
+      const totalTokens = inputTokens + outputTokens;
       
       expect(totalTokens).toBe(500);
     });
 
-    test('should calculate total tokens from production environment fields', () => {
-      const span = PRODUCTION_ENVIRONMENT_SPAN;
+    test('should fallback to prompt_tokens/completion_tokens when input/output not available', () => {
+      const span = SPAN_WITH_LEGACY_TOKENS;
       
       // Production uses prompt_tokens + completion_tokens
       const inputTokens = coalesce(span['gen_ai.usage.input_tokens'], span['prompt_tokens'], 0);
@@ -95,38 +99,37 @@ describe('DQL Query Compatibility', () => {
   });
 
   describe('Provider Derivation', () => {
-    test('should prefer gen_ai.provider.name when available', () => {
-      const span = DEMO_ENVIRONMENT_SPAN;
+    test('should use gen_ai.provider.name (always available in Grail)', () => {
+      const span = STANDARD_SPAN;
       const provider = coalesce(
         span['gen_ai.provider.name'],
-        span['gen_ai.system'],
         deriveProviderFromModel(span['gen_ai.request.model'])
       );
       
       expect(provider).toBe('Azure');
     });
 
-    test('should fallback to gen_ai.system when provider.name is null', () => {
-      const span = PRODUCTION_ENVIRONMENT_SPAN;
+    test('should fallback to deriveProviderFromModel when provider.name missing', () => {
+      const span = { 
+        'gen_ai.provider.name': null, 
+        'gen_ai.request.model': 'gpt-4-turbo' 
+      };
       const provider = coalesce(
         span['gen_ai.provider.name'],
-        span['gen_ai.system'],
         deriveProviderFromModel(span['gen_ai.request.model'])
       );
       
-      expect(provider).toBe('openai');
+      expect(provider).toBe('OpenAI');
     });
 
     test('should derive provider from model name as last resort', () => {
       const span = { 
         'gen_ai.provider.name': null, 
-        'gen_ai.system': null, 
         'gen_ai.request.model': 'claude-3-sonnet' 
       };
       
       const provider = coalesce(
         span['gen_ai.provider.name'],
-        span['gen_ai.system'],
         deriveProviderFromModel(span['gen_ai.request.model'])
       );
       
@@ -189,43 +192,35 @@ describe('DQL Query Compatibility', () => {
     });
   });
 
-  describe('Cost Estimation', () => {
-    const PROVIDER_RATES: Record<string, { input: number; output: number }> = {
-      'openai': { input: 0.01, output: 0.03 },
-      'azure': { input: 0.01, output: 0.03 },
-      'anthropic': { input: 0.008, output: 0.024 },
-      'google': { input: 0.00025, output: 0.0005 },
-      'ollama': { input: 0, output: 0 },
-    };
-
-    test('should estimate cost correctly for OpenAI/Azure', () => {
-      const inputTokens = 1000;
-      const outputTokens = 1000;
-      const rates = PROVIDER_RATES.openai;
-      
-      const cost = (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output;
-      
-      expect(cost).toBe(0.04); // $0.01 + $0.03
+  describe('Cost Estimation Helper', () => {
+    test('should estimate OpenAI style pricing', () => {
+      const cost = estimateCost('OpenAI', 1000, 1000);
+      expect(cost).toBeCloseTo(0.04, 5);
     });
 
-    test('should return zero cost for self-hosted Ollama', () => {
-      const inputTokens = 10000;
-      const outputTokens = 10000;
-      const rates = PROVIDER_RATES.ollama;
-      
-      const cost = (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output;
-      
+    test('should treat Azure providers the same as OpenAI', () => {
+      const cost = estimateCost('Azure', 2000, 3000);
+      expect(cost).toBeCloseTo(0.01 * 2 + 0.03 * 3, 5);
+    });
+
+    test('should support Vertex AI pricing', () => {
+      const cost = estimateCost('VertexAI', 4000, 6000);
+      expect(cost).toBeCloseTo((0.00025 * 4) + (0.0005 * 6), 5);
+    });
+
+    test('should support Amazon Bedrock style pricing', () => {
+      const cost = estimateCost('amazon', 1000, 1000);
+      expect(cost).toBeCloseTo(0.0008 + 0.0024, 5);
+    });
+
+    test('should return zero cost for self-hosted/ollama models', () => {
+      const cost = estimateCost('Ollama', 5000, 5000);
       expect(cost).toBe(0);
     });
 
-    test('should estimate cost correctly for Anthropic', () => {
-      const inputTokens = 1000;
-      const outputTokens = 1000;
-      const rates = PROVIDER_RATES.anthropic;
-      
-      const cost = (inputTokens / 1000) * rates.input + (outputTokens / 1000) * rates.output;
-      
-      expect(cost).toBe(0.032); // $0.008 + $0.024
+    test('should fall back to default rates for unknown providers', () => {
+      const cost = estimateCost('UnknownVendor', 1000, 1000);
+      expect(cost).toBeCloseTo(0.02, 5); // default 0.005 + 0.015
     });
   });
 });

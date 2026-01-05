@@ -13,6 +13,7 @@ import {
   DISTINCT_ALL_SERVICES_QUERY,
   DISTINCT_PROVIDERS_QUERY,
   DISTINCT_MODELS_QUERY,
+  PROMPT_ANALYSIS_QUERY,
   QueryFilters
 } from '../queries/dql-queries';
 import { estimateCost, calculateHealthStatus } from '../utils';
@@ -20,7 +21,7 @@ import { estimateCost, calculateHealthStatus } from '../utils';
 export type { QueryFilters } from '../queries/dql-queries';
 
 /**
- * Derive provider name from model name when gen_ai.system is null
+ * Derive provider name from model name when gen_ai.provider.name is not available
  */
 function deriveProviderFromModel(modelName: string): string {
   const lower = modelName.toLowerCase();
@@ -115,10 +116,10 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
       const promptTokens = Number(record.prompt_tokens || tokens * 0.3);
       const completionTokens = Number(record.completion_tokens || tokens * 0.7);
       
-      // Use gen_ai.request.model as primary, fall back to gen_ai.model_name or gen_ai.system
-      const modelName = record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown';
-      // Prefer gen_ai.provider.name, then gen_ai.system, then derive from model name
-      const provider = record['gen_ai.provider.name'] || record['gen_ai.system'] || deriveProviderFromModel(modelName);
+      // Use gen_ai.request.model as primary, fall back to response.model
+      const modelName = record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown';
+      // Prefer gen_ai.provider.name (always populated), then derive from model name
+      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
       
       return {
         serviceName: record['service.name'] || 'Unknown',
@@ -151,10 +152,9 @@ export function useProviderComparison(filters?: QueryFilters) {
   
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => {
-      // The query now groups by coalesce(gen_ai.provider.name, gen_ai.system, gen_ai.request.model)
-      const provider = record['coalesce(gen_ai.provider.name, gen_ai.system, gen_ai.request.model)'] || 
+      // The query now groups by coalesce(gen_ai.provider.name, gen_ai.request.model)
+      const provider = record['coalesce(gen_ai.provider.name, gen_ai.request.model)'] || 
                        record['gen_ai.provider.name'] || 
-                       record['gen_ai.system'] || 
                        record['gen_ai.request.model'] || 
                        'Unknown';
       return {
@@ -167,8 +167,8 @@ export function useProviderComparison(filters?: QueryFilters) {
         successRate: record.success_rate || 0,
         estimatedCost: estimateCost(
           provider,
-          record.total_tokens * 0.3,
-          record.total_tokens * 0.7
+          record.input_tokens || record.total_tokens * 0.3,
+          record.output_tokens || record.total_tokens * 0.7
         )
       };
     });
@@ -185,8 +185,8 @@ export function useModelComparison(filters?: QueryFilters) {
   
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => {
-      const modelName = record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown';
-      const provider = record['gen_ai.system'] || deriveProviderFromModel(modelName);
+      const modelName = record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown';
+      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
       return {
         modelName: modelName,
         provider: provider,
@@ -210,7 +210,7 @@ export function useHighLatencyServices(filters?: QueryFilters) {
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => ({
       serviceName: record['service.name'] || 'Unknown',
-      modelName: record['gen_ai.request.model'] || record['gen_ai.model_name'] || 'Unknown',
+      modelName: record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown',
       slowRequests: record.slow_requests || 0,
       avgDuration: (record.avg_duration || 0) / 1_000_000,
       maxDuration: (record.max_duration || 0) / 1_000_000
@@ -228,7 +228,8 @@ export function useServiceDetail(serviceName: string, filters?: QueryFilters) {
   
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => ({
-      modelName: record['gen_ai.model_name'] || 'Unknown',
+      modelName: record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown',
+      provider: record['gen_ai.provider.name'] || deriveProviderFromModel(record['gen_ai.request.model'] || ''),
       tokens: record.tokens || 0,
       promptTokens: record.prompt_tokens || 0,
       completionTokens: record.completion_tokens || 0,
@@ -313,7 +314,10 @@ export function useDistinctProviders(filters?: QueryFilters) {
   const query = useMemo(() => DISTINCT_PROVIDERS_QUERY(filters), [filters]);
   
   const transform = useCallback((records: unknown[]): string[] => {
-    return records.map((record: any) => record['gen_ai.system']).filter(Boolean);
+    const providers = records
+      .map((record: any) => record.provider as string | undefined)
+      .filter((value): value is string => Boolean(value));
+    return Array.from(new Set(providers));
   }, []);
 
   return useDQLQuery(query, transform);
@@ -326,7 +330,376 @@ export function useDistinctModels(filters?: QueryFilters) {
   const query = useMemo(() => DISTINCT_MODELS_QUERY(filters), [filters]);
   
   const transform = useCallback((records: unknown[]): string[] => {
-    return records.map((record: any) => record['gen_ai.model_name']).filter(Boolean);
+    const models = records
+      .map((record: any) => record.model as string | undefined)
+      .filter((value): value is string => Boolean(value));
+    return Array.from(new Set(models));
+  }, []);
+
+  return useDQLQuery(query, transform);
+}
+
+/**
+ * Interface for analyzed prompt data
+ * NOTE: Now represents a GROUPED prompt pattern (server-side aggregated)
+ * - requestCount = how many times this exact prompt pattern was sent
+ * - inputTokens/outputTokens/totalCost = aggregated totals for all requests
+ */
+export interface AnalyzedPrompt {
+  id: string;
+  serviceName: string;
+  model: string;
+  provider: string;
+  promptPreview: string;
+  completionPreview?: string;   // Model's response - key for hallucination detection
+  inputTokens: number;          // Total tokens for all requests with this pattern
+  outputTokens: number;         // Total tokens for all requests with this pattern
+  totalCost: number;            // Total cost for all requests with this pattern
+  flags: PromptFlag[];
+  timestamp: string;
+  traceId: string;
+  spanId: string;
+  latencyMs: number;            // Average latency across all requests
+  statusCode: string;
+  requestCount?: number;        // Number of times this pattern appeared (server-grouped)
+}
+
+export interface PromptFlag {
+  type: 'pii' | 'hallucination' | 'expensive' | 'repetitive' | 'injection' | 'sensitive' | 'bias';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  detail: string;
+}
+
+/**
+ * Context for smarter prompt analysis
+ * Includes tool/function usage info and completion for hallucination detection
+ */
+interface PromptContext {
+  systemPrompt?: string;
+  completion?: string;         // The model's response - key for hallucination detection
+  hasToolUsage?: boolean;      // gen_ai.completion.0.tool_calls present
+  hasAvailableTools?: boolean; // llm.request.functions present
+  finishReason?: string;       // "tool_calls" indicates tool usage
+}
+
+/**
+ * Analyze the MODEL'S RESPONSE (completion) for hallucination indicators
+ * This is the most reliable way to detect hallucination - look at what the model actually said
+ */
+function analyzeCompletionForHallucination(completion: string): PromptFlag[] {
+  const flags: PromptFlag[] = [];
+  if (!completion) return flags;
+  
+  const completionLower = completion.toLowerCase();
+  
+  // Pattern 1: Obvious factual errors (known false statements)
+  // These are fabricated facts that are demonstrably wrong
+  const obviousFalsehoods = [
+    { pattern: /sydney.*(western australia|population of \d{1,3} people|accessed by camel)/i, detail: 'Fabricated geography/demographics' },
+    { pattern: /can only be accessed by (camel|horse|boat)/i, detail: 'Fabricated transportation claim' },
+    { pattern: /population of (\d{1,3}) people/i, detail: 'Unrealistic population number' },
+  ];
+  
+  for (const { pattern, detail } of obviousFalsehoods) {
+    if (pattern.test(completion)) {
+      flags.push({ type: 'hallucination', severity: 'critical', detail: `Hallucination detected: ${detail}` });
+    }
+  }
+  
+  // Pattern 2: Hedging language that suggests uncertainty (potential hallucination)
+  const hedgingPatterns = [
+    'i believe', 'i think', 'probably', 'might be', 'could be',
+    'if i recall', 'if i remember', 'i\'m not sure but',
+    'i cannot verify', 'i don\'t have access to'
+  ];
+  let hedgingCount = 0;
+  for (const pattern of hedgingPatterns) {
+    if (completionLower.includes(pattern)) hedgingCount++;
+  }
+  if (hedgingCount >= 2) {
+    flags.push({ type: 'hallucination', severity: 'medium', detail: 'Multiple hedging phrases suggest uncertainty' });
+  }
+  
+  // Pattern 3: Overconfident specificity (making up precise details)
+  // E.g., specific dates, names, or numbers without source
+  const overlySpecificPatterns = [
+    /on (january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2},? \d{4}/i,
+    /according to a \d{4} (study|report|survey)/i,
+    /founded in \d{4} by [A-Z][a-z]+ [A-Z][a-z]+/i,
+  ];
+  for (const pattern of overlySpecificPatterns) {
+    if (pattern.test(completion) && !completionLower.includes('source') && !completionLower.includes('reference')) {
+      flags.push({ type: 'hallucination', severity: 'low', detail: 'Specific claims without cited source - verify accuracy' });
+      break;
+    }
+  }
+  
+  // Pattern 4: Contradictions within the response
+  const contradictions = [
+    { check: /does not have.*(airport|port).*easily accessible/i, detail: 'Contradictory statements about accessibility' },
+    { check: /no.*but also has/i, detail: 'Self-contradictory claim' },
+  ];
+  for (const { check, detail } of contradictions) {
+    if (check.test(completion)) {
+      flags.push({ type: 'hallucination', severity: 'high', detail: `Contradiction: ${detail}` });
+    }
+  }
+  
+  // Pattern 5: Implausible claims (things that don't make sense)
+  const implausiblePatterns = [
+    /known for.*(winter sports|skiing).*tropical/i,
+    /great for winter sports/i,  // Sydney-specific hallucination
+  ];
+  if (completionLower.includes('sydney') || completionLower.includes('australia')) {
+    for (const pattern of implausiblePatterns) {
+      if (pattern.test(completion)) {
+        flags.push({ type: 'hallucination', severity: 'high', detail: 'Implausible geographic claim' });
+        break;
+      }
+    }
+  }
+  
+  return flags;
+}
+
+/**
+ * Analyze a prompt for potential issues with context awareness
+ * Detection patterns are based on real GenAI span data from Dynatrace environments
+ * Uses tool/function context to avoid false positives on FAQ-style questions
+ */
+function analyzePromptForFlags(
+  prompt: string, 
+  tokens: number, 
+  cost: number,
+  context?: PromptContext
+): PromptFlag[] {
+  const flags: PromptFlag[] = [];
+  const promptLower = prompt?.toLowerCase() || '';
+  const systemLower = context?.systemPrompt?.toLowerCase() || '';
+  
+  // Check if this prompt has tool/RAG access (reduces hallucination risk)
+  const hasToolAccess = context?.hasToolUsage || 
+                        context?.hasAvailableTools || 
+                        context?.finishReason === 'tool_calls' ||
+                        systemLower.includes('tool') ||
+                        systemLower.includes('function') ||
+                        systemLower.includes('faq') ||
+                        systemLower.includes('knowledge base') ||
+                        systemLower.includes('database') ||
+                        systemLower.includes('search');
+  
+  // PII Detection patterns
+  const ssnPattern = /\b\d{3}[-.]?\d{2}[-.]?\d{4}\b/;
+  const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+  const phonePattern = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/;
+  const creditCardPattern = /\b\d{4}[-. ]?\d{4}[-. ]?\d{4}[-. ]?\d{4}\b/;
+  const dobPattern = /\b(dob|date of birth|birth date|birthdate)\s*[:=]?\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/i;
+  const mrnPattern = /\b(mrn|medical record|patient id)\s*[:=]?\s*\d+\b/i;
+  
+  if (ssnPattern.test(prompt)) {
+    flags.push({ type: 'pii', severity: 'critical', detail: 'SSN pattern detected in prompt' });
+  }
+  if (emailPattern.test(prompt)) {
+    flags.push({ type: 'pii', severity: 'high', detail: 'Email address detected' });
+  }
+  if (phonePattern.test(prompt)) {
+    flags.push({ type: 'pii', severity: 'medium', detail: 'Phone number detected' });
+  }
+  if (creditCardPattern.test(prompt)) {
+    flags.push({ type: 'pii', severity: 'critical', detail: 'Credit card number pattern detected' });
+  }
+  if (dobPattern.test(prompt) || mrnPattern.test(prompt)) {
+    flags.push({ type: 'pii', severity: 'critical', detail: 'PHI/HIPAA data detected (DOB/MRN)' });
+  }
+  
+  // Sensitive content detection
+  if (promptLower.includes('password') || promptLower.includes('secret') || promptLower.includes('api key') || promptLower.includes('token')) {
+    flags.push({ type: 'sensitive', severity: 'high', detail: 'Potential credentials in prompt' });
+  }
+  if (promptLower.includes('patient') || promptLower.includes('diagnosis') || promptLower.includes('symptom')) {
+    flags.push({ type: 'sensitive', severity: 'high', detail: 'Medical information detected' });
+  }
+  
+  // Prompt injection detection
+  const injectionPatterns = [
+    'ignore all previous',
+    'ignore previous instructions',
+    'disregard your instructions',
+    'forget your rules',
+    'you are now',
+    'new persona',
+    'jailbreak',
+    'dan mode',
+    'developer mode'
+  ];
+  for (const pattern of injectionPatterns) {
+    if (promptLower.includes(pattern)) {
+      flags.push({ type: 'injection', severity: 'critical', detail: 'Prompt injection pattern detected' });
+      break;
+    }
+  }
+  
+  // Expensive prompt detection - based on TOTAL token counts and cost (aggregated for grouped patterns)
+  // Thresholds are for total spend/usage across all requests of this pattern
+  if (cost > 100) {
+    flags.push({ type: 'expensive', severity: 'critical', detail: `Very high total spend: $${cost.toFixed(2)}` });
+  } else if (cost > 50) {
+    flags.push({ type: 'expensive', severity: 'high', detail: `High total spend: $${cost.toFixed(2)}` });
+  } else if (cost > 10) {
+    flags.push({ type: 'expensive', severity: 'medium', detail: `Elevated total spend: $${cost.toFixed(2)}` });
+  } else if (cost > 1) {
+    flags.push({ type: 'expensive', severity: 'low', detail: `Notable total spend: $${cost.toFixed(2)}` });
+  }
+  if (tokens > 1000000) {
+    flags.push({ type: 'expensive', severity: 'critical', detail: `Very high total tokens: ${(tokens/1000000).toFixed(1)}M tokens` });
+  } else if (tokens > 100000) {
+    flags.push({ type: 'expensive', severity: 'high', detail: `High total tokens: ${(tokens/1000).toFixed(0)}K tokens` });
+  } else if (tokens > 10000) {
+    flags.push({ type: 'expensive', severity: 'low', detail: `Elevated total tokens: ${tokens.toLocaleString()} tokens` });
+  }
+  
+  // Real-time/factual query detection (hallucination risk)
+  // ONLY flag if the agent does NOT have tool/RAG access
+  // FAQ questions with tool access (like "baggage fee?") are NOT hallucination risks
+  if (!hasToolAccess) {
+    // Patterns that indicate real-time data needs (only when no tool access)
+    const realTimePatterns = [
+      'weather currently',   // Specific: requires live weather API
+      'weather right now',
+      'stock price',         // Requires live market data
+      'current stock',
+      'latest news',         // Requires news API
+      'live update',
+      'real-time',
+      'right now',
+      'at this moment'
+    ];
+    for (const pattern of realTimePatterns) {
+      if (promptLower.includes(pattern)) {
+        flags.push({ type: 'hallucination', severity: 'high', detail: 'Real-time data query without tool access - hallucination risk' });
+        break;
+      }
+    }
+  }
+  
+  // Even with tool access, flag if asking for data the LLM might fabricate
+  // These are high-risk regardless of tool access
+  const highRiskPatterns = [
+    'exact number of',       // LLMs often fabricate specific numbers
+    'exact figure',
+    'precise count of',
+    'how many exactly'
+  ];
+  for (const pattern of highRiskPatterns) {
+    if (promptLower.includes(pattern)) {
+      flags.push({ type: 'hallucination', severity: 'medium', detail: 'Query asks for precise numbers - verify against source' });
+      break;
+    }
+  }
+  
+  // Bias detection (HR/hiring context)
+  if ((promptLower.includes('candidate') || promptLower.includes('resume') || promptLower.includes('hire')) &&
+      (promptLower.includes('age') || promptLower.includes('gender') || promptLower.includes('race') || 
+       promptLower.includes('nationality') || promptLower.includes('religion'))) {
+    flags.push({ type: 'bias', severity: 'high', detail: 'Protected characteristics in hiring context - bias risk' });
+  }
+  
+  // Note: Repetitive/cacheable detection is done at the grouped level in Governance.tsx
+  // based on actual request count, not content patterns
+  
+  return flags;
+}
+
+/**
+ * Hook for Prompt Analysis - fetches real GenAI spans and analyzes them
+ * Uses correct field names from Dynatrace span schema (validated from real data):
+ * - trace.id, span.id (with dots)
+ * - gen_ai.prompt.0.content = System prompt
+ * - gen_ai.prompt.1.content = User prompt
+ * - gen_ai.completion.0.content = Completion
+ * - gen_ai.completion.0.tool_calls.0.name = Tool call (indicates RAG/function usage)
+ * - gen_ai.usage.input_tokens, gen_ai.usage.output_tokens
+ * 
+ * NOTE: Query now returns SERVER-SIDE GROUPED data:
+ * - Each row = unique prompt pattern (service + model + prompt preview)
+ * - request_count = total times this pattern was sent
+ * - total_input/output_tokens = aggregated token usage
+ * - sample_trace_id = one trace ID for deep-linking
+ */
+export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<AnalyzedPrompt[]> {
+  const query = useMemo(() => PROMPT_ANALYSIS_QUERY(filters), [filters]);
+  
+  const transform = useCallback((records: unknown[]): AnalyzedPrompt[] => {
+    return records.map((record: any, index: number) => {
+      // Get aggregated values from grouped query
+      const requestCount = Number(record['request_count'] || 1);
+      const inputTokens = Number(record['total_input_tokens'] || 0);
+      const outputTokens = Number(record['total_output_tokens'] || 0);
+      const totalTokens = inputTokens + outputTokens;
+      const modelName = record['gen_ai.request.model'] || 'Unknown';
+      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
+      
+      // Prompt preview from grouped query
+      const promptPreview = record['prompt_preview'] || '[No prompt content]';
+      const completionPreview = record['sample_response'] || '';
+      const latencyMs = Number(record['avg_latency'] || 0) / 1_000_000;
+      
+      // Calculate cost (for all requests in this group)
+      const cost = estimateCost(provider, inputTokens, outputTokens);
+      
+      // Build context for flag detection
+      const context: PromptContext = {
+        systemPrompt: '',
+        completion: completionPreview,
+        hasToolUsage: false,
+        hasAvailableTools: false,
+        finishReason: ''
+      };
+      
+      // Analyze prompt for issues (PII, injection, etc.)
+      // Use TOTAL cost/tokens for expensive detection (grouped patterns can have high aggregated cost)
+      // Other flags (PII, injection) use per-request analysis since they're content-based
+      const promptFlags = analyzePromptForFlags(promptPreview, totalTokens, cost, context);
+      
+      // Analyze completion for hallucination
+      const hallucinationFlags = analyzeCompletionForHallucination(completionPreview);
+      
+      // Merge all flags
+      const flags = [...promptFlags, ...hallucinationFlags];
+      
+      // Add repetitive flag if this pattern appears many times (cache-eligible)
+      const CACHE_THRESHOLD = 15;
+      if (requestCount >= CACHE_THRESHOLD) {
+        flags.push({
+          type: 'repetitive' as const,
+          severity: 'low' as const,
+          detail: `${requestCount} identical requests - candidate for semantic caching`
+        });
+      }
+      
+      // Use sample trace/span for deep-linking
+      const traceId = record['sample_trace_id'] || '';
+      const spanId = record['sample_span_id'] || '';
+      
+      return {
+        id: `prompt-${index}-${spanId || Date.now()}`,
+        serviceName: record['service.name'] || 'Unknown',
+        model: modelName,
+        provider: provider,
+        promptPreview,
+        completionPreview,
+        inputTokens,           // Total for all requests
+        outputTokens,          // Total for all requests
+        totalCost: cost,       // Total for all requests
+        flags,
+        timestamp: record['sample_timestamp'] || new Date().toISOString(),  // Timestamp of the sampled trace
+        traceId,
+        spanId,
+        latencyMs,             // Average latency
+        statusCode: 'OK',
+        requestCount           // NEW: Number of times this pattern appeared
+      };
+    });
   }, []);
 
   return useDQLQuery(query, transform);
