@@ -14,6 +14,15 @@ export { Intelligence } from './Intelligence';
 // Operations: Runbooks and Remediation
 export { Operations } from './Operations';
 
+// NEW: AI Topology Visualization
+export { AITopology } from './AITopology';
+
+// NEW: AI Quality Intelligence Dashboard
+export { AIQualityDashboard } from './AIQualityDashboard';
+
+// NEW: Real-Time Alerts
+export { RealTimeAlerts } from './RealTimeAlerts';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

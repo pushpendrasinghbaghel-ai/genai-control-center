@@ -3,7 +3,7 @@
  * Standard Dynatrace app with FilterBar and deep linking to Services app
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
@@ -12,7 +12,8 @@ import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon } from '@dynatrace/strato-icons';
 import { sendIntent } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
-import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 import { calculateOverallHealth, formatNumber, formatCurrency, getHealthStatusColor } from '../utils';
 import type { AIService, HealthStatus } from '../types';
 
@@ -148,11 +149,15 @@ const ServiceRow: React.FC<{
         <div style={{ textAlign: 'right', minWidth: 50 }}>
           <div style={{ 
             fontSize: 12, fontWeight: 600,
-            color: Number(service.slowRequestRate || 0) > 10 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit'
+            color: Number(service.slowRequestRate || 0) > 10 
+              ? 'var(--dt-colors-feedback-critical-default)' 
+              : Number(service.slowRequestRate || 0) > 5 
+              ? 'var(--dt-colors-feedback-warning-default)' 
+              : 'var(--dt-colors-feedback-success-default)'
           }}>
             {Number(service.slowRequestRate || 0).toFixed(1)}%
           </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>slow</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }} title="Requests taking >3 seconds">slow (&gt;3s)</div>
         </div>
         <div style={{ textAlign: 'right', minWidth: 50 }}>
           <div style={{ 
@@ -175,28 +180,42 @@ const ServiceRow: React.FC<{
 export const HealthDashboard: React.FC = () => {
   const navigate = useNavigate();
   
-  // Filter state - initialize with a default timeframe
-  const [filters, setFilters] = useState<FilterOptions>({
-    timeframe: createDefaultTimeframe(),
-    filterQuery: '',
-    serviceFilter: '',
-    providerFilter: '',
-    modelFilter: ''
-  });
+  // Use global filter state for consistency across pages
+  const { filters, setFilters } = useGlobalFilters();
+
+  // Data hooks with filters - use empty filters first to get available options
+  const { data: availableServiceOptions } = useDistinctServices();
+  const { data: availableProviders } = useDistinctProviders();
+  const { data: availableModels } = useDistinctModels();
+  
+  // Create a mapping from entity name to entity ID
+  const serviceNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (availableServiceOptions) {
+      availableServiceOptions.forEach(opt => {
+        map.set(opt.entityName, opt.entityId);
+      });
+    }
+    return map;
+  }, [availableServiceOptions]);
 
   // Convert FilterOptions to QueryFilters for hooks
-  const queryFilters: QueryFilters = useMemo(() => ({
-    timeframe: filters.timeframe,
-    serviceName: filters.serviceFilter || undefined,
-    provider: filters.providerFilter || undefined,
-    model: filters.modelFilter || undefined
-  }), [filters]);
+  // When user selects a service name, convert it to entity ID for querying
+  const queryFilters: QueryFilters = useMemo(() => {
+    const serviceEntityId = filters.serviceFilter 
+      ? serviceNameToIdMap.get(filters.serviceFilter) || filters.serviceFilter
+      : undefined;
+    
+    return {
+      timeframe: filters.timeframe,
+      serviceName: serviceEntityId,
+      provider: filters.providerFilter || undefined,
+      model: filters.modelFilter || undefined
+    };
+  }, [filters, serviceNameToIdMap]);
 
   // Data hooks with filters
   const { data: services, loading, error, refetch } = useAIServicesDiscovery(queryFilters);
-  const { data: availableServices } = useDistinctServices(queryFilters);
-  const { data: availableProviders } = useDistinctProviders(queryFilters);
-  const { data: availableModels } = useDistinctModels(queryFilters);
 
   const handleInvestigate = (serviceName: string) => {
     navigate(`/davis?service=${encodeURIComponent(serviceName)}`);
@@ -250,7 +269,7 @@ export const HealthDashboard: React.FC = () => {
           onFiltersChange={setFilters}
           onRefresh={refetch}
           isLoading={loading}
-          availableServices={availableServices || []}
+          availableServices={availableServiceOptions || []}
           availableProviders={availableProviders || []}
           availableModels={availableModels || []}
         />
@@ -300,7 +319,7 @@ export const HealthDashboard: React.FC = () => {
         onFiltersChange={setFilters}
         onRefresh={refetch}
         isLoading={loading}
-        availableServices={availableServices || []}
+        availableServices={availableServiceOptions || []}
         availableProviders={availableProviders || []}
         availableModels={availableModels || []}
       />

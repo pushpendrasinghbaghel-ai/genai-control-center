@@ -7,7 +7,8 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import Colors from '@dynatrace/strato-design-tokens/colors';
-import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 import { 
   useProviderComparison, 
   useDistinctServices, 
@@ -15,7 +16,6 @@ import {
   useDistinctModels 
 } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
-import { estimateCost } from '../utils';
 
 interface CostBreakdown {
   provider: string;
@@ -85,54 +85,61 @@ function calculateForecast(
 }
 
 export const FinOps: React.FC = () => {
-  const [filters, setFilters] = useState<FilterOptions>({
-    timeframe: createDefaultTimeframe(),
-    filterQuery: '',
-    serviceFilter: '',
-    providerFilter: '',
-    modelFilter: ''
-  });
+  // Use global filter state for consistency across pages
+  const { filters, setFilters } = useGlobalFilters();
   const [budgetLimit, setBudgetLimit] = useState<number>(1000);
   
-  const queryFilters = useMemo<QueryFilters>(() => ({
-    timeframe: filters.timeframe,
-    serviceName: filters.serviceFilter || undefined,
-    provider: filters.providerFilter || undefined,
-    model: filters.modelFilter || undefined
-  }), [filters]);
+  // Get available service options (with entity IDs)
+  const { data: availableServiceOptions } = useDistinctServices();
+  const { data: availableProviders } = useDistinctProviders();
+  const { data: availableModels } = useDistinctModels();
+  
+  // Create a mapping from entity name to entity ID
+  const serviceNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (availableServiceOptions) {
+      availableServiceOptions.forEach(opt => {
+        map.set(opt.entityName, opt.entityId);
+      });
+    }
+    return map;
+  }, [availableServiceOptions]);
+  
+  // Convert FilterOptions to QueryFilters - convert name to entity ID
+  const queryFilters = useMemo<QueryFilters>(() => {
+    const serviceEntityId = filters.serviceFilter 
+      ? serviceNameToIdMap.get(filters.serviceFilter) || filters.serviceFilter
+      : undefined;
+    
+    return {
+      timeframe: filters.timeframe,
+      serviceName: serviceEntityId,
+      provider: filters.providerFilter || undefined,
+      model: filters.modelFilter || undefined
+    };
+  }, [filters, serviceNameToIdMap]);
   
   const { data: providers, loading: providersLoading, refetch } = useProviderComparison(queryFilters);
-  const { data: availableServices } = useDistinctServices(queryFilters);
-  const { data: availableProviders } = useDistinctProviders(queryFilters);
-  const { data: availableModels } = useDistinctModels(queryFilters);
-  
-  const handleFiltersChange = useCallback((next: FilterOptions) => {
-    setFilters(next);
-  }, []);
   
   const handleRefresh = useCallback(() => {
     void refetch();
   }, [refetch]);
 
-  // Calculate cost breakdown by provider
+  // Calculate cost breakdown by provider - use actual data from hook
   const costBreakdown = useMemo((): CostBreakdown[] => {
     if (!providers) return [];
     
     return providers.map((p: any) => {
       const providerName = p.provider || 'Unknown';
-      const totalTokens = p.totalTokens || 0;
-      const inputTokens = totalTokens * 0.3; // Estimate 30% input share
-      const outputTokens = totalTokens - inputTokens; // Remaining as completion
-      const estimatedCost = estimateCost(providerName, inputTokens, outputTokens);
       
       return {
         provider: providerName,
-        totalTokens,
-        inputTokens: Math.round(inputTokens),
-        outputTokens: Math.round(outputTokens),
-        estimatedCost,
+        totalTokens: p.totalTokens || 0,
+        inputTokens: 0, // Not exposed separately, but cost is calculated correctly
+        outputTokens: 0,
+        estimatedCost: p.estimatedCost || 0, // Use pre-calculated cost from hook
         requestCount: p.totalRequests || 0,
-        avgCostPerRequest: p.totalRequests > 0 ? estimatedCost / p.totalRequests : 0,
+        avgCostPerRequest: p.totalRequests > 0 ? (p.estimatedCost || 0) / p.totalRequests : 0,
         costTrend: 'stable' as const,
       };
     }).sort((a, b) => b.estimatedCost - a.estimatedCost);
@@ -231,10 +238,10 @@ export const FinOps: React.FC = () => {
 
       <FilterBar
         filters={filters}
-        onFiltersChange={handleFiltersChange}
+        onFiltersChange={setFilters}
         onRefresh={handleRefresh}
         isLoading={loading}
-        availableServices={availableServices || []}
+        availableServices={availableServiceOptions || []}
         availableProviders={availableProviders || []}
         availableModels={availableModels || []}
       />

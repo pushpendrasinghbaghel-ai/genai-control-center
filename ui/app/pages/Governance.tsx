@@ -8,11 +8,12 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon } from '@dynatrace/strato-icons';
 import { sendIntent } from '@dynatrace-sdk/navigation';
-import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis } from '../hooks/useDQLQueries';
+import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
 import type { QueryFilters, AnalyzedPrompt, PromptFlag } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 
 /**
  * Navigate directly to Distributed Traces app for a specific trace
@@ -77,16 +78,22 @@ interface GovernanceChallenge {
 }
 
 export const Governance: React.FC = () => {
-  const [filters, setFilters] = useState<QueryFilters>({
-    timeframe: createDefaultTimeframe()
-  });
-  const [filterBarOptions, setFilterBarOptions] = useState<FilterOptions>({
-    timeframe: createDefaultTimeframe(),
-    filterQuery: '',
-    serviceFilter: '',
-    providerFilter: '',
-    modelFilter: ''
-  });
+  // Use global filter state for consistency across pages
+  const { filters: globalFilters, setFilters: setGlobalFilters } = useGlobalFilters();
+  
+  // Get available filter options
+  const { data: availableServiceOptions } = useDistinctServices();
+  const { data: availableProviders } = useDistinctProviders();
+  const { data: availableModels } = useDistinctModels();
+  
+  // Convert global FilterOptions to QueryFilters for hooks
+  const filters = useMemo<QueryFilters>(() => ({
+    timeframe: globalFilters.timeframe,
+    serviceName: globalFilters.serviceFilter || undefined,
+    provider: globalFilters.providerFilter || undefined,
+    model: globalFilters.modelFilter || undefined
+  }), [globalFilters]);
+
   const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'challenges' | 'audit'>('policies');
   const [promptFilter, setPromptFilter] = useState<'all' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'repetitive' | 'bias'>('all');
   
@@ -203,17 +210,6 @@ export const Governance: React.FC = () => {
     return groupedPromptsWithDavisScores.filter(p => p.flagTypes.has(promptFilter));
   }, [groupedPromptsWithDavisScores, promptFilter]);
 
-  // Handle filter changes from FilterBar
-  const handleFiltersChange = useCallback((newFilterOptions: FilterOptions) => {
-    setFilterBarOptions(newFilterOptions);
-    setFilters({
-      timeframe: newFilterOptions.timeframe,
-      serviceName: newFilterOptions.serviceFilter || undefined,
-      provider: newFilterOptions.providerFilter || undefined,
-      model: newFilterOptions.modelFilter || undefined,
-    });
-  }, []);
-
   // Handle refresh
   const handleRefresh = useCallback(() => {
     refetchServices?.();
@@ -244,22 +240,7 @@ export const Governance: React.FC = () => {
   // Get Davis AI summary stats
   const davisSummary = useMemo(() => getDavisSummary(), [getDavisSummary, davisScores]);
 
-  // Extract available filter values from data for autocomplete
-  const availableServices = useMemo(() => {
-    return services?.map(s => s.serviceName).filter(Boolean) || [];
-  }, [services]);
-
-  const availableProviders = useMemo(() => {
-    return providers?.map(p => p.provider).filter(Boolean) || [];
-  }, [providers]);
-
-  const availableModels = useMemo(() => {
-    const modelSet = new Set<string>();
-    promptAnalysisData?.forEach(p => {
-      if (p.model) modelSet.add(p.model);
-    });
-    return Array.from(modelSet);
-  }, [promptAnalysisData]);
+  // Note: availableServices, availableProviders, availableModels are now from hooks above
 
   // Generate governance policies based on actual data
   const governancePolicies = useMemo((): GovernancePolicy[] => {
@@ -622,13 +603,13 @@ export const Governance: React.FC = () => {
 
       {/* Filter Bar */}
       <FilterBar
-        filters={filterBarOptions}
-        onFiltersChange={handleFiltersChange}
+        filters={globalFilters}
+        onFiltersChange={setGlobalFilters}
         onRefresh={handleRefresh}
         isLoading={servicesLoading || providersLoading || promptsLoading}
-        availableServices={availableServices}
-        availableProviders={availableProviders}
-        availableModels={availableModels}
+        availableServices={availableServiceOptions || []}
+        availableProviders={availableProviders || []}
+        availableModels={availableModels || []}
       />
       {/* Compliance Overview */}
       <Flex gap={16}>

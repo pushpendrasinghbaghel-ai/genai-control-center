@@ -1,11 +1,12 @@
 // Provider Comparison - Unified Governance View
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading } from '@dynatrace/strato-components/typography';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { useProviderComparison, useModelComparison, useDistinctServices, QueryFilters } from '../hooks';
-import { FilterBar, FilterOptions } from '../components/FilterBar';
+import { useProviderComparison, useModelComparison, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 import { formatNumber, formatCurrency, normalizeProviderName } from '../utils';
 
 // Provider Card Component - Compact
@@ -157,25 +158,41 @@ const ModelTable: React.FC<{
 };
 
 export const ProviderComparison: React.FC = () => {
-  // Filter state with native Dynatrace timeframe
-  const [filters, setFilters] = useState<FilterOptions>({
-    timeframe: null, // null means use default (last 24h)
-    filterQuery: '',
-    serviceFilter: '',
-    providerFilter: '',
-    modelFilter: ''
-  });
+  // Use global filter state for consistency across pages
+  const { filters, setFilters } = useGlobalFilters();
+
+  // Get available service options (with entity IDs)
+  const { data: availableServiceOptions } = useDistinctServices();
+  const { data: availableProviders } = useDistinctProviders();
+  const { data: availableModels } = useDistinctModels();
+  
+  // Create a mapping from entity name to entity ID
+  const serviceNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (availableServiceOptions) {
+      availableServiceOptions.forEach(opt => {
+        map.set(opt.entityName, opt.entityId);
+      });
+    }
+    return map;
+  }, [availableServiceOptions]);
 
   // Convert FilterOptions to QueryFilters for hooks
-  const queryFilters: QueryFilters = useMemo(() => ({
-    timeframe: filters.timeframe,
-    serviceName: filters.serviceFilter || undefined,
-    provider: filters.providerFilter || undefined
-  }), [filters]);
+  // When user selects a service name, convert it to entity ID for querying
+  const queryFilters: QueryFilters = useMemo(() => {
+    const serviceEntityId = filters.serviceFilter 
+      ? serviceNameToIdMap.get(filters.serviceFilter) || filters.serviceFilter
+      : undefined;
+    
+    return {
+      timeframe: filters.timeframe,
+      serviceName: serviceEntityId,
+      provider: filters.providerFilter || undefined
+    };
+  }, [filters, serviceNameToIdMap]);
 
   const { data: providerData, loading: loadingProviders, refetch: refetchProviders } = useProviderComparison(queryFilters);
   const { data: modelData, loading: loadingModels, refetch: refetchModels } = useModelComparison(queryFilters);
-  const { data: availableServices } = useDistinctServices(queryFilters);
 
   const maxRequests = providerData 
     ? Math.max(...providerData.map(p => p.totalRequests), 1)
@@ -212,6 +229,9 @@ export const ProviderComparison: React.FC = () => {
         filters={filters}
         onFiltersChange={setFilters}
         onRefresh={handleRefresh}
+        availableServices={availableServiceOptions || []}
+        availableProviders={availableProviders || []}
+        availableModels={availableModels || []}
       />
 
       {/* Summary Stats - Compact inline */}

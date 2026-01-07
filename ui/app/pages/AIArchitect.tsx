@@ -1,13 +1,14 @@
 // AI Architect - Pillar B: Pattern Detection & Recommendations
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { useAIServicesDiscovery, useAIArchitect, getSeverityColor, useDistinctServices, useDistinctProviders, QueryFilters } from '../hooks';
-import { FilterBar, FilterOptions } from '../components/FilterBar';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 import type { ArchitectRecommendation } from '../types';
 
 // Recommendation Card Component - Compact
@@ -76,26 +77,39 @@ const RecommendationCard: React.FC<{
 export const AIArchitect: React.FC = () => {
   const navigate = useNavigate();
   
-  // Filter state with native Dynatrace timeframe
-  const [filters, setFilters] = useState<FilterOptions>({
-    timeframe: null, // null means use default (last 24h)
-    filterQuery: '',
-    serviceFilter: '',
-    providerFilter: '',
-    modelFilter: ''
-  });
+  // Use global filter state for consistency across pages
+  const { filters, setFilters } = useGlobalFilters();
+
+  // Get available service options (with entity IDs)
+  const { data: availableServiceOptions } = useDistinctServices();
+  const { data: availableProviders } = useDistinctProviders();
+  
+  // Create a mapping from entity name to entity ID
+  const serviceNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (availableServiceOptions) {
+      availableServiceOptions.forEach(opt => {
+        map.set(opt.entityName, opt.entityId);
+      });
+    }
+    return map;
+  }, [availableServiceOptions]);
 
   // Convert FilterOptions to QueryFilters for hooks
-  const queryFilters: QueryFilters = useMemo(() => ({
-    timeframe: filters.timeframe,
-    serviceName: filters.serviceFilter || undefined,
-    provider: filters.providerFilter || undefined
-  }), [filters]);
+  const queryFilters: QueryFilters = useMemo(() => {
+    const serviceEntityId = filters.serviceFilter 
+      ? serviceNameToIdMap.get(filters.serviceFilter) || filters.serviceFilter
+      : undefined;
+    
+    return {
+      timeframe: filters.timeframe,
+      serviceName: serviceEntityId,
+      provider: filters.providerFilter || undefined
+    };
+  }, [filters, serviceNameToIdMap]);
 
   const { data: services, loading: servicesLoading, refetch } = useAIServicesDiscovery(queryFilters);
   const { recommendations, loading: recommendationsLoading, analyzing } = useAIArchitect(services || []);
-  const { data: availableServices } = useDistinctServices(queryFilters);
-  const { data: availableProviders } = useDistinctProviders(queryFilters);
 
   const loading = servicesLoading || recommendationsLoading;
 
@@ -159,6 +173,8 @@ export const AIArchitect: React.FC = () => {
         filters={filters}
         onFiltersChange={setFilters}
         onRefresh={refetch}
+        availableServices={availableServiceOptions || []}
+        availableProviders={availableProviders || []}
       />
 
       {/* Summary Stats - Compact */}

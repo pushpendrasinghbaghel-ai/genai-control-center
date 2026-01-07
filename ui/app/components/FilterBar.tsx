@@ -1,29 +1,41 @@
 /**
- * FilterBar - Standard Dynatrace filter bar following UX patterns
- * Layout: SegmentSelector | FilterField | TimeframeSelector | Refresh
+ * FilterBar - Standard Dynatrace filter bar following official UX patterns
+ * Uses FilterField for text-based filtering with suggestions (like Problems app)
+ * Combined with TimeframeSelector for time range
  * 
- * Reference: https://developer.dynatrace.com/design/filtering/
+ * Filter keys map to Grail fields:
+ * - service → dt.entity.service (entity ID for GenAI services)
+ * - provider → gen_ai.provider.name  
+ * - model → gen_ai.request.model
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Flex } from '@dynatrace/strato-components/layouts';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { RefreshIcon, PlayIcon } from '@dynatrace/strato-icons';
+import { RefreshIcon } from '@dynatrace/strato-icons';
 import { 
   FilterField,
   TimeframeSelector,
-  SegmentSelector
+  type FilterFieldValidatorMap
 } from '@dynatrace/strato-components-preview/filters';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+
+/** Service option with both display name and entity ID for Grail queries */
+export interface ServiceOption {
+  entityId: string;   // e.g., SERVICE-xxx - used for DQL filtering
+  entityName: string; // Display name shown in UI
+}
 
 export interface FilterOptions {
   /** Timeframe object from Dynatrace TimeframeSelector */
   timeframe: Timeframe | null;
   /** Free-text filter query */
   filterQuery: string;
-  /** Parsed filter values for specific fields */
+  /** Service entity ID (SERVICE-xxx) for DQL filtering */
   serviceFilter: string;
+  /** Provider name (gen_ai.provider.name) */
   providerFilter: string;
+  /** Model name (gen_ai.request.model) */
   modelFilter: string;
 }
 
@@ -52,83 +64,41 @@ interface FilterBarProps {
   onRefresh?: () => void;
   /** Whether data is currently loading */
   isLoading?: boolean;
-  /** Available services for suggestions */
-  availableServices?: string[];
-  /** Available providers for suggestions */
+  /** Available GenAI services (with entity ID and name) */
+  availableServices?: ServiceOption[];
+  /** Available providers (gen_ai.provider.name values) */
   availableProviders?: string[];
-  /** Available models for suggestions */
+  /** Available models (gen_ai.request.model values) */
   availableModels?: string[];
 }
 
-// Filter keys matching Dynatrace entity naming conventions
-const FILTER_KEYS = {
-  SERVICE: 'dt.entity.service.name',
-  PROVIDER: 'gen_ai.provider.name',
-  MODEL: 'gen_ai.request.model'
-} as const;
-
 /**
- * Parse the FilterField syntax tree to extract filter values
- * The tree structure: { type: 'Group', children: [{ type: 'Statement', key, operator, value }] }
+ * Parse filter string to extract individual filter values
+ * Returns the display values (service name) not entity IDs
  */
-const parseFilterTree = (tree: any): { service?: string; provider?: string; model?: string } => {
+const parseFilterString = (filterString: string): { service?: string; provider?: string; model?: string } => {
   const result: { service?: string; provider?: string; model?: string } = {};
   
-  if (!tree) {
-    console.log('[FilterBar] parseFilterTree: tree is null/undefined');
-    return result;
-  }
+  // Match patterns like: service="value" or service=value
+  const serviceMatch = filterString.match(/service\s*=\s*"([^"]+)"/i) || 
+                       filterString.match(/service\s*=\s*([^\s"]+)/i);
+  const providerMatch = filterString.match(/provider\s*=\s*"([^"]+)"/i) ||
+                        filterString.match(/provider\s*=\s*([^\s"]+)/i);
+  const modelMatch = filterString.match(/model\s*=\s*"([^"]+)"/i) ||
+                     filterString.match(/model\s*=\s*([^\s"]+)/i);
   
-  console.log('[FilterBar] parseFilterTree: tree =', JSON.stringify(tree, null, 2));
+  if (serviceMatch) result.service = serviceMatch[1];
+  if (providerMatch) result.provider = providerMatch[1];
+  if (modelMatch) result.model = modelMatch[1];
   
-  if (tree.type !== 'Group') {
-    console.log('[FilterBar] parseFilterTree: tree.type is not Group:', tree.type);
-    return result;
-  }
-  
-  const extractValue = (node: any): string | undefined => {
-    if (!node.value) return undefined;
-    if (node.value.type === 'Value') {
-      return node.value.value;
-    }
-    if (node.value.type === 'Contains' || node.value.type === 'StartsWith' || node.value.type === 'EndsWith') {
-      return node.value.value;
-    }
-    return undefined;
-  };
-  
-  const processNode = (node: any) => {
-    console.log('[FilterBar] processNode:', node);
-    if (node.type === 'Statement') {
-      const key = node.key?.value;
-      const value = extractValue(node);
-      console.log('[FilterBar] Found statement: key=', key, 'value=', value);
-      
-      if (key === FILTER_KEYS.SERVICE && value) {
-        result.service = value;
-      } else if (key === FILTER_KEYS.PROVIDER && value) {
-        result.provider = value;
-      } else if (key === FILTER_KEYS.MODEL && value) {
-        result.model = value;
-      }
-    } else if (node.type === 'Group' && node.children) {
-      node.children.forEach(processNode);
-    }
-  };
-  
-  tree.children?.forEach(processNode);
-  console.log('[FilterBar] parseFilterTree result:', result);
   return result;
 };
 
 /**
  * Standard Dynatrace FilterBar component
- * Matches the Services app UX pattern with:
- * - SegmentSelector (left)
- * - FilterField for text filtering (center, expandable)
- * - TimeframeSelector (right)
- * - Update button (enabled when filters change)
- * - Refresh button (far right)
+ * Uses FilterField for text-based filtering with dynamic suggestions
+ * 
+ * Usage: Type 'service=' to see available GenAI services, then select one
  */
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
@@ -139,153 +109,188 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   availableProviders = [],
   availableModels = []
 }) => {
-  // Pending filter state - holds changes until Update is clicked
-  const [pendingFilters, setPendingFilters] = useState<FilterOptions>(filters);
-  const [filterValue, setFilterValue] = useState(filters.filterQuery || '');
-  const [pendingFilterTree, setPendingFilterTree] = useState<any>(null);
+  // Track suggestion state for dynamic rendering
+  const [suggestionType, setSuggestionType] = useState<'key' | 'value' | 'none'>('none');
+  const [currentKey, setCurrentKey] = useState<string>('');
 
-  // Track if there are unsaved changes
-  const hasChanges = useMemo(() => {
-    const timeframeChanged = JSON.stringify(pendingFilters.timeframe) !== JSON.stringify(filters.timeframe);
-    const filterQueryChanged = filterValue !== (filters.filterQuery || '');
-    return timeframeChanged || filterQueryChanged;
-  }, [pendingFilters.timeframe, filters.timeframe, filterValue, filters.filterQuery]);
+  // Create name-to-ID map for service lookup
+  const serviceNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    availableServices.forEach(s => map.set(s.entityName, s.entityId));
+    return map;
+  }, [availableServices]);
 
-  // Sync pending state when applied filters change externally
-  useEffect(() => {
-    setPendingFilters(filters);
-    setFilterValue(filters.filterQuery || '');
-  }, [filters]);
-
-  // Build validatorMap for FilterField with proper entity keys and types
-  // This enables the standard operator suggestions (=, !=, in(), contains, etc.)
-  // keyPredicates defines allowed keys and their value options
-  const validatorMap = useMemo(() => {
-    console.log('[FilterBar] Building validatorMap with:', {
-      availableServices,
-      availableProviders,
-      availableModels
-    });
+  // Build the filter string from current filter values (display names)
+  const filterValue = useMemo(() => {
+    const parts: string[] = [];
     
-    return {
-      exhaustive: false, // Allow any key, but suggest these
-      keyPredicates: {
-        [FILTER_KEYS.SERVICE]: {
-          valuePredicate: availableServices.length > 0 
-            ? [...availableServices, { type: 'String' as const }]
-            : [{ type: 'String' as const }]
-        },
-        [FILTER_KEYS.PROVIDER]: {
-          valuePredicate: availableProviders.length > 0
-            ? [...availableProviders, { type: 'String' as const }]
-            : [{ type: 'String' as const }]
-        },
-        [FILTER_KEYS.MODEL]: {
-          valuePredicate: availableModels.length > 0
-            ? [...availableModels, { type: 'String' as const }]
-            : [{ type: 'String' as const }]
-        }
+    // For service, find the display name from entity ID
+    if (filters.serviceFilter) {
+      const serviceName = availableServices.find(s => s.entityId === filters.serviceFilter)?.entityName 
+                         || filters.serviceFilter;
+      parts.push(`service="${serviceName}"`);
+    }
+    if (filters.providerFilter) parts.push(`provider="${filters.providerFilter}"`);
+    if (filters.modelFilter) parts.push(`model="${filters.modelFilter}"`);
+    
+    return parts.join(' AND ');
+  }, [filters.serviceFilter, filters.providerFilter, filters.modelFilter, availableServices]);
+
+  // Validator map with dynamic value suggestions from GenAI data
+  const validatorMap = useMemo<FilterFieldValidatorMap>(() => ({
+    keyPredicates: {
+      service: {
+        operators: ['equals', 'not-equals'],
+        // Provide service names as suggestions
+        valuePredicate: availableServices.length > 0 
+          ? availableServices.map(s => s.entityName)
+          : { type: 'String' as const }
+      },
+      provider: {
+        operators: ['equals', 'not-equals'],
+        valuePredicate: availableProviders.length > 0 
+          ? availableProviders 
+          : { type: 'String' as const }
+      },
+      model: {
+        operators: ['equals', 'not-equals'],
+        valuePredicate: availableModels.length > 0 
+          ? availableModels 
+          : { type: 'String' as const }
       }
-    };
-  }, [availableServices, availableProviders, availableModels]);
+    },
+    exhaustive: false
+  }), [availableServices, availableProviders, availableModels]);
 
-  // Handle timeframe changes - store in pending state
-  const handleTimeframeChange = useCallback((value: Timeframe | null) => {
-    console.log('[FilterBar] Timeframe changed (pending):', value);
-    setPendingFilters(prev => ({ ...prev, timeframe: value }));
-  }, []);
-
-  // Handle filter field changes - store in local state
-  const handleFilterChange = useCallback((value: string) => {
-    setFilterValue(value);
-  }, []);
-
-  // Handle filter field submission (Enter key) - store the parsed tree for later
-  const handleFilterSubmit = useCallback((filterState: { 
-    value: string; 
-    syntaxTree: any; 
-    isValid: boolean 
+  // Handle suggestion state changes
+  const handleSuggest = useCallback((state?: {
+    suggestionTypes: ('key' | 'value' | 'comparisonOperator' | 'pastedContent' | 'none')[];
+    currentStatement?: { key?: { value?: string } };
   }) => {
-    const { syntaxTree } = filterState;
-    console.log('[FilterBar] Filter entered (pending):', filterState);
-    setPendingFilterTree(syntaxTree);
+    if (!state) {
+      setSuggestionType('none');
+      return;
+    }
+    
+    const types = state.suggestionTypes;
+    if (types.includes('key')) {
+      setSuggestionType('key');
+      setCurrentKey('');
+    } else if (types.includes('value')) {
+      setSuggestionType('value');
+      const keyValue = state.currentStatement?.key?.value;
+      setCurrentKey(keyValue || '');
+    } else {
+      setSuggestionType('none');
+    }
   }, []);
 
-  // Apply all pending changes when Update is clicked
-  const handleUpdate = useCallback(() => {
-    console.log('[FilterBar] Applying filters...');
+  // Handle filter changes and convert service names to entity IDs
+  const handleFilterChange = useCallback((value: string, _tree: unknown, _isValid: boolean) => {
+    const parsed = parseFilterString(value);
     
-    // Parse the filter tree to extract field values
-    const parsed = parseFilterTree(pendingFilterTree);
-    console.log('[FilterBar] Parsed filter values:', parsed);
+    // Convert service name to entity ID for DQL filtering
+    const serviceEntityId = parsed.service 
+      ? (serviceNameToIdMap.get(parsed.service) || parsed.service)
+      : '';
     
-    const newFilters: FilterOptions = {
-      timeframe: pendingFilters.timeframe,
-      filterQuery: filterValue,
-      serviceFilter: parsed.service || '',
+    onFiltersChange({
+      ...filters,
+      filterQuery: value,
+      serviceFilter: serviceEntityId,
       providerFilter: parsed.provider || '',
       modelFilter: parsed.model || ''
-    };
+    });
+  }, [filters, onFiltersChange, serviceNameToIdMap]);
+
+  // Handle filter apply (Enter key)
+  const handleFilter = useCallback((filterState: { value: string; syntaxTree: unknown; isValid: boolean }) => {
+    const parsed = parseFilterString(filterState.value);
     
-    console.log('[FilterBar] Applying new filters:', newFilters);
-    onFiltersChange(newFilters);
-  }, [pendingFilters.timeframe, filterValue, pendingFilterTree, onFiltersChange]);
+    // Convert service name to entity ID
+    const serviceEntityId = parsed.service 
+      ? (serviceNameToIdMap.get(parsed.service) || parsed.service)
+      : '';
+    
+    onFiltersChange({
+      ...filters,
+      filterQuery: filterState.value,
+      serviceFilter: serviceEntityId,
+      providerFilter: parsed.provider || '',
+      modelFilter: parsed.model || ''
+    });
+  }, [filters, onFiltersChange, serviceNameToIdMap]);
+
+  // Handle timeframe change
+  const handleTimeframeChange = useCallback((timeframe: Timeframe | null) => {
+    if (timeframe) {
+      onFiltersChange({ ...filters, timeframe });
+    }
+  }, [filters, onFiltersChange]);
+
+  // Get value suggestions based on current key
+  const valueSuggestions = useMemo(() => {
+    if (suggestionType !== 'value') return [];
+    
+    switch (currentKey.toLowerCase()) {
+      case 'service':
+        return availableServices.map(s => ({ 
+          value: s.entityName, 
+          displayValue: s.entityName 
+        }));
+      case 'provider':
+        return availableProviders.map(p => ({ value: p, displayValue: p }));
+      case 'model':
+        return availableModels.map(m => ({ value: m, displayValue: m }));
+      default:
+        return [];
+    }
+  }, [suggestionType, currentKey, availableServices, availableProviders, availableModels]);
 
   return (
-    <Flex 
-      alignItems="center" 
-      gap={0}
-      style={{ 
-        width: '100%',
-        borderBottom: '1px solid var(--dt-colors-border-neutral-default)'
-      }}
-    >
-      {/* Segment Selector - matches standard Dynatrace UX */}
-      <SegmentSelector />
-
-      {/* Filter Field with validatorMap for entity-based filtering */}
-      <div style={{ flex: 1, minWidth: 200 }}>
+    <Flex alignItems="center" gap={16} style={{ width: '100%', padding: '8px 0' }}>
+      {/* FilterField - Text-based filter with dynamic suggestions */}
+      <div style={{ flex: 1, minWidth: 300 }}>
         <FilterField
           value={filterValue}
           onChange={handleFilterChange}
-          onFilter={handleFilterSubmit}
+          onFilter={handleFilter}
+          onSuggest={handleSuggest}
           validatorMap={validatorMap}
           autoSuggestions
-          placeholder="Filter by dt.entity.service.name, gen_ai.provider.name, gen_ai.request.model..."
+          placeholder="Type to filter (service, provider, model)"
         >
           <FilterField.Suggestions>
-            {/* Key suggestions only - values come from validatorMap valuePredicate */}
-            <FilterField.Suggestion value={FILTER_KEYS.SERVICE}>
-              {FILTER_KEYS.SERVICE}
-            </FilterField.Suggestion>
-            <FilterField.Suggestion value={FILTER_KEYS.PROVIDER}>
-              {FILTER_KEYS.PROVIDER}
-            </FilterField.Suggestion>
-            <FilterField.Suggestion value={FILTER_KEYS.MODEL}>
-              {FILTER_KEYS.MODEL}
-            </FilterField.Suggestion>
+            {/* Show key suggestions when appropriate */}
+            {suggestionType === 'key' && (
+              <FilterField.SuggestionGroup label="Filter by">
+                <FilterField.Suggestion value="service" displayValue="Service" details="GenAI service name" />
+                <FilterField.Suggestion value="provider" displayValue="Provider" details="AI provider (openai, anthropic, etc.)" />
+                <FilterField.Suggestion value="model" displayValue="Model" details="Model name (gpt-4, claude-3, etc.)" />
+              </FilterField.SuggestionGroup>
+            )}
+            
+            {/* Show value suggestions when entering a value */}
+            {suggestionType === 'value' && valueSuggestions.length > 0 && (
+              <FilterField.SuggestionGroup label={`Available ${currentKey}s`}>
+                {valueSuggestions.map((suggestion, idx) => (
+                  <FilterField.Suggestion 
+                    key={`${suggestion.value}-${idx}`}
+                    value={suggestion.value} 
+                    displayValue={suggestion.displayValue}
+                  />
+                ))}
+              </FilterField.SuggestionGroup>
+            )}
           </FilterField.Suggestions>
         </FilterField>
       </div>
 
-      {/* Timeframe Selector - controlled with pending state */}
+      {/* TimeframeSelector */}
       <TimeframeSelector
-        value={pendingFilters.timeframe || createDefaultTimeframe()}
+        value={filters.timeframe || createDefaultTimeframe()}
         onChange={handleTimeframeChange}
       />
-
-      {/* Update Button - enabled when filters have changed */}
-      <Button 
-        variant="accent" 
-        onClick={handleUpdate}
-        disabled={!hasChanges || isLoading}
-        style={{ marginLeft: 8 }}
-      >
-        <Flex alignItems="center" gap={4}>
-          <PlayIcon />
-          <span>Update</span>
-        </Flex>
-      </Button>
 
       {/* Refresh Button */}
       {onRefresh && (
@@ -293,7 +298,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           variant="default" 
           onClick={onRefresh}
           disabled={isLoading}
-          style={{ marginLeft: 8 }}
         >
           <Flex alignItems="center" gap={4}>
             <RefreshIcon />

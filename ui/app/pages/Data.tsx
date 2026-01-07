@@ -46,7 +46,7 @@ const PRESET_QUERIES = [
     name: 'Slow Requests (>5s)',
     query: `fetch spans, from: now()-24h
 | filter isNotNull(gen_ai.request.model) AND duration > 5000000000
-| fields timestamp, service.name, gen_ai.request.model, duration / 1000000000 [as] "duration_seconds"
+| fields timestamp, dt.entity.service, gen_ai.request.model, duration / 1000000000 [as] "duration_seconds"
 | sort duration desc
 | limit 50`,
   },
@@ -58,7 +58,7 @@ const PRESET_QUERIES = [
     total = count(),
     errors = countIf(status.code == "ERROR"),
     error_rate = countIf(status.code == "ERROR") / count() * 100
-  by:{service.name}
+  by:{dt.entity.service}
 | sort error_rate desc`,
   },
 ];

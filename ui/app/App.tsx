@@ -3,6 +3,7 @@ import { Page } from "@dynatrace/strato-components-preview/layouts";
 import React from "react";
 import { Route, Routes, Navigate } from "react-router-dom";
 import { Header } from "./components/Header";
+import { FilterProvider } from "./context";
 import { 
   Home,
   HealthDashboard, 
@@ -11,17 +12,21 @@ import {
   Intelligence,
   Operations,
   ProviderComparison,
-  AIArchitect
+  AIArchitect,
+  AITopology,
+  AIQualityDashboard,
+  RealTimeAlerts
 } from "./pages";
 
 export const App = () => {
   return (
-    <Page>
-      <Page.Header>
-        <Header />
-      </Page.Header>
-      <Page.Main>
-        <Routes>
+    <FilterProvider>
+      <Page>
+        <Page.Header>
+          <Header />
+        </Page.Header>
+        <Page.Main>
+          <Routes>
           {/* Home: Executive Dashboard */}
           <Route path="/" element={<Home />} />
           
@@ -46,11 +51,21 @@ export const App = () => {
           {/* Operations: Runbooks and Remediation */}
           <Route path="/operations" element={<Operations />} />
           
+          {/* NEW: AI Topology Map - Visual representation of GenAI flows */}
+          <Route path="/topology" element={<AITopology />} />
+          
+          {/* NEW: AI Quality Dashboard - Quality scoring and forecasting */}
+          <Route path="/quality" element={<AIQualityDashboard />} />
+          
+          {/* NEW: Real-Time Alerts - Live problems and incidents */}
+          <Route path="/alerts" element={<RealTimeAlerts />} />
+          
           {/* Redirect old routes */}
           <Route path="/davis" element={<Navigate to="/intelligence" replace />} />
           <Route path="/remediation" element={<Navigate to="/operations" replace />} />
         </Routes>
-      </Page.Main>
-    </Page>
+        </Page.Main>
+      </Page>
+    </FilterProvider>
   );
 };

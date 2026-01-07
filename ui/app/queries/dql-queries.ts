@@ -50,12 +50,18 @@ const sanitizeFilterValue = (value: string): string => {
 
 /**
  * Build service filter clause for DQL queries
+ * Accepts either dt.entity.service ID (SERVICE-xxx) or entity name
  */
-export const buildServiceFilter = (serviceName?: string): string => {
-  if (!serviceName) return '';
-  const sanitized = sanitizeFilterValue(serviceName);
+export const buildServiceFilter = (serviceEntityId?: string): string => {
+  if (!serviceEntityId) return '';
+  const sanitized = sanitizeFilterValue(serviceEntityId);
   if (!sanitized) return '';
-  return `| filter service.name == "${sanitized}"`;
+  // If it looks like an entity ID, filter by dt.entity.service
+  if (sanitized.startsWith('SERVICE-')) {
+    return `| filter dt.entity.service == "${sanitized}"`;
+  }
+  // Otherwise filter by entity name (for backward compatibility)
+  return `| filter dt.entity.service == "${sanitized}"`;
 };
 
 /**
@@ -99,14 +105,13 @@ const getTimeClause = (filters?: QueryFilters): string => {
 };
 
 /**
- * Discovery query - finds all AI-related services
- * Populates the Health-at-a-Glance dashboard
- * Includes dt.entity.service for deep linking to Services app
- * Uses gen_ai.provider.name (always populated) with fallback to gen_ai.request.model
+ * Discovery query - finds all AI-related Dynatrace service entities
+ * Groups by dt.entity.service for unique services (not service.name + model combinations)
+ * Includes entity ID for deep linking to Services app
  * 
  * Quality Metrics for GenAI developers:
- * - error_rate: Traditional span errors (status.code == "ERROR")
- * - slow_request_rate: Requests > 5 seconds (potential timeouts/issues)
+ * - error_rate: Span errors (span.status_code == "error" or error.type set)
+ * - slow_request_rate: Requests > 3 seconds (potential timeouts/issues)
  * - low_output_rate: Responses with < 10 output tokens (potential truncation/failures)
  */
 export const AI_SERVICES_DISCOVERY_QUERY = (filters?: QueryFilters) => {
@@ -127,11 +132,12 @@ ${modelFilter}
     request_count = count(),
     prompt_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     completion_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    entity_id = takeFirst(dt.entity.service),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
-    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
-    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100
-  }, by: { service.name, gen_ai.request.model, gen_ai.provider.name }
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    slow_request_rate = toDouble(countIf(toLong(duration) > 3000000000)) / toDouble(count()) * 100.0,
+    low_output_rate = toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10)) / toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0)) * 100.0,
+    providers = collectDistinct(gen_ai.provider.name),
+    models = collectDistinct(gen_ai.request.model)
+  }, by: { dt.entity.service }
 | sort tokens desc
 `;
 };
@@ -150,9 +156,9 @@ ${serviceFilter}
 | makeTimeseries {
     tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     latency = avg(duration),
-    errors = countIf(status.code == "ERROR"),
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
     requests = count()
-  }, by: { service.name }, interval: 5m
+  }, by: { dt.entity.service }, interval: 5m
 `;
 };
 
@@ -160,7 +166,7 @@ ${serviceFilter}
  * Query for provider comparison
  * Groups by gen_ai.provider.name with fallback to gen_ai.request.model
  * Enhanced with GenAI-specific quality metrics:
- * - slow_request_rate: % of requests > 5 seconds
+ * - slow_request_rate: % of requests > 3 seconds
  * - low_output_rate: % of responses with minimal tokens
  * - avg_output_tokens: Average response size (quality indicator)
  */
@@ -179,9 +185,9 @@ ${serviceFilter}
     input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     models = collectDistinct(gen_ai.request.model),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
-    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
-    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    slow_request_rate = toDouble(countIf(toLong(duration) > 3000000000)) / toDouble(count()) * 100.0,
+    low_output_rate = toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10)) / toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0)) * 100.0,
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
   }, by: { coalesce(gen_ai.provider.name, gen_ai.request.model) }
 | sort total_requests desc
@@ -208,9 +214,9 @@ ${providerFilter}
     request_count = count(),
     input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
-    slow_request_rate = countIf(duration > 5000000000) / count() * 100,
-    low_output_rate = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10) / countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0) * 100,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    slow_request_rate = toDouble(countIf(toLong(duration) > 3000000000)) / toDouble(count()) * 100.0,
+    low_output_rate = toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 10)) / toDouble(countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0)) * 100.0,
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
   }, by: { gen_ai.request.model, gen_ai.response.model, gen_ai.provider.name }
 | sort request_count desc
@@ -234,18 +240,16 @@ timeseries avg(gpu.utilization), ${timeClause}, by: { host.name }
  */
 export const RATE_LIMIT_ERRORS_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
-  const serviceFilter = buildServiceFilter(filters?.serviceName);
   
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| filter status.code == "ERROR"
-| filter matchesPhrase(status.message, "429") or matchesPhrase(status.message, "rate limit")
-${serviceFilter}
+| filter span.status_code == "error" OR isNotNull(error.type)
+| filter matchesPhrase(status.message, "429") or matchesPhrase(status.message, "rate limit") or matchesPhrase(toString(error.type), "rate limit")
 | summarize {
     error_count = count(),
     last_occurrence = max(timestamp)
-  }, by: { service.name, gen_ai.request.model }
+  }, by: { dt.entity.service, gen_ai.request.model }
 | sort error_count desc
 `;
 };
@@ -255,32 +259,30 @@ ${serviceFilter}
  */
 export const HIGH_LATENCY_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
-  const serviceFilter = buildServiceFilter(filters?.serviceName);
   
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter duration > 5000000000
-${serviceFilter}
 | summarize {
     slow_requests = count(),
     avg_duration = avg(duration),
     max_duration = max(duration)
-  }, by: { service.name, gen_ai.request.model }
+  }, by: { dt.entity.service, gen_ai.request.model }
 | sort slow_requests desc
 `;
 };
 
 /**
- * Query for detailed service analysis
+ * Query for detailed service analysis - accepts entity ID or service name
  */
-export const SERVICE_DETAIL_QUERY = (serviceName: string, filters?: QueryFilters) => {
+export const SERVICE_DETAIL_QUERY = (serviceEntityId: string, filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
   
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| filter service.name == "${serviceName}"
+| filter dt.entity.service == "${serviceEntityId}"
 | summarize {
     tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     prompt_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
@@ -289,14 +291,14 @@ fetch spans, ${timeClause}
     p50_latency = percentile(duration, 50),
     p95_latency = percentile(duration, 95),
     p99_latency = percentile(duration, 99),
-    error_rate = countIf(status.code == "ERROR") / count() * 100,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
     request_count = count()
   }, by: { gen_ai.request.model, gen_ai.provider.name }
 `;
 };
 
 /**
- * Query to get unique service names (for filter dropdown) - GenAI services only
+ * Query to get unique Dynatrace service entities (for filter dropdown) - GenAI services only
  */
 export const DISTINCT_SERVICES_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
@@ -304,7 +306,7 @@ export const DISTINCT_SERVICES_QUERY = (filters?: QueryFilters) => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| summarize count = count(), by: { service.name }
+| summarize count = count(), by: { dt.entity.service }
 | sort count desc
 | limit 100
 `;
@@ -318,8 +320,8 @@ export const DISTINCT_ALL_SERVICES_QUERY = (filters?: QueryFilters) => {
   
   return `
 fetch spans, ${timeClause}
-| filter isNotNull(service.name)
-| summarize count = count(), by: { service.name }
+| filter isNotNull(dt.entity.service)
+| summarize count = count(), by: { dt.entity.service }
 | sort count desc
 | limit 100
 `;
@@ -381,14 +383,12 @@ fetch spans, ${timeClause}
  */
 export const PROMPT_ANALYSIS_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
-  const serviceFilter = buildServiceFilter(filters?.serviceName);
   const providerFilter = buildProviderFilter(filters?.provider);
   const modelFilter = buildModelFilter(filters?.model);
   
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-${serviceFilter}
 ${providerFilter}
 ${modelFilter}
 | fieldsAdd prompt = coalesce(gen_ai.prompt.1.content, gen_ai.prompt.0.content)
@@ -406,7 +406,7 @@ ${modelFilter}
     sample_response = takeLast(response_preview),
     sample_timestamp = takeLast(start_time)
   }, by: { 
-    service.name, 
+    dt.entity.service, 
     gen_ai.provider.name, 
     gen_ai.request.model, 
     prompt_preview

@@ -1,6 +1,16 @@
 // GenAI Control Center - Type Definitions
 
 // ============================================
+// Service Entity Types
+// ============================================
+
+/** Service entity option for dropdowns (contains both ID and display name) */
+export interface ServiceEntityOption {
+  entityId: string;
+  entityName: string;
+}
+
+// ============================================
 // AI Service Discovery Types
 // ============================================
 
@@ -18,7 +28,7 @@ export interface AIService {
   /** Dynatrace entity ID for deep linking to Services app */
   entityId?: string;
   /** GenAI Quality Metrics */
-  slowRequestRate?: number;  // % of requests > 5 seconds
+  slowRequestRate?: number;  // % of requests > 3 seconds (GenAI: <5% good, 5-10% warning, >10% critical)
   lowOutputRate?: number;    // % of responses with < 10 output tokens
   avgOutputTokens?: number;  // Average output tokens per request
 }

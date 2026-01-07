@@ -40,7 +40,7 @@ export function estimateCost(
  * Calculate health status based on metrics
  * Enhanced for GenAI with quality metrics:
  * - errorRate: Traditional span errors
- * - slowRequestRate: % of requests > 5 seconds
+ * - slowRequestRate: % of requests > 3 seconds (GenAI typical: <5% good, 5-10% warning, >10% critical)
  * - lowOutputRate: % of responses with minimal tokens (potential failures)
  */
 export function calculateHealthStatus(

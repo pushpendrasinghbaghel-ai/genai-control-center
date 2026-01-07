@@ -32,32 +32,47 @@ export const Header = () => {
         
         {/* Home: Executive Dashboard */}
         <AppHeader.NavItem as={Link} to="/" style={getNavItemStyle('/')}>
-          Home
+          🏠 Home
         </AppHeader.NavItem>
         
         {/* Health Dashboard: Service Health & Monitoring */}
         <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')}>
-          Health
+          📊 Health
+        </AppHeader.NavItem>
+        
+        {/* NEW: AI Topology Map */}
+        <AppHeader.NavItem as={Link} to="/topology" style={getNavItemStyle('/topology')}>
+          🗺️ Topology
+        </AppHeader.NavItem>
+        
+        {/* NEW: AI Quality Intelligence */}
+        <AppHeader.NavItem as={Link} to="/quality" style={getNavItemStyle('/quality')}>
+          🎯 Quality
         </AppHeader.NavItem>
         
         {/* FinOps: AI Cost Management */}
         <AppHeader.NavItem as={Link} to="/finops" style={getNavItemStyle('/finops')}>
-          FinOps
+          💰 FinOps
         </AppHeader.NavItem>
         
         {/* Governance: Compliance & Risk */}
         <AppHeader.NavItem as={Link} to="/governance" style={getNavItemStyle('/governance')}>
-          Governance
+          🛡️ Governance
+        </AppHeader.NavItem>
+        
+        {/* NEW: Real-Time Alerts */}
+        <AppHeader.NavItem as={Link} to="/alerts" style={getNavItemStyle('/alerts')}>
+          🚨 Alerts
         </AppHeader.NavItem>
         
         {/* Intelligence: AI-Powered Investigation */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')}>
-          Intelligence
+          🧠 Intelligence
         </AppHeader.NavItem>
         
         {/* Operations: Runbooks & Automation */}
         <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')}>
-          Operations
+          ⚡ Operations
         </AppHeader.NavItem>
       </AppHeader.NavItems>
     </AppHeader>

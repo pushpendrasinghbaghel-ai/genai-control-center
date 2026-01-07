@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import type { AIService } from '../types';
+import type { AIService, ServiceEntityOption } from '../types';
 import { 
   AI_SERVICES_DISCOVERY_QUERY,
   PROVIDER_COMPARISON_QUERY,
@@ -104,50 +104,125 @@ export function useDQLQuery<T>(
 
 /**
  * Hook for AI Services Discovery (Pillar A) - with filter support
+ * Returns unique Dynatrace services with aggregated GenAI metrics
  */
 export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<AIService[]> {
-  const query = useMemo(() => AI_SERVICES_DISCOVERY_QUERY(filters), [filters]);
+  const [data, setData] = useState<AIService[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   
-  const transform = useCallback((records: unknown[]): AIService[] => {
-    return records.map((record: any) => {
-      const latencyMs = Number(record.latency || 0) / 1_000_000; // Convert ns to ms
-      const errorRate = Number(record.error_rate || 0);
-      const slowRequestRate = Number(record.slow_request_rate || 0);
-      const lowOutputRate = Number(record.low_output_rate || 0);
-      const avgOutputTokens = Number(record.avg_output_tokens || 0);
-      const tokens = Number(record.tokens || 0);
-      const promptTokens = Number(record.prompt_tokens || tokens * 0.3);
-      const completionTokens = Number(record.completion_tokens || tokens * 0.7);
-      
-      // Use gen_ai.request.model as primary, fall back to response.model
-      const modelName = record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown';
-      // Prefer gen_ai.provider.name (always populated), then derive from model name
-      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
-      
-      return {
-        serviceName: record['service.name'] || 'Unknown',
-        modelName: modelName,
-        provider: provider,
-        totalTokens: tokens,
-        avgLatency: latencyMs,
-        errorRate: errorRate,
-        slowRequestRate: slowRequestRate,
-        lowOutputRate: lowOutputRate,
-        avgOutputTokens: avgOutputTokens,
-        requestCount: Number(record.request_count || 0),
-        estimatedCost: estimateCost(
-          provider,
-          promptTokens,
-          completionTokens
-        ),
-        lastSeen: new Date().toISOString(),
-        healthStatus: calculateHealthStatus(errorRate, latencyMs, slowRequestRate, lowOutputRate),
-        entityId: record.entity_id || undefined
-      };
-    });
-  }, []);
+  const query = useMemo(() => AI_SERVICES_DISCOVERY_QUERY(filters), [filters]);
 
-  return useDQLQuery(query, transform);
+  const executeQuery = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing AI Services Discovery query');
+      
+      // Step 1: Get aggregated metrics by dt.entity.service
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60
+        }
+      });
+      
+      const records = response.result?.records || [];
+      console.log('[GCC] Found', records.length, 'unique services');
+      
+      // Step 2: Fetch entity names for all service IDs
+      const serviceEntityIds = records
+        .map((r: any) => r['dt.entity.service'])
+        .filter(Boolean);
+      
+      const entityNamesMap = new Map<string, string>();
+      
+      if (serviceEntityIds.length > 0) {
+        try {
+          const filterConditions = serviceEntityIds.map((id: string) => `id == "${id}"`).join(' OR ');
+          const entityQuery = await queryExecutionClient.queryExecute({
+            body: {
+              query: `
+                fetch dt.entity.service
+                | filter ${filterConditions}
+                | fields id, entity.name
+              `,
+              requestTimeoutMilliseconds: 30000,
+              fetchTimeoutSeconds: 30
+            }
+          });
+          
+          (entityQuery.result?.records || []).forEach((rec: any) => {
+            if (rec.id && rec['entity.name']) {
+              entityNamesMap.set(rec.id, rec['entity.name']);
+            }
+          });
+        } catch (e) {
+          console.warn('[GCC] Could not fetch entity names:', e);
+        }
+      }
+      
+      // Step 3: Transform records to AIService[]
+      const services: AIService[] = records.map((record: any) => {
+        const entityId = record['dt.entity.service'];
+        const serviceName = entityNamesMap.get(entityId) || entityId || 'Unknown Service';
+        
+        const latencyMs = Number(record.latency || 0) / 1_000_000;
+        const errorRate = Number(record.error_rate || 0);
+        const slowRequestRate = Number(record.slow_request_rate || 0);
+        const lowOutputRate = Number(record.low_output_rate || 0);
+        const tokens = Number(record.tokens || 0);
+        const promptTokens = Number(record.prompt_tokens || 0);
+        const completionTokens = Number(record.completion_tokens || 0);
+        const requestCount = Number(record.request_count || 0);
+        
+        // Get providers and models from collectDistinct arrays
+        const providers: string[] = record.providers || [];
+        const models: string[] = record.models || [];
+        const primaryProvider = providers[0] || 'Unknown';
+        const primaryModel = models[0] || 'Unknown';
+        
+        // Calculate average output tokens per request
+        const avgOutputTokens = requestCount > 0 ? completionTokens / requestCount : 0;
+        
+        // Estimate cost using blended rate when multiple providers
+        // Use a weighted estimate since we don't have per-provider breakdown
+        const cost = estimateCost(primaryProvider, promptTokens, completionTokens);
+        
+        return {
+          serviceName: serviceName,
+          modelName: models.length > 1 ? `${models.length} models` : primaryModel,
+          provider: providers.length > 1 ? `${providers.length} providers` : primaryProvider,
+          totalTokens: tokens,
+          avgLatency: latencyMs,
+          errorRate: errorRate,
+          slowRequestRate: slowRequestRate,
+          lowOutputRate: lowOutputRate,
+          avgOutputTokens: avgOutputTokens,
+          requestCount: requestCount,
+          estimatedCost: cost,
+          lastSeen: new Date().toISOString(),
+          healthStatus: calculateHealthStatus(errorRate, latencyMs, slowRequestRate, lowOutputRate),
+          entityId: entityId
+        };
+      });
+      
+      setData(services);
+    } catch (err) {
+      console.error('[GCC] AI Services Discovery failed:', err);
+      setError(err instanceof Error ? err : new Error('Query failed'));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    executeQuery();
+  }, [executeQuery]);
+
+  return { data, loading, error, refetch: executeQuery };
 }
 
 /**
@@ -223,7 +298,7 @@ export function useHighLatencyServices(filters?: QueryFilters) {
   
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => ({
-      serviceName: record['service.name'] || 'Unknown',
+      serviceName: record['dt.entity.service'] || 'Unknown',
       modelName: record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown',
       slowRequests: record.slow_requests || 0,
       avgDuration: (record.avg_duration || 0) / 1_000_000,
@@ -237,8 +312,8 @@ export function useHighLatencyServices(filters?: QueryFilters) {
 /**
  * Hook for Service Detail - with filter support
  */
-export function useServiceDetail(serviceName: string, filters?: QueryFilters) {
-  const query = useMemo(() => SERVICE_DETAIL_QUERY(serviceName, filters), [serviceName, filters]);
+export function useServiceDetail(serviceEntityId: string, filters?: QueryFilters) {
+  const query = useMemo(() => SERVICE_DETAIL_QUERY(serviceEntityId, filters), [serviceEntityId, filters]);
   
   const transform = useCallback((records: unknown[]) => {
     return records.map((record: any) => ({
@@ -260,11 +335,11 @@ export function useServiceDetail(serviceName: string, filters?: QueryFilters) {
 }
 
 /**
- * Hook to get distinct service names for filter dropdown
- * First tries GenAI services, then falls back to all services
+ * Hook to get distinct Dynatrace service entities for filter dropdown
+ * Returns ServiceEntityOption[] with both entity ID and name
  */
 export function useDistinctServices(filters?: QueryFilters) {
-  const [data, setData] = useState<string[] | null>(null);
+  const [data, setData] = useState<ServiceEntityOption[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -277,7 +352,7 @@ export function useDistinctServices(filters?: QueryFilters) {
     
     try {
       // First try GenAI services
-      console.log('[GCC] Fetching GenAI services with query:', genAiQuery);
+      console.log('[GCC] Fetching GenAI service entities');
       const response = await queryExecutionClient.queryExecute({
         body: {
           query: genAiQuery,
@@ -287,11 +362,11 @@ export function useDistinctServices(filters?: QueryFilters) {
       });
       
       let records = response.result?.records || [];
-      console.log('[GCC] GenAI services query returned', records.length, 'records:', records);
+      console.log('[GCC] GenAI services query returned', records.length, 'records');
       
       // If no GenAI services found, try all services as fallback
       if (records.length === 0) {
-        console.log('[GCC] No GenAI services, falling back to all services with query:', allServicesQuery);
+        console.log('[GCC] No GenAI services, falling back to all services');
         const fallbackResponse = await queryExecutionClient.queryExecute({
           body: {
             query: allServicesQuery,
@@ -300,12 +375,42 @@ export function useDistinctServices(filters?: QueryFilters) {
           }
         });
         records = fallbackResponse.result?.records || [];
-        console.log('[GCC] All services query returned', records.length, 'records:', records);
       }
       
-      const services = records.map((record: any) => record['service.name']).filter(Boolean);
-      console.log('[GCC] Parsed service names:', services);
-      setData(services);
+      // Get entity IDs
+      const serviceEntityIds = records
+        .map((record: any) => record['dt.entity.service'])
+        .filter(Boolean);
+      
+      if (serviceEntityIds.length === 0) {
+        setData([]);
+        return;
+      }
+      
+      // Fetch entity names
+      const filterConditions = serviceEntityIds.map((id: string) => `id == "${id}"`).join(' OR ');
+      const entityQuery = await queryExecutionClient.queryExecute({
+        body: {
+          query: `
+            fetch dt.entity.service
+            | filter ${filterConditions}
+            | fields id, entity.name
+          `,
+          requestTimeoutMilliseconds: 30000,
+          fetchTimeoutSeconds: 30
+        }
+      });
+      
+      // Return both entity ID and name
+      const serviceOptions: ServiceEntityOption[] = (entityQuery.result?.records || [])
+        .filter((rec: any) => rec.id && rec['entity.name'])
+        .map((rec: any) => ({
+          entityId: rec.id,
+          entityName: rec['entity.name']
+        }));
+      
+      console.log('[GCC] Parsed service options:', serviceOptions);
+      setData(serviceOptions);
     } catch (err) {
       console.error('[GCC] Distinct services query failed:', err);
       setError(err instanceof Error ? err : new Error('Query failed'));
@@ -697,7 +802,7 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
       
       return {
         id: `prompt-${index}-${spanId || Date.now()}`,
-        serviceName: record['service.name'] || 'Unknown',
+        serviceName: record['dt.entity.service'] || 'Unknown',
         model: modelName,
         provider: provider,
         promptPreview,
