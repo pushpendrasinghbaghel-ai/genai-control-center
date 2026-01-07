@@ -3,6 +3,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { getTimeframeDqlClause } from '../components/FilterBar';
 
 // Note: @dynatrace-sdk/client-automation should be added for production workflow execution
 // For now, we query workflow data from Grail and simulate execution
@@ -266,7 +268,7 @@ export function useWorkflows(): UseWorkflowsResult {
 /**
  * Hook for fetching live Dynatrace problems related to GenAI services
  */
-export function useLiveProblems(autoRefreshMs: number = 30000) {
+export function useLiveProblems(timeframe?: Timeframe | null, autoRefreshMs: number = 30000) {
   const [problems, setProblems] = useState<LiveProblem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -274,11 +276,13 @@ export function useLiveProblems(autoRefreshMs: number = 30000) {
 
   const fetchProblems = useCallback(async () => {
     try {
+      const timeframeClause = getTimeframeDqlClause(timeframe || null);
+
       // Step 1: Get GenAI service entity IDs first
       const genaiServicesResponse = await queryExecutionClient.queryExecute({
         body: {
           query: `
-            fetch spans, from: now()-24h, to: now()
+            fetch spans, ${timeframeClause}
             | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
             | summarize request_count = count(), by: { dt.entity.service }
             | limit 100
@@ -298,7 +302,7 @@ export function useLiveProblems(autoRefreshMs: number = 30000) {
       const response = await queryExecutionClient.queryExecute({
         body: {
           query: `
-            fetch dt.davis.problems, from: now()-24h, to: now()
+            fetch dt.davis.problems, ${timeframeClause}
             | fields problem_id = event.id, display_id, title = event.name, 
                      status = event.status, severity = event.category,
                      affected_entities = affected_entity_ids,
@@ -348,7 +352,7 @@ export function useLiveProblems(autoRefreshMs: number = 30000) {
   // Initial fetch
   useEffect(() => {
     fetchProblems();
-  }, [fetchProblems]);
+  }, [fetchProblems, timeframe]);
 
   // Auto-refresh
   useEffect(() => {
