@@ -60,9 +60,9 @@ export const Header = () => {
           🛡️ Governance
         </AppHeader.NavItem>
         
-        {/* NEW: Real-Time Alerts */}
-        <AppHeader.NavItem as={Link} to="/alerts" style={getNavItemStyle('/alerts')}>
-          🚨 Alerts
+        {/* GenAI Problems */}
+        <AppHeader.NavItem as={Link} to="/problems" style={getNavItemStyle('/problems')}>
+          Problems
         </AppHeader.NavItem>
         
         {/* Intelligence: AI-Powered Investigation */}

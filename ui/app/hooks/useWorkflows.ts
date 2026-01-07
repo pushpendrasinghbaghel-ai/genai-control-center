@@ -299,7 +299,7 @@ export function useLiveProblems(autoRefreshMs: number = 30000) {
         body: {
           query: `
             fetch dt.davis.problems, from: now()-24h, to: now()
-            | fields problem_id, display_id, title = event.name, 
+            | fields problem_id = event.id, display_id, title = event.name, 
                      status = event.status, severity = event.category,
                      affected_entities = affected_entity_ids,
                      root_cause = root_cause_entity_name,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
@@ -13,11 +13,21 @@ import { useLiveProblems, LiveProblem } from '../hooks/useWorkflows';
 // ============================================
 
 /**
- * Open problem in Davis Problems app using sendIntent
- * Uses 'problem' as the intent property
+ * Open problem in Dynatrace Problems app using sendIntent
  */
 const openProblemInDynatrace = (problemId: string): void => {
-  sendIntent({ 'problem': problemId });
+  // Use specific event payload for Davis Problems app
+  // including specific intent ID to bypass the 'Open with' dialog
+  sendIntent(
+    { 
+      'event.id': problemId,
+      'event.kind': 'DAVIS_PROBLEM'
+    },
+    { 
+      'recommendedAppId': 'dynatrace.davis.problems',
+      'recommendedIntentId': 'view-problem'
+    }
+  );
 };
 
 const getSeverityColor = (severity: string) => {
@@ -81,7 +91,7 @@ const formatTimeAgo = (timestamp: string) => {
 };
 
 // ============================================
-// Problem Card Component
+// Problem Card Component - Original Working Design
 // ============================================
 
 const ProblemCard: React.FC<{
@@ -104,18 +114,6 @@ const ProblemCard: React.FC<{
           <Flex alignItems="center" gap={8}>
             <span style={{ fontSize: 18 }}>{getSeverityIcon(problem.severity)}</span>
             <Text style={{ fontWeight: 600, fontSize: 14 }}>{problem.title}</Text>
-            {problem.isGenAIRelated && (
-              <span style={{
-                padding: '2px 6px',
-                borderRadius: 4,
-                background: 'rgba(156, 39, 176, 0.2)',
-                color: '#9c27b0',
-                fontSize: 10,
-                fontWeight: 600
-              }}>
-                🤖 GenAI
-              </span>
-            )}
             <span style={{
               padding: '2px 6px',
               borderRadius: 4,
@@ -190,56 +188,32 @@ const ProblemCard: React.FC<{
 };
 
 // ============================================
-// Main Alerts Dashboard Component
+// Main Component - GenAI Problems Only
 // ============================================
 
 export const RealTimeAlerts: React.FC = () => {
   const { 
-    problems, 
     genaiProblems, 
-    otherProblems, 
     loading, 
     error, 
     lastRefresh, 
     refetch 
   } = useLiveProblems(30000); // Auto-refresh every 30 seconds
 
-  const [filterMode, setFilterMode] = useState<'all' | 'genai' | 'other'>('all');
-  const [severityFilter, setSeverityFilter] = useState<string>('all');
-
-  // Filter problems
-  const filteredProblems = useMemo(() => {
-    let filtered = filterMode === 'genai' ? genaiProblems 
-                 : filterMode === 'other' ? otherProblems 
-                 : problems;
-    
-    if (severityFilter !== 'all') {
-      filtered = filtered.filter(p => p.severity === severityFilter);
-    }
-    
-    return filtered;
-  }, [problems, genaiProblems, otherProblems, filterMode, severityFilter]);
-
-  // Count by severity
-  const severityCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    problems.forEach(p => {
-      counts[p.severity] = (counts[p.severity] || 0) + 1;
-    });
-    return counts;
-  }, [problems]);
-
-  const openProblems = problems.filter(p => p.status === 'OPEN');
-  const closedProblems = problems.filter(p => p.status === 'CLOSED');
+  // Split into active vs closed
+  const openProblems = useMemo(() => 
+    genaiProblems.filter(p => p.status === 'OPEN'), [genaiProblems]);
+  const closedProblems = useMemo(() => 
+    genaiProblems.filter(p => p.status === 'CLOSED'), [genaiProblems]);
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
       {/* Header */}
       <Flex justifyContent="space-between" alignItems="center">
         <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>🚨 Real-Time Alerts</Heading>
+          <Heading level={4}>GenAI Problems</Heading>
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Live problems from Dynatrace Davis AI • Auto-refreshing every 30s
+            Problems affecting AI services • Auto-refreshing every 30s
           </Text>
         </Flex>
         <Flex alignItems="center" gap={12}>
@@ -257,12 +231,12 @@ export const RealTimeAlerts: React.FC = () => {
         <Surface style={{ flex: 1, padding: 16 }}>
           <Flex flexDirection="column" gap={4}>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              Total Problems (24h)
+              Total GenAI Problems (24h)
             </Text>
             <Heading level={2} style={{ 
-              color: problems.length > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default 
+              color: genaiProblems.length > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default 
             }}>
-              {problems.length}
+              {genaiProblems.length}
             </Heading>
           </Flex>
         </Surface>
@@ -283,17 +257,6 @@ export const RealTimeAlerts: React.FC = () => {
         <Surface style={{ flex: 1, padding: 16 }}>
           <Flex flexDirection="column" gap={4}>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              GenAI Related
-            </Text>
-            <Heading level={2} style={{ color: '#9c27b0' }}>
-              {genaiProblems.length}
-            </Heading>
-          </Flex>
-        </Surface>
-
-        <Surface style={{ flex: 1, padding: 16 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               Resolved (24h)
             </Text>
             <Heading level={2} style={{ color: Colors.Text.Success.Default }}>
@@ -303,68 +266,11 @@ export const RealTimeAlerts: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* Severity Breakdown */}
-      <Surface style={{ padding: 12 }}>
-        <Flex gap={16} alignItems="center">
-          <Text textStyle="small" style={{ fontWeight: 600 }}>By Category:</Text>
-          {Object.entries(severityCounts).map(([severity, count]) => (
-            <Flex key={severity} alignItems="center" gap={4}>
-              <span>{getSeverityIcon(severity)}</span>
-              <Text textStyle="small">{severity}: {count}</Text>
-            </Flex>
-          ))}
-        </Flex>
-      </Surface>
-
-      {/* Filters */}
-      <Flex gap={8} alignItems="center">
-        <Text textStyle="small" style={{ fontWeight: 500 }}>Filter:</Text>
-        <Button
-          variant={filterMode === 'all' ? 'emphasized' : 'default'}
-          onClick={() => setFilterMode('all')}
-        >
-          All ({problems.length})
-        </Button>
-        <Button
-          variant={filterMode === 'genai' ? 'emphasized' : 'default'}
-          onClick={() => setFilterMode('genai')}
-        >
-          🤖 GenAI Only ({genaiProblems.length})
-        </Button>
-        <Button
-          variant={filterMode === 'other' ? 'emphasized' : 'default'}
-          onClick={() => setFilterMode('other')}
-        >
-          Other ({otherProblems.length})
-        </Button>
-        
-        <div style={{ marginLeft: 'auto' }} />
-        
-        <Text textStyle="small" style={{ fontWeight: 500 }}>Severity:</Text>
-        <select
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value)}
-          style={{
-            padding: '4px 8px',
-            borderRadius: 4,
-            border: '1px solid var(--dt-colors-border-neutral-default)',
-            background: 'var(--dt-colors-surface-default)'
-          }}
-        >
-          <option value="all">All Severities</option>
-          <option value="ERROR">Error</option>
-          <option value="PERFORMANCE">Performance</option>
-          <option value="AVAILABILITY">Availability</option>
-          <option value="RESOURCE_CONTENTION">Resource</option>
-          <option value="CUSTOM_ALERT">Custom</option>
-        </select>
-      </Flex>
-
       {/* Loading State */}
-      {loading && problems.length === 0 && (
+      {loading && genaiProblems.length === 0 && (
         <Surface style={{ padding: 48, textAlign: 'center' }}>
           <ProgressCircle size="large" />
-          <Text style={{ marginTop: 16 }}>Loading problems from Dynatrace...</Text>
+          <Text style={{ marginTop: 16 }}>Loading GenAI problems from Dynatrace...</Text>
         </Surface>
       )}
 
@@ -378,22 +284,21 @@ export const RealTimeAlerts: React.FC = () => {
         </Surface>
       )}
 
-      {/* Problems List */}
-      {!loading && filteredProblems.length === 0 && (
+      {/* No Problems - Success State */}
+      {!loading && genaiProblems.length === 0 && !error && (
         <Surface style={{ padding: 48, textAlign: 'center' }}>
           <span style={{ fontSize: 48 }}>✅</span>
-          <Heading level={5} style={{ marginTop: 16 }}>No Active Problems</Heading>
+          <Heading level={5} style={{ marginTop: 16 }}>No GenAI Problems</Heading>
           <Text style={{ marginTop: 8, color: Colors.Text.Neutral.Subdued }}>
-            {filterMode === 'genai' 
-              ? 'No problems detected for GenAI services in the last 24 hours.'
-              : 'All systems operating normally. No problems detected in the last 24 hours.'}
+            All AI services are operating normally. No problems detected in the last 24 hours.
           </Text>
         </Surface>
       )}
 
-      {filteredProblems.length > 0 && (
+      {/* Problems List */}
+      {genaiProblems.length > 0 && (
         <Flex flexDirection="column">
-          {filteredProblems.map((problem) => (
+          {genaiProblems.map((problem) => (
             <ProblemCard
               key={problem.problemId}
               problem={problem}

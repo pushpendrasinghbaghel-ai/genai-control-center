@@ -57,8 +57,8 @@ export const App = () => {
           {/* NEW: AI Quality Dashboard - Quality scoring and forecasting */}
           <Route path="/quality" element={<AIQualityDashboard />} />
           
-          {/* NEW: Real-Time Alerts - Live problems and incidents */}
-          <Route path="/alerts" element={<RealTimeAlerts />} />
+          {/* GenAI Problems - Problems affecting AI services */}
+          <Route path="/problems" element={<RealTimeAlerts />} />
           
           {/* Redirect old routes */}
           <Route path="/davis" element={<Navigate to="/intelligence" replace />} />
