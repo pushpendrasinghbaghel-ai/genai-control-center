@@ -8,7 +8,7 @@
       "windows": {
         "command": "npm.cmd"
       },
-      "args": ["run-script", "start", "--", "--no-open"],
+      "args": ["run-script", "start"],
       "isBackground": true,
       "problemMatcher": {
         "pattern": {

@@ -1,6 +1,6 @@
 {
   "$schema": "./.dt-app/app.config.schema.json",
-  "environmentUrl": "https://guu84124.apps.dynatrace.com/",
+  "environmentUrl": "https://demo.apps.dynatrace.com/",
   "app": {
     "name": "GenAI Control Center",
     "version": "1.0.0",

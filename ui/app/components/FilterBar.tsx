@@ -1,6 +1,6 @@
 /**
  * FilterBar - Standard Dynatrace filter bar following official UX patterns
- * Uses FilterField for text-based filtering with suggestions (like Problems app)
+ * Uses FilterField for in-context filtering with auto-suggestions
  * Combined with TimeframeSelector for time range
  * 
  * Filter keys map to Grail fields:
@@ -9,7 +9,7 @@
  * - model → gen_ai.request.model
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Flex } from '@dynatrace/strato-components/layouts';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { RefreshIcon } from '@dynatrace/strato-icons';
@@ -73,32 +73,62 @@ interface FilterBarProps {
 }
 
 /**
- * Parse filter string to extract individual filter values
- * Returns the display values (service name) not entity IDs
+ * Parse filter tree to extract individual filter values
  */
-const parseFilterString = (filterString: string): { service?: string; provider?: string; model?: string } => {
-  const result: { service?: string; provider?: string; model?: string } = {};
+interface FilterStatement {
+  key?: { value?: string };
+  value?: { value?: string };
+}
+
+interface FilterTree {
+  children?: (FilterStatement | FilterTree)[];
+  key?: { value?: string };
+  value?: { value?: string };
+}
+
+const extractFiltersFromTree = (
+  tree: FilterTree | null,
+  serviceNameToIdMap: Map<string, string>
+): { service: string; provider: string; model: string } => {
+  const result = { service: '', provider: '', model: '' };
   
-  // Match patterns like: service="value" or service=value
-  const serviceMatch = filterString.match(/service\s*=\s*"([^"]+)"/i) || 
-                       filterString.match(/service\s*=\s*([^\s"]+)/i);
-  const providerMatch = filterString.match(/provider\s*=\s*"([^"]+)"/i) ||
-                        filterString.match(/provider\s*=\s*([^\s"]+)/i);
-  const modelMatch = filterString.match(/model\s*=\s*"([^"]+)"/i) ||
-                     filterString.match(/model\s*=\s*([^\s"]+)/i);
-  
-  if (serviceMatch) result.service = serviceMatch[1];
-  if (providerMatch) result.provider = providerMatch[1];
-  if (modelMatch) result.model = modelMatch[1];
-  
+  if (!tree) return result;
+
+  const processNode = (node: FilterStatement | FilterTree) => {
+    if ('key' in node && node.key?.value && 'value' in node && node.value?.value) {
+      const key = node.key.value.toLowerCase();
+      const value = node.value.value;
+      
+      switch (key) {
+        case 'service':
+          // Convert service name to entity ID if available
+          result.service = serviceNameToIdMap.get(value) || value;
+          break;
+        case 'provider':
+          result.provider = value;
+          break;
+        case 'model':
+          result.model = value;
+          break;
+      }
+    }
+    if ('children' in node && Array.isArray(node.children)) {
+      node.children.forEach(processNode);
+    }
+  };
+
+  if (tree.children) {
+    tree.children.forEach(processNode);
+  } else {
+    processNode(tree);
+  }
+
   return result;
 };
 
 /**
  * Standard Dynatrace FilterBar component
- * Uses FilterField for text-based filtering with dynamic suggestions
- * 
- * Usage: Type 'service=' to see available GenAI services, then select one
+ * Uses FilterField for in-context filtering with auto-suggestions
  */
 export const FilterBar: React.FC<FilterBarProps> = ({
   filters,
@@ -109,10 +139,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   availableProviders = [],
   availableModels = []
 }) => {
-  // Track suggestion state for dynamic rendering
-  const [suggestionType, setSuggestionType] = useState<'key' | 'value' | 'none'>('none');
-  const [currentKey, setCurrentKey] = useState<string>('');
-
   // Create name-to-ID map for service lookup
   const serviceNameToIdMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -133,7 +159,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     if (filters.providerFilter) parts.push(`provider="${filters.providerFilter}"`);
     if (filters.modelFilter) parts.push(`model="${filters.modelFilter}"`);
     
-    return parts.join(' AND ');
+    return parts.join(' ');
   }, [filters.serviceFilter, filters.providerFilter, filters.modelFilter, availableServices]);
 
   // Validator map with dynamic value suggestions from GenAI data
@@ -141,7 +167,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     keyPredicates: {
       service: {
         operators: ['equals', 'not-equals'],
-        // Provide service names as suggestions
         valuePredicate: availableServices.length > 0 
           ? availableServices.map(s => s.entityName)
           : { type: 'String' as const }
@@ -162,64 +187,28 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     exhaustive: false
   }), [availableServices, availableProviders, availableModels]);
 
-  // Handle suggestion state changes
-  const handleSuggest = useCallback((state?: {
-    suggestionTypes: ('key' | 'value' | 'comparisonOperator' | 'pastedContent' | 'none')[];
-    currentStatement?: { key?: { value?: string } };
-  }) => {
-    if (!state) {
-      setSuggestionType('none');
-      return;
-    }
-    
-    const types = state.suggestionTypes;
-    if (types.includes('key')) {
-      setSuggestionType('key');
-      setCurrentKey('');
-    } else if (types.includes('value')) {
-      setSuggestionType('value');
-      const keyValue = state.currentStatement?.key?.value;
-      setCurrentKey(keyValue || '');
-    } else {
-      setSuggestionType('none');
-    }
-  }, []);
-
-  // Handle filter changes and convert service names to entity IDs
-  const handleFilterChange = useCallback((value: string, _tree: unknown, _isValid: boolean) => {
-    const parsed = parseFilterString(value);
-    
-    // Convert service name to entity ID for DQL filtering
-    const serviceEntityId = parsed.service 
-      ? (serviceNameToIdMap.get(parsed.service) || parsed.service)
-      : '';
-    
-    onFiltersChange({
-      ...filters,
-      filterQuery: value,
-      serviceFilter: serviceEntityId,
-      providerFilter: parsed.provider || '',
-      modelFilter: parsed.model || ''
-    });
-  }, [filters, onFiltersChange, serviceNameToIdMap]);
-
-  // Handle filter apply (Enter key)
+  // Handle filter submission (Enter key or button)
   const handleFilter = useCallback((filterState: { value: string; syntaxTree: unknown; isValid: boolean }) => {
-    const parsed = parseFilterString(filterState.value);
-    
-    // Convert service name to entity ID
-    const serviceEntityId = parsed.service 
-      ? (serviceNameToIdMap.get(parsed.service) || parsed.service)
-      : '';
+    const extracted = extractFiltersFromTree(filterState.syntaxTree as FilterTree, serviceNameToIdMap);
     
     onFiltersChange({
       ...filters,
       filterQuery: filterState.value,
-      serviceFilter: serviceEntityId,
-      providerFilter: parsed.provider || '',
-      modelFilter: parsed.model || ''
+      serviceFilter: extracted.service,
+      providerFilter: extracted.provider,
+      modelFilter: extracted.model
     });
   }, [filters, onFiltersChange, serviceNameToIdMap]);
+
+  // Handle real-time changes as user types (required for controlled FilterField)
+  const handleChange = useCallback((value: string, syntaxTree: unknown, isValid: boolean) => {
+    // Update the filter query in real-time to allow typing
+    // Only update parsed filters when valid and user submits (in handleFilter)
+    onFiltersChange({
+      ...filters,
+      filterQuery: value
+    });
+  }, [filters, onFiltersChange]);
 
   // Handle timeframe change
   const handleTimeframeChange = useCallback((timeframe: Timeframe | null) => {
@@ -228,62 +217,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     }
   }, [filters, onFiltersChange]);
 
-  // Get value suggestions based on current key
-  const valueSuggestions = useMemo(() => {
-    if (suggestionType !== 'value') return [];
-    
-    switch (currentKey.toLowerCase()) {
-      case 'service':
-        return availableServices.map(s => ({ 
-          value: s.entityName, 
-          displayValue: s.entityName 
-        }));
-      case 'provider':
-        return availableProviders.map(p => ({ value: p, displayValue: p }));
-      case 'model':
-        return availableModels.map(m => ({ value: m, displayValue: m }));
-      default:
-        return [];
-    }
-  }, [suggestionType, currentKey, availableServices, availableProviders, availableModels]);
-
   return (
     <Flex alignItems="center" gap={16} style={{ width: '100%', padding: '8px 0' }}>
-      {/* FilterField - Text-based filter with dynamic suggestions */}
+      {/* FilterField - In-context filtering with auto-suggestions */}
       <div style={{ flex: 1, minWidth: 300 }}>
         <FilterField
-          value={filterValue}
-          onChange={handleFilterChange}
+          value={filters.filterQuery}
+          onChange={handleChange}
           onFilter={handleFilter}
-          onSuggest={handleSuggest}
           validatorMap={validatorMap}
           autoSuggestions
-          placeholder="Type to filter (service, provider, model)"
-        >
-          <FilterField.Suggestions>
-            {/* Show key suggestions when appropriate */}
-            {suggestionType === 'key' && (
-              <FilterField.SuggestionGroup label="Filter by">
-                <FilterField.Suggestion value="service" displayValue="Service" details="GenAI service name" />
-                <FilterField.Suggestion value="provider" displayValue="Provider" details="AI provider (openai, anthropic, etc.)" />
-                <FilterField.Suggestion value="model" displayValue="Model" details="Model name (gpt-4, claude-3, etc.)" />
-              </FilterField.SuggestionGroup>
-            )}
-            
-            {/* Show value suggestions when entering a value */}
-            {suggestionType === 'value' && valueSuggestions.length > 0 && (
-              <FilterField.SuggestionGroup label={`Available ${currentKey}s`}>
-                {valueSuggestions.map((suggestion, idx) => (
-                  <FilterField.Suggestion 
-                    key={`${suggestion.value}-${idx}`}
-                    value={suggestion.value} 
-                    displayValue={suggestion.displayValue}
-                  />
-                ))}
-              </FilterField.SuggestionGroup>
-            )}
-          </FilterField.Suggestions>
-        </FilterField>
+          placeholder="Filter by service, provider, model (e.g., service=myapp)"
+        />
       </div>
 
       {/* TimeframeSelector */}

@@ -484,7 +484,7 @@ export interface AnalyzedPrompt {
 }
 
 export interface PromptFlag {
-  type: 'pii' | 'hallucination' | 'expensive' | 'repetitive' | 'injection' | 'sensitive' | 'bias';
+  type: 'pii' | 'hallucination' | 'expensive' | 'repetitive' | 'injection' | 'sensitive' | 'bias' | 'error';
   severity: 'low' | 'medium' | 'high' | 'critical';
   detail: string;
 }
@@ -746,80 +746,171 @@ function analyzePromptForFlags(
  * - sample_trace_id = one trace ID for deep-linking
  */
 export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<AnalyzedPrompt[]> {
+  const [data, setData] = useState<AnalyzedPrompt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const query = useMemo(() => PROMPT_ANALYSIS_QUERY(filters), [filters]);
-  
-  const transform = useCallback((records: unknown[]): AnalyzedPrompt[] => {
-    return records.map((record: any, index: number) => {
-      // Get aggregated values from grouped query
-      const requestCount = Number(record['request_count'] || 1);
-      const inputTokens = Number(record['total_input_tokens'] || 0);
-      const outputTokens = Number(record['total_output_tokens'] || 0);
-      const totalTokens = inputTokens + outputTokens;
-      const modelName = record['gen_ai.request.model'] || 'Unknown';
-      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
-      
-      // Prompt preview from grouped query
-      const promptPreview = record['prompt_preview'] || '[No prompt content]';
-      const completionPreview = record['sample_response'] || '';
-      const latencyMs = Number(record['avg_latency'] || 0) / 1_000_000;
-      
-      // Calculate cost (for all requests in this group)
-      const cost = estimateCost(provider, inputTokens, outputTokens);
-      
-      // Build context for flag detection
-      const context: PromptContext = {
-        systemPrompt: '',
-        completion: completionPreview,
-        hasToolUsage: false,
-        hasAvailableTools: false,
-        finishReason: ''
-      };
-      
-      // Analyze prompt for issues (PII, injection, etc.)
-      // Use TOTAL cost/tokens for expensive detection (grouped patterns can have high aggregated cost)
-      // Other flags (PII, injection) use per-request analysis since they're content-based
-      const promptFlags = analyzePromptForFlags(promptPreview, totalTokens, cost, context);
-      
-      // Analyze completion for hallucination
-      const hallucinationFlags = analyzeCompletionForHallucination(completionPreview);
-      
-      // Merge all flags
-      const flags = [...promptFlags, ...hallucinationFlags];
-      
-      // Add repetitive flag if this pattern appears many times (cache-eligible)
-      const CACHE_THRESHOLD = 15;
-      if (requestCount >= CACHE_THRESHOLD) {
-        flags.push({
-          type: 'repetitive' as const,
-          severity: 'low' as const,
-          detail: `${requestCount} identical requests - candidate for semantic caching`
-        });
-      }
-      
-      // Use sample trace/span for deep-linking
-      const traceId = record['sample_trace_id'] || '';
-      const spanId = record['sample_span_id'] || '';
-      
-      return {
-        id: `prompt-${index}-${spanId || Date.now()}`,
-        serviceName: record['dt.entity.service'] || 'Unknown',
-        model: modelName,
-        provider: provider,
-        promptPreview,
-        completionPreview,
-        inputTokens,           // Total for all requests
-        outputTokens,          // Total for all requests
-        totalCost: cost,       // Total for all requests
-        flags,
-        timestamp: record['sample_timestamp'] || new Date().toISOString(),  // Timestamp of the sampled trace
-        traceId,
-        spanId,
-        latencyMs,             // Average latency
-        statusCode: 'OK',
-        requestCount           // NEW: Number of times this pattern appeared
-      };
-    });
-  }, []);
 
-  return useDQLQuery(query, transform);
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Step 1: Execute main query
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query: query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60
+        }
+      });
+
+      const records = response.result?.records || [];
+      
+      // Step 2: Fetch entity names for service IDs
+      const serviceEntityIds = [...new Set(records.map((r: any) => r['dt.entity.service']).filter(Boolean))];
+      const entityNamesMap = new Map<string, string>();
+      
+      if (serviceEntityIds.length > 0) {
+        try {
+          const filterConditions = serviceEntityIds.map((id: string) => `id == "${id}"`).join(' OR ');
+          const entityQueryStr = `fetch dt.entity.service | filter ${filterConditions} | fields id, entity.name`;
+          console.log('[GCC] Fetching entity names for prompts. Query:', entityQueryStr);
+          console.log('[GCC] Service entity IDs:', serviceEntityIds);
+          
+          const entityQuery = await queryExecutionClient.queryExecute({
+            body: {
+              query: entityQueryStr,
+              requestTimeoutMilliseconds: 30000,
+              fetchTimeoutSeconds: 30
+            }
+          });
+          
+          console.log('[GCC] Entity query response:', entityQuery.result?.records);
+          
+          (entityQuery.result?.records || []).forEach((rec: any) => {
+            console.log('[GCC] Entity record:', rec);
+            if (rec.id && rec['entity.name']) {
+              entityNamesMap.set(rec.id, rec['entity.name']);
+              console.log('[GCC] Mapped:', rec.id, '->', rec['entity.name']);
+            }
+          });
+          
+          console.log('[GCC] Final entityNamesMap:', Array.from(entityNamesMap.entries()));
+        } catch (e) {
+          console.error('[GCC] Could not fetch entity names for prompts:', e);
+        }
+      }
+
+      // Step 3: Transform records with entity names
+      const prompts: AnalyzedPrompt[] = records.map((record: any, index: number) => {
+        // Get aggregated values from grouped query
+        const requestCount = Number(record['request_count'] || 1);
+        const inputTokens = Number(record['total_input_tokens'] || 0);
+        const outputTokens = Number(record['total_output_tokens'] || 0);
+        const totalTokens = inputTokens + outputTokens;
+        const modelName = record['gen_ai.request.model'] || 'Unknown';
+        const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(modelName);
+        const entityId = record['dt.entity.service'] || 'Unknown';
+        const serviceName = entityNamesMap.get(entityId) || entityId;
+      
+        // Check if this is an embedding model (returns vectors, not text)
+        const isEmbeddingModel = modelName.toLowerCase().includes('embedding') || 
+                                 modelName.toLowerCase().includes('embed') ||
+                                 modelName.toLowerCase().includes('ada-002');
+        
+        // Prompt preview from grouped query
+        const promptPreview = record['prompt_preview'] || '[No prompt content]';
+        const completionPreview = record['sample_response'] || '';
+        const latencyMs = Number(record['avg_latency'] || 0) / 1_000_000;
+        
+        // Calculate cost (for all requests in this group)
+        const cost = estimateCost(provider, inputTokens, outputTokens);
+        
+        // Build context for flag detection
+        const context: PromptContext = {
+          systemPrompt: '',
+          completion: completionPreview,
+          hasToolUsage: false,
+          hasAvailableTools: false,
+          finishReason: ''
+        };
+        
+        // Skip analysis for embedding models (they return vectors, not text)
+        let promptFlags: PromptFlag[] = [];
+        let hallucinationFlags: PromptFlag[] = [];
+        
+        if (!isEmbeddingModel) {
+          // Analyze prompt for issues (PII, injection, etc.)
+          // Use TOTAL cost/tokens for expensive detection (grouped patterns can have high aggregated cost)
+          // Other flags (PII, injection) use per-request analysis since they're content-based
+          promptFlags = analyzePromptForFlags(promptPreview, totalTokens, cost, context);
+          
+          // Analyze completion for hallucination
+          hallucinationFlags = analyzeCompletionForHallucination(completionPreview);
+        }
+        
+        // Merge all flags
+        const flags = [...promptFlags, ...hallucinationFlags];
+        
+        // Add error flag if this prompt pattern has actual span errors
+        const errorCount = Number(record['error_count'] || 0);
+        if (errorCount > 0) {
+          const errorType = record['sample_error_type'] || '';
+          const statusMessage = record['sample_status_message'] || '';
+          const errorDetail = errorType || statusMessage || 'Span error detected';
+          flags.push({
+            type: 'error' as const,
+            severity: 'critical' as const,
+            detail: `${errorCount} error(s): ${errorDetail}`
+          });
+        }
+        
+        // Add repetitive flag if this pattern appears many times (cache-eligible)
+        const CACHE_THRESHOLD = 15;
+        if (requestCount >= CACHE_THRESHOLD && !isEmbeddingModel) {
+          flags.push({
+            type: 'repetitive' as const,
+            severity: 'low' as const,
+            detail: `${requestCount} identical requests - candidate for semantic caching`
+          });
+        }
+        
+        // Use sample trace/span for deep-linking
+        const traceId = record['sample_trace_id'] || '';
+        const spanId = record['sample_span_id'] || '';
+        
+        return {
+          id: `prompt-${index}-${spanId || Date.now()}`,
+          serviceName: serviceName,
+          model: modelName,
+          provider: provider,
+          promptPreview,
+          completionPreview,
+          inputTokens,           // Total for all requests
+          outputTokens,          // Total for all requests
+          totalCost: cost,       // Total for all requests
+          flags,
+          timestamp: record['sample_timestamp'] || new Date().toISOString(),  // Timestamp of the sampled trace
+          traceId,
+          spanId,
+          latencyMs,             // Average latency
+          statusCode: 'OK',
+          requestCount           // NEW: Number of times this pattern appeared
+        };
+      });
+
+      setData(prompts);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
 }

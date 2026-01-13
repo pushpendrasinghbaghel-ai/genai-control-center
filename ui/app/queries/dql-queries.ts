@@ -396,15 +396,19 @@ ${modelFilter}
 | filter isNotNull(prompt)
 | fieldsAdd prompt_preview = substring(prompt, from:0, to:100)
 | fieldsAdd response_preview = substring(response, from:0, to:200)
+| fieldsAdd has_error = (span.status_code == "error" OR isNotNull(error.type))
 | summarize {
     request_count = count(),
+    error_count = countIf(has_error),
     total_input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     avg_latency = avg(duration),
     sample_trace_id = takeLast(trace.id),
     sample_span_id = takeLast(span.id),
     sample_response = takeLast(response_preview),
-    sample_timestamp = takeLast(start_time)
+    sample_timestamp = takeLast(start_time),
+    sample_error_type = takeLast(error.type),
+    sample_status_message = takeLast(status.message)
   }, by: { 
     dt.entity.service, 
     gen_ai.provider.name, 

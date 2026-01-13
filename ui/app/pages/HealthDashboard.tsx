@@ -10,7 +10,7 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon } from '@dynatrace/strato-icons';
-import { sendIntent } from '@dynatrace-sdk/navigation';
+import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -76,18 +76,18 @@ const MetricCard: React.FC<{
 
 /**
  * Navigate directly to the new Services app for an entity
- * Uses sendIntent with correct entity property to bypass "Open with" dialog
+ * Opens in a new window/tab using getIntentLink with window.open
  */
 const openEntityInServices = (entityId: string): void => {
   // Use dt.entity.service for service entities
   // Use 'dynatrace.services' for the Services app
-  sendIntent(
+  const intentUrl = getIntentLink(
     { 'dt.entity.service': entityId },
-    {
-      recommendedAppId: 'dynatrace.services',
-      recommendedIntentId: 'view-service'
-    }
+    'dynatrace.services',
+    'view-service'
   );
+  
+  window.open(intentUrl, '_blank', 'noopener,noreferrer');
 };
 
 // Service Row Component - Compact table-style layout

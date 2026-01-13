@@ -246,18 +246,10 @@ export const AITopology: React.FC = () => {
       // Build time range clause from filters
       const timeClause = getTimeframeDqlClause(filters.timeframe);
       
-      // Build service filter - filters.serviceFilter is already the entity ID (mapped by FilterBar)
+      // Build service filter - filters.serviceFilter is the entity ID from FilterBar
       let serviceFilterClause = '';
       if (filters.serviceFilter) {
-        // FilterBar already converts service name to entity ID
-        const entityId = filters.serviceFilter;
-        console.log('[GCC Topology] Service filter entityId:', entityId);
-        if (entityId.startsWith('SERVICE-')) {
-          serviceFilterClause = `| filter dt.entity.service == "${entityId}"`;
-        } else {
-          // If not an entity ID, try as-is (might be entity name)
-          serviceFilterClause = '';
-        }
+        serviceFilterClause = `| filter dt.entity.service == "${filters.serviceFilter}"`;
       }
       
       // Build provider filter
@@ -280,7 +272,7 @@ export const AITopology: React.FC = () => {
             requests = count(),
             tokens = sum(coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0)),
             avg_latency = avg(duration) / 1000000,
-            error_rate = countIf(status.code == "ERROR") / count() * 100
+            error_rate = countIf(span.status_code == "error" OR isNotNull(error.type)) / count() * 100
           }, by: { dt.entity.service, gen_ai.provider.name, gen_ai.request.model }
         | sort requests desc
         | limit 100
@@ -743,20 +735,22 @@ export const AITopology: React.FC = () => {
           </text>
 
           {/* Edges (render first so they're behind nodes) */}
-          {topologyData.edges.map((edge) => {
-            const sourceNode = topologyData.nodes.find(n => n.id === edge.source);
-            const targetNode = topologyData.nodes.find(n => n.id === edge.target);
-            if (!sourceNode || !targetNode) return null;
-            
-            return (
-              <TopologyEdgeComponent
-                key={edge.id}
-                edge={edge}
-                sourceNode={sourceNode}
-                targetNode={targetNode}
-              />
-            );
-          })}
+          {topologyData.edges
+            .filter(edge => edge.metrics.tokens > 0) // Filter out edges with zero tokens
+            .map((edge) => {
+              const sourceNode = topologyData.nodes.find(n => n.id === edge.source);
+              const targetNode = topologyData.nodes.find(n => n.id === edge.target);
+              if (!sourceNode || !targetNode) return null;
+              
+              return (
+                <TopologyEdgeComponent
+                  key={edge.id}
+                  edge={edge}
+                  sourceNode={sourceNode}
+                  targetNode={targetNode}
+                />
+              );
+            })}
 
           {/* Nodes */}
           {topologyData.nodes.map((node) => (

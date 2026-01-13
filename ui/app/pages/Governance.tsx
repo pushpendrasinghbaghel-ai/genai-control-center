@@ -7,7 +7,7 @@ import { Heading, Text, Link } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon } from '@dynatrace/strato-icons';
-import { sendIntent } from '@dynatrace-sdk/navigation';
+import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
 import type { QueryFilters, AnalyzedPrompt, PromptFlag } from '../hooks/useDQLQueries';
@@ -17,7 +17,7 @@ import { useGlobalFilters } from '../context';
 
 /**
  * Navigate directly to Distributed Traces app for a specific trace
- * Uses sendIntent with trace_id and dt.timeframe for proper deep linking
+ * Opens in a new window/tab using getIntentLink with window.open
  */
 const openTraceInDistributedTraces = (traceId: string, timestamp: string): void => {
   // Calculate the window (recommended for better UX)
@@ -25,7 +25,7 @@ const openTraceInDistributedTraces = (traceId: string, timestamp: string): void 
   const startTime = new Date(timeDate.getTime() - 10 * 60 * 1000).toISOString();
   const endTime = new Date(timeDate.getTime() + 10 * 60 * 1000).toISOString();
 
-  sendIntent(
+  const intentUrl = getIntentLink(
     { 
       'trace_id': traceId,
       'dt.timeframe': {
@@ -33,11 +33,11 @@ const openTraceInDistributedTraces = (traceId: string, timestamp: string): void 
         to: endTime
       }
     },
-    {
-      recommendedAppId: 'dynatrace.distributedtracing',
-      recommendedIntentId: 'view-trace'
-    }
+    'dynatrace.distributedtracing',
+    'view-trace'
   );
+  
+  window.open(intentUrl, '_blank', 'noopener,noreferrer');
 };
 
 interface GovernancePolicy {
@@ -95,7 +95,7 @@ export const Governance: React.FC = () => {
   }), [globalFilters]);
 
   const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'challenges' | 'audit'>('policies');
-  const [promptFilter, setPromptFilter] = useState<'all' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'repetitive' | 'bias'>('all');
+  const [promptFilter, setPromptFilter] = useState<'all' | 'error' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'repetitive' | 'bias'>('all');
   
   // Configurable threshold for cache-eligible prompts (minimum requests in timeframe)
   const CACHE_THRESHOLD = 15;
@@ -496,6 +496,7 @@ export const Governance: React.FC = () => {
     const grouped = groupedPromptsWithDavisScores;
     
     // Counts based on unique patterns (grouped, including Davis AI categorizations)
+    const errorCount = grouped.filter(p => p.flagTypes.has('error')).length;
     const piiCount = grouped.filter(p => p.flagTypes.has('pii')).length;
     const hallucinationCount = grouped.filter(p => p.flagTypes.has('hallucination')).length;
     const expensiveCount = grouped.filter(p => p.flagTypes.has('expensive')).length;
@@ -509,7 +510,7 @@ export const Governance: React.FC = () => {
     const totalRequests = grouped.reduce((sum, p) => sum + p.count, 0);  // Sum of all request counts
     
     return { 
-      piiCount, hallucinationCount, expensiveCount, repetitiveCount, injectionCount, biasCount, criticalCount, 
+      errorCount, piiCount, hallucinationCount, expensiveCount, repetitiveCount, injectionCount, biasCount, criticalCount, 
       totalCost, 
       total: grouped.length,  // Unique patterns
       totalRequests  // Total individual requests (aggregated from server)
@@ -557,6 +558,7 @@ export const Governance: React.FC = () => {
   // Helper to get flag icon
   const getFlagIcon = (type: PromptFlag['type']) => {
     const icons: Record<string, string> = {
+      error: '🚨',
       pii: '🔐',
       hallucination: '🎭',
       expensive: '💰',
@@ -664,14 +666,15 @@ export const Governance: React.FC = () => {
               Prompt Security
             </Text>
             <Heading level={2} style={{ 
-              color: promptStats.criticalCount > 0 ? Colors.Text.Critical.Default : 
+              color: promptStats.errorCount > 0 ? Colors.Text.Critical.Default : 
+                     promptStats.criticalCount > 0 ? Colors.Text.Critical.Default : 
                      promptStats.piiCount > 0 ? Colors.Text.Warning.Default : 
                      Colors.Text.Success.Default 
             }}>
-              {promptStats.criticalCount} 🚨
+              {promptStats.errorCount} 🚨
             </Heading>
             <Text textStyle="small">
-              {promptStats.piiCount} PII • {promptStats.injectionCount} Injection
+              Real Errors • {promptStats.piiCount} PII • {promptStats.injectionCount} Injection
             </Text>
           </Flex>
         </Surface>
@@ -883,8 +886,8 @@ export const Governance: React.FC = () => {
             <Flex gap={12} style={{ flexWrap: 'wrap' }}>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Critical Issues</Text>
-                  <Heading level={3} style={{ color: Colors.Text.Critical.Default }}>{promptStats.criticalCount}</Heading>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🚨 Real Errors</Text>
+                  <Heading level={3} style={{ color: Colors.Text.Critical.Default }}>{promptStats.errorCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
@@ -932,6 +935,12 @@ export const Governance: React.FC = () => {
                 onClick={() => setPromptFilter('all')}
               >
                 📋 All ({promptStats.total})
+              </Button>
+              <Button 
+                variant={promptFilter === 'error' ? 'emphasized' : 'default'}
+                onClick={() => setPromptFilter('error')}
+              >
+                🚨 Errors ({promptStats.errorCount})
               </Button>
               <Button 
                 variant={promptFilter === 'pii' ? 'emphasized' : 'default'}
