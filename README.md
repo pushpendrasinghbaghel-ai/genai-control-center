@@ -26,12 +26,12 @@
 | Page | Purpose | Key Features |
 |------|---------|--------------|
 | 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
-| 📊 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
-| �️ **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
-| �💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
+| 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
+| 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
+| 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
 | 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, PII detection, prompt analysis, governance challenges |
-| 🧠 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
-| 🔧 **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
+| 🤖 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
+| ⚙️ **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
 
 ## 👥 Target Personas
 
