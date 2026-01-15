@@ -1,11 +1,12 @@
 {
   "$schema": "./.dt-app/app.config.schema.json",
   "environmentUrl": "https://demo.apps.dynatrace.com/",
+  "icon": "./ui/assets/logo.svg",
   "app": {
     "name": "GenAI Control Center",
     "version": "1.0.0",
     "description": "Unified GenAI observability: Health, AI Architect, Davis Assistant & Remediation",
-    "id": "my.genai.control.center",
+    "id": "com.dynatrace.genai.controlcenter",
     "scopes": [
       { "name": "storage:logs:read", "comment": "Read logs for AI service analysis" },
       { "name": "storage:buckets:read", "comment": "Read data buckets" },

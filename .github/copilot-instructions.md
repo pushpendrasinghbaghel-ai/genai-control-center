@@ -30,6 +30,9 @@ npm run build # Build for production
 npm run deploy # Deploy to Dynatrace
 ```
 
+## Dynatrace MCP Server
+**IMPORTANT:** Always use the **Demo Dynatrace MCP Server** (`mcp_demo_dynatrac_*` tools) for querying Dynatrace data. Do NOT use the `mcp_io_github_dyn_*` tools.
+
 ## Important Files
 - `app.config.ts` - App configuration and scopes
 - `src/app/App.tsx` - Main app with routing

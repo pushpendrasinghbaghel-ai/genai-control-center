@@ -14,6 +14,7 @@ import {
   DISTINCT_PROVIDERS_QUERY,
   DISTINCT_MODELS_QUERY,
   PROMPT_ANALYSIS_QUERY,
+  AUDIT_TRAIL_QUERY,
   QueryFilters
 } from '../queries/dql-queries';
 import { estimateCost, calculateHealthStatus } from '../utils';
@@ -901,6 +902,78 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
       });
 
       setData(prompts);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Audit Trail Event interface
+ */
+export interface AuditTrailEvent {
+  timestamp: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  hasError: boolean;
+  traceId: string;
+  service: string;
+}
+
+/**
+ * Hook for fetching audit trail data for governance compliance
+ */
+export function useAuditTrail(filters?: QueryFilters): UseQueryResult<AuditTrailEvent[]> {
+  const query = useMemo(() => AUDIT_TRAIL_QUERY(filters), [filters]);
+  const [data, setData] = useState<AuditTrailEvent[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Audit Trail query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      
+      const events: AuditTrailEvent[] = records
+        .filter((record) => record !== null)
+        .map((record) => {
+          const r = record as Record<string, unknown>;
+          return {
+            timestamp: String(r['timestamp'] || new Date().toISOString()),
+            provider: String(r['provider'] || 'Unknown'),
+            model: String(r['model'] || ''),
+            inputTokens: Number(r['input_tokens']) || 0,
+            outputTokens: Number(r['output_tokens']) || 0,
+            latencyMs: Number(r['latency_ns']) / 1000000 || 0, // Convert ns to ms
+            hasError: Boolean(r['has_error']),
+            traceId: String(r['trace_id'] || ''),
+            service: String(r['service'] || ''),
+          };
+        });
+
+      setData(events);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {

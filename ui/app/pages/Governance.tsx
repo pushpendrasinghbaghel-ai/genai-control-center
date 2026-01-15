@@ -1,19 +1,20 @@
 // GenAI Control Center - Governance Dashboard
 // AI Governance, Compliance, and Risk Management
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text, Link } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
-import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
+import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels, useAuditTrail } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
-import type { QueryFilters, AnalyzedPrompt, PromptFlag } from '../hooks/useDQLQueries';
+import type { QueryFilters, PromptFlag } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { FilterBar } from '../components/FilterBar';
+import { FilterBar, SampleDataBadge } from '../components';
 import { useGlobalFilters } from '../context';
+import { getProviderProfile, GOVERNANCE_CHALLENGES, GOVERNANCE_BEST_PRACTICES, type GovernanceChallengeTemplate } from '../config';
 
 /**
  * Navigate directly to Distributed Traces app for a specific trace
@@ -322,65 +323,24 @@ export const Governance: React.FC = () => {
     return policies;
   }, [services, providers]);
 
-  // Calculate provider risk profiles
+  // Calculate provider risk profiles using centralized config
   const providerRisks = useMemo((): ProviderRisk[] => {
     if (!providers) return [];
     
     return providers.map((p: any) => {
       const providerName = p.provider?.toLowerCase() || 'unknown';
-      let riskScore = 30; // Base risk
-      const riskFactors: string[] = [];
-      let dataResidency = 'Unknown';
-      let certifications: string[] = [];
+      const profile = getProviderProfile(providerName);
       
-      // Adjust risk based on provider
-      switch (providerName) {
-        case 'openai':
-          riskScore = 35;
-          riskFactors.push('US-based data processing');
-          dataResidency = 'United States';
-          certifications = ['SOC 2', 'GDPR DPA'];
-          break;
-        case 'azure':
-          riskScore = 25;
-          dataResidency = 'Configurable (EU available)';
-          certifications = ['SOC 2', 'ISO 27001', 'GDPR', 'HIPAA'];
-          break;
-        case 'anthropic':
-          riskScore = 35;
-          riskFactors.push('Limited compliance certifications');
-          dataResidency = 'United States';
-          certifications = ['SOC 2'];
-          break;
-        case 'google':
-        case 'vertexai':
-          riskScore = 25;
-          dataResidency = 'Configurable (Multi-region)';
-          certifications = ['SOC 2', 'ISO 27001', 'GDPR', 'HIPAA', 'FedRAMP'];
-          break;
-        case 'amazon':
-          riskScore = 20;
-          dataResidency = 'Configurable (Multi-region)';
-          certifications = ['SOC 2', 'ISO 27001', 'GDPR', 'HIPAA', 'FedRAMP'];
-          break;
-        case 'ollama':
-          riskScore = 15;
-          dataResidency = 'On-premises';
-          certifications = ['Self-managed'];
-          riskFactors.push('Requires self-managed security');
-          break;
-        default:
-          riskScore = 50;
-          riskFactors.push('Unknown provider risk profile');
-      }
-
-      // Adjust for error rate
+      let riskScore = profile.baseRiskScore;
+      const riskFactors: string[] = [...profile.defaultRiskFactors];
+      
+      // Adjust for error rate (dynamic based on real data)
       if (p.errorRate > 5) {
         riskScore += 15;
         riskFactors.push('High error rate detected');
       }
 
-      // Adjust for high latency
+      // Adjust for high latency (dynamic based on real data)
       if (p.avgLatency > 5000) {
         riskScore += 10;
         riskFactors.push('Performance concerns');
@@ -390,8 +350,8 @@ export const Governance: React.FC = () => {
         provider: p.provider || 'Unknown',
         riskScore: Math.min(riskScore, 100),
         riskFactors,
-        dataResidency,
-        certifications,
+        dataResidency: profile.dataResidency,
+        certifications: profile.certifications,
         recommendation: riskScore > 50 ? 'Review usage and consider alternatives' : 'Acceptable risk level',
       };
     }).sort((a, b) => b.riskScore - a.riskScore);
@@ -404,90 +364,16 @@ export const Governance: React.FC = () => {
     return Math.round((compliant / governancePolicies.length) * 100);
   }, [governancePolicies]);
 
-  // Enterprise Governance Challenges
+  // Enterprise Governance Challenges - loaded from centralized config
   const governanceChallenges = useMemo((): GovernanceChallenge[] => {
-    return [
-      {
-        id: 'gc1',
-        category: 'Data Sovereignty',
-        challenge: 'Cross-Border Data Transfers',
-        impact: 'Customer data sent to US-based AI providers may violate GDPR Article 44-49 transfer restrictions',
-        mitigation: 'Use EU-hosted provider endpoints (Azure EU, AWS Frankfurt) or deploy on-premises models',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc2',
-        category: 'Shadow AI',
-        challenge: 'Unmonitored AI Tool Usage',
-        impact: 'Employees using personal ChatGPT accounts with company data bypasses security controls',
-        mitigation: 'Deploy enterprise AI gateway with SSO, implement DLP policies, provide approved alternatives',
-        status: 'detected',
-      },
-      {
-        id: 'gc3',
-        category: 'Model Governance',
-        challenge: 'Model Drift & Version Control',
-        impact: 'Provider model updates may change behavior, affecting accuracy and compliance',
-        mitigation: 'Pin model versions, implement A/B testing for updates, maintain baseline evaluations',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc4',
-        category: 'Security',
-        challenge: 'Prompt Injection Attacks',
-        impact: 'Malicious inputs may manipulate AI responses, leak system prompts, or bypass guardrails',
-        mitigation: 'Input sanitization, prompt templates, output validation, rate limiting suspicious patterns',
-        status: 'detected',
-      },
-      {
-        id: 'gc5',
-        category: 'Fairness & Ethics',
-        challenge: 'AI Output Bias',
-        impact: 'Model responses may discriminate based on protected characteristics in HR, lending, healthcare',
-        mitigation: 'Bias testing frameworks, human review for high-stakes decisions, diverse training data audits',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc6',
-        category: 'Compliance',
-        challenge: 'Audit Trail Completeness',
-        impact: 'Incomplete logging of prompts/responses makes incident investigation and compliance audits difficult',
-        mitigation: 'Enable gen_ai.* OpenTelemetry attributes, centralize logs in Grail, implement retention policies',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc7',
-        category: 'Cost Management',
-        challenge: 'Cost Attribution to Business Units',
-        impact: 'Cannot accurately charge back AI costs to departments, leading to budget overruns',
-        mitigation: 'Tag all requests with cost center, implement showback dashboards, set per-team quotas',
-        status: 'resolved',
-      },
-      {
-        id: 'gc8',
-        category: 'Data Privacy',
-        challenge: 'Training Data Exposure',
-        impact: 'Customer data used in prompts may be retained by providers for model training',
-        mitigation: 'Opt-out of training data programs, use zero-retention APIs, anonymize sensitive fields',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc9',
-        category: 'Vendor Risk',
-        challenge: 'Single Provider Dependency',
-        impact: 'Over-reliance on one AI provider creates availability and pricing risks',
-        mitigation: 'Multi-provider strategy, abstract AI calls through gateway layer, maintain fallback providers',
-        status: 'monitoring',
-      },
-      {
-        id: 'gc10',
-        category: 'Legal',
-        challenge: 'Intellectual Property Contamination',
-        impact: 'AI-generated code/content may include copyrighted material, creating legal liability',
-        mitigation: 'Use models with indemnification, implement code scanning, document AI usage in IP policies',
-        status: 'monitoring',
-      },
-    ];
+    return GOVERNANCE_CHALLENGES.map(template => ({
+      id: template.id,
+      category: template.category,
+      challenge: template.challenge,
+      impact: template.impact,
+      mitigation: template.mitigation,
+      status: template.defaultStatus,
+    }));
   }, []);
 
   // Prompt analysis summary stats (based on grouped prompts for unique patterns)
@@ -767,7 +653,14 @@ export const Governance: React.FC = () => {
       {selectedTab === 'providers' && (
         <Surface style={{ padding: 16 }}>
           <Flex flexDirection="column" gap={12}>
-            <Heading level={6}>Provider Risk Assessment</Heading>
+            <Flex alignItems="center" gap={12}>
+              <Heading level={6}>Provider Risk Assessment</Heading>
+              <SampleDataBadge 
+                type="reference" 
+                tooltip="Certifications and data residency are based on public information as of Jan 2026. Verify with your provider agreements." 
+                lastVerified="2026-01-15"
+              />
+            </Flex>
             {loading ? (
               <Text>Loading risk data...</Text>
             ) : (
@@ -1172,7 +1065,10 @@ export const Governance: React.FC = () => {
         <Surface style={{ padding: 16 }}>
           <Flex flexDirection="column" gap={16}>
             <Flex flexDirection="column" gap={4}>
-              <Heading level={6}>⚠️ Enterprise AI Governance Challenges</Heading>
+              <Flex alignItems="center" gap={12}>
+                <Heading level={6}>⚠️ Enterprise AI Governance Challenges</Heading>
+                <SampleDataBadge type="sample" tooltip="These are common governance scenarios for reference. Customize based on your organization's specific challenges." />
+              </Flex>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                 Common governance challenges faced by enterprises dealing with customer data and AI
               </Text>
@@ -1261,16 +1157,14 @@ export const Governance: React.FC = () => {
             {/* Best Practices */}
             <Surface style={{ padding: 16, backgroundColor: 'rgba(0, 150, 255, 0.1)' }}>
               <Flex flexDirection="column" gap={8}>
-                <Text style={{ fontWeight: 600 }}>📋 Enterprise AI Governance Best Practices</Text>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontWeight: 600 }}>📋 Enterprise AI Governance Best Practices</Text>
+                  <SampleDataBadge type="reference" tooltip="Industry best practices for AI governance. Customize based on your regulatory requirements." />
+                </Flex>
                 <Flex flexDirection="column" gap={4}>
-                  <Text textStyle="small">• Establish an AI Center of Excellence with cross-functional governance board</Text>
-                  <Text textStyle="small">• Implement AI gateway layer for centralized control, logging, and policy enforcement</Text>
-                  <Text textStyle="small">• Deploy PII detection and masking before data leaves your network</Text>
-                  <Text textStyle="small">• Use semantic caching to reduce costs and latency for repetitive queries</Text>
-                  <Text textStyle="small">• Maintain model inventory with version tracking and deprecation alerts</Text>
-                  <Text textStyle="small">• Implement output validation and human-in-the-loop for high-stakes decisions</Text>
-                  <Text textStyle="small">• Regular bias audits and fairness testing for customer-facing AI</Text>
-                  <Text textStyle="small">• Document AI usage in privacy policies and obtain appropriate consent</Text>
+                  {GOVERNANCE_BEST_PRACTICES.map((practice, idx) => (
+                    <Text key={idx} textStyle="small">• {practice}</Text>
+                  ))}
                 </Flex>
               </Flex>
             </Surface>
@@ -1279,23 +1173,126 @@ export const Governance: React.FC = () => {
       )}
 
       {selectedTab === 'audit' && (
-        <Surface style={{ padding: 16 }}>
-          <Flex flexDirection="column" gap={12}>
-            <Heading level={6}>Audit Trail</Heading>
-            <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-              Audit logging captures AI model invocations, prompt metadata, and compliance events.
-              Enable prompt content analysis to track PII exposure and policy violations.
-            </Text>
-            <Surface style={{ padding: 12, backgroundColor: 'rgba(0, 150, 255, 0.1)' }}>
-              <Text>
-                <strong>Coming Soon:</strong> Real-time audit event streaming with prompt/response metadata analysis.
-                This requires enabling the gen_ai.prompt.* span attributes in your OpenTelemetry instrumentation.
-              </Text>
-            </Surface>
-          </Flex>
-        </Surface>
+        <AuditTrailTab filters={filters} />
       )}
     </Flex>
+  );
+};
+
+/**
+ * Audit Trail Tab - Shows real GenAI invocation history from Dynatrace
+ */
+const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
+  const { data: auditData, loading, error } = useAuditTrail(filters);
+  
+  const formatTimestamp = (ts: string) => {
+    const date = new Date(ts);
+    return date.toLocaleString();
+  };
+
+  const getRiskBadge = (hasError: boolean, latencyMs: number) => {
+    if (hasError) return { label: 'ERROR', color: Colors.Text.Critical.Default, bg: 'rgba(255, 50, 50, 0.2)' };
+    if (latencyMs > 5000) return { label: 'SLOW', color: Colors.Text.Warning.Default, bg: 'rgba(255, 180, 50, 0.2)' };
+    return { label: 'OK', color: Colors.Text.Success.Default, bg: 'rgba(50, 200, 100, 0.2)' };
+  };
+
+  return (
+    <Surface style={{ padding: 16 }}>
+      <Flex flexDirection="column" gap={12}>
+        <Flex justifyContent="space-between" alignItems="center">
+          <Heading level={6}>Audit Trail</Heading>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+            {loading ? 'Loading...' : `${auditData?.length || 0} events in timeframe`}
+          </Text>
+        </Flex>
+        
+        <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+          Real-time audit log of AI model invocations from gen_ai.* OpenTelemetry spans.
+        </Text>
+
+        {error && (
+          <Surface style={{ padding: 12, backgroundColor: 'rgba(255, 50, 50, 0.1)' }}>
+            <Text style={{ color: Colors.Text.Critical.Default }}>
+              Error loading audit data: {error.message}
+            </Text>
+          </Surface>
+        )}
+
+        {!loading && (!auditData || auditData.length === 0) && (
+          <Surface style={{ padding: 16, backgroundColor: 'rgba(99, 102, 241, 0.1)' }}>
+            <Flex flexDirection="column" gap={8}>
+              <Text style={{ fontWeight: 600 }}>No audit events found</Text>
+              <Text textStyle="small">
+                Audit logging requires gen_ai.* OpenTelemetry spans to be captured. Ensure your AI services are instrumented.
+              </Text>
+            </Flex>
+          </Surface>
+        )}
+
+        {auditData && auditData.length > 0 && (
+          <Flex flexDirection="column" gap={4}>
+            {/* Header */}
+            <Flex 
+              gap={8} 
+              style={{ 
+                padding: '8px 12px', 
+                backgroundColor: 'var(--dt-colors-background-default-secondary)',
+                borderRadius: 4,
+                fontWeight: 600,
+                fontSize: 11
+              }}
+            >
+              <div style={{ flex: 1.5 }}>Timestamp</div>
+              <div style={{ flex: 1 }}>Provider</div>
+              <div style={{ flex: 1.5 }}>Model</div>
+              <div style={{ flex: 0.5, textAlign: 'right' }}>Tokens</div>
+              <div style={{ flex: 0.5, textAlign: 'right' }}>Latency</div>
+              <div style={{ flex: 0.5, textAlign: 'center' }}>Status</div>
+            </Flex>
+            
+            {/* Rows */}
+            {auditData.slice(0, 50).map((event, idx) => {
+              const risk = getRiskBadge(event.hasError, event.latencyMs);
+              return (
+                <Flex 
+                  key={idx}
+                  gap={8}
+                  style={{ 
+                    padding: '6px 12px',
+                    borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
+                    fontSize: 12
+                  }}
+                >
+                  <div style={{ flex: 1.5, color: Colors.Text.Neutral.Subdued }}>
+                    {formatTimestamp(event.timestamp)}
+                  </div>
+                  <div style={{ flex: 1, textTransform: 'capitalize' }}>{event.provider}</div>
+                  <div style={{ flex: 1.5, fontFamily: 'monospace', fontSize: 11 }}>{event.model || 'N/A'}</div>
+                  <div style={{ flex: 0.5, textAlign: 'right' }}>
+                    {(event.inputTokens + event.outputTokens).toLocaleString()}
+                  </div>
+                  <div style={{ flex: 0.5, textAlign: 'right' }}>
+                    {event.latencyMs.toFixed(0)}ms
+                  </div>
+                  <div style={{ flex: 0.5, textAlign: 'center' }}>
+                    <span style={{ 
+                      padding: '2px 6px', 
+                      borderRadius: 4, 
+                      fontSize: 9,
+                      fontWeight: 600,
+                      backgroundColor: risk.bg,
+                      color: risk.color
+                    }}>
+                      {risk.label}
+                    </span>
+                  </div>
+                </Flex>
+              );
+            })}
+          </Flex>
+        )}
+      </Flex>
+    </Surface>
   );
 };
 

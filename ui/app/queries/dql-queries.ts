@@ -419,3 +419,33 @@ ${modelFilter}
 | limit 500
 `;
 };
+
+/**
+ * Query for Audit Trail - Recent GenAI invocations for compliance tracking
+ */
+export const AUDIT_TRAIL_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  const modelFilter = buildModelFilter(filters?.model);
+  
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+${serviceFilter}
+${providerFilter}
+${modelFilter}
+| fields 
+    timestamp = start_time,
+    provider = gen_ai.provider.name,
+    model = gen_ai.request.model,
+    input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+    output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0),
+    latency_ns = duration,
+    has_error = (span.status_code == "error" OR isNotNull(error.type)),
+    trace_id = trace.id,
+    service = dt.entity.service
+| sort timestamp desc
+| limit 100
+`;
+};

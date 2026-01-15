@@ -3,6 +3,17 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
+import { 
+  HomeIcon, 
+  BarChartIcon,        // Health dashboard
+  SmartscapeIcon,      // Topology
+  ServiceLevelObjectivesIcon, // Quality
+  MoneyIcon,           // FinOps
+  SecurityIcon,        // Governance
+  WarningIcon,         // Problems
+  AiIcon,              // Intelligence
+  WorkflowsIcon        // Operations
+} from '@dynatrace/strato-icons';
 
 export const Header = () => {
   const location = useLocation();
@@ -22,6 +33,9 @@ export const Header = () => {
     borderRadius: '4px',
     color: isActive(path) ? 'var(--dt-colors-text-primary-default)' : 'inherit',
     fontWeight: isActive(path) ? 600 : 400,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
   });
 
   return (
@@ -32,47 +46,47 @@ export const Header = () => {
         
         {/* Home: Executive Dashboard */}
         <AppHeader.NavItem as={Link} to="/" style={getNavItemStyle('/')}>
-          🏠 Home
+          <HomeIcon /> Home
         </AppHeader.NavItem>
         
         {/* Health Dashboard: Service Health & Monitoring */}
         <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')}>
-          📊 Health
+          <BarChartIcon /> Health
         </AppHeader.NavItem>
         
-        {/* NEW: AI Topology Map */}
+        {/* AI Topology Map */}
         <AppHeader.NavItem as={Link} to="/topology" style={getNavItemStyle('/topology')}>
-          🗺️ Topology
+          <SmartscapeIcon /> Topology
         </AppHeader.NavItem>
         
-        {/* NEW: AI Quality Intelligence */}
+        {/* AI Quality Intelligence */}
         <AppHeader.NavItem as={Link} to="/quality" style={getNavItemStyle('/quality')}>
-          🎯 Quality
+          <ServiceLevelObjectivesIcon /> Quality
         </AppHeader.NavItem>
         
         {/* FinOps: AI Cost Management */}
         <AppHeader.NavItem as={Link} to="/finops" style={getNavItemStyle('/finops')}>
-          💰 FinOps
+          <MoneyIcon /> FinOps
         </AppHeader.NavItem>
         
         {/* Governance: Compliance & Risk */}
         <AppHeader.NavItem as={Link} to="/governance" style={getNavItemStyle('/governance')}>
-          🛡️ Governance
+          <SecurityIcon /> Governance
         </AppHeader.NavItem>
         
         {/* GenAI Problems */}
         <AppHeader.NavItem as={Link} to="/problems" style={getNavItemStyle('/problems')}>
-          Problems
+          <WarningIcon /> Problems
         </AppHeader.NavItem>
         
         {/* Intelligence: AI-Powered Investigation */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')}>
-          🧠 Intelligence
+          <AiIcon /> Intelligence
         </AppHeader.NavItem>
         
         {/* Operations: Runbooks & Automation */}
         <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')}>
-          ⚡ Operations
+          <WorkflowsIcon /> Operations
         </AppHeader.NavItem>
       </AppHeader.NavItems>
     </AppHeader>
