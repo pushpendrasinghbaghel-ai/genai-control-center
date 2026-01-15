@@ -17,7 +17,8 @@
 |------|---------|--------------|
 | 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
 | 📊 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
-| 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
+| �️ **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
+| �💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
 | 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, PII detection, prompt analysis, governance challenges |
 | 🧠 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
 | 🔧 **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
@@ -140,6 +141,7 @@ gcc/
 │       ├── pages/            # Main application pages
 │       │   ├── Home.tsx          # Executive dashboard
 │       │   ├── HealthDashboard.tsx # Service health
+│       │   ├── AITopology.tsx    # Interactive flow visualization
 │       │   ├── FinOps.tsx        # Cost management
 │       │   ├── Governance.tsx    # Compliance & risk
 │       │   ├── Intelligence.tsx  # Davis CoPilot AI
@@ -224,11 +226,24 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.1.0 | © 2026*
+*Version 2.2.0 | © 2026*
 
 ---
 
 ## 📋 Changelog
+
+### v2.2.0 (January 2026)
+- 🆕 **AI Topology Page**: Interactive Smartscape-style visualization of GenAI service flows
+  - Card-based nodes for Services (blue), Providers (purple), and Models (teal)
+  - Connection-aware filtering - shows only related entities
+  - Provider and model icons (OpenAI, Anthropic, Google, Meta, Mistral, etc.)
+  - Hover tooltips with detailed metrics
+  - Edge labels showing token/request counts
+  - Deep-link to Dynatrace Services app
+- ✨ **Compact UI**: Reduced card sizes, tighter spacing, responsive SVG layout
+- ✨ **Model Icons**: Model nodes now show provider-inferred icons (GPT→OpenAI, Claude→Anthropic, etc.)
+- 🐛 **Edge Fix**: Edges now show for connections with only request data (no tokens)
+- 🐛 **Filter Fix**: Topology filtering now respects actual service→provider→model connections
 
 ### v2.1.0 (January 2026)
 - 🆕 **Executive Dashboard**: New Home page with health overview and pillar navigation

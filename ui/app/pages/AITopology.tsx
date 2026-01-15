@@ -1,17 +1,19 @@
 // AI Topology Visualization Page
-// Unique visual representation of GenAI service flows and dependencies
+// Clean Smartscape-style card-based visualization of GenAI service flows
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { ExternalLinkIcon, SmartscapeIcon, ServicesIcon, AppsIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
 import { useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks';
 import { getTimeframeDqlClause } from '../context/FilterContext';
+import { getProviderIcon, getModelIcon } from '../utils/providerIcons';
 
 // ============================================
 // Types
@@ -21,7 +23,7 @@ interface TopologyNode {
   id: string;
   type: 'service' | 'provider' | 'model' | 'user';
   name: string;
-  provider?: string;
+  entityId?: string;
   metrics: {
     requests: number;
     tokens: number;
@@ -37,18 +39,18 @@ interface TopologyEdge {
   id: string;
   source: string;
   target: string;
+  label?: string;
   metrics: {
     requests: number;
     tokens: number;
     avgLatency: number;
   };
-  thickness: number;
 }
 
 interface TopologyData {
   nodes: TopologyNode[];
   edges: TopologyEdge[];
-  svgDimensions: { width: number; height: number };
+  svgHeight: number;
   summary: {
     totalServices: number;
     totalProviders: number;
@@ -59,104 +61,172 @@ interface TopologyData {
 }
 
 // ============================================
-// Node Component
+// Smartscape Link Helper
 // ============================================
 
-const TopologyNodeComponent: React.FC<{
+const getSmartscapeUrl = (entityId: string): string => {
+  return `/ui/apps/dynatrace.classic.technologies/ui/entity/${entityId}`;
+};
+
+// ============================================
+// Smartscape Card Node Component
+// ============================================
+
+const SmartscapeCardNode: React.FC<{
   node: TopologyNode;
-  selected: boolean;
+  isSelected: boolean;
+  isHovered: boolean;
   onSelect: (node: TopologyNode) => void;
-}> = ({ node, selected, onSelect }) => {
-  const getNodeColor = (type: string, health: string) => {
-    const baseColors: Record<string, string> = {
-      service: '#4CAF50',
-      provider: '#2196F3',
-      model: '#9C27B0',
-      user: '#FF9800'
-    };
-    
-    if (health === 'critical') return '#f44336';
-    if (health === 'warning') return '#ff9800';
-    return baseColors[type] || '#757575';
+  onHover: (node: TopologyNode | null) => void;
+}> = ({ node, isSelected, isHovered, onSelect, onHover }) => {
+  
+  const getTypeConfig = (type: string, nodeName?: string) => {
+    switch (type) {
+      case 'service':
+        return { 
+          label: 'Service', 
+          color: '#14a8f5', 
+          bgColor: 'rgba(20, 168, 245, 0.08)',
+          icon: <ServicesIcon style={{ width: 20, height: 20 }} />
+        };
+      case 'provider':
+        return { 
+          label: 'AI Provider', 
+          color: '#6f2da8', 
+          bgColor: 'rgba(111, 45, 168, 0.08)',
+          icon: getProviderIcon(nodeName || '', 20)
+        };
+      case 'model':
+        return { 
+          label: 'Model', 
+          color: '#00b4a0',  // Dynatrace teal - distinct from service blue
+          bgColor: 'rgba(0, 180, 160, 0.08)',
+          icon: getModelIcon(nodeName || '', 18)
+        };
+      default:
+        return { 
+          label: 'Entity', 
+          color: '#73be28', 
+          bgColor: 'rgba(115, 190, 40, 0.08)',
+          icon: <AppsIcon style={{ width: 18, height: 18 }} />
+        };
+    }
   };
 
-  const getNodeIcon = (type: string) => {
-    const icons: Record<string, string> = {
-      service: '🤖',
-      provider: '☁️',
-      model: '🧠',
-      user: '👤'
-    };
-    return icons[type] || '📦';
-  };
-
-  const nodeSize = node.type === 'provider' ? 80 : node.type === 'service' ? 70 : 60;
-  const color = getNodeColor(node.type, node.health);
+  const config = getTypeConfig(node.type, node.name);
+  const cardWidth = 130;
+  const cardHeight = 80;
 
   return (
     <g
-      transform={`translate(${node.position.x}, ${node.position.y})`}
+      transform={`translate(${node.position.x - cardWidth/2}, ${node.position.y - cardHeight/2})`}
       style={{ cursor: 'pointer' }}
       onClick={() => onSelect(node)}
+      onMouseEnter={() => onHover(node)}
+      onMouseLeave={() => onHover(null)}
     >
-      {/* Node circle */}
-      <circle
-        r={nodeSize / 2}
-        fill={color}
-        opacity={0.2}
-        stroke={color}
-        strokeWidth={selected ? 3 : 2}
+      {/* Card background */}
+      <rect
+        width={cardWidth}
+        height={cardHeight}
+        rx={5}
+        ry={5}
+        fill="#ffffff"
+        stroke={isSelected ? config.color : isHovered ? config.color : '#e0e0e0'}
+        strokeWidth={isSelected ? 2 : 1}
+        style={{
+          filter: isHovered ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))',
+          transition: 'all 0.15s ease'
+        }}
       />
-      <circle
-        r={nodeSize / 2 - 8}
-        fill={color}
-        opacity={0.6}
-      />
       
-      {/* Icon */}
-      <text
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fontSize={nodeSize / 3}
-        style={{ userSelect: 'none' }}
-      >
-        {getNodeIcon(node.type)}
-      </text>
-      
-      {/* Label */}
-      <text
-        y={nodeSize / 2 + 16}
-        textAnchor="middle"
-        fill="var(--dt-colors-text-primary-default)"
-        fontSize={11}
-        fontWeight={500}
-        style={{ userSelect: 'none' }}
-      >
-        {node.name.length > 20 ? node.name.substring(0, 18) + '...' : node.name}
-      </text>
-      
-      {/* Metrics badge */}
-      <g transform={`translate(${nodeSize / 2 - 5}, ${-nodeSize / 2 + 5})`}>
-        <circle r={10} fill={node.health === 'healthy' ? '#4CAF50' : node.health === 'warning' ? '#ff9800' : '#f44336'} />
+      {/* Compact type label header */}
+      <g transform="translate(0, 0)">
+        <rect
+          width={cardWidth}
+          height={20}
+          rx={5}
+          ry={5}
+          fill={config.bgColor}
+        />
+        <rect
+          y={12}
+          width={cardWidth}
+          height={8}
+          fill={config.bgColor}
+        />
         <text
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="white"
+          x={8}
+          y={13}
           fontSize={8}
           fontWeight={600}
+          fill={config.color}
+          style={{ textTransform: 'uppercase', letterSpacing: '0.4px' }}
         >
-          {node.metrics.requests > 1000 ? `${(node.metrics.requests / 1000).toFixed(0)}K` : node.metrics.requests}
+          {config.label}
         </text>
+        {/* Count badge */}
+        <text
+          x={cardWidth - 8}
+          y={13}
+          fontSize={8}
+          fontWeight={500}
+          fill="var(--dt-colors-text-secondary-default)"
+          textAnchor="end"
+        >
+          {node.metrics.requests > 1000 ? `${(node.metrics.requests/1000).toFixed(1)}K` : node.metrics.requests}
+        </text>
+        {/* External link icon for services */}
+        {node.type === 'service' && node.entityId && (
+          <a href={getSmartscapeUrl(node.entityId)} target="_blank" rel="noopener noreferrer">
+            <g transform={`translate(${cardWidth - 22}, 5)`} style={{ cursor: 'pointer' }}>
+              <ExternalLinkIcon style={{ width: 9, height: 9, color: config.color }} />
+            </g>
+          </a>
+        )}
       </g>
+      
+      {/* Compact hexagon icon */}
+      <g transform={`translate(${cardWidth/2}, 42)`}>
+        <polygon
+          points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7"
+          fill="#ffffff"
+          stroke={config.color}
+          strokeWidth={1.5}
+        />
+        <g transform="translate(-9, -9)" style={{ color: config.color }}>
+          {config.icon}
+        </g>
+      </g>
+      
+      {/* Entity name */}
+      <text
+        x={cardWidth / 2}
+        y={68}
+        textAnchor="middle"
+        fontSize={9}
+        fontWeight={500}
+        fill="var(--dt-colors-text-primary-default)"
+      >
+        {node.name.length > 16 ? node.name.substring(0, 14) + '...' : node.name}
+      </text>
+      
+      {/* Health indicator */}
+      <circle
+        cx={cardWidth - 8}
+        cy={cardHeight - 8}
+        r={3}
+        fill={node.health === 'healthy' ? '#73be28' : node.health === 'warning' ? '#f5d30f' : '#dc172a'}
+      />
     </g>
   );
 };
 
 // ============================================
-// Edge Component
+// Edge Component with Label
 // ============================================
 
-const TopologyEdgeComponent: React.FC<{
+const SmartscapeEdge: React.FC<{
   edge: TopologyEdge;
   sourceNode: TopologyNode;
   targetNode: TopologyNode;
@@ -165,45 +235,70 @@ const TopologyEdgeComponent: React.FC<{
   const dy = targetNode.position.y - sourceNode.position.y;
   const length = Math.sqrt(dx * dx + dy * dy);
   
-  // Normalize and offset to account for node size
-  const offsetSource = 35;
-  const offsetTarget = 35;
+  if (length === 0) return null;
   
-  const startX = sourceNode.position.x + (dx / length) * offsetSource;
-  const startY = sourceNode.position.y + (dy / length) * offsetSource;
-  const endX = targetNode.position.x - (dx / length) * offsetTarget;
-  const endY = targetNode.position.y - (dy / length) * offsetTarget;
+  // Card dimensions for offset calculation (compact cards)
+  const cardWidth = 130;
+  const cardHeight = 80;
   
-  // Curved path for better visualization
+  // Calculate edge points from card boundaries
+  const startX = sourceNode.position.x + (dx / length) * (cardWidth / 2 + 6);
+  const startY = sourceNode.position.y + (dy / length) * (cardHeight / 2);
+  const endX = targetNode.position.x - (dx / length) * (cardWidth / 2 + 6);
+  const endY = targetNode.position.y - (dy / length) * (cardHeight / 2);
+  
   const midX = (startX + endX) / 2;
   const midY = (startY + endY) / 2;
-  const curvature = 20;
-  const perpX = -dy / length * curvature;
-  const perpY = dx / length * curvature;
+  
+  // Format label - compact format
+  const edgeLabel = edge.metrics.tokens > 0
+    ? (edge.metrics.tokens > 1000000 
+        ? `${(edge.metrics.tokens / 1000000).toFixed(1)}M`
+        : edge.metrics.tokens > 1000 
+        ? `${(edge.metrics.tokens / 1000).toFixed(0)}K`
+        : `${edge.metrics.tokens}`)
+    : (edge.metrics.requests > 1000
+        ? `${(edge.metrics.requests / 1000).toFixed(1)}K`
+        : `${edge.metrics.requests}`);
+  
+  const edgeUnit = edge.metrics.tokens > 0 ? 'tok' : 'req';
 
   return (
     <g>
-      <path
-        d={`M ${startX} ${startY} Q ${midX + perpX} ${midY + perpY} ${endX} ${endY}`}
-        fill="none"
-        stroke="var(--dt-colors-border-neutral-default)"
-        strokeWidth={Math.max(1, Math.min(edge.thickness, 5))}
-        opacity={0.6}
-        markerEnd="url(#arrowhead)"
+      {/* Connection line - thinner, more subtle */}
+      <line
+        x1={startX}
+        y1={startY}
+        x2={endX}
+        y2={endY}
+        stroke="#9ca3af"
+        strokeWidth={1.5}
+        strokeDasharray="4 2"
+        markerEnd="url(#arrowhead-smartscape)"
       />
-      {/* Token flow label */}
+      
+      {/* Compact edge label */}
+      <rect
+        x={midX - 24}
+        y={midY - 8}
+        width={48}
+        height={16}
+        rx={3}
+        fill="#ffffff"
+        stroke="#e5e7eb"
+        strokeWidth={1}
+      />
+      
+      {/* Edge label */}
       <text
-        x={midX + perpX}
-        y={midY + perpY - 8}
+        x={midX}
+        y={midY + 3}
         textAnchor="middle"
-        fill="var(--dt-colors-text-secondary-default)"
-        fontSize={9}
+        fontSize={8}
+        fontWeight={500}
+        fill="#6b7280"
       >
-        {edge.metrics.tokens > 1000000 
-          ? `${(edge.metrics.tokens / 1000000).toFixed(1)}M` 
-          : edge.metrics.tokens > 1000 
-          ? `${(edge.metrics.tokens / 1000).toFixed(0)}K` 
-          : edge.metrics.tokens} tokens
+        {edgeLabel} {edgeUnit}
       </text>
     </g>
   );
@@ -218,8 +313,14 @@ export const AITopology: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [selectedNode, setSelectedNode] = useState<TopologyNode | null>(null);
-  const [viewMode, setViewMode] = useState<'provider' | 'model' | 'service'>('provider');
+  const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Track mouse position globally for tooltip
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
 
   // Global filters
   const { filters, setFilters } = useGlobalFilters();
@@ -228,9 +329,6 @@ export const AITopology: React.FC = () => {
   const { data: availableServiceOptions } = useDistinctServices();
   const { data: availableProviders } = useDistinctProviders();
   const { data: availableModels } = useDistinctModels();
-
-  // Service options for FilterBar (includes entityId and entityName)
-  // FilterBar handles mapping from display name to entity ID internally
 
   // Fetch topology data from Grail with filters
   const fetchTopology = useCallback(async () => {
@@ -246,7 +344,7 @@ export const AITopology: React.FC = () => {
       // Build time range clause from filters
       const timeClause = getTimeframeDqlClause(filters.timeframe);
       
-      // Build service filter - filters.serviceFilter is the entity ID from FilterBar
+      // Build service filter
       let serviceFilterClause = '';
       if (filters.serviceFilter) {
         serviceFilterClause = `| filter dt.entity.service == "${filters.serviceFilter}"`;
@@ -280,7 +378,6 @@ export const AITopology: React.FC = () => {
       
       console.log('[GCC Topology] Executing DQL:', query);
 
-      // Query for Dynatrace service entities → provider → model relationships
       const response = await queryExecutionClient.queryExecute({
         body: {
           query,
@@ -322,91 +419,129 @@ export const AITopology: React.FC = () => {
         }
       }
       
-      // Build topology
+      // Build topology - only include nodes that have actual connections
       const nodesMap = new Map<string, TopologyNode>();
       const edges: TopologyEdge[] = [];
       
-      // Track unique providers, services, and models
-      const providers = new Set<string>();
-      const serviceIds = new Set<string>();
-      const models = new Set<string>();
+      // Track connections: which providers connect to which models (via data)
+      const providerToModels = new Map<string, Set<string>>();
+      const serviceToProviders = new Map<string, Set<string>>();
       
-      // Process records to identify unique entities
+      // First pass: build connection maps from actual data
       records.forEach((record: any) => {
         const providerName = record['gen_ai.provider.name'] || 'Unknown Provider';
         const serviceEntityId = record['dt.entity.service'];
         const modelName = record['gen_ai.request.model'] || 'Unknown Model';
         
-        providers.add(providerName);
-        models.add(modelName);
-        
-        // Track service entity IDs
-        if (serviceEntityId) {
-          serviceIds.add(serviceEntityId);
+        // Track provider → model connections
+        if (!providerToModels.has(providerName)) {
+          providerToModels.set(providerName, new Set());
         }
+        providerToModels.get(providerName)!.add(modelName);
+        
+        // Track service → provider connections
+        const serviceKey = serviceEntityId || 'application';
+        if (!serviceToProviders.has(serviceKey)) {
+          serviceToProviders.set(serviceKey, new Set());
+        }
+        serviceToProviders.get(serviceKey)!.add(providerName);
       });
 
-      // Calculate positions in a hierarchical layout
-      // Services on left, Providers in middle, Models on right
-      const svgWidth = 1000;
-      // Dynamic height based on node count - ensure enough space for all nodes
-      const maxNodes = Math.max(serviceIds.size, providers.size, models.size);
-      const svgHeight = Math.max(600, maxNodes * 80);
-      const leftX = 120;
-      const middleX = 500;
-      const rightX = 880;
+      // Determine which entities to show (only connected ones)
+      const connectedProviders = new Set<string>();
+      const connectedModels = new Set<string>();
+      const connectedServices = new Set<string>();
+      
+      // Start from services and walk the graph
+      serviceToProviders.forEach((providers, serviceId) => {
+        connectedServices.add(serviceId);
+        providers.forEach(provider => {
+          connectedProviders.add(provider);
+          const models = providerToModels.get(provider);
+          if (models) {
+            models.forEach(model => connectedModels.add(model));
+          }
+        });
+      });
 
-      // Create service nodes (left) using Dynatrace entity names
+      // Calculate positions - compact layout with smaller cards
+      const cardWidth = 130;
+      const cardHeight = 80;
+      const verticalGap = 16;
+      
+      const svgWidth = 800;
+      const serviceCount = connectedServices.size || 1;
+      const providerCount = connectedProviders.size;
+      const modelCount = connectedModels.size;
+      const maxNodes = Math.max(serviceCount, providerCount, modelCount);
+      const svgHeight = Math.max(200, maxNodes * (cardHeight + verticalGap) + 20);
+      
+      const leftX = cardWidth / 2 + 15;
+      const middleX = svgWidth / 2;
+      const rightX = svgWidth - cardWidth / 2 - 15;
+      const topMargin = 10; // Start nodes at top
+
+      // Create service nodes (left) - only connected services
       let serviceIdx = 0;
-      const serviceArray = Array.from(serviceIds);
-      serviceArray.forEach((serviceId) => {
-        const serviceName = serviceNamesMap.get(serviceId) || serviceId;
-        const ySpacing = svgHeight / (serviceArray.length + 1);
-        nodesMap.set(`service-${serviceId}`, {
-          id: `service-${serviceId}`,
+      const serviceArray = Array.from(connectedServices);
+      
+      if (serviceArray.length === 0 || (serviceArray.length === 1 && serviceArray[0] === 'application')) {
+        // No service entities found - create a generic "Application" node
+        const ySpacing = (svgHeight - 20) / 2;
+        nodesMap.set('service-application', {
+          id: 'service-application',
           type: 'service',
-          name: serviceName,
-          provider: serviceId, // Store entity ID for deep linking
+          name: 'GenAI Application',
           metrics: { requests: 0, tokens: 0, latency: 0, errorRate: 0, cost: 0 },
-          position: { x: leftX, y: ySpacing * (serviceIdx + 1) },
+          position: { x: leftX, y: topMargin + ySpacing },
           health: 'healthy'
         });
-        serviceIdx++;
-      });
+      } else {
+        serviceArray.filter(s => s !== 'application').forEach((serviceId) => {
+          const serviceName = serviceNamesMap.get(serviceId) || serviceId;
+          const ySpacing = (svgHeight - 20) / (serviceArray.length + 1);
+          nodesMap.set(`service-${serviceId}`, {
+            id: `service-${serviceId}`,
+            type: 'service',
+            name: serviceName,
+            entityId: serviceId,
+            metrics: { requests: 0, tokens: 0, latency: 0, errorRate: 0, cost: 0 },
+            position: { x: leftX, y: topMargin + ySpacing * (serviceIdx + 1) },
+            health: 'healthy'
+          });
+          serviceIdx++;
+        });
+      }
 
-      // Create provider nodes (middle)
+      // Create provider nodes (middle) - only connected providers
       let providerIdx = 0;
-      const providerArray = Array.from(providers);
+      const providerArray = Array.from(connectedProviders);
       providerArray.forEach((providerName) => {
-        const ySpacing = svgHeight / (providerArray.length + 1);
+        const ySpacing = (svgHeight - 20) / (providerArray.length + 1);
         nodesMap.set(`provider-${providerName}`, {
           id: `provider-${providerName}`,
           type: 'provider',
           name: providerName,
           metrics: { requests: 0, tokens: 0, latency: 0, errorRate: 0, cost: 0 },
-          position: { x: middleX, y: ySpacing * (providerIdx + 1) },
+          position: { x: middleX, y: topMargin + ySpacing * (providerIdx + 1) },
           health: 'healthy'
         });
         providerIdx++;
       });
 
-      // Create model nodes (right) - limit to 20 for readability
-      const maxModels = 20;
+      // Create model nodes (right) - only connected models, show all
       let modelIdx = 0;
-      const modelArray = Array.from(models);
+      const modelArray = Array.from(connectedModels);
       modelArray.forEach((modelName) => {
-        const displayModels = Math.min(modelArray.length, maxModels);
-        const ySpacing = svgHeight / (displayModels + 1);
-        if (modelIdx < maxModels) {
-          nodesMap.set(`model-${modelName}`, {
-            id: `model-${modelName}`,
-            type: 'model',
-            name: modelName,
-            metrics: { requests: 0, tokens: 0, latency: 0, errorRate: 0, cost: 0 },
-            position: { x: rightX, y: ySpacing * (modelIdx + 1) },
-            health: 'healthy'
-          });
-        }
+        const ySpacing = (svgHeight - 20) / (modelArray.length + 1);
+        nodesMap.set(`model-${modelName}`, {
+          id: `model-${modelName}`,
+          type: 'model',
+          name: modelName,
+          metrics: { requests: 0, tokens: 0, latency: 0, errorRate: 0, cost: 0 },
+          position: { x: rightX, y: topMargin + ySpacing * (modelIdx + 1) },
+          health: 'healthy'
+        });
         modelIdx++;
       });
 
@@ -442,25 +577,42 @@ export const AITopology: React.FC = () => {
           modelNode.metrics.tokens += tokens;
         }
 
-        // Create edges: Service → Provider (using entity ID)
-        const edgeId1 = `${serviceEntityId}-${providerName}`;
-        const existingEdge1 = edges.find(e => e.id === edgeId1);
-        if (existingEdge1) {
-          existingEdge1.metrics.requests += requests;
-          existingEdge1.metrics.tokens += tokens;
-          existingEdge1.thickness = Math.min(5, Math.log10(existingEdge1.metrics.requests + 1));
-        } else if (serviceEntityId) {
-          edges.push({
-            id: edgeId1,
-            source: `service-${serviceEntityId}`,
-            target: `provider-${providerName}`,
-            metrics: { requests, tokens, avgLatency: latency },
-            thickness: Math.min(5, Math.log10(requests + 1))
-          });
+        // Create edges: Service → Provider (only if both nodes exist)
+        const sourceServiceId = serviceEntityId || 'application';
+        const serviceNodeId = `service-${sourceServiceId}`;
+        const providerNodeId = `provider-${providerName}`;
+        
+        if (nodesMap.has(serviceNodeId) && nodesMap.has(providerNodeId)) {
+          const edgeId1 = `${sourceServiceId}-${providerName}`;
+          const existingEdge1 = edges.find(e => e.id === edgeId1);
+          if (existingEdge1) {
+            existingEdge1.metrics.requests += requests;
+            existingEdge1.metrics.tokens += tokens;
+          } else {
+            edges.push({
+              id: edgeId1,
+              source: serviceNodeId,
+              target: providerNodeId,
+              label: 'calls',
+              metrics: { requests, tokens, avgLatency: latency }
+            });
+          }
         }
 
-        // Create edges: Provider → Model
-        if (nodesMap.has(`model-${modelName}`)) {
+        // Update placeholder service metrics if used
+        if (!serviceEntityId) {
+          const placeholderNode = nodesMap.get('service-application');
+          if (placeholderNode) {
+            placeholderNode.metrics.requests += requests;
+            placeholderNode.metrics.tokens += tokens;
+            placeholderNode.metrics.latency = (placeholderNode.metrics.latency + latency) / 2;
+            placeholderNode.metrics.errorRate = Math.max(placeholderNode.metrics.errorRate, errorRate);
+            placeholderNode.health = errorRate > 10 ? 'critical' : errorRate > 5 ? 'warning' : 'healthy';
+          }
+        }
+
+        // Create edges: Provider → Model (only if both nodes exist)
+        if (nodesMap.has(`provider-${providerName}`) && nodesMap.has(`model-${modelName}`)) {
           const edgeId2 = `${providerName}-${modelName}`;
           const existingEdge2 = edges.find(e => e.id === edgeId2);
           if (existingEdge2) {
@@ -471,25 +623,35 @@ export const AITopology: React.FC = () => {
               id: edgeId2,
               source: `provider-${providerName}`,
               target: `model-${modelName}`,
-              metrics: { requests, tokens, avgLatency: latency },
-              thickness: Math.min(5, Math.log10(requests + 1))
+              label: 'uses',
+              metrics: { requests, tokens, avgLatency: latency }
             });
           }
         }
       });
 
       const nodes = Array.from(nodesMap.values());
-      const totalRequests = nodes.filter(n => n.type === 'service').reduce((sum, n) => sum + n.metrics.requests, 0);
-      const totalTokens = nodes.filter(n => n.type === 'service').reduce((sum, n) => sum + n.metrics.tokens, 0);
+      const serviceNodes = nodes.filter(n => n.type === 'service');
+      const providerNodes = nodes.filter(n => n.type === 'provider');
+      const modelNodes = nodes.filter(n => n.type === 'model');
+      const totalRequests = serviceNodes.reduce((sum, n) => sum + n.metrics.requests, 0);
+      const totalTokens = serviceNodes.reduce((sum, n) => sum + n.metrics.tokens, 0);
+
+      console.log('[GCC Topology] Built topology:', {
+        services: serviceNodes.map(n => n.id),
+        providers: providerNodes.map(n => n.id),
+        models: modelNodes.length,
+        edges: edges.map(e => `${e.source} → ${e.target}`)
+      });
 
       setTopologyData({
         nodes,
         edges,
-        svgDimensions: { width: svgWidth, height: svgHeight },
+        svgHeight,
         summary: {
-          totalServices: serviceArray.length,
-          totalProviders: providerArray.length,
-          totalModels: modelArray.length,
+          totalServices: serviceNodes.length,
+          totalProviders: providerNodes.length,
+          totalModels: modelNodes.length,
           totalRequests,
           totalTokens
         }
@@ -523,14 +685,19 @@ export const AITopology: React.FC = () => {
 
   if (loading && !topologyData) {
     return (
-      <Flex flexDirection="column" gap={16} padding={16}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <div>
-            <Heading level={4}>🗺️ AI Topology Map</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-              Visual representation of GenAI service flows
+      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+        <Flex alignItems="center" gap={12} style={{ 
+          padding: '12px 16px',
+          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
+          borderRadius: 8
+        }}>
+          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+          <Flex flexDirection="column" gap={2}>
+            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Loading real-time visualization...
             </Text>
-          </div>
+          </Flex>
         </Flex>
         <FilterBar
           filters={filters}
@@ -541,9 +708,13 @@ export const AITopology: React.FC = () => {
           availableProviders={availableProviders || []}
           availableModels={availableModels || []}
         />
-        <Flex justifyContent="center" alignItems="center" padding={48}>
+        <Flex justifyContent="center" alignItems="center" padding={64} style={{ 
+          background: 'var(--dt-colors-surface-neutral-default)',
+          borderRadius: 8,
+          minHeight: 400
+        }}>
           <ProgressCircle size="large" />
-          <Text style={{ marginLeft: 16 }}>Loading AI Topology...</Text>
+          <Text style={{ marginLeft: 16 }}>Discovering GenAI services...</Text>
         </Flex>
       </Flex>
     );
@@ -551,14 +722,19 @@ export const AITopology: React.FC = () => {
 
   if (error) {
     return (
-      <Flex flexDirection="column" gap={16} padding={16}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <div>
-            <Heading level={4}>🗺️ AI Topology Map</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-              Visual representation of GenAI service flows
+      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+        <Flex alignItems="center" gap={12} style={{ 
+          padding: '12px 16px',
+          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
+          borderRadius: 8
+        }}>
+          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+          <Flex flexDirection="column" gap={2}>
+            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Error loading topology
             </Text>
-          </div>
+          </Flex>
         </Flex>
         <FilterBar
           filters={filters}
@@ -569,9 +745,14 @@ export const AITopology: React.FC = () => {
           availableProviders={availableProviders || []}
           availableModels={availableModels || []}
         />
-        <Surface padding={24} style={{ textAlign: 'center' }}>
-          <Text style={{ color: Colors.Text.Critical.Default }}>❌ {error.message}</Text>
-          <Button variant="default" onClick={fetchTopology} style={{ marginTop: 16 }}>
+        <Surface padding={32} style={{ 
+          textAlign: 'center',
+          background: 'var(--dt-colors-surface-neutral-default)',
+          borderRadius: 8,
+          border: '1px solid var(--dt-colors-border-critical-default)'
+        }}>
+          <Text style={{ color: Colors.Text.Critical.Default, marginBottom: 12 }}>{error.message}</Text>
+          <Button variant="emphasized" onClick={fetchTopology} style={{ marginTop: 16 }}>
             Retry
           </Button>
         </Surface>
@@ -581,14 +762,19 @@ export const AITopology: React.FC = () => {
 
   if (!topologyData || topologyData.nodes.length === 0) {
     return (
-      <Flex flexDirection="column" gap={16} padding={16}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <div>
-            <Heading level={4}>🗺️ AI Topology Map</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-              Visual representation of GenAI service flows
+      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+        <Flex alignItems="center" gap={12} style={{ 
+          padding: '12px 16px',
+          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
+          borderRadius: 8
+        }}>
+          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+          <Flex flexDirection="column" gap={2}>
+            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              No services discovered
             </Text>
-          </div>
+          </Flex>
         </Flex>
         <FilterBar
           filters={filters}
@@ -599,10 +785,23 @@ export const AITopology: React.FC = () => {
           availableProviders={availableProviders || []}
           availableModels={availableModels || []}
         />
-        <Surface padding={24} style={{ textAlign: 'center' }}>
-          <Text>No GenAI services discovered. Adjust filters or ensure your services emit gen_ai.* spans.</Text>
-          <Button variant="accent" onClick={fetchTopology} style={{ marginTop: 16 }}>
-            Refresh
+        <Surface padding={32} style={{ 
+          textAlign: 'center',
+          background: 'var(--dt-colors-surface-neutral-default)',
+          borderRadius: 8,
+          minHeight: 300,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <SmartscapeIcon style={{ width: 48, height: 48, opacity: 0.3, marginBottom: 16 }} />
+          <Text style={{ marginBottom: 8 }}>No GenAI services discovered</Text>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginBottom: 16 }}>
+            Adjust filters or ensure your services emit gen_ai.* spans
+          </Text>
+          <Button variant="emphasized" onClick={fetchTopology}>
+            Refresh Topology
           </Button>
         </Surface>
       </Flex>
@@ -610,26 +809,41 @@ export const AITopology: React.FC = () => {
   }
 
   return (
-    <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>🗺️ AI Topology Map</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Visual representation of GenAI service flows • Real-time data from Grail
+    <Flex flexDirection="column" gap={8} padding={12} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+      {/* Compact Header with integrated controls */}
+      <Flex justifyContent="space-between" alignItems="center" style={{ 
+        padding: '8px 12px',
+        background: 'linear-gradient(90deg, rgba(20,168,245,0.06) 0%, rgba(111,45,168,0.06) 100%)',
+        borderRadius: 6,
+        border: '1px solid var(--dt-colors-border-neutral-default)'
+      }}>
+        <Flex alignItems="center" gap={8}>
+          <SmartscapeIcon style={{ width: 22, height: 22, color: 'var(--dt-colors-text-accent-default)' }} />
+          <Heading level={5} style={{ margin: 0 }}>GenAI Topology</Heading>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
+            Service → Provider → Model flows
           </Text>
         </Flex>
-        <Flex gap={8}>
+        <Flex gap={6} alignItems="center">
           <Button 
             variant={autoRefresh ? 'emphasized' : 'default'} 
             onClick={() => setAutoRefresh(!autoRefresh)}
+            style={{ fontSize: 11, padding: '4px 10px' }}
           >
-            {autoRefresh ? '🔄 Auto-Refresh ON' : '⏸️ Auto-Refresh OFF'}
+            {autoRefresh ? '● Live' : '○ Paused'}
+          </Button>
+          <Button
+            variant="default"
+            onClick={fetchTopology}
+            disabled={loading}
+            style={{ fontSize: 11, padding: '4px 10px' }}
+          >
+            {loading ? '...' : 'Refresh'}
           </Button>
         </Flex>
       </Flex>
 
-      {/* Filter Bar - Standard Dynatrace filter pattern */}
+      {/* Compact Filter Bar */}
       <FilterBar
         filters={filters}
         onFiltersChange={setFilters}
@@ -640,110 +854,106 @@ export const AITopology: React.FC = () => {
         availableModels={availableModels || []}
       />
 
-      {/* Summary Cards */}
-      <Flex gap={12}>
-        <Surface style={{ flex: 1, padding: 12 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Services</Text>
-            <Heading level={3}>{topologyData.summary.totalServices}</Heading>
-          </Flex>
-        </Surface>
-        <Surface style={{ flex: 1, padding: 12 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Providers</Text>
-            <Heading level={3}>{topologyData.summary.totalProviders}</Heading>
-          </Flex>
-        </Surface>
-        <Surface style={{ flex: 1, padding: 12 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Models</Text>
-            <Heading level={3}>{topologyData.summary.totalModels}</Heading>
-          </Flex>
-        </Surface>
-        <Surface style={{ flex: 1, padding: 12 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Requests</Text>
-            <Heading level={3}>{topologyData.summary.totalRequests.toLocaleString()}</Heading>
-          </Flex>
-        </Surface>
-        <Surface style={{ flex: 1, padding: 12 }}>
-          <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Tokens</Text>
-            <Heading level={3}>
-              {topologyData.summary.totalTokens > 1000000 
-                ? `${(topologyData.summary.totalTokens / 1000000).toFixed(1)}M`
-                : topologyData.summary.totalTokens.toLocaleString()}
-            </Heading>
-          </Flex>
-        </Surface>
+      {/* Ultra-compact legend + stats row */}
+      <Flex gap={12} padding={6} alignItems="center" style={{ 
+        background: 'var(--dt-colors-surface-neutral-default)', 
+        borderRadius: 4,
+        border: '1px solid var(--dt-colors-border-neutral-default)',
+        fontSize: 11
+      }}>
+        <Flex alignItems="center" gap={4}>
+          <div style={{ width: 12, height: 12, background: '#14a8f5', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <span><strong>{topologyData.summary.totalServices}</strong> Svc</span>
+        </Flex>
+        <Flex alignItems="center" gap={4}>
+          <div style={{ width: 12, height: 12, background: '#6f2da8', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <span><strong>{topologyData.summary.totalProviders}</strong> Prov</span>
+        </Flex>
+        <Flex alignItems="center" gap={4}>
+          <div style={{ width: 12, height: 12, background: '#00b4a0', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <span><strong>{topologyData.summary.totalModels}</strong> Mod</span>
+        </Flex>
+        <div style={{ height: 12, borderLeft: '1px solid var(--dt-colors-border-neutral-default)' }} />
+        <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+          {topologyData.summary.totalRequests > 1000 
+            ? `${(topologyData.summary.totalRequests/1000).toFixed(1)}K` 
+            : topologyData.summary.totalRequests} req • {
+            topologyData.summary.totalTokens > 1000000 
+              ? `${(topologyData.summary.totalTokens / 1000000).toFixed(1)}M`
+              : topologyData.summary.totalTokens > 1000
+              ? `${(topologyData.summary.totalTokens / 1000).toFixed(0)}K`
+              : topologyData.summary.totalTokens
+          } tok
+        </span>
       </Flex>
 
-      {/* Legend */}
-      <Flex gap={16} padding={8} style={{ background: 'var(--dt-colors-surface-default)', borderRadius: 6 }}>
-        <Flex alignItems="center" gap={4}>
-          <span>🤖</span>
-          <Text textStyle="small">Services</Text>
-        </Flex>
-        <Flex alignItems="center" gap={4}>
-          <span>☁️</span>
-          <Text textStyle="small">Providers</Text>
-        </Flex>
-        <Flex alignItems="center" gap={4}>
-          <span>🧠</span>
-          <Text textStyle="small">Models</Text>
-        </Flex>
-        <Text textStyle="small" style={{ marginLeft: 'auto', color: Colors.Text.Neutral.Subdued }}>
-          Edge thickness = request volume | Node size = type hierarchy
-        </Text>
-      </Flex>
-
-      {/* Topology SVG */}
-      <Surface style={{ padding: 16, minHeight: (topologyData?.svgDimensions.height || 600) + 20, overflow: 'auto' }}>
+      {/* Topology SVG - Scrollable Container */}
+      <Surface style={{ 
+        padding: 0, 
+        flex: 1,
+        minHeight: 200,
+        maxHeight: 'calc(100vh - 160px)',
+        overflow: 'auto',
+        background: '#f9fafb',
+        borderRadius: 8,
+        border: '1px solid var(--dt-colors-border-neutral-default)',
+        position: 'relative'
+      }}
+      onMouseMove={handleMouseMove}
+      >
         <svg 
-          width="100%" 
-          height={topologyData?.svgDimensions.height || 600} 
-          viewBox={`0 0 ${topologyData?.svgDimensions.width || 1000} ${topologyData?.svgDimensions.height || 600}`} 
-          preserveAspectRatio="xMidYMid meet"
+          width="100%"
+          height={topologyData.svgHeight}
+          viewBox={`0 0 800 ${topologyData.svgHeight}`}
+          preserveAspectRatio="xMidYMin meet"
+          style={{ display: 'block' }}
         >
-          {/* Arrow marker definition */}
+          {/* Gradient definitions */}
           <defs>
             <marker
-              id="arrowhead"
+              id="arrowhead-smartscape"
               markerWidth="10"
-              markerHeight="7"
+              markerHeight="8"
               refX="9"
-              refY="3.5"
+              refY="4"
               orient="auto"
             >
               <polygon 
-                points="0 0, 10 3.5, 0 7" 
-                fill="var(--dt-colors-border-neutral-default)"
-                opacity={0.6}
+                points="0 0, 10 4, 0 8" 
+                fill="#6b7280"
               />
             </marker>
+            {/* Glow filter for nodes */}
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            {/* Light dotted pattern for background */}
+            <pattern id="dotPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
+            </pattern>
           </defs>
 
-          {/* Column labels */}
-          <text x="100" y="30" textAnchor="middle" fill="var(--dt-colors-text-secondary-default)" fontSize={12} fontWeight={600}>
-            SERVICES
-          </text>
-          <text x="450" y="30" textAnchor="middle" fill="var(--dt-colors-text-secondary-default)" fontSize={12} fontWeight={600}>
-            PROVIDERS
-          </text>
-          <text x="800" y="30" textAnchor="middle" fill="var(--dt-colors-text-secondary-default)" fontSize={12} fontWeight={600}>
-            MODELS
-          </text>
+          {/* Background - light gray with subtle dots */}
+          <rect width="100%" height="100%" fill="#f9fafb" />
+          <rect width="100%" height="100%" fill="url(#dotPattern)" />
 
           {/* Edges (render first so they're behind nodes) */}
           {topologyData.edges
-            .filter(edge => edge.metrics.tokens > 0) // Filter out edges with zero tokens
+            .filter(edge => edge.metrics.tokens > 0 || edge.metrics.requests > 0)
             .map((edge) => {
               const sourceNode = topologyData.nodes.find(n => n.id === edge.source);
               const targetNode = topologyData.nodes.find(n => n.id === edge.target);
-              if (!sourceNode || !targetNode) return null;
+              if (!sourceNode || !targetNode) {
+                console.warn('[GCC Topology] Edge missing nodes:', edge.id, 'source:', edge.source, 'target:', edge.target);
+                return null;
+              }
               
               return (
-                <TopologyEdgeComponent
+                <SmartscapeEdge
                   key={edge.id}
                   edge={edge}
                   sourceNode={sourceNode}
@@ -752,67 +962,69 @@ export const AITopology: React.FC = () => {
               );
             })}
 
-          {/* Nodes */}
+          {/* Nodes with hover handlers */}
           {topologyData.nodes.map((node) => (
-            <TopologyNodeComponent
+            <SmartscapeCardNode
               key={node.id}
               node={node}
-              selected={selectedNode?.id === node.id}
+              isSelected={selectedNode?.id === node.id}
+              isHovered={hoveredNode?.id === node.id}
               onSelect={setSelectedNode}
+              onHover={setHoveredNode}
             />
           ))}
         </svg>
       </Surface>
 
-      {/* Selected Node Details */}
-      {selectedNode && (
-        <Surface style={{ padding: 16 }}>
-          <Flex justifyContent="space-between" alignItems="flex-start">
-            <Flex flexDirection="column" gap={8}>
-              <Flex alignItems="center" gap={8}>
-                <span style={{ fontSize: 24 }}>
-                  {selectedNode.type === 'service' ? '🤖' : selectedNode.type === 'provider' ? '☁️' : '🧠'}
-                </span>
-                <Heading level={5}>{selectedNode.name}</Heading>
-                <span style={{
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  fontSize: 11,
-                  background: selectedNode.health === 'healthy' ? 'rgba(76, 175, 80, 0.2)' :
-                              selectedNode.health === 'warning' ? 'rgba(255, 152, 0, 0.2)' :
-                              'rgba(244, 67, 54, 0.2)',
-                  color: selectedNode.health === 'healthy' ? '#4CAF50' :
-                         selectedNode.health === 'warning' ? '#ff9800' : '#f44336'
-                }}>
-                  {selectedNode.health.toUpperCase()}
-                </span>
-              </Flex>
-              <Flex gap={24}>
-                <div>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Requests</Text>
-                  <Text style={{ fontWeight: 600 }}>{selectedNode.metrics.requests.toLocaleString()}</Text>
-                </div>
-                <div>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Tokens</Text>
-                  <Text style={{ fontWeight: 600 }}>{selectedNode.metrics.tokens.toLocaleString()}</Text>
-                </div>
-                <div>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Avg Latency</Text>
-                  <Text style={{ fontWeight: 600 }}>{selectedNode.metrics.latency.toFixed(0)}ms</Text>
-                </div>
-                <div>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Error Rate</Text>
-                  <Text style={{ fontWeight: 600, color: selectedNode.metrics.errorRate > 5 ? Colors.Text.Critical.Default : 'inherit' }}>
-                    {selectedNode.metrics.errorRate.toFixed(1)}%
-                  </Text>
-                </div>
-              </Flex>
+      {/* Tooltip Portal - Fixed position following cursor */}
+      {hoveredNode && (
+        <div style={{
+          position: 'fixed',
+          left: tooltipPos.x + 20,
+          top: tooltipPos.y - 10,
+          zIndex: 9999,
+          background: '#ffffff',
+          borderRadius: 8,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          border: '1px solid #d1d5db',
+          padding: 12,
+          minWidth: 200,
+          maxWidth: 240,
+          pointerEvents: 'none'
+        }}>
+          <Flex flexDirection="column" gap={4}>
+            <Flex justifyContent="space-between" alignItems="center">
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>{hoveredNode.name}</Text>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: hoveredNode.health === 'healthy' ? '#73be28' : 
+                           hoveredNode.health === 'warning' ? '#f5d30f' : '#dc172a'
+              }} />
             </Flex>
-            <Button variant="default" onClick={() => setSelectedNode(null)}>
-              ✕ Close
-            </Button>
+            <Text textStyle="small" style={{ color: '#6b7280', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.5px' }}>
+              {hoveredNode.type}
+            </Text>
+            <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
+            <Flex justifyContent="space-between">
+              <Text style={{ fontSize: 11, color: '#6b7280' }}>Requests</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.requests.toLocaleString()}</Text>
+            </Flex>
+            <Flex justifyContent="space-between">
+              <Text style={{ fontSize: 11, color: '#6b7280' }}>Tokens</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.tokens.toLocaleString()}</Text>
+            </Flex>
+            <Flex justifyContent="space-between">
+              <Text style={{ fontSize: 11, color: '#6b7280' }}>Latency</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.latency.toFixed(0)}ms</Text>
+            </Flex>
+            <Flex justifyContent="space-between">
+              <Text style={{ fontSize: 11, color: '#6b7280' }}>Error Rate</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{(hoveredNode.metrics.errorRate * 100).toFixed(1)}%</Text>
+            </Flex>
           </Flex>
-        </Surface>
+        </div>
       )}
     </Flex>
   );
