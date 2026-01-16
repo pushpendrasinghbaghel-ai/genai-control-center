@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading } from '@dynatrace/strato-components/typography';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { BarChartIcon } from '@dynatrace/strato-icons';
 import { useProviderComparison, useModelComparison, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -273,7 +274,7 @@ export const ProviderComparison: React.FC = () => {
             borderRadius: 6,
             border: '1px solid var(--dt-colors-border-neutral-default)'
           }}>
-            <span style={{ fontSize: 36 }}>📊</span>
+            <BarChartIcon style={{ width: 36, height: 36, color: 'var(--dt-colors-text-secondary-default)' }} />
             <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
               No provider data available
             </span>

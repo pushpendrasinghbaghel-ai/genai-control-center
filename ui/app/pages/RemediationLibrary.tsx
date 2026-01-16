@@ -7,6 +7,7 @@ import { Heading } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon } from '@dynatrace/strato-icons';
 import { useRemediation, useRemediationActions, useAIServicesDiscovery } from '../hooks';
 import type { RemediationAction, WorkflowExecution } from '../types';
 
@@ -15,13 +16,13 @@ const ActionCard: React.FC<{
   action: RemediationAction;
   onExecute: (action: RemediationAction) => void;
 }> = ({ action, onExecute }) => {
-  const icons: Record<string, string> = {
-    'kill_switch': '⛔',
-    'fallback_trigger': '🔄',
-    'rate_limit': '⚡',
-    'cache_enable': '💾',
-    'provider_switch': '🔀',
-    'alert_suppress': '🔕'
+  const icons: Record<string, React.ReactNode> = {
+    'kill_switch': <StopIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-feedback-critical-default)' }} />,
+    'fallback_trigger': <RefreshIcon style={{ width: 20, height: 20 }} />,
+    'rate_limit': <ClockIcon style={{ width: 20, height: 20 }} />,
+    'cache_enable': <SettingIcon style={{ width: 20, height: 20 }} />,
+    'provider_switch': <ArrowRightIcon style={{ width: 20, height: 20 }} />,
+    'alert_suppress': <NotificationIcon style={{ width: 20, height: 20 }} />
   };
 
   return (
@@ -39,17 +40,18 @@ const ActionCard: React.FC<{
       }}
     >
       <Flex alignItems="center" gap={8}>
-        <span style={{ fontSize: 20 }}>{icons[action.type] || '🔧'}</span>
+        <span style={{ display: 'flex', alignItems: 'center' }}>{icons[action.type] || <WorkflowsIcon style={{ width: 20, height: 20 }} />}</span>
         <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{action.name}</span>
         {action.isDestructive && (
-          <span style={{ 
+          <Flex alignItems="center" gap={2} style={{ 
             fontSize: 9, padding: '2px 5px', 
             background: 'var(--dt-colors-feedback-critical-subtle)',
             color: 'var(--dt-colors-feedback-critical-default)',
             borderRadius: 3, textTransform: 'uppercase', fontWeight: 600
           }}>
+            <WarningIcon style={{ width: 10, height: 10 }} />
             Destructive
-          </span>
+          </Flex>
         )}
       </Flex>
       <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>

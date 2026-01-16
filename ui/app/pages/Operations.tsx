@@ -8,6 +8,10 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { 
+  ClockIcon, CriticalIcon, MoneyIcon, SecurityIcon, DocumentIcon, 
+  RefreshIcon, WarningIcon, CheckmarkIcon, StopIcon, SettingIcon 
+} from '@dynatrace/strato-icons';
 import { useAIServicesDiscovery } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -40,7 +44,7 @@ interface QuickAction {
   name: string;
   type: string;
   description: string;
-  icon: string;
+  icon: React.ReactNode;
   isDestructive: boolean;
 }
 
@@ -114,10 +118,10 @@ const RUNBOOKS: Runbook[] = [
 
 // Quick Actions for one-click remediation (Sample - requires Workflow integration)
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: 'kill_switch', name: 'Kill Switch', type: 'kill_switch', description: 'Immediately stop all AI requests to a provider', icon: '⛔', isDestructive: true },
-  { id: 'fallback_trigger', name: 'Trigger Fallback', type: 'fallback_trigger', description: 'Route traffic to backup provider', icon: '🔄', isDestructive: false },
-  { id: 'rate_limit', name: 'Apply Rate Limit', type: 'rate_limit', description: 'Throttle requests to prevent overload', icon: '⚡', isDestructive: false },
-  { id: 'cache_enable', name: 'Enable Caching', type: 'cache_enable', description: 'Enable response caching for common queries', icon: '💾', isDestructive: false },
+  { id: 'kill_switch', name: 'Kill Switch', type: 'kill_switch', description: 'Immediately stop all AI requests to a provider', icon: <StopIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-feedback-critical-default)' }} />, isDestructive: true },
+  { id: 'fallback_trigger', name: 'Trigger Fallback', type: 'fallback_trigger', description: 'Route traffic to backup provider', icon: <RefreshIcon style={{ width: 16, height: 16 }} />, isDestructive: false },
+  { id: 'rate_limit', name: 'Apply Rate Limit', type: 'rate_limit', description: 'Throttle requests to prevent overload', icon: <ClockIcon style={{ width: 16, height: 16 }} />, isDestructive: false },
+  { id: 'cache_enable', name: 'Enable Caching', type: 'cache_enable', description: 'Enable response caching for common queries', icon: <SettingIcon style={{ width: 16, height: 16 }} />, isDestructive: false },
 ];
 
 export const Operations: React.FC = () => {
@@ -181,25 +185,25 @@ export const Operations: React.FC = () => {
   };
 
   // Category icons helper
-  const getCategoryIcon = (category: string) => {
-    const icons: Record<string, string> = {
-      performance: '⚡',
-      errors: '🔴',
-      cost: '💰',
-      security: '🔒',
+  const getCategoryIcon = (category: string): React.ReactNode => {
+    const icons: Record<string, React.ReactNode> = {
+      performance: <ClockIcon style={{ width: 14, height: 14 }} />,
+      errors: <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />,
+      cost: <MoneyIcon style={{ width: 14, height: 14 }} />,
+      security: <SecurityIcon style={{ width: 14, height: 14 }} />,
     };
-    return icons[category] || '📋';
+    return icons[category] || <DocumentIcon style={{ width: 14, height: 14 }} />;
   };
 
   // Severity icons helper
-  const getSeverityIcon = (severity: string) => {
-    const icons: Record<string, string> = {
-      critical: '🔴',
-      high: '🟠',
-      medium: '🟡',
-      low: '🟢',
+  const getSeverityIcon = (severity: string): React.ReactNode => {
+    const icons: Record<string, React.ReactNode> = {
+      critical: <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />,
+      high: <WarningIcon style={{ width: 14, height: 14, color: '#ff5722' }} />,
+      medium: <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />,
+      low: <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-success-default)' }} />,
     };
-    return icons[severity] || '⚪';
+    return icons[severity] || <DocumentIcon style={{ width: 14, height: 14 }} />;
   };
 
   return (

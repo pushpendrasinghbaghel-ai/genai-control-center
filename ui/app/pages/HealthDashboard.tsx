@@ -9,7 +9,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { ExternalLinkIcon } from '@dynatrace/strato-icons';
+import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
@@ -22,11 +22,11 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
   status, 
   size = 'small' 
 }) => {
-  const icons: Record<HealthStatus, string> = { 
-    healthy: '✅', 
-    warning: '⚠️', 
-    critical: '🔴', 
-    unknown: '❓' 
+  const icons: Record<HealthStatus, React.ReactNode> = { 
+    healthy: <CheckmarkIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-success-default)' }} />, 
+    warning: <WarningIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-warning-default)' }} />, 
+    critical: <CriticalIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-critical-default)' }} />, 
+    unknown: <HelpIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-text-secondary-default)' }} /> 
   };
   const labels: Record<HealthStatus, string> = { 
     healthy: 'Healthy', 
@@ -37,7 +37,7 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
   
   return (
     <Flex alignItems="center" gap={4}>
-      <span style={{ fontSize: size === 'large' ? 24 : 16 }}>{icons[status]}</span>
+      {icons[status]}
       <span style={{ 
         fontSize: size === 'large' ? 16 : 12, 
         fontWeight: size === 'large' ? 600 : 400, 
@@ -53,7 +53,7 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
 const MetricCard: React.FC<{ 
   value: string | number; 
   label: string; 
-  icon: string; 
+  icon: React.ReactNode; 
   color?: string 
 }> = ({ value, label, icon, color }) => (
   <Flex 
@@ -66,7 +66,7 @@ const MetricCard: React.FC<{
       border: '1px solid var(--dt-colors-border-neutral-default)'
     }}
   >
-    <span style={{ fontSize: 18 }}>{icon}</span>
+    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
     <div>
       <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
       <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
@@ -358,10 +358,10 @@ export const HealthDashboard: React.FC = () => {
         </Flex>
 
         {/* Metrics - Compact - Key aggregates only (avoid duplicating per-row data) */}
-        <MetricCard value={services.length} label="Services" icon="🤖" />
-        <MetricCard value={formatNumber(healthMetrics.totalTokensToday)} label="Tokens" icon="📊" />
-        <MetricCard value={formatCurrency(healthMetrics.totalCostToday)} label="Cost" icon="💰" />
-        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Avg Latency" icon="⚡" />
+        <MetricCard value={services.length} label="Services" icon={<ServicesIcon style={{ width: 18, height: 18 }} />} />
+        <MetricCard value={formatNumber(healthMetrics.totalTokensToday)} label="Tokens" icon={<BarChartIcon style={{ width: 18, height: 18 }} />} />
+        <MetricCard value={formatCurrency(healthMetrics.totalCostToday)} label="Cost" icon={<MoneyIcon style={{ width: 18, height: 18 }} />} />
+        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Avg Latency" icon={<ClockIcon style={{ width: 18, height: 18 }} />} />
       </Flex>
 
       {/* Service List - Table Style */}

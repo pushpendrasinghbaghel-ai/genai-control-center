@@ -6,6 +6,7 @@ import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components-preview/tables';
+import { CriticalIcon, WarningIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { useLiveProblems, LiveProblem } from '../hooks/useWorkflows';
 import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
 
@@ -25,15 +26,15 @@ const openProblemInDynatrace = (problemId: string): void => {
   window.open(link, '_blank');
 };
 
-const getSeverityIcon = (severity: string) => {
+const getSeverityIcon = (severity: string): React.ReactNode => {
   switch (severity) {
-    case 'ERROR': return '🔴';
-    case 'AVAILABILITY': return '🔴';
-    case 'PERFORMANCE': return '🟡';
-    case 'SLOWDOWN': return '🟡';
-    case 'RESOURCE_CONTENTION': return '🟠';
-    case 'CUSTOM_ALERT': return '🟣';
-    default: return '⚪';
+    case 'ERROR': return <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />;
+    case 'AVAILABILITY': return <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />;
+    case 'PERFORMANCE': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />;
+    case 'SLOWDOWN': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />;
+    case 'RESOURCE_CONTENTION': return <WarningIcon style={{ width: 14, height: 14, color: '#ff5722' }} />;
+    case 'CUSTOM_ALERT': return <WarningIcon style={{ width: 14, height: 14, color: '#9c27b0' }} />;
+    default: return <WarningIcon style={{ width: 14, height: 14 }} />;
   }
 };
 
@@ -115,13 +116,19 @@ export const RealTimeAlerts: React.FC = () => {
       accessor: 'status',
       width: 120,
       cell: ({ value }) => (
-        <div style={{ 
-          color: value === 'OPEN' ? Colors.Text.Critical.Default : Colors.Text.Success.Default,
-          fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 4
-        }}>
-          {value === 'OPEN' ? '🔴 Active' : '🟢 Closed'}
-        </div>
+        <Flex 
+          alignItems="center" 
+          gap={4}
+          style={{ 
+            color: value === 'OPEN' ? Colors.Text.Critical.Default : Colors.Text.Success.Default,
+            fontWeight: 600
+          }}
+        >
+          {value === 'OPEN' 
+            ? <><CriticalIcon style={{ width: 12, height: 12 }} /> Active</>
+            : <><CheckmarkIcon style={{ width: 12, height: 12 }} /> Closed</>
+          }
+        </Flex>
       )
     },
     {

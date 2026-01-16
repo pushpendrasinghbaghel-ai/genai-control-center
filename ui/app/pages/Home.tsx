@@ -9,6 +9,22 @@ import { TimeseriesChart } from "@dynatrace/strato-components-preview/charts";
 import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
 import type { Timeframe } from "@dynatrace/strato-components-preview/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
+import {
+  AiIcon,
+  BarChartIcon,
+  MoneyIcon,
+  SmartscapeIcon,
+  ServiceLevelObjectivesIcon,
+  SecurityIcon,
+  WorkflowsIcon,
+  WarningIcon,
+  ClockIcon,
+  DocumentIcon,
+  ExternalLinkIcon,
+  HostsIcon,
+  ServicesIcon,
+  AppsIcon
+} from "@dynatrace/strato-icons";
 import { useAIServicesDiscovery } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
 
@@ -34,7 +50,7 @@ const getTimeframeLabel = (timeframe: Timeframe): string => {
 const StatCard: React.FC<{
   label: string;
   value: string | number;
-  icon: string;
+  icon: React.ReactNode;
   trend?: string;
   color?: string;
 }> = ({ label, value, icon, trend, color }) => (
@@ -46,7 +62,7 @@ const StatCard: React.FC<{
   }}>
     <Flex flexDirection="column" gap={4}>
       <Flex alignItems="center" gap={8}>
-        <span style={{ fontSize: 20 }}>{icon}</span>
+        <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{icon}</span>
         <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{label}</span>
       </Flex>
       <span style={{ fontSize: 24, fontWeight: 700, color: color || 'inherit' }}>{value}</span>
@@ -59,7 +75,7 @@ const StatCard: React.FC<{
 const PillarCard: React.FC<{
   title: string;
   description: string;
-  icon: string;
+  icon: React.ReactNode;
   path: string;
   color: string;
 }> = ({ title, description, icon, path, color }) => (
@@ -78,7 +94,7 @@ const PillarCard: React.FC<{
             width: 40, height: 40, borderRadius: 8, 
             background: color, display: 'flex', 
             alignItems: 'center', justifyContent: 'center',
-            fontSize: 20
+            color: 'var(--dt-colors-text-primary-default)'
           }}>
             {icon}
           </div>
@@ -242,7 +258,10 @@ export const Home = () => {
       {/* Header with TimeframeSelector */}
       <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={16}>
         <Flex flexDirection="column" gap={4}>
-          <Heading level={1}>🤖 GenAI Control Center</Heading>
+          <Flex alignItems="center" gap={12}>
+            <AiIcon style={{ width: 32, height: 32, color: 'var(--dt-colors-text-accent-default)' }} />
+            <Heading level={1}>GenAI Control Center</Heading>
+          </Flex>
           <Paragraph style={{ color: 'var(--dt-colors-text-secondary-default)', margin: 0 }}>
             Unified observability for your AI/LLM services
           </Paragraph>
@@ -259,7 +278,10 @@ export const Home = () => {
       <Surface padding={20} style={{ borderRadius: 8, background: 'var(--dt-colors-surface-raised-default)' }}>
         <Flex flexDirection="column" gap={16}>
           <Flex justifyContent="space-between" alignItems="center">
-            <Heading level={2} style={{ margin: 0, fontSize: 16 }}>📊 Executive Summary ({getTimeframeLabel(timeframe)})</Heading>
+            <Flex alignItems="center" gap={8}>
+              <BarChartIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-secondary-default)' }} />
+              <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Executive Summary ({getTimeframeLabel(timeframe)})</Heading>
+            </Flex>
           </Flex>
           
           {loading ? (
@@ -269,34 +291,34 @@ export const Home = () => {
           ) : healthMetrics ? (
             <Flex gap={16} flexWrap="wrap">
               <StatCard 
-                icon="💚" 
+                icon={<HostsIcon style={{ width: 20, height: 20 }} />} 
                 label="Health" 
                 value={healthMetrics.overallHealth.toUpperCase()} 
                 color={healthColor}
                 trend={`${healthMetrics.healthyCount}/${healthMetrics.totalServices} services healthy`}
               />
               <StatCard 
-                icon="🤖" 
+                icon={<ServicesIcon style={{ width: 20, height: 20 }} />} 
                 label="AI Services" 
                 value={healthMetrics.totalServices}
               />
               <StatCard 
-                icon="📊" 
+                icon={<BarChartIcon style={{ width: 20, height: 20 }} />} 
                 label="Tokens" 
                 value={formatNumber(chartTotals.tokens)}
               />
               <StatCard 
-                icon="💰" 
+                icon={<MoneyIcon style={{ width: 20, height: 20 }} />} 
                 label="Cost" 
                 value={formatCurrency(chartTotals.cost)}
               />
               <StatCard 
-                icon="⚡" 
+                icon={<ClockIcon style={{ width: 20, height: 20 }} />} 
                 label="Avg Latency" 
                 value={`${healthMetrics.avgLatency.toFixed(0)}ms`}
               />
               <StatCard 
-                icon="🐢" 
+                icon={<WarningIcon style={{ width: 20, height: 20 }} />} 
                 label="Slow Requests" 
                 value={`${healthMetrics.avgSlowRequestRate.toFixed(1)}%`}
                 color={healthMetrics.avgSlowRequestRate > 10 
@@ -320,7 +342,10 @@ export const Home = () => {
           <Surface padding={16} style={{ borderRadius: 8, flex: 1 }}>
             <Flex flexDirection="column" gap={12}>
               <Flex justifyContent="space-between" alignItems="center">
-                <Heading level={2} style={{ margin: 0, fontSize: 16 }}>📊 Token Usage</Heading>
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ width: 16, height: 16, color: '#10a37f' }} />
+                  <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Token Usage</Heading>
+                </Flex>
                 <Strong style={{ color: '#10a37f' }}>{formatNumber(chartTotals.tokens)}</Strong>
               </Flex>
               <TimeseriesChart
@@ -336,7 +361,10 @@ export const Home = () => {
           <Surface padding={16} style={{ borderRadius: 8, flex: 1 }}>
             <Flex flexDirection="column" gap={12}>
               <Flex justifyContent="space-between" alignItems="center">
-                <Heading level={2} style={{ margin: 0, fontSize: 16 }}>💰 Cost Trend</Heading>
+                <Flex alignItems="center" gap={8}>
+                  <MoneyIcon style={{ width: 16, height: 16, color: '#2196f3' }} />
+                  <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Cost Trend</Heading>
+                </Flex>
                 <Strong style={{ color: '#2196f3' }}>{formatCurrency(chartTotals.cost)}</Strong>
               </Flex>
               <TimeseriesChart
@@ -359,9 +387,10 @@ export const Home = () => {
             style={{ cursor: 'pointer' }}
             onClick={() => setShowPillars(!showPillars)}
           >
-            <Heading level={2} style={{ margin: 0, fontSize: 16 }}>
-              🎯 Control Center Pillars
-            </Heading>
+            <Flex alignItems="center" gap={8}>
+              <AppsIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-text-secondary-default)' }} />
+              <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Control Center Pillars</Heading>
+            </Flex>
             <Button variant="default" onClick={(e) => { e.stopPropagation(); setShowPillars(!showPillars); }}>
               {showPillars ? '▲ Collapse' : '▼ Expand'}
             </Button>
@@ -369,14 +398,14 @@ export const Home = () => {
           
           {!showPillars && (
             <Flex gap={8} flexWrap="wrap">
-              <Link to="/health" style={{ padding: '6px 12px', borderRadius: 6, background: '#10a37f22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>📊 Health</Link>
-              <Link to="/topology" style={{ padding: '6px 12px', borderRadius: 6, background: '#2196f322', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>🗺️ Topology</Link>
-              <Link to="/quality" style={{ padding: '6px 12px', borderRadius: 6, background: '#9c27b022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>🎯 Quality</Link>
-              <Link to="/alerts" style={{ padding: '6px 12px', borderRadius: 6, background: '#f4433622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>🚨 Alerts</Link>
-              <Link to="/finops" style={{ padding: '6px 12px', borderRadius: 6, background: '#ff980022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>💰 FinOps</Link>
-              <Link to="/governance" style={{ padding: '6px 12px', borderRadius: 6, background: '#607d8b22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>🛡️ Governance</Link>
-              <Link to="/intelligence" style={{ padding: '6px 12px', borderRadius: 6, background: '#d9770622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>🧠 Intelligence</Link>
-              <Link to="/operations" style={{ padding: '6px 12px', borderRadius: 6, background: '#0078d422', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>⚡ Operations</Link>
+              <Link to="/health" style={{ padding: '6px 12px', borderRadius: 6, background: '#10a37f22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Health</Link>
+              <Link to="/topology" style={{ padding: '6px 12px', borderRadius: 6, background: '#2196f322', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Topology</Link>
+              <Link to="/quality" style={{ padding: '6px 12px', borderRadius: 6, background: '#9c27b022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Quality</Link>
+              <Link to="/alerts" style={{ padding: '6px 12px', borderRadius: 6, background: '#f4433622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Alerts</Link>
+              <Link to="/finops" style={{ padding: '6px 12px', borderRadius: 6, background: '#ff980022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>FinOps</Link>
+              <Link to="/governance" style={{ padding: '6px 12px', borderRadius: 6, background: '#607d8b22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Governance</Link>
+              <Link to="/intelligence" style={{ padding: '6px 12px', borderRadius: 6, background: '#d9770622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Intelligence</Link>
+              <Link to="/operations" style={{ padding: '6px 12px', borderRadius: 6, background: '#0078d422', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Operations</Link>
             </Flex>
           )}
           
@@ -385,28 +414,28 @@ export const Home = () => {
               {/* Core Pillars */}
               <Flex gap={16} flexWrap="wrap">
                 <PillarCard
-                  icon="📊"
+                  icon={<BarChartIcon style={{ width: 20, height: 20 }} />}
                   title="Health Dashboard"
                   description="Auto-discovery & health monitoring for all GenAI services with real-time metrics"
                   path="/health"
                   color="#10a37f22"
                 />
                 <PillarCard
-                  icon="🗺️"
+                  icon={<SmartscapeIcon style={{ width: 20, height: 20 }} />}
                   title="AI Topology"
                   description="Visual map of GenAI flows: services → providers → models with live data"
                   path="/topology"
                   color="#2196f322"
                 />
                 <PillarCard
-                  icon="🎯"
+                  icon={<ServiceLevelObjectivesIcon style={{ width: 20, height: 20 }} />}
                   title="Quality Intelligence"
                   description="AI quality scoring, hallucination detection, and Davis-powered forecasting"
                   path="/quality"
                   color="#9c27b022"
                 />
                 <PillarCard
-                  icon="🚨"
+                  icon={<WarningIcon style={{ width: 20, height: 20 }} />}
                   title="Real-Time Alerts"
                   description="Live Dynatrace problems with GenAI context and auto-refresh"
                   path="/alerts"
@@ -415,31 +444,34 @@ export const Home = () => {
               </Flex>
 
               {/* Management & Operations */}
-              <Heading level={3} style={{ margin: '8px 0 0 0', fontSize: 14 }}>🔧 Management & Operations</Heading>
+              <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+                <WorkflowsIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+                <Heading level={3} style={{ margin: 0, fontSize: 14 }}>Management & Operations</Heading>
+              </Flex>
               <Flex gap={16} flexWrap="wrap">
                 <PillarCard
-                  icon="💰"
+                  icon={<MoneyIcon style={{ width: 20, height: 20 }} />}
                   title="FinOps"
                   description="AI cost management, budget tracking, and token optimization"
                   path="/finops"
                   color="#ff980022"
                 />
                 <PillarCard
-                  icon="🛡️"
+                  icon={<SecurityIcon style={{ width: 20, height: 20 }} />}
                   title="Governance"
                   description="Compliance, risk management, prompt analysis, and policy enforcement"
                   path="/governance"
                   color="#607d8b22"
                 />
                 <PillarCard
-                  icon="🧠"
+                  icon={<AiIcon style={{ width: 20, height: 20 }} />}
                   title="Intelligence"
                   description="Deep-dive analysis with Davis CoPilot for root cause analysis"
                   path="/intelligence"
                   color="#d9770622"
                 />
                 <PillarCard
-                  icon="⚡"
+                  icon={<WorkflowsIcon style={{ width: 20, height: 20 }} />}
                   title="Operations"
                   description="Runbooks, remediation actions, and workflow automation"
                   path="/operations"
@@ -453,14 +485,16 @@ export const Home = () => {
 
       {/* Quick Access - Compact */}
       <Flex gap={12} flexWrap="wrap" alignItems="center">
-        <span style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>🔗 Quick:</span>
+        <Flex alignItems="center" gap={4} style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
+          <ExternalLinkIcon style={{ width: 12, height: 12 }} /> Quick:
+        </Flex>
         <Link to="/providers" style={{ 
           padding: '6px 12px', borderRadius: 6, 
           background: 'var(--dt-colors-surface-default)',
           border: '1px solid var(--dt-colors-border-neutral-default)',
           textDecoration: 'none', color: 'inherit', fontSize: 12
         }}>
-          🔄 Provider Comparison
+          Provider Comparison
         </Link>
         <Link to="/data" style={{ 
           padding: '6px 12px', borderRadius: 6, 
@@ -468,7 +502,7 @@ export const Home = () => {
           border: '1px solid var(--dt-colors-border-neutral-default)',
           textDecoration: 'none', color: 'inherit', fontSize: 12
         }}>
-          📋 Raw Data Explorer
+          Raw Data Explorer
         </Link>
       </Flex>
     </Flex>
