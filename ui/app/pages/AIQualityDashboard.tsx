@@ -6,6 +6,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
+import { WarningIcon, CriticalIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIQualityScoring, useDavisForecasting, AIQualityScore, ForecastResult } from '../hooks/useAIQuality';
 
@@ -81,8 +82,8 @@ const QualityScoreRing: React.FC<{
 const DimensionBar: React.FC<{
   label: string;
   value: number;
-  icon: string;
-}> = ({ label, value, icon }) => {
+  icon?: string;
+}> = ({ label, value }) => {
   const getColor = (v: number) => {
     if (v >= 80) return Colors.Charts.Apdex.Excellent.Default;
     if (v >= 60) return Colors.Charts.Apdex.Good.Default;
@@ -93,10 +94,7 @@ const DimensionBar: React.FC<{
   return (
     <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
       <Flex justifyContent="space-between" alignItems="center">
-        <Flex alignItems="center" gap={4}>
-          <span>{icon}</span>
-          <Text textStyle="small">{label}</Text>
-        </Flex>
+        <Text textStyle="small">{label}</Text>
         <Text textStyle="small" style={{ fontWeight: 600 }}>{value}%</Text>
       </Flex>
       <div style={{
@@ -151,9 +149,9 @@ const ForecastChart: React.FC<{
   `;
 
   const getTrendIcon = () => {
-    if (forecast.trend === 'increasing') return '📈';
-    if (forecast.trend === 'decreasing') return '📉';
-    return '➡️';
+    if (forecast.trend === 'increasing') return <span style={{ color: 'var(--dt-colors-feedback-success-default)' }}>↑</span>;
+    if (forecast.trend === 'decreasing') return <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>↓</span>;
+    return <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>→</span>;
   };
 
   return (
@@ -172,7 +170,7 @@ const ForecastChart: React.FC<{
               color: '#f44336',
               fontSize: 10
             }}>
-              ⚠️ ANOMALY
+              ANOMALY
             </span>
           )}
         </Flex>
@@ -275,7 +273,7 @@ const ForecastChart: React.FC<{
             marginTop: 8 
           }}
         >
-          <span>⚠️</span>
+          <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Critical.Default }}>
             Budget breach predicted in <strong>{forecast.budgetBreachDay} days</strong>
           </Text>
@@ -315,20 +313,17 @@ export const AIQualityDashboard: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
+      {/* Compact Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>🎯 AI Quality Intelligence</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Quality scoring, hallucination detection, and Davis AI-powered forecasting
-          </Text>
-        </Flex>
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          Quality Scoring & Davis AI Forecasting
+        </Text>
         <Flex gap={8}>
           <Button variant="default" onClick={() => analyzeQuality('24h')} disabled={loading}>
-            {loading ? 'Analyzing...' : '🔄 Refresh Analysis'}
+            {loading ? 'Analyzing...' : 'Refresh Analysis'}
           </Button>
           <Button variant="emphasized" onClick={handleGenerateForecasts} disabled={forecastLoading}>
-            {forecastLoading ? 'Forecasting...' : '📈 Generate Forecasts'}
+            {forecastLoading ? 'Forecasting...' : 'Generate Forecasts'}
           </Button>
         </Flex>
       </Flex>
@@ -400,7 +395,7 @@ export const AIQualityDashboard: React.FC = () => {
       {/* Error State */}
       {error && (
         <Surface style={{ padding: 24, textAlign: 'center' }}>
-          <Text style={{ color: Colors.Text.Critical.Default }}>❌ {error.message}</Text>
+          <Text style={{ color: Colors.Text.Critical.Default }}>Error: {error.message}</Text>
           <Button variant="default" onClick={() => analyzeQuality('24h')} style={{ marginTop: 16 }}>
             Retry
           </Button>
@@ -459,9 +454,9 @@ export const AIQualityDashboard: React.FC = () => {
                     </Flex>
                     
                     <Flex gap={12}>
-                      <DimensionBar label="Response" value={service.dimensions.responseQuality} icon="📝" />
-                      <DimensionBar label="Latency" value={service.dimensions.latencyConsistency} icon="⏱️" />
-                      <DimensionBar label="Reliability" value={service.dimensions.errorResilience} icon="✅" />
+                      <DimensionBar label="Response" value={service.dimensions.responseQuality} />
+                      <DimensionBar label="Latency" value={service.dimensions.latencyConsistency} />
+                      <DimensionBar label="Reliability" value={service.dimensions.errorResilience} />
                     </Flex>
                   </Flex>
                 </Flex>
@@ -479,7 +474,7 @@ export const AIQualityDashboard: React.FC = () => {
               {selectedService.serviceName} - Detailed Analysis
             </Heading>
             <Button variant="default" onClick={() => setSelectedService(null)}>
-              ✕ Close
+              Close
             </Button>
           </Flex>
 
@@ -487,11 +482,11 @@ export const AIQualityDashboard: React.FC = () => {
             {/* Dimension Details */}
             <Flex flexDirection="column" gap={12} style={{ flex: 1 }}>
               <Text style={{ fontWeight: 600 }}>Quality Dimensions</Text>
-              <DimensionBar label="Response Quality" value={selectedService.dimensions.responseQuality} icon="📝" />
-              <DimensionBar label="Latency Consistency" value={selectedService.dimensions.latencyConsistency} icon="⏱️" />
-              <DimensionBar label="Reliability (0% errors)" value={selectedService.dimensions.errorResilience} icon="✅" />
-              <DimensionBar label="Cost Efficiency" value={selectedService.dimensions.costEfficiency} icon="💰" />
-              <DimensionBar label="Hallucination Risk" value={selectedService.dimensions.hallucationRisk} icon="🎭" />
+              <DimensionBar label="Response Quality" value={selectedService.dimensions.responseQuality} />
+              <DimensionBar label="Latency Consistency" value={selectedService.dimensions.latencyConsistency} />
+              <DimensionBar label="Reliability (0% errors)" value={selectedService.dimensions.errorResilience} />
+              <DimensionBar label="Cost Efficiency" value={selectedService.dimensions.costEfficiency} />
+              <DimensionBar label="Hallucination Risk" value={selectedService.dimensions.hallucationRisk} />
             </Flex>
 
             {/* Flags */}
@@ -499,7 +494,7 @@ export const AIQualityDashboard: React.FC = () => {
               <Text style={{ fontWeight: 600 }}>Quality Flags</Text>
               {selectedService.flags.length === 0 ? (
                 <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
-                  ✅ No quality issues detected
+                  No quality issues detected
                 </Text>
               ) : (
                 selectedService.flags.map((flag, idx) => (
@@ -509,7 +504,9 @@ export const AIQualityDashboard: React.FC = () => {
                   }}>
                     <Flex flexDirection="column" gap={4}>
                       <Flex alignItems="center" gap={8}>
-                        <span>{flag.severity === 'critical' ? '🔴' : '🟡'}</span>
+                        {flag.severity === 'critical' 
+                          ? <CriticalIcon style={{ width: 12, height: 12, color: '#f44336' }} />
+                          : <WarningIcon style={{ width: 12, height: 12, color: '#ff9800' }} />}
                         <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'uppercase' }}>
                           {flag.type.replace('_', ' ')}
                         </Text>
@@ -543,7 +540,7 @@ export const AIQualityDashboard: React.FC = () => {
       {/* Forecasts Section */}
       {(tokenForecast || costForecast || requestForecast) && (
         <Flex flexDirection="column" gap={12}>
-          <Heading level={5}>📈 Davis AI Forecasts (7-day projection)</Heading>
+          <Heading level={5}>Davis AI Forecasts (7-day projection)</Heading>
           <Flex gap={12} style={{ flexWrap: 'wrap' }}>
             {tokenForecast && <ForecastChart forecast={tokenForecast} />}
             {costForecast && <ForecastChart forecast={costForecast} budget={budget} />}
@@ -555,7 +552,7 @@ export const AIQualityDashboard: React.FC = () => {
       {/* No Data State */}
       {!loading && scores.length === 0 && (
         <Surface style={{ padding: 48, textAlign: 'center' }}>
-          <span style={{ fontSize: 48 }}>🔍</span>
+          <WarningIcon style={{ width: 48, height: 48, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Heading level={5} style={{ marginTop: 16 }}>No GenAI Services Found</Heading>
           <Text style={{ marginTop: 8, color: Colors.Text.Neutral.Subdued }}>
             Ensure your AI services are instrumented with OpenTelemetry gen_ai.* semantic conventions.

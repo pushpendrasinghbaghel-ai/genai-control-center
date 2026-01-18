@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Flex, Surface } from "@dynatrace/strato-components/layouts";
-import { Heading, Paragraph, Strong } from "@dynatrace/strato-components/typography";
+import { Paragraph, Strong } from "@dynatrace/strato-components/typography";
 import { ProgressCircle } from "@dynatrace/strato-components/content";
 import { Button } from "@dynatrace/strato-components/buttons";
 import { TimeframeSelector } from "@dynatrace/strato-components-preview/filters";
-import { TimeseriesChart } from "@dynatrace/strato-components-preview/charts";
+import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components-preview/charts";
 import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
 import type { Timeframe } from "@dynatrace/strato-components-preview/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
@@ -19,14 +19,38 @@ import {
   WorkflowsIcon,
   WarningIcon,
   ClockIcon,
-  DocumentIcon,
-  ExternalLinkIcon,
   HostsIcon,
-  ServicesIcon,
-  AppsIcon
+  ServicesIcon
 } from "@dynatrace/strato-icons";
-import { useAIServicesDiscovery } from "../hooks";
+import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
+
+// Dynatrace Chart Color Palette (using Strato categorical/status colors)
+const CHART_COLORS = {
+  primary: Colors.Charts.Categorical.Color01.Default,
+  secondary: Colors.Charts.Categorical.Color02.Default,
+  tertiary: Colors.Charts.Categorical.Color03.Default,
+  quaternary: Colors.Charts.Categorical.Color04.Default,
+  success: Colors.Charts.Status.Ideal.Default,
+  warning: Colors.Charts.Status.Warning.Default,
+  critical: Colors.Charts.Status.Critical.Default,
+};
+
+// Full categorical palette for multi-series charts (12 distinct colors)
+const CATEGORICAL_PALETTE = [
+  Colors.Charts.Categorical.Color01.Default,
+  Colors.Charts.Categorical.Color02.Default,
+  Colors.Charts.Categorical.Color03.Default,
+  Colors.Charts.Categorical.Color04.Default,
+  Colors.Charts.Categorical.Color05.Default,
+  Colors.Charts.Categorical.Color06.Default,
+  Colors.Charts.Categorical.Color07.Default,
+  Colors.Charts.Categorical.Color08.Default,
+  Colors.Charts.Categorical.Color09.Default,
+  Colors.Charts.Categorical.Color10.Default,
+  Colors.Charts.Categorical.Color11.Default,
+  Colors.Charts.Categorical.Color12.Default,
+];
 
 /** Create a default Timeframe object (last 24 hours) */
 const createDefaultTimeframe = (): Timeframe => ({
@@ -46,7 +70,7 @@ const getTimeframeLabel = (timeframe: Timeframe): string => {
   return 'Custom';
 };
 
-// Quick stat card for the executive dashboard
+// Compact stat card for the executive dashboard - inline style
 const StatCard: React.FC<{
   label: string;
   value: string | number;
@@ -54,55 +78,61 @@ const StatCard: React.FC<{
   trend?: string;
   color?: string;
 }> = ({ label, value, icon, trend, color }) => (
-  <Surface padding={16} style={{ 
-    borderRadius: 8, 
-    minWidth: 140,
-    background: 'var(--dt-colors-surface-default)',
-    border: '1px solid var(--dt-colors-border-neutral-default)'
-  }}>
-    <Flex flexDirection="column" gap={4}>
-      <Flex alignItems="center" gap={8}>
-        <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{icon}</span>
-        <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{label}</span>
-      </Flex>
-      <span style={{ fontSize: 24, fontWeight: 700, color: color || 'inherit' }}>{value}</span>
-      {trend && <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{trend}</span>}
+  <Flex 
+    alignItems="center" 
+    gap={8}
+    padding={12}
+    style={{ 
+      borderRadius: 6, 
+      background: 'var(--dt-colors-surface-default)',
+      border: '1px solid var(--dt-colors-border-neutral-default)',
+      minWidth: 130
+    }}
+  >
+    <span style={{ color: color || 'var(--dt-colors-text-secondary-default)', display: 'flex' }}>{icon}</span>
+    <Flex flexDirection="column" gap={0}>
+      <span style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</span>
+      <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{label}</span>
     </Flex>
-  </Surface>
+  </Flex>
 );
 
-// Navigation card to pillars
+// Pillar card with description explaining its purpose
 const PillarCard: React.FC<{
   title: string;
   description: string;
   icon: React.ReactNode;
   path: string;
   color: string;
-}> = ({ title, description, icon, path, color }) => (
+  metrics?: string;
+}> = ({ title, description, icon, path, color, metrics }) => (
   <Link to={path} style={{ textDecoration: 'none', flex: 1, minWidth: 200 }}>
-    <Surface padding={20} style={{ 
+    <Surface style={{ 
       borderRadius: 8, 
       height: '100%',
-      background: 'var(--dt-colors-surface-default)',
-      border: '1px solid var(--dt-colors-border-neutral-default)',
+      borderTop: `3px solid ${color}`,
       cursor: 'pointer',
-      transition: 'transform 0.2s, box-shadow 0.2s'
+      transition: 'box-shadow 0.2s',
     }}>
-      <Flex flexDirection="column" gap={12}>
-        <Flex alignItems="center" gap={12}>
+      <Flex padding={16} flexDirection="column" gap={12}>
+        <Flex alignItems="center" gap={8}>
           <div style={{ 
-            width: 40, height: 40, borderRadius: 8, 
-            background: color, display: 'flex', 
-            alignItems: 'center', justifyContent: 'center',
-            color: 'var(--dt-colors-text-primary-default)'
+            width: 36, height: 36, borderRadius: 8, 
+            background: `${color}18`, display: 'flex', 
+            alignItems: 'center', justifyContent: 'center'
           }}>
             {icon}
           </div>
-          <Heading level={3} style={{ margin: 0 }}>{title}</Heading>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
         </Flex>
-        <Paragraph style={{ margin: 0, fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
+        <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
           {description}
-        </Paragraph>
+        </span>
+        {metrics && (
+          <span style={{ fontSize: 11, fontWeight: 500, color }}>
+            {metrics}
+          </span>
+        )}
       </Flex>
     </Surface>
   </Link>
@@ -110,401 +140,387 @@ const PillarCard: React.FC<{
 
 export const Home = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
-  const [showPillars, setShowPillars] = useState(false);
+  const [showDocs, setShowDocs] = useState(false); // Core Capabilities hidden by default
   
+  // Core data hooks
   const { data: services, loading } = useAIServicesDiscovery();
   const healthMetrics = services ? calculateOverallHealth(services) : null;
+  
+  // Real DQL timeseries data
+  const { data: trendData, loading: trendLoading } = useAIServicesTrend(timeframe);
+  const { data: providerData, loading: providerLoading } = useTokensByProvider(timeframe);
 
-  // Calculate health color
+  // Calculate health color using Strato tokens
   const healthColor = healthMetrics?.overallHealth === 'healthy' 
-    ? 'var(--dt-colors-feedback-success-default)'
+    ? CHART_COLORS.success
     : healthMetrics?.overallHealth === 'warning'
-    ? 'var(--dt-colors-feedback-warning-default)'
+    ? CHART_COLORS.warning
     : healthMetrics?.overallHealth === 'critical'
-    ? 'var(--dt-colors-feedback-critical-default)'
+    ? CHART_COLORS.critical
     : 'inherit';
 
-  // Helper to get hours from timeframe expression like 'now()-24h', 'now()-7d', etc.
-  const getTimeframeHours = useCallback((tf: typeof timeframe): number => {
-    if (!tf.from) return 24; // default
-    
-    // Handle Dynatrace timeframe expressions
-    const fromValue = typeof tf.from === 'object' && 'value' in tf.from 
-      ? tf.from.value 
-      : String(tf.from);
-    
-    // Parse expressions like 'now()-24h', 'now()-7d', 'now()-30m'
-    const match = fromValue.match(/now\(\)\s*-\s*(\d+)([hdm])/i);
-    if (match) {
-      const amount = parseInt(match[1], 10);
-      const unit = match[2].toLowerCase();
-      if (unit === 'h') return amount;
-      if (unit === 'd') return amount * 24;
-      if (unit === 'm') return Math.max(1, Math.round(amount / 60));
-    }
-    
-    // If it's an absolute date range, calculate from dates
-    if (typeof tf.from === 'object' && 'absoluteDate' in tf.from && tf.to && typeof tf.to === 'object' && 'absoluteDate' in tf.to) {
-      const fromDate = new Date(tf.from.absoluteDate);
-      const toDate = new Date(tf.to.absoluteDate);
-      const diffMs = toDate.getTime() - fromDate.getTime();
-      return Math.max(1, Math.round(diffMs / (60 * 60 * 1000)));
-    }
-    
-    return 24; // default fallback
-  }, []);
-
-  // Generate trend data for TimeseriesChart (Dynatrace component)
+  // Use real DQL data for charts
   const tokenTimeseriesData = useMemo((): Timeseries[] => {
-    if (!healthMetrics) return [];
-    
-    // Get hours based on selected timeframe
-    const hours = getTimeframeHours(timeframe);
-    const dataPoints = Math.min(hours, 48); // Cap at 48 data points for readability
-    const intervalHours = hours / dataPoints;
-    
-    const now = new Date();
-    // Scale tokens based on timeframe (assume 24hr base metric)
-    const scaleFactor = hours / 24;
-    const avgTokensPerInterval = (healthMetrics.totalTokensToday * scaleFactor) / dataPoints;
-    
-    const tokenDatapoints: { start: Date; value: number }[] = [];
-    
-    // Consistent seed for variance to keep values stable
-    let seed = 12345;
-    const seededRandom = () => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return seed / 0x7fffffff;
-    };
-    
-    for (let i = 0; i < dataPoints; i++) {
-      const timestamp = new Date(now.getTime() - (dataPoints - i) * intervalHours * 60 * 60 * 1000);
-      const hourOfDay = timestamp.getHours();
-      
-      // Business hours have higher traffic
-      const businessHourMultiplier = (hourOfDay >= 9 && hourOfDay <= 17) ? 1.3 : 0.7;
-      const variance = 0.8 + seededRandom() * 0.4;
-      
-      tokenDatapoints.push({
-        start: timestamp,
-        value: Math.round(avgTokensPerInterval * businessHourMultiplier * variance)
-      });
+    if (trendData?.tokens && trendData.tokens.length > 0 && trendData.tokens[0].datapoints.length > 1) {
+      return trendData.tokens as Timeseries[];
     }
-    
-    return [{
-      name: 'Tokens',
-      datapoints: tokenDatapoints,
-      unit: 'count'
-    }];
-  }, [healthMetrics, timeframe]);
+    return [];
+  }, [trendData]);
+
+  const requestTimeseriesData = useMemo((): Timeseries[] => {
+    if (trendData?.requests && trendData.requests.length > 0 && trendData.requests[0].datapoints.length > 1) {
+      return trendData.requests as Timeseries[];
+    }
+    return [];
+  }, [trendData]);
 
   const costTimeseriesData = useMemo((): Timeseries[] => {
-    if (!healthMetrics) return [];
-    
-    // Get hours based on selected timeframe
-    const hours = getTimeframeHours(timeframe);
-    const dataPoints = Math.min(hours, 48); // Cap at 48 data points for readability
-    const intervalHours = hours / dataPoints;
-    
-    const now = new Date();
-    // Scale cost based on timeframe (assume 24hr base metric)
-    const scaleFactor = hours / 24;
-    const avgCostPerInterval = (healthMetrics.totalCostToday * scaleFactor) / dataPoints;
-    
-    const costDatapoints: { start: Date; value: number }[] = [];
-    
-    // Use same seed for consistent variance with tokens
-    let seed = 12345;
-    const seededRandom = () => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return seed / 0x7fffffff;
-    };
-    
-    for (let i = 0; i < dataPoints; i++) {
-      const timestamp = new Date(now.getTime() - (dataPoints - i) * intervalHours * 60 * 60 * 1000);
-      const hourOfDay = timestamp.getHours();
-      
-      // Business hours have higher traffic
-      const businessHourMultiplier = (hourOfDay >= 9 && hourOfDay <= 17) ? 1.3 : 0.7;
-      const variance = 0.8 + seededRandom() * 0.4;
-      
-      costDatapoints.push({
-        start: timestamp,
-        value: avgCostPerInterval * businessHourMultiplier * variance
-      });
+    if (trendData?.cost && trendData.cost.length > 0 && trendData.cost[0].datapoints.length > 1) {
+      return trendData.cost as Timeseries[];
     }
-    
-    return [{
-      name: 'Cost',
-      datapoints: costDatapoints,
-      unit: 'USD'
-    }];
-  }, [healthMetrics, timeframe]);
+    return [];
+  }, [trendData]);
 
-  // Calculate totals for display (matching the chart data)
+  // DonutChart data for token distribution by provider
+  const donutChartSlices = useMemo(() => {
+    if (!providerData || providerData.length === 0) return [];
+    return providerData.map((p, i) => ({
+      category: p.provider,
+      value: p.tokens,
+      color: CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length]
+    }));
+  }, [providerData]);
+
+  // Calculate totals for display (sum across all providers)
   const chartTotals = useMemo(() => {
-    if (tokenTimeseriesData.length === 0 || costTimeseriesData.length === 0) {
-      return { tokens: 0, cost: 0 };
-    }
+    // Sum tokens across all provider series
+    const tokenTotal = tokenTimeseriesData.length > 0 
+      ? tokenTimeseriesData.reduce((total, series) => 
+          total + series.datapoints.reduce((sum, d) => sum + d.value, 0), 0)
+      : healthMetrics?.totalTokensToday || 0;
     
-    const tokenTotal = tokenTimeseriesData[0].datapoints.reduce((sum, d) => sum + d.value, 0);
-    const costTotal = costTimeseriesData[0].datapoints.reduce((sum, d) => sum + d.value, 0);
+    // Sum cost across all provider series
+    const costTotal = costTimeseriesData.length > 0
+      ? costTimeseriesData.reduce((total, series) => 
+          total + series.datapoints.reduce((sum, d) => sum + d.value, 0), 0)
+      : healthMetrics?.totalCostToday || 0;
     
-    return { tokens: tokenTotal, cost: costTotal };
-  }, [tokenTimeseriesData, costTimeseriesData]);
+    // Sum requests across all provider series
+    const requestTotal = requestTimeseriesData.length > 0
+      ? requestTimeseriesData.reduce((total, series) => 
+          total + series.datapoints.reduce((sum, d) => sum + d.value, 0), 0)
+      : 0;
+    
+    return { tokens: tokenTotal, cost: costTotal, requests: requestTotal };
+  }, [tokenTimeseriesData, costTimeseriesData, requestTimeseriesData, healthMetrics]);
 
   return (
-    <Flex flexDirection="column" padding={24} gap={24}>
-      {/* Header with TimeframeSelector */}
-      <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={16}>
-        <Flex flexDirection="column" gap={4}>
-          <Flex alignItems="center" gap={12}>
-            <AiIcon style={{ width: 32, height: 32, color: 'var(--dt-colors-text-accent-default)' }} />
-            <Heading level={1}>GenAI Control Center</Heading>
-          </Flex>
-          <Paragraph style={{ color: 'var(--dt-colors-text-secondary-default)', margin: 0 }}>
-            Unified observability for your AI/LLM services
-          </Paragraph>
+    <Flex flexDirection="column" padding={16} gap={12}>
+      {/* Summary Header with Timeframe - no duplicate app title */}
+      <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
+        <Flex alignItems="center" gap={6}>
+          <BarChartIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>Summary • {getTimeframeLabel(timeframe)}</span>
         </Flex>
-        <Flex alignItems="center" gap={12}>
-          <TimeframeSelector
-            value={timeframe}
-            onChange={(tf) => tf && setTimeframe(tf)}
-          />
-        </Flex>
+        <TimeframeSelector
+          value={timeframe}
+          onChange={(tf) => tf && setTimeframe(tf)}
+        />
       </Flex>
 
-      {/* Executive Summary */}
-      <Surface padding={20} style={{ borderRadius: 8, background: 'var(--dt-colors-surface-raised-default)' }}>
-        <Flex flexDirection="column" gap={16}>
-          <Flex justifyContent="space-between" alignItems="center">
-            <Flex alignItems="center" gap={8}>
-              <BarChartIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-secondary-default)' }} />
-              <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Executive Summary ({getTimeframeLabel(timeframe)})</Heading>
-            </Flex>
+      {/* Executive Summary Stats */}
+      <Flex flexDirection="column" gap={8}>
+        
+        {loading ? (
+          <Flex justifyContent="center" padding={20}>
+            <ProgressCircle />
           </Flex>
-          
-          {loading ? (
-            <Flex justifyContent="center" padding={32}>
-              <ProgressCircle />
-            </Flex>
-          ) : healthMetrics ? (
-            <Flex gap={16} flexWrap="wrap">
+        ) : healthMetrics ? (
+          <Flex gap={8} flexWrap="wrap">
               <StatCard 
-                icon={<HostsIcon style={{ width: 20, height: 20 }} />} 
+                icon={<HostsIcon style={{ width: 18, height: 18 }} />} 
                 label="Health" 
                 value={healthMetrics.overallHealth.toUpperCase()} 
                 color={healthColor}
-                trend={`${healthMetrics.healthyCount}/${healthMetrics.totalServices} services healthy`}
               />
               <StatCard 
-                icon={<ServicesIcon style={{ width: 20, height: 20 }} />} 
-                label="AI Services" 
+                icon={<ServicesIcon style={{ width: 18, height: 18 }} />} 
+                label="Services" 
                 value={healthMetrics.totalServices}
               />
               <StatCard 
-                icon={<BarChartIcon style={{ width: 20, height: 20 }} />} 
+                icon={<BarChartIcon style={{ width: 18, height: 18 }} />} 
                 label="Tokens" 
                 value={formatNumber(chartTotals.tokens)}
               />
               <StatCard 
-                icon={<MoneyIcon style={{ width: 20, height: 20 }} />} 
+                icon={<MoneyIcon style={{ width: 18, height: 18 }} />} 
                 label="Cost" 
                 value={formatCurrency(chartTotals.cost)}
               />
               <StatCard 
-                icon={<ClockIcon style={{ width: 20, height: 20 }} />} 
-                label="Avg Latency" 
+                icon={<ClockIcon style={{ width: 18, height: 18 }} />} 
+                label="Latency" 
                 value={`${healthMetrics.avgLatency.toFixed(0)}ms`}
               />
               <StatCard 
-                icon={<WarningIcon style={{ width: 20, height: 20 }} />} 
-                label="Slow Requests" 
+                icon={<WarningIcon style={{ width: 18, height: 18 }} />} 
+                label="Slow Reqs" 
                 value={`${healthMetrics.avgSlowRequestRate.toFixed(1)}%`}
                 color={healthMetrics.avgSlowRequestRate > 10 
                   ? 'var(--dt-colors-feedback-warning-default)' 
                   : healthMetrics.avgSlowRequestRate > 5 
                   ? 'var(--dt-colors-feedback-warning-default)'
                   : 'var(--dt-colors-feedback-success-default)'}
-                trend=">3s threshold • <5% is good"
               />
             </Flex>
           ) : (
-            <Paragraph>No AI services discovered</Paragraph>
+            <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>No AI services discovered</span>
           )}
-        </Flex>
-      </Surface>
+      </Flex>
 
-      {/* Token & Cost Trend Charts - Two separate charts for proper scaling */}
+      {/* Trend Charts - 2x2 grid with real DQL data */}
       {healthMetrics && (
-        <Flex gap={16}>
-          {/* Token Trend */}
-          <Surface padding={16} style={{ borderRadius: 8, flex: 1 }}>
-            <Flex flexDirection="column" gap={12}>
+        <Flex gap={12} flexWrap="wrap">
+          {/* Token Trend - Real DQL Timeseries */}
+          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+            <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
-                <Flex alignItems="center" gap={8}>
-                  <BarChartIcon style={{ width: 16, height: 16, color: '#10a37f' }} />
-                  <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Token Usage</Heading>
+                <Flex alignItems="center" gap={6}>
+                  <BarChartIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Token Usage Trend</span>
                 </Flex>
-                <Strong style={{ color: '#10a37f' }}>{formatNumber(chartTotals.tokens)}</Strong>
+                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</span>
               </Flex>
-              <TimeseriesChart
-                data={tokenTimeseriesData}
-                variant="area"
-                height={180}
-                colorPalette={['#10a37f']}
-              />
+              {trendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : tokenTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={tokenTimeseriesData}
+                  variant="area"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No token data in timeframe</span>
+                </Flex>
+              )}
             </Flex>
           </Surface>
           
-          {/* Cost Trend */}
-          <Surface padding={16} style={{ borderRadius: 8, flex: 1 }}>
-            <Flex flexDirection="column" gap={12}>
+          {/* Cost Trend - Derived from Token Data */}
+          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+            <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
-                <Flex alignItems="center" gap={8}>
-                  <MoneyIcon style={{ width: 16, height: 16, color: '#2196f3' }} />
-                  <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Cost Trend</Heading>
+                <Flex alignItems="center" gap={6}>
+                  <MoneyIcon style={{ width: 14, height: 14, color: CHART_COLORS.warning }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Cost Trend</span>
                 </Flex>
-                <Strong style={{ color: '#2196f3' }}>{formatCurrency(chartTotals.cost)}</Strong>
+                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.warning }}>{formatCurrency(chartTotals.cost)}</span>
               </Flex>
-              <TimeseriesChart
-                data={costTimeseriesData}
-                variant="area"
-                height={180}
-                colorPalette={['#2196f3']}
-              />
+              {trendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : costTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={costTimeseriesData}
+                  variant="area"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <MoneyIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No cost data in timeframe</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+
+          {/* Request Volume - Real DQL Timeseries */}
+          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Flex alignItems="center" gap={6}>
+                  <ServicesIcon style={{ width: 14, height: 14, color: CHART_COLORS.secondary }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Request Volume</span>
+                </Flex>
+                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.secondary }}>
+                  {formatNumber(chartTotals.requests)}
+                </span>
+              </Flex>
+              {trendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : requestTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={requestTimeseriesData}
+                  variant="area"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <ServicesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No request data in timeframe</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+
+          {/* Token Distribution by Provider - DonutChart */}
+          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <AiIcon style={{ width: 14, height: 14, color: CHART_COLORS.tertiary }} />
+                <span style={{ fontSize: 12, fontWeight: 600 }}>Tokens by Provider</span>
+              </Flex>
+              {providerLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : donutChartSlices.length > 0 ? (
+                <Flex gap={16} alignItems="center">
+                  <DonutChart
+                    data={{ slices: donutChartSlices }}
+                    height={100}
+                  />
+                  {/* Custom Legend */}
+                  <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
+                    {donutChartSlices.slice(0, 5).map((item, i) => (
+                      <Flex key={i} alignItems="center" gap={8} style={{ fontSize: 11 }}>
+                        <div style={{ 
+                          width: 10, height: 10, borderRadius: 2, 
+                          backgroundColor: item.color,
+                          flexShrink: 0
+                        }} />
+                        <span style={{ color: 'var(--dt-colors-text-secondary-default)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.category}
+                        </span>
+                        <span style={{ fontWeight: 600 }}>
+                          {providerData?.find(p => p.provider === item.category)?.percentage.toFixed(0)}%
+                        </span>
+                      </Flex>
+                    ))}
+                  </Flex>
+                </Flex>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No provider data available</span>
+                </Flex>
+              )}
             </Flex>
           </Surface>
         </Flex>
       )}
 
-      {/* Collapsible Pillars Section */}
-      <Surface padding={16} style={{ borderRadius: 8 }}>
-        <Flex flexDirection="column" gap={16}>
-          <Flex 
-            justifyContent="space-between" 
-            alignItems="center" 
-            style={{ cursor: 'pointer' }}
-            onClick={() => setShowPillars(!showPillars)}
-          >
-            <Flex alignItems="center" gap={8}>
-              <AppsIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-text-secondary-default)' }} />
-              <Heading level={2} style={{ margin: 0, fontSize: 16 }}>Control Center Pillars</Heading>
-            </Flex>
-            <Button variant="default" onClick={(e) => { e.stopPropagation(); setShowPillars(!showPillars); }}>
-              {showPillars ? '▲ Collapse' : '▼ Expand'}
-            </Button>
+      {/* Core Capabilities - On-demand documentation panel */}
+      <Surface style={{ borderRadius: 8 }}>
+        <Flex 
+          justifyContent="space-between" 
+          alignItems="center" 
+          padding={12}
+          style={{ cursor: 'pointer' }}
+          onClick={() => setShowDocs(!showDocs)}
+        >
+          <Flex alignItems="center" gap={8}>
+            <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>What can GenAI Control Center do?</span>
+            <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
+              {showDocs ? '(click to hide)' : '(click to explore capabilities)'}
+            </span>
           </Flex>
-          
-          {!showPillars && (
-            <Flex gap={8} flexWrap="wrap">
-              <Link to="/health" style={{ padding: '6px 12px', borderRadius: 6, background: '#10a37f22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Health</Link>
-              <Link to="/topology" style={{ padding: '6px 12px', borderRadius: 6, background: '#2196f322', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Topology</Link>
-              <Link to="/quality" style={{ padding: '6px 12px', borderRadius: 6, background: '#9c27b022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Quality</Link>
-              <Link to="/alerts" style={{ padding: '6px 12px', borderRadius: 6, background: '#f4433622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Alerts</Link>
-              <Link to="/finops" style={{ padding: '6px 12px', borderRadius: 6, background: '#ff980022', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>FinOps</Link>
-              <Link to="/governance" style={{ padding: '6px 12px', borderRadius: 6, background: '#607d8b22', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Governance</Link>
-              <Link to="/intelligence" style={{ padding: '6px 12px', borderRadius: 6, background: '#d9770622', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Intelligence</Link>
-              <Link to="/operations" style={{ padding: '6px 12px', borderRadius: 6, background: '#0078d422', textDecoration: 'none', color: 'inherit', fontSize: 12 }}>Operations</Link>
+          <Button variant="default">
+            {showDocs ? 'Hide' : 'Show Documentation'}
+          </Button>
+        </Flex>
+        
+        {showDocs && (
+          <Flex flexDirection="column" gap={16} padding={16} style={{ paddingTop: 0 }}>
+            {/* Primary Pillars Row */}
+            <Flex gap={12} flexWrap="wrap">
+              <PillarCard
+                icon={<BarChartIcon style={{ width: 20, height: 20, color: CHART_COLORS.success }} />}
+                title="Health Dashboard"
+                description="Auto-discover all GenAI services in your environment. Monitor latency, error rates, and request volumes in real-time."
+                path="/health"
+                color={CHART_COLORS.success}
+                metrics={healthMetrics ? `${healthMetrics.totalServices} services monitored` : undefined}
+              />
+              <PillarCard
+                icon={<SmartscapeIcon style={{ width: 20, height: 20, color: CHART_COLORS.secondary }} />}
+                title="AI Topology"
+                description="Visualize the relationship between your services, AI providers, and models. Understand dependencies at a glance."
+                path="/topology"
+                color={CHART_COLORS.secondary}
+              />
+              <PillarCard
+                icon={<ServiceLevelObjectivesIcon style={{ width: 20, height: 20, color: CHART_COLORS.tertiary }} />}
+                title="AI Quality"
+                description="Track response quality metrics. Use Davis AI to forecast trends and detect anomalies before they impact users."
+                path="/quality"
+                color={CHART_COLORS.tertiary}
+              />
+              <PillarCard
+                icon={<WarningIcon style={{ width: 20, height: 20, color: CHART_COLORS.critical }} />}
+                title="Real-Time Alerts"
+                description="View active Dynatrace problems filtered to GenAI context. Get instant visibility into issues affecting AI services."
+                path="/alerts"
+                color={CHART_COLORS.critical}
+              />
             </Flex>
-          )}
-          
-          {showPillars && (
-            <>
-              {/* Core Pillars */}
-              <Flex gap={16} flexWrap="wrap">
-                <PillarCard
-                  icon={<BarChartIcon style={{ width: 20, height: 20 }} />}
-                  title="Health Dashboard"
-                  description="Auto-discovery & health monitoring for all GenAI services with real-time metrics"
-                  path="/health"
-                  color="#10a37f22"
-                />
-                <PillarCard
-                  icon={<SmartscapeIcon style={{ width: 20, height: 20 }} />}
-                  title="AI Topology"
-                  description="Visual map of GenAI flows: services → providers → models with live data"
-                  path="/topology"
-                  color="#2196f322"
-                />
-                <PillarCard
-                  icon={<ServiceLevelObjectivesIcon style={{ width: 20, height: 20 }} />}
-                  title="Quality Intelligence"
-                  description="AI quality scoring, hallucination detection, and Davis-powered forecasting"
-                  path="/quality"
-                  color="#9c27b022"
-                />
-                <PillarCard
-                  icon={<WarningIcon style={{ width: 20, height: 20 }} />}
-                  title="Real-Time Alerts"
-                  description="Live Dynatrace problems with GenAI context and auto-refresh"
-                  path="/alerts"
-                  color="#f4433622"
-                />
-              </Flex>
 
-              {/* Management & Operations */}
-              <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-                <WorkflowsIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
-                <Heading level={3} style={{ margin: 0, fontSize: 14 }}>Management & Operations</Heading>
-              </Flex>
-              <Flex gap={16} flexWrap="wrap">
-                <PillarCard
-                  icon={<MoneyIcon style={{ width: 20, height: 20 }} />}
-                  title="FinOps"
-                  description="AI cost management, budget tracking, and token optimization"
-                  path="/finops"
-                  color="#ff980022"
-                />
-                <PillarCard
-                  icon={<SecurityIcon style={{ width: 20, height: 20 }} />}
-                  title="Governance"
-                  description="Compliance, risk management, prompt analysis, and policy enforcement"
-                  path="/governance"
-                  color="#607d8b22"
-                />
-                <PillarCard
-                  icon={<AiIcon style={{ width: 20, height: 20 }} />}
-                  title="Intelligence"
-                  description="Deep-dive analysis with Davis CoPilot for root cause analysis"
-                  path="/intelligence"
-                  color="#d9770622"
-                />
-                <PillarCard
-                  icon={<WorkflowsIcon style={{ width: 20, height: 20 }} />}
-                  title="Operations"
-                  description="Runbooks, remediation actions, and workflow automation"
-                  path="/operations"
-                  color="#0078d422"
-                />
-              </Flex>
-            </>
-          )}
-        </Flex>
+            {/* Secondary Pillars Row */}
+            <Flex gap={12} flexWrap="wrap">
+              <PillarCard
+                icon={<MoneyIcon style={{ width: 20, height: 20, color: CHART_COLORS.warning }} />}
+                title="FinOps"
+                description="Track token consumption, estimate costs by provider and model. Set budgets and get alerts on overspending."
+                path="/finops"
+                color={CHART_COLORS.warning}
+                metrics={chartTotals.cost > 0 ? formatCurrency(chartTotals.cost) + ' today' : undefined}
+              />
+              <PillarCard
+                icon={<SecurityIcon style={{ width: 20, height: 20, color: CHART_COLORS.quaternary }} />}
+                title="Governance"
+                description="Ensure compliance with AI policies. Monitor prompt content, track data handling, and enforce security standards."
+                path="/governance"
+                color={CHART_COLORS.quaternary}
+              />
+              <PillarCard
+                icon={<AiIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color05.Default }} />}
+                title="Davis Intelligence"
+                description="Ask Davis CoPilot about your AI infrastructure. Get root cause analysis and intelligent recommendations."
+                path="/intelligence"
+                color={Colors.Charts.Categorical.Color05.Default}
+              />
+              <PillarCard
+                icon={<WorkflowsIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color06.Default }} />}
+                title="Operations"
+                description="Access runbooks and remediation workflows. Automate responses to common AI service issues."
+                path="/operations"
+                color={Colors.Charts.Categorical.Color06.Default}
+              />
+            </Flex>
+          </Flex>
+        )}
       </Surface>
-
-      {/* Quick Access - Compact */}
-      <Flex gap={12} flexWrap="wrap" alignItems="center">
-        <Flex alignItems="center" gap={4} style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
-          <ExternalLinkIcon style={{ width: 12, height: 12 }} /> Quick:
-        </Flex>
-        <Link to="/providers" style={{ 
-          padding: '6px 12px', borderRadius: 6, 
-          background: 'var(--dt-colors-surface-default)',
-          border: '1px solid var(--dt-colors-border-neutral-default)',
-          textDecoration: 'none', color: 'inherit', fontSize: 12
-        }}>
-          Provider Comparison
-        </Link>
-        <Link to="/data" style={{ 
-          padding: '6px 12px', borderRadius: 6, 
-          background: 'var(--dt-colors-surface-default)',
-          border: '1px solid var(--dt-colors-border-neutral-default)',
-          textDecoration: 'none', color: 'inherit', fontSize: 12
-        }}>
-          Raw Data Explorer
-        </Link>
-      </Flex>
     </Flex>
   );
 };

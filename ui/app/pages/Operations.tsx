@@ -10,7 +10,7 @@ import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { 
   ClockIcon, CriticalIcon, MoneyIcon, SecurityIcon, DocumentIcon, 
-  RefreshIcon, WarningIcon, CheckmarkIcon, StopIcon, SettingIcon 
+  RefreshIcon, WarningIcon, CheckmarkIcon, StopIcon, SettingIcon, HelpIcon, WorkflowsIcon 
 } from '@dynatrace/strato-icons';
 import { useAIServicesDiscovery } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
@@ -208,15 +208,10 @@ export const Operations: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>Operations - Runbooks & Response</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Standardized response procedures and automated remediation for AI operations
-          </Text>
-        </Flex>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        Runbooks & Automated Response
+      </Text>
 
       {/* Status Overview */}
       <Flex gap={16}>
@@ -313,7 +308,7 @@ export const Operations: React.FC = () => {
       {/* Sample Data Disclaimer */}
       <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
         <Flex alignItems="center" gap={8}>
-          <span>ℹ️</span>
+          <DocumentIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             <strong>Note:</strong> Runbook success rates and quick actions are sample templates. 
             Connect to Dynatrace Workflows for production automation.
@@ -340,7 +335,10 @@ export const Operations: React.FC = () => {
                           borderRadius: 4,
                           fontSize: 10
                         }}>
-                          {runbook.automated ? '✅ Automated' : '👤 Manual'}
+                          {runbook.automated 
+                          ? <Flex alignItems="center" gap={2}><WorkflowsIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-feedback-success-default)' }} /> Automated</Flex> 
+                          : <Flex alignItems="center" gap={2}><HelpIcon style={{ width: 10, height: 10 }} /> Manual</Flex>
+                        }
                         </Text>
                       </Flex>
                       <Text textStyle="small">{runbook.description}</Text>
@@ -375,8 +373,8 @@ export const Operations: React.FC = () => {
               <Text>Loading incidents...</Text>
             ) : activeIncidents.length === 0 ? (
               <Surface style={{ padding: 24, textAlign: 'center' }}>
-                <Text style={{ color: Colors.Text.Success.Default }}>
-                  ✅ No active incidents detected. All services operating normally.
+                <Text style={{ color: Colors.Text.Success.Default, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckmarkIcon style={{ width: 16, height: 16 }} /> No active incidents detected. All services operating normally.
                 </Text>
               </Surface>
             ) : (
@@ -497,7 +495,10 @@ export const Operations: React.FC = () => {
                       <Text><strong>{runbook.name}</strong></Text>
                       <Text textStyle="small">Trigger: {runbook.trigger}</Text>
                     </Flex>
-                    <Text style={{ color: Colors.Text.Success.Default }}>✅ Active</Text>
+                    <Flex alignItems="center" gap={4}>
+                      <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-success-default)' }} />
+                      <Text style={{ color: Colors.Text.Success.Default }}>Active</Text>
+                    </Flex>
                   </Flex>
                 </Surface>
               ))}
@@ -529,7 +530,7 @@ export const Operations: React.FC = () => {
           {selectedAction?.isDestructive && (
             <Surface style={{ backgroundColor: 'var(--dt-colors-feedback-critical-subtle)', padding: 12 }}>
               <Flex alignItems="center" gap={8}>
-                <span>⚠️</span>
+                <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />
                 <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
                   This is a destructive action and may impact production services.
                 </Text>

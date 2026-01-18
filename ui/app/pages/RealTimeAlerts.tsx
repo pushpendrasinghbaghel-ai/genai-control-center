@@ -167,19 +167,14 @@ export const RealTimeAlerts: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16} style={{ height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Compact Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>GenAI Problems</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Problems affecting AI services
-          </Text>
-        </Flex>
-        <Flex alignItems="center" gap={12}>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Last updated: {lastRefresh.toLocaleTimeString()}
-          </Text>
-        </Flex>
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          Problems Affecting AI Services
+        </Text>
+        <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+          Last updated: {lastRefresh.toLocaleTimeString()}
+        </Text>
       </Flex>
 
       {/* Filter Bar */}

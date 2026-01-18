@@ -5,6 +5,7 @@ import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { AIService, ServiceEntityOption } from '../types';
 import { 
   AI_SERVICES_DISCOVERY_QUERY,
+  AI_SERVICES_TREND_QUERY,
   PROVIDER_COMPARISON_QUERY,
   MODEL_COMPARISON_QUERY,
   HIGH_LATENCY_QUERY,
@@ -15,8 +16,10 @@ import {
   DISTINCT_MODELS_QUERY,
   PROMPT_ANALYSIS_QUERY,
   AUDIT_TRAIL_QUERY,
-  QueryFilters
+  QueryFilters,
+  buildTimeRangeClauseFromTimeframe
 } from '../queries/dql-queries';
+import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import { estimateCost, calculateHealthStatus } from '../utils';
 
 export type { QueryFilters } from '../queries/dql-queries';
@@ -975,6 +978,222 @@ export function useAuditTrail(filters?: QueryFilters): UseQueryResult<AuditTrail
 
       setData(events);
     } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+// ============================================
+// Timeseries Data Hooks for Real DQL Charts
+// ============================================
+
+export interface TimeseriesDataPoint {
+  start: Date;
+  end?: Date;  // Required for area charts to render properly
+  value: number;
+}
+
+export interface TimeseriesData {
+  name: string;
+  datapoints: TimeseriesDataPoint[];
+  unit: string;
+}
+
+/**
+ * Hook for AI Services Trend by Provider (real DQL timeseries data)
+ * Returns token usage and requests over time, grouped by provider
+ * Each provider gets its own line in the chart
+ */
+export function useAIServicesTrend(timeframe?: Timeframe): UseQueryResult<{
+  tokens: TimeseriesData[];
+  requests: TimeseriesData[];
+  cost: TimeseriesData[];
+}> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    // Determine interval based on timeframe
+    const from = timeframe?.from?.value || 'now()-24h';
+    let interval = '1h'; // default for 24h
+    if (from.includes('1h')) interval = '5m';
+    else if (from.includes('6h')) interval = '15m';
+    else if (from.includes('12h')) interval = '30m';
+    else if (from.includes('7d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    // makeTimeseries grouped by provider - each provider gets its own line
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+            output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0),
+            provider = coalesce(gen_ai.provider.name, "Unknown")
+| makeTimeseries {tokens = sum(input_tokens + output_tokens), requests = count()}, by: {provider}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<{
+    tokens: TimeseriesData[];
+    requests: TimeseriesData[];
+    cost: TimeseriesData[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing AI Services Trend by Provider query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      
+      // Transform makeTimeseries by-provider result to chart-ready format
+      // Each record is a provider with arrays of values
+      const tokenSeries: TimeseriesData[] = [];
+      const requestSeries: TimeseriesData[] = [];
+      const costSeries: TimeseriesData[] = [];
+      
+      // Blended cost rate: ~$0.000002 per token average
+      const costPerToken = 0.000002;
+      
+      records.forEach((record: any) => {
+        const provider = record.provider || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const tokensArray = record.tokens || [];
+        const requestsArray = record.requests || [];
+        const intervalMs = Number(record.interval) / 1000000; // nanoseconds to ms
+        
+        if (timeframeInfo && tokensArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          // Create datapoints for this provider - include both start AND end for area charts
+          const tokenDatapoints: TimeseriesDataPoint[] = tokensArray.map((val: number, i: number) => ({
+            start: new Date(startTime + i * intervalMs),
+            end: new Date(startTime + (i + 1) * intervalMs),
+            value: val || 0
+          }));
+          
+          const requestDatapoints: TimeseriesDataPoint[] = requestsArray.map((val: number, i: number) => ({
+            start: new Date(startTime + i * intervalMs),
+            end: new Date(startTime + (i + 1) * intervalMs),
+            value: val || 0
+          }));
+          
+          const costDatapoints: TimeseriesDataPoint[] = tokensArray.map((val: number, i: number) => ({
+            start: new Date(startTime + i * intervalMs),
+            end: new Date(startTime + (i + 1) * intervalMs),
+            value: (val || 0) * costPerToken
+          }));
+          
+          tokenSeries.push({ name: provider, datapoints: tokenDatapoints, unit: 'count' });
+          requestSeries.push({ name: provider, datapoints: requestDatapoints, unit: 'count' });
+          costSeries.push({ name: provider, datapoints: costDatapoints, unit: 'USD' });
+        }
+      });
+
+      setData({
+        tokens: tokenSeries,
+        requests: requestSeries,
+        cost: costSeries
+      });
+    } catch (err) {
+      console.error('[GCC] AI Services Trend query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Token Distribution by Provider (for DonutChart)
+ * Returns token breakdown by provider
+ */
+export function useTokensByProvider(timeframe?: Timeframe): UseQueryResult<{
+  provider: string;
+  tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  percentage: number;
+}[]> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+  }, by: { coalesce(gen_ai.provider.name, "Unknown") }
+| sort tokens desc
+| limit 10
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<{
+    provider: string;
+    tokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    percentage: number;
+  }[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Tokens by Provider query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      const totalTokens = records.reduce((sum: number, r: any) => sum + (Number(r.tokens) || 0), 0);
+      
+      const result = records.map((record: any) => {
+        const tokens = Number(record.tokens) || 0;
+        return {
+          provider: record['coalesce(gen_ai.provider.name, "Unknown")'] || 'Unknown',
+          tokens,
+          inputTokens: Number(record.input_tokens) || 0,
+          outputTokens: Number(record.output_tokens) || 0,
+          percentage: totalTokens > 0 ? (tokens / totalTokens) * 100 : 0
+        };
+      });
+
+      setData(result);
+    } catch (err) {
+      console.error('[GCC] Tokens by Provider query failed:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);

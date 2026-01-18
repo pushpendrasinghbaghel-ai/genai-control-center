@@ -6,6 +6,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { DocumentIcon, WarningIcon, CriticalIcon } from '@dynatrace/strato-icons';
 import Colors from '@dynatrace/strato-design-tokens/colors';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -215,20 +216,15 @@ export const FinOps: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>FinOps - AI Cost Management</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Track, optimize, and forecast GenAI spending across providers
-          </Text>
-        </Flex>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        AI Cost Management & Optimization
+      </Text>
 
       {/* Estimation Disclaimer */}
       <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
         <Flex alignItems="center" gap={8}>
-          <span>ℹ️</span>
+          <DocumentIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             <strong>Note:</strong> Cost estimates use public pricing (OpenAI $0.50-$15/MTok, Anthropic $3-$75/MTok). 
             Token split assumes 30% input / 70% output. Forecasts use 0.7% daily growth projection.
@@ -318,7 +314,7 @@ export const FinOps: React.FC = () => {
       <Surface style={{ padding: 16 }}>
         <Flex flexDirection="column" gap={12}>
           <Flex justifyContent="space-between" alignItems="center">
-            <Heading level={6}>📈 Cost Forecast</Heading>
+            <Heading level={6}>Cost Forecast</Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               Based on 7-day rolling average with growth trend
             </Text>
@@ -474,11 +470,11 @@ export const FinOps: React.FC = () => {
       {budgetAlerts.length > 0 && (
         <Surface style={{ padding: 16, backgroundColor: budgetAlerts.some(a => a.type === 'critical') ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 165, 0, 0.1)' }}>
           <Flex flexDirection="column" gap={8}>
-            <Heading level={6}>⚠️ Budget Alerts</Heading>
+            <Heading level={6}>Budget Alerts</Heading>
             {budgetAlerts.map((alert) => (
               <Flex key={alert.id} gap={8} alignItems="center">
                 <Text style={{ color: alert.type === 'critical' ? Colors.Text.Critical.Default : Colors.Text.Warning.Default }}>
-                  {alert.type === 'critical' ? '🔴' : '🟡'} {alert.message}
+                  {alert.type === 'critical' ? '' : ''} {alert.message}
                 </Text>
               </Flex>
             ))}

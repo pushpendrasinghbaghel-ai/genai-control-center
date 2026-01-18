@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { Heading } from '@dynatrace/strato-components/typography';
+import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { BarChartIcon } from '@dynatrace/strato-icons';
 import { useProviderComparison, useModelComparison, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
@@ -215,15 +215,10 @@ export const ProviderComparison: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <div>
-          <Heading level={4}>Provider Comparison</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-            Unified governance view across AI providers
-          </span>
-        </div>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        Unified Governance View Across AI Providers
+      </Text>
 
       {/* Filter Bar */}
       <FilterBar

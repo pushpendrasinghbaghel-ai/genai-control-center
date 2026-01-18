@@ -102,13 +102,10 @@ export const Data = () => {
 
   return (
     <Flex flexDirection="column" padding={24} gap={16}>
-      {/* Header */}
-      <Flex flexDirection="column" gap={4}>
-        <Heading level={4}>🔍 GenAI Data Explorer</Heading>
-        <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-          Query your GenAI spans and metrics using DQL
-        </Text>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        Query GenAI Spans & Metrics Using DQL
+      </Text>
 
       {/* Preset Queries */}
       <Surface style={{ padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>

@@ -239,7 +239,7 @@ export const HealthDashboard: React.FC = () => {
       <Flex justifyContent="center" alignItems="center" style={{ height: '40vh' }}>
         <Surface>
           <Flex padding={24} flexDirection="column" alignItems="center" gap={12}>
-            <span style={{ fontSize: 36 }}>⚠️</span>
+            <WarningIcon style={{ width: 36, height: 36, color: 'var(--dt-colors-feedback-warning-default)' }} />
             <Heading level={5}>Error Loading Data</Heading>
             <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
               {error.message}
@@ -255,15 +255,6 @@ export const HealthDashboard: React.FC = () => {
   if (!services || services.length === 0) {
     return (
       <Flex flexDirection="column" gap={16} padding={16}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <div>
-            <Heading level={4}>Health Dashboard</Heading>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-              Searching for AI services...
-            </Text>
-          </div>
-        </Flex>
-
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -277,7 +268,7 @@ export const HealthDashboard: React.FC = () => {
         <Flex justifyContent="center" alignItems="center" style={{ minHeight: '35vh' }}>
           <Surface>
             <Flex padding={24} flexDirection="column" alignItems="center" gap={12}>
-              <span style={{ fontSize: 36 }}>🔍</span>
+              <ServicesIcon style={{ width: 36, height: 36, color: 'var(--dt-colors-text-secondary-default)' }} />
               <Heading level={5}>No AI Services Found</Heading>
               <Text style={{ 
                 color: 'var(--dt-colors-text-secondary-default)', 
@@ -300,20 +291,19 @@ export const HealthDashboard: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header - Compact */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <div>
-          <Heading level={4}>Health Dashboard</Heading>
-          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
+      {/* Filter Bar with actions */}
+      <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
+        <Flex alignItems="center" gap={8}>
+          <ServicesIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
             {services.length} AI service{services.length !== 1 ? 's' : ''} discovered
           </Text>
-        </div>
+        </Flex>
         <Button variant="accent" onClick={() => navigate('/architect')}>
           Recommendations
         </Button>
       </Flex>
 
-      {/* Filter Bar */}
       <FilterBar
         filters={filters}
         onFiltersChange={setFilters}

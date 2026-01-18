@@ -3,16 +3,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { Heading } from '@dynatrace/strato-components/typography';
+import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { AiIcon, HelpIcon } from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks';
 import type { ConversationMessage } from '../types';
 
 // Quick Action Button - Compact
-const QuickAction: React.FC<{ label: string; icon: string; onClick: () => void }> = ({ label, icon, onClick }) => (
+const QuickAction: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <Button onClick={onClick} style={{ whiteSpace: 'nowrap' }}>
-    <span style={{ marginRight: 3 }}>{icon}</span> {label}
+    {label}
   </Button>
 );
 
@@ -30,7 +31,12 @@ const ChatMessage: React.FC<{ message: ConversationMessage }> = ({ message }) =>
         border: isUser ? 'none' : '1px solid var(--dt-colors-border-neutral-default)'
       }}>
         <Flex alignItems="center" gap={6} style={{ marginBottom: 6 }}>
-          <span style={{ fontSize: 14 }}>{isUser ? '👤' : '🤖'}</span>
+          <span style={{ display: 'flex', alignItems: 'center' }}>
+            {isUser 
+              ? <HelpIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-primary-default)' }} /> 
+              : <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
+            }
+          </span>
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
             {isUser ? 'You' : 'Davis AI'}
           </span>
@@ -98,24 +104,21 @@ export const DavisAssistant: React.FC = () => {
   };
 
   const quickActions = [
-    { label: 'Error Analysis', icon: '🔴', query: 'Show me the top errors across all AI services in the last hour' },
-    { label: 'Latency Issues', icon: '⚡', query: 'Which AI services have latency above SLA thresholds?' },
-    { label: 'Cost Breakdown', icon: '💰', query: 'Give me a cost breakdown by provider and model for today' },
-    { label: 'Token Usage', icon: '📊', query: 'Which services are consuming the most tokens?' },
-    { label: 'Rate Limits', icon: '🚦', query: 'Are any services hitting rate limits?' },
-    { label: 'Model Comparison', icon: '🔄', query: 'Compare performance across different LLM models' },
+    { label: 'Errors', query: 'Show me the top errors across all AI services in the last hour' },
+    { label: 'Latency', query: 'Which AI services have latency above SLA thresholds?' },
+    { label: 'Costs', query: 'Give me a cost breakdown by provider and model for today' },
+    { label: 'Tokens', query: 'Which services are consuming the most tokens?' },
+    { label: 'Rate Limits', query: 'Are any services hitting rate limits?' },
+    { label: 'Models', query: 'Compare performance across different LLM models' },
   ];
 
   return (
     <Flex flexDirection="column" style={{ height: 'calc(100vh - 100px)' }} padding={16} gap={12}>
-      {/* Header - Compact */}
+      {/* Compact Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <div>
-          <Heading level={4}>Davis AI Assistant</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-            Ask questions about your AI services
-          </span>
-        </div>
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          Natural Language AI Investigation
+        </Text>
         <Button onClick={clearConversation}>Clear</Button>
       </Flex>
 
@@ -125,7 +128,6 @@ export const DavisAssistant: React.FC = () => {
           <QuickAction
             key={action.label}
             label={action.label}
-            icon={action.icon}
             onClick={() => sendMessage(action.query)}
           />
         ))}
@@ -137,7 +139,7 @@ export const DavisAssistant: React.FC = () => {
           <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
             {messages.length === 0 ? (
               <Flex flexDirection="column" alignItems="center" justifyContent="center" style={{ height: '100%' }} gap={12}>
-                <span style={{ fontSize: 48 }}>🤖</span>
+                <AiIcon style={{ width: 48, height: 48, color: 'var(--dt-colors-text-accent-default)' }} />
                 <Heading level={5}>Welcome to Davis AI</Heading>
                 <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', maxWidth: 360, fontSize: 13 }}>
                   Ask me about your AI services - errors, performance, costs, and recommendations.
@@ -150,7 +152,7 @@ export const DavisAssistant: React.FC = () => {
                 ))}
                 {isProcessing && (
                   <Flex alignItems="center" gap={6}>
-                    <span style={{ fontSize: 14 }}>🤖</span>
+                    <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
                     <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic', fontSize: 12 }}>
                       Davis is thinking...
                     </span>

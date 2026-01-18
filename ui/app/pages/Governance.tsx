@@ -6,7 +6,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text, Link } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
-import { ExternalLinkIcon } from '@dynatrace/strato-icons';
+import { ExternalLinkIcon, DocumentIcon, WarningIcon, CheckmarkIcon, CriticalIcon, SecurityIcon, MoneyIcon, AiIcon, RefreshIcon, StopIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels, useAuditTrail } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
@@ -191,7 +191,7 @@ export const Governance: React.FC = () => {
         enhancedFlags.push({
           type: davisScore.category as PromptFlag['type'],
           severity: davisScore.severity,
-          detail: `🤖 Davis AI: ${davisScore.explanation}`
+          detail: `Davis AI: ${davisScore.explanation}`
         });
         enhancedFlagTypes.add(davisScore.category);
       }
@@ -407,8 +407,8 @@ export const Governance: React.FC = () => {
 
   // Helper to get status icon
   const getStatusIcon = (status: string) => {
-    const icons: Record<string, string> = { compliant: '✅', warning: '⚠️', violation: '❌' };
-    return icons[status] || '❓';
+    const icons: Record<string, string> = { compliant: '[OK]', warning: '[!]', violation: '[X]' };
+    return icons[status] || '[?]';
   };
 
   // Helper to get risk color
@@ -444,16 +444,16 @@ export const Governance: React.FC = () => {
   // Helper to get flag icon
   const getFlagIcon = (type: PromptFlag['type']) => {
     const icons: Record<string, string> = {
-      error: '🚨',
-      pii: '🔐',
-      hallucination: '🎭',
-      expensive: '💰',
-      repetitive: '🔄',
-      injection: '⚠️',
-      sensitive: '🔒',
-      bias: '⚖️',
+      error: 'ERR',
+      pii: 'PII',
+      hallucination: 'HAL',
+      expensive: '$$$',
+      repetitive: 'RPT',
+      injection: 'INJ',
+      sensitive: 'SEC',
+      bias: 'BIA',
     };
-    return icons[type] || '❓';
+    return icons[type] || '?';
   };
 
   // Helper for challenge status
@@ -468,20 +468,15 @@ export const Governance: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>Governance - AI Compliance & Risk</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Monitor AI governance policies, provider risks, and compliance status
-          </Text>
-        </Flex>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        AI Compliance & Risk Management
+      </Text>
 
       {/* Provider Data Disclaimer */}
       <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
         <Flex alignItems="center" gap={8}>
-          <span>ℹ️</span>
+          <DocumentIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             <strong>Note:</strong> Provider certifications and data residency are reference data based on public information. 
             Verify with your provider agreements. Governance challenges are sample scenarios.
@@ -523,9 +518,18 @@ export const Governance: React.FC = () => {
               Policy Status
             </Text>
             <Flex gap={16}>
-              <Text>✅ {governancePolicies.filter(p => p.status === 'compliant').length} Compliant</Text>
-              <Text>⚠️ {governancePolicies.filter(p => p.status === 'warning').length} Warnings</Text>
-              <Text>❌ {governancePolicies.filter(p => p.status === 'violation').length} Violations</Text>
+              <Flex alignItems="center" gap={4}>
+                <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-success-default)' }} />
+                <Text>{governancePolicies.filter(p => p.status === 'compliant').length} Compliant</Text>
+              </Flex>
+              <Flex alignItems="center" gap={4}>
+                <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />
+                <Text>{governancePolicies.filter(p => p.status === 'warning').length} Warnings</Text>
+              </Flex>
+              <Flex alignItems="center" gap={4}>
+                <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />
+                <Text>{governancePolicies.filter(p => p.status === 'violation').length} Violations</Text>
+              </Flex>
             </Flex>
           </Flex>
         </Surface>
@@ -557,7 +561,7 @@ export const Governance: React.FC = () => {
                      promptStats.piiCount > 0 ? Colors.Text.Warning.Default : 
                      Colors.Text.Success.Default 
             }}>
-              {promptStats.errorCount} 🚨
+              {promptStats.errorCount} Errors
             </Heading>
             <Text textStyle="small">
               Real Errors • {promptStats.piiCount} PII • {promptStats.injectionCount} Injection
@@ -584,13 +588,13 @@ export const Governance: React.FC = () => {
           variant={selectedTab === 'prompts' ? 'emphasized' : 'default'}
           onClick={() => setSelectedTab('prompts')}
         >
-          🔍 Prompt Analysis ({promptStats.total})
+          Prompt Analysis ({promptStats.total})
         </Button>
         <Button
           variant={selectedTab === 'challenges' ? 'emphasized' : 'default'}
           onClick={() => setSelectedTab('challenges')}
         >
-          ⚠️ Challenges ({governanceChallenges.filter(c => c.status !== 'resolved').length})
+          Challenges ({governanceChallenges.filter(c => c.status !== 'resolved').length})
         </Button>
         <Button
           variant={selectedTab === 'audit' ? 'emphasized' : 'default'}
@@ -676,10 +680,10 @@ export const Governance: React.FC = () => {
                           </Text>
                         </Flex>
                         <Flex gap={8} style={{ flexWrap: 'wrap' }}>
-                          <Text textStyle="small">📍 {risk.dataResidency}</Text>
+                          <Text textStyle="small">Location: {risk.dataResidency}</Text>
                           {risk.riskFactors.length > 0 && (
                             <Text textStyle="small" style={{ color: Colors.Text.Warning.Default }}>
-                              ⚠️ {risk.riskFactors.join(', ')}
+                              Risk: {risk.riskFactors.join(', ')}
                             </Text>
                           )}
                         </Flex>
@@ -709,13 +713,13 @@ export const Governance: React.FC = () => {
         <Surface style={{ padding: 16 }}>
           <Flex flexDirection="column" gap={16}>
             <Flex justifyContent="space-between" alignItems="center">
-              <Heading level={6}>🔍 Prompt Analysis - Security & Optimization</Heading>
+              <Heading level={6}>Prompt Analysis - Security & Optimization</Heading>
               
               {/* Davis AI Scoring Controls */}
               <Flex gap={8} alignItems="center">
                 {davisScoringLoading && (
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                    🤖 Analyzing {scoringProgress.current}/{scoringProgress.total}...
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AiIcon style={{ width: 14, height: 14 }} /> Analyzing {scoringProgress.current}/{scoringProgress.total}...
                   </Text>
                 )}
                 {davisScoringEnabled && davisSummary.totalAnalyzed > 0 && !davisScoringLoading && (
@@ -728,7 +732,7 @@ export const Governance: React.FC = () => {
                   onClick={davisScoringLoading ? cancelScoring : handleDavisScoring}
                   disabled={!groupedPrompts.length || promptsLoading}
                 >
-                  {davisScoringLoading ? '⏹️ Cancel' : '🤖 Score with Davis AI'}
+                  {davisScoringLoading ? 'Cancel' : 'Score with Davis AI'}
                 </Button>
               </Flex>
             </Flex>
@@ -738,7 +742,9 @@ export const Governance: React.FC = () => {
               <Surface style={{ padding: 12, backgroundColor: 'var(--dt-colors-surface-neutral-subdued)' }}>
                 <Flex gap={16} alignItems="center" style={{ flexWrap: 'wrap' }}>
                   <Flex flexDirection="column" alignItems="center" gap={2}>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🤖 AI Risk Score</Text>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AiIcon style={{ width: 12, height: 12 }} /> AI Risk Score
+                  </Text>
                     <Heading level={4} style={{ 
                       color: davisSummary.avgRiskScore >= 50 ? Colors.Text.Critical.Default : 
                              davisSummary.avgRiskScore >= 25 ? Colors.Text.Warning.Default : 
@@ -779,43 +785,53 @@ export const Governance: React.FC = () => {
             <Flex gap={12} style={{ flexWrap: 'wrap' }}>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🚨 Real Errors</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CriticalIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-feedback-critical-default)' }} /> Real Errors
+                  </Text>
                   <Heading level={3} style={{ color: Colors.Text.Critical.Default }}>{promptStats.errorCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🔐 PII Detected</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <SecurityIcon style={{ width: 12, height: 12 }} /> PII Detected
+                  </Text>
                   <Heading level={3}>{promptStats.piiCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🎭 Hallucination Risk</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Hallucination Risk</Text>
                   <Heading level={3}>{promptStats.hallucinationCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>💰 Expensive</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <MoneyIcon style={{ width: 12, height: 12 }} /> Expensive
+                </Text>
                   <Heading level={3}>{promptStats.expensiveCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>🔄 Cache Candidates</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <RefreshIcon style={{ width: 12, height: 12 }} /> Cache Candidates
+                  </Text>
                   <Heading level={3}>{promptStats.repetitiveCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>⚠️ Injection</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <WarningIcon style={{ width: 12, height: 12 }} /> Injection
+                </Text>
                   <Heading level={3}>{promptStats.injectionCount}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>⚖️ Bias Risk</Text>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Bias Risk</Text>
                   <Heading level={3}>{promptStats.biasCount}</Heading>
                 </Flex>
               </Surface>
@@ -827,49 +843,49 @@ export const Governance: React.FC = () => {
                 variant={promptFilter === 'all' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('all')}
               >
-                📋 All ({promptStats.total})
+                All ({promptStats.total})
               </Button>
               <Button 
                 variant={promptFilter === 'error' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('error')}
               >
-                🚨 Errors ({promptStats.errorCount})
+                Errors ({promptStats.errorCount})
               </Button>
               <Button 
                 variant={promptFilter === 'pii' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('pii')}
               >
-                🔐 PII ({promptStats.piiCount})
+                PII ({promptStats.piiCount})
               </Button>
               <Button 
                 variant={promptFilter === 'injection' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('injection')}
               >
-                ⚠️ Injection ({promptStats.injectionCount})
+                Injection ({promptStats.injectionCount})
               </Button>
               <Button 
                 variant={promptFilter === 'expensive' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('expensive')}
               >
-                💰 Expensive ({promptStats.expensiveCount})
+                Expensive ({promptStats.expensiveCount})
               </Button>
               <Button 
                 variant={promptFilter === 'hallucination' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('hallucination')}
               >
-                🎭 Hallucination ({promptStats.hallucinationCount})
+                Hallucination ({promptStats.hallucinationCount})
               </Button>
               <Button 
                 variant={promptFilter === 'repetitive' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('repetitive')}
               >
-                🔄 Cacheable ({promptStats.repetitiveCount})
+                Cacheable ({promptStats.repetitiveCount})
               </Button>
               <Button 
                 variant={promptFilter === 'bias' ? 'emphasized' : 'default'}
                 onClick={() => setPromptFilter('bias')}
               >
-                ⚖️ Bias ({promptStats.biasCount})
+                Bias ({promptStats.biasCount})
               </Button>
             </Flex>
 
@@ -943,7 +959,7 @@ export const Governance: React.FC = () => {
                           }}
                           title={`Davis AI: ${davisScore.explanation}\nConfidence: ${(davisScore.confidence * 100).toFixed(0)}%`}
                           >
-                            🤖 {davisScore.riskScore}
+                            AI: {davisScore.riskScore}
                           </Text>
                         )}
                         {/* Open Trace in Distributed Traces app */}
@@ -996,7 +1012,7 @@ export const Governance: React.FC = () => {
                     {prompt.completionPreview && prompt.flagTypes.has('hallucination') && (
                       <Flex flexDirection="column" gap={2}>
                         <Text textStyle="small" style={{ fontSize: 9, color: Colors.Text.Warning.Default, fontWeight: 600 }}>
-                          🔍 Model Response (Hallucination Evidence):
+                          Model Response (Hallucination Evidence):
                         </Text>
                         <Text textStyle="small" style={{ 
                           color: Colors.Text.Critical.Default,
@@ -1043,7 +1059,7 @@ export const Governance: React.FC = () => {
                         borderRadius: 4
                       }}>
                         <Text textStyle="small" style={{ fontWeight: 600, fontSize: 10 }}>
-                          🤖 Davis AI Recommendations:
+                          Davis AI Recommendations:
                         </Text>
                         {davisScore.recommendations.slice(0, 2).map((rec, idx) => (
                           <Text key={idx} textStyle="small" style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>
@@ -1066,7 +1082,7 @@ export const Governance: React.FC = () => {
           <Flex flexDirection="column" gap={16}>
             <Flex flexDirection="column" gap={4}>
               <Flex alignItems="center" gap={12}>
-                <Heading level={6}>⚠️ Enterprise AI Governance Challenges</Heading>
+                <Heading level={6}>Enterprise AI Governance Challenges</Heading>
                 <SampleDataBadge type="sample" tooltip="These are common governance scenarios for reference. Customize based on your organization's specific challenges." />
               </Flex>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
@@ -1158,7 +1174,7 @@ export const Governance: React.FC = () => {
             <Surface style={{ padding: 16, backgroundColor: 'rgba(0, 150, 255, 0.1)' }}>
               <Flex flexDirection="column" gap={8}>
                 <Flex alignItems="center" gap={8}>
-                  <Text style={{ fontWeight: 600 }}>📋 Enterprise AI Governance Best Practices</Text>
+                  <Text style={{ fontWeight: 600 }}>Enterprise AI Governance Best Practices</Text>
                   <SampleDataBadge type="reference" tooltip="Industry best practices for AI governance. Customize based on your regulatory requirements." />
                 </Flex>
                 <Flex flexDirection="column" gap={4}>

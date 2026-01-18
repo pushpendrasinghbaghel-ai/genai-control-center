@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { Heading } from '@dynatrace/strato-components/typography';
+import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
@@ -160,15 +160,10 @@ export const RemediationLibrary: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <div>
-          <Heading level={4}>Remediation Library</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-            One-click automation actions for AI service issues
-          </span>
-        </div>
-      </Flex>
+      {/* Compact Header */}
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+        One-Click Automation Actions
+      </Text>
 
       {/* Warning Banner - Compact */}
       <Flex padding={12} alignItems="center" gap={8} style={{
@@ -176,7 +171,7 @@ export const RemediationLibrary: React.FC = () => {
         borderRadius: 6,
         border: '1px solid var(--dt-colors-feedback-warning-default)'
       }}>
-        <span style={{ fontSize: 18 }}>⚠️</span>
+        <WarningIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-feedback-warning-default)' }} />
         <div>
           <span style={{ fontWeight: 600, fontSize: 12 }}>Safety Notice</span>
           <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, marginLeft: 6 }}>
@@ -216,7 +211,7 @@ export const RemediationLibrary: React.FC = () => {
           {selectedAction?.isDestructive && (
             <Surface style={{ background: 'var(--dt-colors-feedback-critical-subtle)' }}>
               <Flex padding={12} alignItems="center" gap={8}>
-                <span>⚠️</span>
+                <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />
                 <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
                   This is a destructive action and may impact production services.
                 </span>

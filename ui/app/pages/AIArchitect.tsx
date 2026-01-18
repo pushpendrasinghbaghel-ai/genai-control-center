@@ -3,9 +3,10 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { Heading } from '@dynatrace/strato-components/typography';
+import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { MoneyIcon, ClockIcon, SecurityIcon, DocumentIcon, HelpIcon } from '@dynatrace/strato-icons';
 import { useAIServicesDiscovery, useAIArchitect, getSeverityColor, useDistinctServices, useDistinctProviders, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -17,12 +18,16 @@ const RecommendationCard: React.FC<{
   onApply?: () => void;
   onInvestigate?: () => void;
 }> = ({ recommendation, onApply, onInvestigate }) => {
-  const icons: Record<string, string> = {
-    cost_optimization: '💰',
-    performance: '⚡',
-    reliability: '🛡️',
-    security: '🔒',
-    best_practice: '📋'
+  const getIcon = (type: string) => {
+    const iconStyle = { width: 20, height: 20, color: 'var(--dt-colors-text-accent-default)' };
+    switch (type) {
+      case 'cost_optimization': return <MoneyIcon style={iconStyle} />;
+      case 'performance': return <ClockIcon style={iconStyle} />;
+      case 'reliability': return <DocumentIcon style={iconStyle} />;
+      case 'security': return <SecurityIcon style={iconStyle} />;
+      case 'best_practice': return <DocumentIcon style={iconStyle} />;
+      default: return <HelpIcon style={iconStyle} />;
+    }
   };
 
   return (
@@ -36,7 +41,7 @@ const RecommendationCard: React.FC<{
         border: '1px solid var(--dt-colors-border-neutral-default)'
       }}
     >
-      <span style={{ fontSize: 20 }}>{icons[recommendation.type] || '💡'}</span>
+      <span style={{ display: 'flex', alignItems: 'center' }}>{getIcon(recommendation.type)}</span>
       <div style={{ flex: 1 }}>
         <Flex alignItems="center" gap={8} style={{ marginBottom: 4 }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>{recommendation.title}</span>
@@ -152,14 +157,11 @@ export const AIArchitect: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
+      {/* Compact Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <div>
-          <Heading level={4}>AI Architect</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 13 }}>
-            Pattern detection and optimization recommendations
-          </span>
-        </div>
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          Pattern Detection & Optimization Recommendations
+        </Text>
         <Flex gap={8}>
           <Button onClick={() => navigate('/')}>Dashboard</Button>
           <Button variant="accent" onClick={() => navigate('/remediation')}>

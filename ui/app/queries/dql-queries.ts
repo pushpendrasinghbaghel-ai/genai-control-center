@@ -144,6 +144,7 @@ ${modelFilter}
 
 /**
  * Query for AI service health over time (for trend charts)
+ * Note: makeTimeseries has limited syntax - no math ops or countIf inside
  */
 export const AI_SERVICES_TREND_QUERY = (filters?: QueryFilters) => {
   const timeClause = getTimeClause(filters);
@@ -153,12 +154,9 @@ export const AI_SERVICES_TREND_QUERY = (filters?: QueryFilters) => {
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 ${serviceFilter}
-| makeTimeseries {
-    tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
-    latency = avg(duration),
-    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
-    requests = count()
-  }, by: { dt.entity.service }, interval: 5m
+| fieldsAdd input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+            output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| makeTimeseries tokens = sum(input_tokens + output_tokens), requests = count(), by: { dt.entity.service }, interval: 1h
 `;
 };
 

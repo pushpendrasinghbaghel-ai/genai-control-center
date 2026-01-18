@@ -8,6 +8,15 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { Colors } from '@dynatrace/strato-design-tokens';
+import {
+  HostsIcon,
+  MoneyIcon,
+  ClockIcon,
+  CriticalIcon,
+  AiIcon,
+  HelpIcon,
+  BarChartIcon
+} from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks/useDavisAI';
 import { useAIServicesDiscovery, useProviderComparison } from '../hooks/useDQLQueries';
 import { DavisResponse } from '../components/DavisResponse';
@@ -26,33 +35,38 @@ interface InsightCard {
 const QUICK_INVESTIGATIONS = [
   {
     id: 'health-check',
-    title: '🏥 Health Check',
+    title: 'Health Check',
     description: 'Run comprehensive health assessment across all GenAI services',
     category: 'health',
+    icon: 'health',
   },
   {
     id: 'cost-analysis',
-    title: '💰 Cost Analysis',
+    title: 'Cost Analysis',
     description: 'Analyze token usage and cost patterns',
     category: 'cost',
+    icon: 'cost',
   },
   {
     id: 'latency-investigation',
-    title: '⏱️ Latency Investigation',
+    title: 'Latency Investigation',
     description: 'Identify slow models and performance bottlenecks',
     category: 'latency',
+    icon: 'latency',
   },
   {
     id: 'error-analysis',
-    title: '🔴 Error Analysis',
+    title: 'Error Analysis',
     description: 'Investigate errors, 429s, and failure patterns',
     category: 'error',
+    icon: 'error',
   },
   {
     id: 'provider-comparison',
-    title: '📊 Provider Comparison',
+    title: 'Provider Comparison',
     description: 'Compare providers across performance and cost metrics',
     category: 'compare',
+    icon: 'compare',
   },
 ];
 
@@ -138,14 +152,11 @@ export const Intelligence: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Header */}
+      {/* Compact Header */}
       <Flex justifyContent="space-between" alignItems="center">
-        <Flex flexDirection="column" gap={4}>
-          <Heading level={4}>Intelligence - AI-Powered Investigation</Heading>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Real-time AI analysis powered by DQL queries
-          </Text>
-        </Flex>
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          AI-Powered Investigation • Real-time DQL Analysis
+        </Text>
         <Button variant="default" onClick={clearConversation}>
           Clear Conversation
         </Button>
@@ -167,16 +178,16 @@ export const Intelligence: React.FC = () => {
               <Heading level={3}>{realTimeInsights.totalServices}</Heading>
               <Flex gap={8}>
                 <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
-                  ✅ {realTimeInsights.healthyCount}
+                  {realTimeInsights.healthyCount} healthy
                 </Text>
                 {realTimeInsights.warningCount > 0 && (
                   <Text textStyle="small" style={{ color: Colors.Text.Warning.Default }}>
-                    ⚠️ {realTimeInsights.warningCount}
+                    {realTimeInsights.warningCount} warning
                   </Text>
                 )}
                 {realTimeInsights.criticalCount > 0 && (
                   <Text textStyle="small" style={{ color: Colors.Text.Critical.Default }}>
-                    🔴 {realTimeInsights.criticalCount}
+                    {realTimeInsights.criticalCount} critical
                   </Text>
                 )}
               </Flex>
@@ -206,7 +217,7 @@ export const Intelligence: React.FC = () => {
               <Text textStyle="small" style={{ 
                 color: realTimeInsights.slowCount > 0 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Subdued 
               }}>
-                {realTimeInsights.slowCount > 0 ? `⚠️ ${realTimeInsights.slowCount} slow` : 'All within SLA'}
+                {realTimeInsights.slowCount > 0 ? `${realTimeInsights.slowCount} slow` : 'All within SLA'}
               </Text>
             </Flex>
           </Surface>
@@ -231,11 +242,11 @@ export const Intelligence: React.FC = () => {
       {realTimeInsights && (realTimeInsights.criticalCount > 0 || realTimeInsights.slowCount > 0) && (
         <Surface style={{ padding: 12, backgroundColor: 'rgba(255, 100, 0, 0.08)' }}>
           <Flex flexDirection="column" gap={8}>
-            <Heading level={6}>🔔 Automated Insights</Heading>
+            <Heading level={6}>Automated Insights</Heading>
             {realTimeInsights.criticalServices.slice(0, 3).map((svc, idx) => (
               <Flex key={idx} justifyContent="space-between" alignItems="center">
                 <Text>
-                  🔴 <strong>{svc.serviceName}</strong> has {svc.errorRate.toFixed(1)}% error rate ({svc.modelName})
+                  <strong style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>{svc.serviceName}</strong> has {svc.errorRate.toFixed(1)}% error rate ({svc.modelName})
                 </Text>
                 <Button 
                   variant="default" 
@@ -249,7 +260,7 @@ export const Intelligence: React.FC = () => {
             {realTimeInsights.slowServices.slice(0, 2).map((svc, idx) => (
               <Flex key={`slow-${idx}`} justifyContent="space-between" alignItems="center">
                 <Text>
-                  ⏱️ <strong>{svc.serviceName}</strong> has high latency ({svc.avgLatency.toFixed(0)}ms)
+                  <strong style={{ color: 'var(--dt-colors-feedback-warning-default)' }}>{svc.serviceName}</strong> has high latency ({svc.avgLatency.toFixed(0)}ms)
                 </Text>
                 <Button 
                   variant="default" 
@@ -295,7 +306,7 @@ export const Intelligence: React.FC = () => {
               style={{ textAlign: 'left', justifyContent: 'flex-start' }}
             >
               <Flex flexDirection="column" alignItems="flex-start" gap={2}>
-                <Text>📊 View Health Dashboard</Text>
+                <Text>View Health Dashboard</Text>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                   See all services and metrics
                 </Text>
@@ -349,8 +360,14 @@ export const Intelligence: React.FC = () => {
                       <Text textStyle="small" style={{ 
                         color: msg.type === 'user' ? Colors.Text.Primary.Default : Colors.Text.Neutral.Subdued,
                         fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
                       }}>
-                        {msg.type === 'user' ? '👤 You' : '🤖 Davis AI'}
+                        {msg.type === 'user' 
+                          ? <><HelpIcon style={{ width: 14, height: 14 }} /> You</>
+                          : <><AiIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-accent-default)' }} /> Davis AI</>
+                        }
                       </Text>
                       {msg.isLoading ? (
                         <Flex alignItems="center" gap={8}>
