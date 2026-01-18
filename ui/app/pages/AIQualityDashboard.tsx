@@ -3,10 +3,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
-import { WarningIcon, CriticalIcon } from '@dynatrace/strato-icons';
+import { WarningIcon, CriticalIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIQualityScoring, useDavisForecasting, AIQualityScore, ForecastResult } from '../hooks/useAIQuality';
 
@@ -313,20 +314,24 @@ export const AIQualityDashboard: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-          Quality Scoring & Davis AI Forecasting
-        </Text>
-        <Flex gap={8}>
-          <Button variant="default" onClick={() => analyzeQuality('24h')} disabled={loading}>
-            {loading ? 'Analyzing...' : 'Refresh Analysis'}
-          </Button>
-          <Button variant="emphasized" onClick={handleGenerateForecasts} disabled={forecastLoading}>
-            {forecastLoading ? 'Forecasting...' : 'Generate Forecasts'}
-          </Button>
-        </Flex>
-      </Flex>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <CheckmarkIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>AI Quality Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>Quality scoring & Davis AI forecasting</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Flex gap={8}>
+            <Button variant="default" onClick={() => analyzeQuality('24h')} disabled={loading} aria-label="Refresh quality analysis">
+              {loading ? 'Analyzing...' : 'Refresh Analysis'}
+            </Button>
+            <Button variant="emphasized" onClick={handleGenerateForecasts} disabled={forecastLoading} aria-label="Generate forecasts">
+              {forecastLoading ? 'Forecasting...' : 'Generate Forecasts'}
+            </Button>
+          </Flex>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Summary Cards */}
       {summary && (

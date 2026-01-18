@@ -14,7 +14,8 @@ import {
   ProviderComparison,
   AIArchitect,
   AITopology,
-  AIQualityDashboard,
+  ResponseAnalytics,
+  PromptGovernance,
   RealTimeAlerts
 } from "./pages";
 
@@ -56,8 +57,11 @@ export const App = () => {
                 {/* AI Topology Map - Visual representation of GenAI flows */}
                 <Route path="/topology" element={<AITopology />} />
                 
-                {/* AI Quality Dashboard - Quality scoring and forecasting */}
-                <Route path="/quality" element={<AIQualityDashboard />} />
+                {/* Response Analytics - Token efficiency and model comparison */}
+                <Route path="/analytics" element={<ResponseAnalytics />} />
+                
+                {/* Prompt Governance - PII, injection, Davis AI scoring */}
+                <Route path="/prompt-governance" element={<PromptGovernance />} />
                 
                 {/* GenAI Problems - Problems affecting AI services */}
                 <Route path="/problems" element={<RealTimeAlerts />} />

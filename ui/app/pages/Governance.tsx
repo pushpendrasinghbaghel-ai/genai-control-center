@@ -3,6 +3,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text, Link } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
@@ -468,15 +469,19 @@ export const Governance: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-        AI Compliance & Risk Management
-      </Text>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <SecurityIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Governance Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>AI compliance & risk management</TitleBar.Subtitle>
+      </TitleBar>
 
       {/* Provider Data Disclaimer */}
       <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
         <Flex alignItems="center" gap={8}>
-          <DocumentIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+          <DocumentIcon aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             <strong>Note:</strong> Provider certifications and data residency are reference data based on public information. 
             Verify with your provider agreements. Governance challenges are sample scenarios.

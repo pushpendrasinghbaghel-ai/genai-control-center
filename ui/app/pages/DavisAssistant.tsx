@@ -3,10 +3,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { AiIcon, HelpIcon } from '@dynatrace/strato-icons';
+import { AiIcon, HelpIcon, DavisAiIcon } from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks';
 import type { ConversationMessage } from '../types';
 
@@ -113,17 +114,21 @@ export const DavisAssistant: React.FC = () => {
   ];
 
   return (
-    <Flex flexDirection="column" style={{ height: 'calc(100vh - 100px)' }} padding={16} gap={12}>
-      {/* Compact Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-          Natural Language AI Investigation
-        </Text>
-        <Button onClick={clearConversation}>Clear</Button>
-      </Flex>
+    <Flex flexDirection="column" style={{ height: 'calc(100vh - 100px)' }} padding={16} gap={16}>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <DavisAiIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Davis Assistant</TitleBar.Title>
+        <TitleBar.Subtitle>Natural language AI investigation</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Button onClick={clearConversation} aria-label="Clear conversation">Clear</Button>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Quick Actions - Compact */}
-      <Flex gap={6} flexWrap="wrap">
+      <Flex gap={8} flexWrap="wrap">
         {quickActions.map(action => (
           <QuickAction
             key={action.label}

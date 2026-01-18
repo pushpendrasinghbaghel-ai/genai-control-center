@@ -3,6 +3,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
@@ -15,7 +16,8 @@ import {
   CriticalIcon,
   AiIcon,
   HelpIcon,
-  BarChartIcon
+  BarChartIcon,
+  DavisAiIcon
 } from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks/useDavisAI';
 import { useAIServicesDiscovery, useProviderComparison } from '../hooks/useDQLQueries';
@@ -152,15 +154,19 @@ export const Intelligence: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-          AI-Powered Investigation • Real-time DQL Analysis
-        </Text>
-        <Button variant="default" onClick={clearConversation}>
-          Clear Conversation
-        </Button>
-      </Flex>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <DavisAiIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Intelligence Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>AI-powered investigation • Real-time DQL analysis</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Button variant="default" onClick={clearConversation} aria-label="Clear conversation history">
+            Clear Conversation
+          </Button>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Real-time Status Overview */}
       {(servicesLoading || providersLoading) ? (

@@ -4,6 +4,7 @@ import { Flex, Surface } from "@dynatrace/strato-components/layouts";
 import { Paragraph, Strong } from "@dynatrace/strato-components/typography";
 import { ProgressCircle } from "@dynatrace/strato-components/content";
 import { Button } from "@dynatrace/strato-components/buttons";
+import { TitleBar } from "@dynatrace/strato-components-preview/layouts";
 import { TimeframeSelector } from "@dynatrace/strato-components-preview/filters";
 import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components-preview/charts";
 import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
@@ -20,20 +21,31 @@ import {
   WarningIcon,
   ClockIcon,
   HostsIcon,
-  ServicesIcon
+  ServicesIcon,
+  HomeIcon
 } from "@dynatrace/strato-icons";
 import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
 
-// Dynatrace Chart Color Palette (using Strato categorical/status colors)
+// Dynatrace Status Color Tokens (following Status and Health guidelines)
+const STATUS_COLORS = {
+  ideal: Colors.Charts.Status.Ideal.Default,     // Success/Healthy state
+  good: Colors.Charts.Status.Good.Default,       // Informational/Primary
+  neutral: Colors.Charts.Status.Neutral.Default, // Inactive/Unknown
+  warning: Colors.Charts.Status.Warning.Default, // Warning state
+  critical: Colors.Charts.Status.Critical.Default, // Critical/Error state
+};
+
+// Dynatrace Chart Color Palette (using Strato categorical colors)
 const CHART_COLORS = {
   primary: Colors.Charts.Categorical.Color01.Default,
   secondary: Colors.Charts.Categorical.Color02.Default,
   tertiary: Colors.Charts.Categorical.Color03.Default,
   quaternary: Colors.Charts.Categorical.Color04.Default,
-  success: Colors.Charts.Status.Ideal.Default,
-  warning: Colors.Charts.Status.Warning.Default,
-  critical: Colors.Charts.Status.Critical.Default,
+  // Status colors for semantic meaning
+  success: STATUS_COLORS.ideal,
+  warning: STATUS_COLORS.warning,
+  critical: STATUS_COLORS.critical,
 };
 
 // Full categorical palette for multi-series charts (12 distinct colors)
@@ -57,6 +69,7 @@ const createDefaultTimeframe = (): Timeframe => ({
   from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
+
 
 /** Get display label for timeframe */
 const getTimeframeLabel = (timeframe: Timeframe): string => {
@@ -215,63 +228,67 @@ export const Home = () => {
   }, [tokenTimeseriesData, costTimeseriesData, requestTimeseriesData, healthMetrics]);
 
   return (
-    <Flex flexDirection="column" padding={16} gap={12}>
-      {/* Summary Header with Timeframe - no duplicate app title */}
-      <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
-        <Flex alignItems="center" gap={6}>
-          <BarChartIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>Summary • {getTimeframeLabel(timeframe)}</span>
-        </Flex>
-        <TimeframeSelector
-          value={timeframe}
-          onChange={(tf) => tf && setTimeframe(tf)}
-        />
-      </Flex>
+    <Flex flexDirection="column" padding={16} gap={16}>
+      {/* TitleBar - Following Dynatrace App Structure Guidelines */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <HomeIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Executive Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>GenAI infrastructure at a glance</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <TimeframeSelector
+            value={timeframe}
+            onChange={(tf) => tf && setTimeframe(tf)}
+            aria-label="Select time range"
+          />
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Executive Summary Stats */}
       <Flex flexDirection="column" gap={8}>
         
         {loading ? (
-          <Flex justifyContent="center" padding={20}>
-            <ProgressCircle />
+          <Flex justifyContent="center" padding={24}>
+            <ProgressCircle aria-label="Loading dashboard data" />
           </Flex>
         ) : healthMetrics ? (
           <Flex gap={8} flexWrap="wrap">
               <StatCard 
-                icon={<HostsIcon style={{ width: 18, height: 18 }} />} 
+                icon={<HostsIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Health" 
                 value={healthMetrics.overallHealth.toUpperCase()} 
                 color={healthColor}
               />
               <StatCard 
-                icon={<ServicesIcon style={{ width: 18, height: 18 }} />} 
+                icon={<ServicesIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Services" 
                 value={healthMetrics.totalServices}
               />
               <StatCard 
-                icon={<BarChartIcon style={{ width: 18, height: 18 }} />} 
+                icon={<BarChartIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Tokens" 
                 value={formatNumber(chartTotals.tokens)}
               />
               <StatCard 
-                icon={<MoneyIcon style={{ width: 18, height: 18 }} />} 
+                icon={<MoneyIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Cost" 
                 value={formatCurrency(chartTotals.cost)}
               />
               <StatCard 
-                icon={<ClockIcon style={{ width: 18, height: 18 }} />} 
+                icon={<ClockIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Latency" 
                 value={`${healthMetrics.avgLatency.toFixed(0)}ms`}
               />
               <StatCard 
-                icon={<WarningIcon style={{ width: 18, height: 18 }} />} 
+                icon={<WarningIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
                 label="Slow Reqs" 
                 value={`${healthMetrics.avgSlowRequestRate.toFixed(1)}%`}
                 color={healthMetrics.avgSlowRequestRate > 10 
-                  ? 'var(--dt-colors-feedback-warning-default)' 
+                  ? STATUS_COLORS.critical 
                   : healthMetrics.avgSlowRequestRate > 5 
-                  ? 'var(--dt-colors-feedback-warning-default)'
-                  : 'var(--dt-colors-feedback-success-default)'}
+                  ? STATUS_COLORS.warning
+                  : STATUS_COLORS.ideal}
               />
             </Flex>
           ) : (
@@ -281,20 +298,20 @@ export const Home = () => {
 
       {/* Trend Charts - 2x2 grid with real DQL data */}
       {healthMetrics && (
-        <Flex gap={12} flexWrap="wrap">
+        <Flex gap={16} flexWrap="wrap">
           {/* Token Trend - Real DQL Timeseries */}
-          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+          <Surface padding={16} style={{ borderRadius: 8, flex: '1 1 45%', minWidth: 300 }}>
             <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
-                <Flex alignItems="center" gap={6}>
-                  <BarChartIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} />
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} aria-hidden="true" />
                   <span style={{ fontSize: 12, fontWeight: 600 }}>Token Usage Trend</span>
                 </Flex>
                 <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</span>
               </Flex>
               {trendLoading ? (
                 <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
-                  <ProgressCircle size="small" />
+                  <ProgressCircle size="small" aria-label="Loading token data" />
                 </Flex>
               ) : tokenTimeseriesData.length > 0 ? (
                 <TimeseriesChart

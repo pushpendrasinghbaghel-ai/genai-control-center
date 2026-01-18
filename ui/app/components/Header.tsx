@@ -1,16 +1,15 @@
 // GenAI Control Center - Navigation Header
-// Consolidated navigation with all pillars
+// Following Dynatrace Navigation Guidelines: Clean flat navigation with 7 items
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
 import { 
   HomeIcon, 
-  BarChartIcon,        // Health dashboard
+  HeartIcon,           // Health dashboard
   SmartscapeIcon,      // Topology
-  ServiceLevelObjectivesIcon, // Quality
+  BarChartIcon,        // Response Analytics
+  LockIcon,            // Prompt Governance
   MoneyIcon,           // FinOps
-  SecurityIcon,        // Governance
-  WarningIcon,         // Problems
   AiIcon,              // Intelligence
   WorkflowsIcon        // Operations
 } from '@dynatrace/strato-icons';
@@ -42,51 +41,46 @@ export const Header = () => {
     <AppHeader>
       <AppHeader.NavItems>
         {/* App Home Link */}
-        <AppHeader.AppNavLink as={Link} to="/" />
+        <AppHeader.AppNavLink as={Link} to="/" aria-label="GenAI Control Center Home" />
         
         {/* Home: Executive Dashboard */}
-        <AppHeader.NavItem as={Link} to="/" style={getNavItemStyle('/')}>
-          <HomeIcon /> Home
+        <AppHeader.NavItem as={Link} to="/" style={getNavItemStyle('/')} aria-label="Home Dashboard">
+          <HomeIcon aria-hidden="true" /> Home
         </AppHeader.NavItem>
         
-        {/* Health Dashboard: Service Health & Monitoring */}
-        <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')}>
-          <BarChartIcon /> Health
+        {/* Health Dashboard */}
+        <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')} aria-label="Health Dashboard">
+          <HeartIcon aria-hidden="true" /> Health
         </AppHeader.NavItem>
         
-        {/* AI Topology Map */}
-        <AppHeader.NavItem as={Link} to="/topology" style={getNavItemStyle('/topology')}>
-          <SmartscapeIcon /> Topology
+        {/* Topology Map */}
+        <AppHeader.NavItem as={Link} to="/topology" style={getNavItemStyle('/topology')} aria-label="AI Topology Map">
+          <SmartscapeIcon aria-hidden="true" /> Topology
         </AppHeader.NavItem>
         
-        {/* AI Quality Intelligence */}
-        <AppHeader.NavItem as={Link} to="/quality" style={getNavItemStyle('/quality')}>
-          <ServiceLevelObjectivesIcon /> Quality
+        {/* Response Analytics */}
+        <AppHeader.NavItem as={Link} to="/analytics" style={getNavItemStyle('/analytics')} aria-label="Response Analytics">
+          <BarChartIcon aria-hidden="true" /> Analytics
         </AppHeader.NavItem>
         
-        {/* FinOps: AI Cost Management */}
-        <AppHeader.NavItem as={Link} to="/finops" style={getNavItemStyle('/finops')}>
-          <MoneyIcon /> FinOps
+        {/* Prompt Governance */}
+        <AppHeader.NavItem as={Link} to="/prompt-governance" style={getNavItemStyle('/prompt-governance')} aria-label="Prompt Governance">
+          <LockIcon aria-hidden="true" /> Governance
         </AppHeader.NavItem>
         
-        {/* Governance: Compliance & Risk */}
-        <AppHeader.NavItem as={Link} to="/governance" style={getNavItemStyle('/governance')}>
-          <SecurityIcon /> Governance
+        {/* FinOps */}
+        <AppHeader.NavItem as={Link} to="/finops" style={getNavItemStyle('/finops')} aria-label="FinOps Cost Management">
+          <MoneyIcon aria-hidden="true" /> FinOps
         </AppHeader.NavItem>
         
-        {/* GenAI Problems */}
-        <AppHeader.NavItem as={Link} to="/problems" style={getNavItemStyle('/problems')}>
-          <WarningIcon /> Problems
+        {/* Intelligence */}
+        <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="AI Intelligence">
+          <AiIcon aria-hidden="true" /> Intelligence
         </AppHeader.NavItem>
         
-        {/* Intelligence: AI-Powered Investigation */}
-        <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')}>
-          <AiIcon /> Intelligence
-        </AppHeader.NavItem>
-        
-        {/* Operations: Runbooks & Automation */}
-        <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')}>
-          <WorkflowsIcon /> Operations
+        {/* Operations */}
+        <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')} aria-label="Operations and Automation">
+          <WorkflowsIcon aria-hidden="true" /> Operations
         </AppHeader.NavItem>
       </AppHeader.NavItems>
     </AppHeader>

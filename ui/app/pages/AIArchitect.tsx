@@ -3,10 +3,11 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { MoneyIcon, ClockIcon, SecurityIcon, DocumentIcon, HelpIcon } from '@dynatrace/strato-icons';
+import { MoneyIcon, ClockIcon, SecurityIcon, DocumentIcon, HelpIcon, AiIcon } from '@dynatrace/strato-icons';
 import { useAIServicesDiscovery, useAIArchitect, getSeverityColor, useDistinctServices, useDistinctProviders, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -157,18 +158,22 @@ export const AIArchitect: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-          Pattern Detection & Optimization Recommendations
-        </Text>
-        <Flex gap={8}>
-          <Button onClick={() => navigate('/')}>Dashboard</Button>
-          <Button variant="accent" onClick={() => navigate('/remediation')}>
-            Remediation
-          </Button>
-        </Flex>
-      </Flex>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <AiIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>AI Architect</TitleBar.Title>
+        <TitleBar.Subtitle>Pattern detection & optimization recommendations</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Flex gap={8}>
+            <Button onClick={() => navigate('/')} aria-label="Go to dashboard">Dashboard</Button>
+            <Button variant="accent" onClick={() => navigate('/remediation')} aria-label="Go to remediation">
+              Remediation
+            </Button>
+          </Flex>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Filter Bar */}
       <FilterBar

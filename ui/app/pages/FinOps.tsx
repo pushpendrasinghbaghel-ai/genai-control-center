@@ -3,11 +3,12 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { DocumentIcon, WarningIcon, CriticalIcon } from '@dynatrace/strato-icons';
-import Colors from '@dynatrace/strato-design-tokens/colors';
+import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon } from '@dynatrace/strato-icons';
+import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
 import { 
@@ -17,6 +18,15 @@ import {
   useDistinctModels 
 } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
+
+// Strato Design Tokens for status colors
+const STATUS_COLORS = {
+  ideal: Colors.Charts.Status.Ideal.Default,
+  good: Colors.Charts.Status.Good.Default,
+  neutral: Colors.Charts.Status.Neutral.Default,
+  warning: Colors.Charts.Status.Warning.Default,
+  critical: Colors.Charts.Status.Critical.Default,
+};
 
 interface CostBreakdown {
   provider: string;
@@ -216,15 +226,19 @@ export const FinOps: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-        AI Cost Management & Optimization
-      </Text>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <MoneyIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>FinOps Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>AI cost management & optimization</TitleBar.Subtitle>
+      </TitleBar>
 
       {/* Estimation Disclaimer */}
       <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
         <Flex alignItems="center" gap={8}>
-          <DocumentIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+          <DocumentIcon aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             <strong>Note:</strong> Cost estimates use public pricing (OpenAI $0.50-$15/MTok, Anthropic $3-$75/MTok). 
             Token split assumes 30% input / 70% output. Forecasts use 0.7% daily growth projection.

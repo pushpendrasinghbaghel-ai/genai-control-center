@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
@@ -208,10 +209,14 @@ export const Operations: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
-      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-        Runbooks & Automated Response
-      </Text>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <WorkflowsIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Operations Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>Runbooks & automated response</TitleBar.Subtitle>
+      </TitleBar>
 
       {/* Status Overview */}
       <Flex gap={16}>

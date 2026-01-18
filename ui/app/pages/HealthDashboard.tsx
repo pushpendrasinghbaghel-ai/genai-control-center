@@ -6,27 +6,44 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon } from '@dynatrace/strato-icons';
+import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, HeartIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
+import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
 import { calculateOverallHealth, formatNumber, formatCurrency, getHealthStatusColor } from '../utils';
 import type { AIService, HealthStatus } from '../types';
 
+// Strato Design Tokens for status colors
+const STATUS_COLORS = {
+  ideal: Colors.Charts.Status.Ideal.Default,
+  good: Colors.Charts.Status.Good.Default,
+  neutral: Colors.Charts.Status.Neutral.Default,
+  warning: Colors.Charts.Status.Warning.Default,
+  critical: Colors.Charts.Status.Critical.Default,
+};
+
 // Health Status Badge Component
 const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'large' }> = ({ 
   status, 
   size = 'small' 
 }) => {
+  const statusToColorMap: Record<HealthStatus, string> = {
+    healthy: STATUS_COLORS.ideal,
+    warning: STATUS_COLORS.warning,
+    critical: STATUS_COLORS.critical,
+    unknown: STATUS_COLORS.neutral,
+  };
   const icons: Record<HealthStatus, React.ReactNode> = { 
-    healthy: <CheckmarkIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-success-default)' }} />, 
-    warning: <WarningIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-warning-default)' }} />, 
-    critical: <CriticalIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-feedback-critical-default)' }} />, 
-    unknown: <HelpIcon style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: 'var(--dt-colors-text-secondary-default)' }} /> 
+    healthy: <CheckmarkIcon aria-hidden="true" style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: statusToColorMap.healthy }} />, 
+    warning: <WarningIcon aria-hidden="true" style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: statusToColorMap.warning }} />, 
+    critical: <CriticalIcon aria-hidden="true" style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: statusToColorMap.critical }} />, 
+    unknown: <HelpIcon aria-hidden="true" style={{ width: size === 'large' ? 24 : 16, height: size === 'large' ? 24 : 16, color: statusToColorMap.unknown }} /> 
   };
   const labels: Record<HealthStatus, string> = { 
     healthy: 'Healthy', 
@@ -36,12 +53,12 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
   };
   
   return (
-    <Flex alignItems="center" gap={4}>
+    <Flex alignItems="center" gap={4} aria-label={`Status: ${labels[status]}`}>
       {icons[status]}
       <span style={{ 
         fontSize: size === 'large' ? 16 : 12, 
         fontWeight: size === 'large' ? 600 : 400, 
-        color: getHealthStatusColor(status) 
+        color: statusToColorMap[status] 
       }}>
         {labels[status]}
       </span>
@@ -291,17 +308,26 @@ export const HealthDashboard: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Filter Bar with actions */}
-      <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
-        <Flex alignItems="center" gap={8}>
-          <ServicesIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
-          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-            {services.length} AI service{services.length !== 1 ? 's' : ''} discovered
-          </Text>
-        </Flex>
-        <Button variant="accent" onClick={() => navigate('/architect')}>
-          Recommendations
-        </Button>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <HeartIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Health Dashboard</TitleBar.Title>
+        <TitleBar.Subtitle>Auto-discovered AI services health at a glance</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Button variant="accent" onClick={() => navigate('/architect')} aria-label="View AI Architect recommendations">
+            Recommendations
+          </Button>
+        </TitleBar.Suffix>
+      </TitleBar>
+
+      {/* Service count indicator */}
+      <Flex alignItems="center" gap={8}>
+        <ServicesIcon aria-hidden="true" style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+          {services.length} AI service{services.length !== 1 ? 's' : ''} discovered
+        </Text>
       </Flex>
 
       <FilterBar

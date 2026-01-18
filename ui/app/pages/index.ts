@@ -17,8 +17,11 @@ export { Operations } from './Operations';
 // NEW: AI Topology Visualization
 export { AITopology } from './AITopology';
 
-// NEW: AI Quality Intelligence Dashboard
-export { AIQualityDashboard } from './AIQualityDashboard';
+// NEW: Response Analytics (formerly AI Quality)
+export { ResponseAnalytics } from './ResponseAnalytics';
+
+// NEW: Prompt Governance (dedicated page)
+export { PromptGovernance } from './PromptGovernance';
 
 // NEW: Real-Time Alerts
 export { RealTimeAlerts } from './RealTimeAlerts';

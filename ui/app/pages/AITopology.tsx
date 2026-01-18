@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
@@ -809,39 +810,34 @@ export const AITopology: React.FC = () => {
   }
 
   return (
-    <Flex flexDirection="column" gap={8} padding={12} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
-      {/* Compact Header with integrated controls */}
-      <Flex justifyContent="space-between" alignItems="center" style={{ 
-        padding: '8px 12px',
-        background: 'linear-gradient(90deg, rgba(20,168,245,0.06) 0%, rgba(111,45,168,0.06) 100%)',
-        borderRadius: 6,
-        border: '1px solid var(--dt-colors-border-neutral-default)'
-      }}>
-        <Flex alignItems="center" gap={8}>
-          <SmartscapeIcon style={{ width: 22, height: 22, color: 'var(--dt-colors-text-accent-default)' }} />
-          <Heading level={5} style={{ margin: 0 }}>GenAI Topology</Heading>
-          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
-            Service → Provider → Model flows
-          </Text>
-        </Flex>
-        <Flex gap={6} alignItems="center">
-          <Button 
-            variant={autoRefresh ? 'emphasized' : 'default'} 
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            {autoRefresh ? '● Live' : '○ Paused'}
-          </Button>
-          <Button
-            variant="default"
-            onClick={fetchTopology}
-            disabled={loading}
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            {loading ? '...' : 'Refresh'}
-          </Button>
-        </Flex>
-      </Flex>
+    <Flex flexDirection="column" gap={16} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <SmartscapeIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>AI Topology</TitleBar.Title>
+        <TitleBar.Subtitle>Service → Provider → Model flows</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Flex gap={8} alignItems="center">
+            <Button 
+              variant={autoRefresh ? 'emphasized' : 'default'} 
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              aria-label={autoRefresh ? 'Disable live refresh' : 'Enable live refresh'}
+            >
+              {autoRefresh ? '● Live' : '○ Paused'}
+            </Button>
+            <Button
+              variant="default"
+              onClick={fetchTopology}
+              disabled={loading}
+              aria-label="Refresh topology"
+            >
+              {loading ? '...' : 'Refresh'}
+            </Button>
+          </Flex>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Compact Filter Bar */}
       <FilterBar

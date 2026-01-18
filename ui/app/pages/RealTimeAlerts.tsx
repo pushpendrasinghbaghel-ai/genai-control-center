@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
@@ -167,15 +168,19 @@ export const RealTimeAlerts: React.FC = () => {
 
   return (
     <Flex flexDirection="column" gap={16} padding={16} style={{ height: '100%', overflow: 'hidden' }}>
-      {/* Compact Header */}
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-          Problems Affecting AI Services
-        </Text>
-        <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-          Last updated: {lastRefresh.toLocaleTimeString()}
-        </Text>
-      </Flex>
+      {/* Page TitleBar */}
+      <TitleBar>
+        <TitleBar.Prefix aria-hidden="true">
+          <WarningIcon />
+        </TitleBar.Prefix>
+        <TitleBar.Title>Real-Time Alerts</TitleBar.Title>
+        <TitleBar.Subtitle>Problems affecting AI services</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+            Last updated: {lastRefresh.toLocaleTimeString()}
+          </Text>
+        </TitleBar.Suffix>
+      </TitleBar>
 
       {/* Filter Bar */}
       <Surface>
