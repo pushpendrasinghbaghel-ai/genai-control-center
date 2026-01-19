@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.2
+# GenAI Control Center (GCC) v2.3
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -29,9 +29,12 @@
 | 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
 | 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
 | 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
-| 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, PII detection, prompt analysis, governance challenges |
+| 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, provider risk scoring, governance challenges |
+| 🔒 **Prompt Governance** | Prompt Security & Analysis | PII detection, injection risks, Davis AI scoring, cache candidates |
+| 📊 **Response Analytics** | ML Engineer Insights | Token efficiency, model ranking, output consistency metrics |
 | 🤖 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
 | ⚙️ **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
+| 🚨 **Real-Time Alerts** | Live Problem Monitoring | Davis-detected problems affecting AI services |
 
 ## 👥 Target Personas
 
@@ -42,6 +45,7 @@
 | 🔧 **SRE** | Incident response, health monitoring, root cause analysis |
 | 🏗️ **Platform Engineer** | Architecture optimization, provider selection, capacity planning |
 | 👨‍💻 **Developer** | Debugging, performance tuning, model selection |
+| 🤖 **ML Engineer** | Token efficiency, model comparison, output consistency analysis |
 
 ## 🚀 Key Features
 
@@ -53,13 +57,13 @@
 - **Service Cost Attribution** - Breakdown by business unit
 
 ### 🛡️ Governance - Compliance & Risk
-- **Prompt Analysis** - Detect security and optimization issues:
-  - 🔐 **PII Detection** - SSN, emails, PHI/HIPAA data
-  - 🎭 **Hallucination Risk** - Factual queries without grounding
-  - 💰 **Expensive Prompts** - High-cost request identification
-  - 🔄 **Cache Candidates** - Repetitive prompts for semantic caching
+- **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
+  - 🔐 **PII Detection** - SSN, emails, phone numbers, credit cards
   - ⚠️ **Prompt Injection** - Malicious pattern detection
-  - ⚖️ **Bias Risk** - Protected characteristics in decisions
+  - 💰 **Expensive Prompts** - High-cost request identification
+  - 🔄 **Cache Candidates** - Repetitive prompts (15+ times) for semantic caching
+  - 🎭 **Hallucination Risk** - Factual queries without grounding
+  - 🤖 **Davis AI Scoring** - Advanced semantic analysis for nuanced risk detection
 - **Enterprise Challenges** - Track and mitigate:
   - Data Sovereignty & Cross-Border Transfers
   - Shadow AI Usage Detection
@@ -67,6 +71,13 @@
   - Audit Trail Completeness
   - IP Contamination Risks
 - **Provider Risk Scoring** - Certifications, data residency, compliance
+
+### 📊 Response Analytics - ML Engineer Insights
+- **Token Efficiency Metrics** - Output/input ratio analysis per service
+- **Model Rankings** - Composite efficiency score based on ratio, latency, cost
+- **Output Consistency** - Variance analysis, low-output detection
+- **Inefficient Service Detection** - Identify services needing prompt optimization
+- **Cost Attribution** - Real-time cost estimation per model and provider
 
 ### 🧠 Intelligence - Davis CoPilot AI
 - **Natural Language Queries** - Ask questions in plain English
@@ -154,8 +165,11 @@ gcc/
 │       │   ├── AITopology.tsx    # Interactive flow visualization
 │       │   ├── FinOps.tsx        # Cost management
 │       │   ├── Governance.tsx    # Compliance & risk
+│       │   ├── PromptGovernance.tsx # PII/injection detection, Davis AI scoring
+│       │   ├── ResponseAnalytics.tsx # Token efficiency for ML Engineers
 │       │   ├── Intelligence.tsx  # Davis CoPilot AI
 │       │   ├── Operations.tsx    # Runbooks & quick actions
+│       │   ├── RealTimeAlerts.tsx # Live problem monitoring
 │       │   ├── Data.tsx          # GenAI data explorer
 │       │   ├── ProviderComparison.tsx # Provider analysis
 │       │   └── AIArchitect.tsx   # Architecture insights
@@ -163,6 +177,7 @@ gcc/
 │       │   ├── useDQLQueries.ts
 │       │   ├── useDavisAI.ts
 │       │   ├── useAIArchitect.ts
+│       │   ├── useResponseAnalytics.ts # Token efficiency metrics
 │       │   └── useRemediation.ts
 │       ├── queries/          # DQL query definitions
 │       ├── utils/            # Helper functions
@@ -236,11 +251,34 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.2.0 | © 2026*
+*Version 2.3.0 | © 2026*
 
 ---
 
 ## 📋 Changelog
+
+### v2.3.0 (January 2026)
+- 🆕 **Prompt Governance Page**: Dedicated page for prompt security analysis
+  - PII detection (SSN, email, phone, credit cards)
+  - Injection risk detection
+  - Davis AI scoring with semantic analysis
+  - Cache candidate identification (repetitive prompts)
+  - Detailed prompt modal with trace linking
+- 🆕 **Response Analytics Page**: Token efficiency dashboard for ML Engineers
+  - Token ratio analysis (output/input)
+  - Model efficiency rankings with composite scores
+  - Output consistency and variance metrics
+  - Inefficient/inconsistent service detection
+  - Cost estimation per model and provider
+- 🆕 **TitleBar Component**: Consistent page headers across all pages
+  - Page icon, title, and subtitle
+  - Strato TitleBar component integration
+  - Accessibility improvements (aria-labels, aria-hidden)
+- ✨ **New App Icon**: 3D isometric Dynatrace-style logo with AI sparkle
+- ✨ **Strato Design Tokens**: Using official color tokens for status indicators
+- ✨ **Real-Time Alerts Page**: Live Davis problem monitoring for AI services
+- 🛠️ **useResponseAnalytics Hook**: New hook for token efficiency metrics
+- 🐛 **Accessibility**: Added aria-labels and aria-hidden throughout
 
 ### v2.2.0 (January 2026)
 - 🆕 **AI Topology Page**: Interactive Smartscape-style visualization of GenAI service flows
