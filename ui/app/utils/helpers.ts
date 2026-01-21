@@ -168,6 +168,68 @@ export function formatCurrency(amount: number | string | null | undefined, curre
 }
 
 /**
+ * Format cost per 1K requests (industry standard pricing format)
+ * Shows cost scaled to per 1,000 requests for readability
+ */
+export function formatCostPer1K(totalCost: number, totalRequests: number): string {
+  if (totalRequests === 0) return '$0.00 / 1K req';
+  const costPer1K = (totalCost / totalRequests) * 1000;
+  if (costPer1K < 0.01) {
+    return `$${costPer1K.toFixed(4)} / 1K req`;
+  }
+  return `$${costPer1K.toFixed(2)} / 1K req`;
+}
+
+/**
+ * Format large numbers to readable format (K, M, B, T, Q)
+ * Handles very large numbers including quadrillions
+ */
+export function formatRequestCount(count: number | string | null | undefined): string {
+  if (count === null || count === undefined) {
+    return '0';
+  }
+  
+  // Parse the number, handling potential string inputs
+  let n: number;
+  if (typeof count === 'string') {
+    // Remove any commas or whitespace
+    n = parseFloat(count.replace(/[,\s]/g, ''));
+  } else {
+    n = Number(count);
+  }
+  
+  if (isNaN(n) || n === 0) {
+    return '0';
+  }
+  
+  // Use absolute value for formatting, preserve sign
+  const absN = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  
+  // Quadrillion (10^15)
+  if (absN >= 1e15) {
+    return `${sign}${(absN / 1e15).toFixed(1)}Q`;
+  }
+  // Trillion (10^12)
+  if (absN >= 1e12) {
+    return `${sign}${(absN / 1e12).toFixed(1)}T`;
+  }
+  // Billion (10^9)
+  if (absN >= 1e9) {
+    return `${sign}${(absN / 1e9).toFixed(1)}B`;
+  }
+  // Million (10^6)
+  if (absN >= 1e6) {
+    return `${sign}${(absN / 1e6).toFixed(1)}M`;
+  }
+  // Thousand (10^3)
+  if (absN >= 1e3) {
+    return `${sign}${(absN / 1e3).toFixed(1)}K`;
+  }
+  return n.toLocaleString();
+}
+
+/**
  * Format percentage
  */
 export function formatPercentage(value: number, decimals: number = 2): string {

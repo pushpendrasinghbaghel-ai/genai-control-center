@@ -243,30 +243,31 @@ export function useProviderComparison(filters?: QueryFilters) {
                        record['gen_ai.provider.name'] || 
                        record['gen_ai.request.model'] || 
                        'Unknown';
-      // Extract actual input/output tokens from query results
-      const inputTokens = record.input_tokens || 0;
-      const outputTokens = record.output_tokens || 0;
-      const totalTokens = record.total_tokens || (inputTokens + outputTokens);
+      // Extract actual input/output tokens from query results - parse as numbers to avoid string concatenation
+      const inputTokens = Number(record.input_tokens) || 0;
+      const outputTokens = Number(record.output_tokens) || 0;
+      const totalTokens = Number(record.total_tokens) || (inputTokens + outputTokens);
+      const totalRequests = Number(record.total_requests) || 0;
       
       return {
         provider: provider,
         models: record.models || [],
-        totalRequests: record.total_requests || 0,
-        avgLatency: (record.avg_latency || 0) / 1_000_000,
-        errorRate: record.error_rate || 0,
+        totalRequests: totalRequests,
+        avgLatency: (Number(record.avg_latency) || 0) / 1_000_000,
+        errorRate: Number(record.error_rate) || 0,
         totalTokens: totalTokens,
         inputTokens: inputTokens,
         outputTokens: outputTokens,
-        successRate: record.success_rate || 0,
+        successRate: Number(record.success_rate) || 0,
         estimatedCost: estimateCost(
           provider,
           inputTokens || totalTokens * 0.3,
           outputTokens || totalTokens * 0.7
         ),
         // GenAI Quality Metrics
-        slowRequestRate: record.slow_request_rate || 0,
-        lowOutputRate: record.low_output_rate || 0,
-        avgOutputTokens: record.avg_output_tokens || 0
+        slowRequestRate: Number(record.slow_request_rate) || 0,
+        lowOutputRate: Number(record.low_output_rate) || 0,
+        avgOutputTokens: Number(record.avg_output_tokens) || 0
       };
     });
   }, []);
@@ -287,14 +288,14 @@ export function useModelComparison(filters?: QueryFilters) {
       return {
         modelName: modelName,
         provider: provider,
-        avgLatency: (record.avg_latency || 0) / 1_000_000,
-        avgTokensPerRequest: record.avg_tokens || 0,
-        errorRate: record.error_rate || 0,
-        requestCount: record.request_count || 0,
+        avgLatency: (Number(record.avg_latency) || 0) / 1_000_000,
+        avgTokensPerRequest: Number(record.avg_tokens) || 0,
+        errorRate: Number(record.error_rate) || 0,
+        requestCount: Number(record.request_count) || 0,
         // GenAI Quality Metrics
-        slowRequestRate: record.slow_request_rate || 0,
-        lowOutputRate: record.low_output_rate || 0,
-        avgOutputTokens: record.avg_output_tokens || 0
+        slowRequestRate: Number(record.slow_request_rate) || 0,
+        lowOutputRate: Number(record.low_output_rate) || 0,
+        avgOutputTokens: Number(record.avg_output_tokens) || 0
       };
     });
   }, []);
@@ -312,9 +313,9 @@ export function useHighLatencyServices(filters?: QueryFilters) {
     return records.map((record: any) => ({
       serviceName: record['dt.entity.service'] || 'Unknown',
       modelName: record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown',
-      slowRequests: record.slow_requests || 0,
-      avgDuration: (record.avg_duration || 0) / 1_000_000,
-      maxDuration: (record.max_duration || 0) / 1_000_000
+      slowRequests: Number(record.slow_requests) || 0,
+      avgDuration: (Number(record.avg_duration) || 0) / 1_000_000,
+      maxDuration: (Number(record.max_duration) || 0) / 1_000_000
     }));
   }, []);
 
@@ -331,15 +332,15 @@ export function useServiceDetail(serviceEntityId: string, filters?: QueryFilters
     return records.map((record: any) => ({
       modelName: record['gen_ai.request.model'] || record['gen_ai.response.model'] || 'Unknown',
       provider: record['gen_ai.provider.name'] || deriveProviderFromModel(record['gen_ai.request.model'] || ''),
-      tokens: record.tokens || 0,
-      promptTokens: record.prompt_tokens || 0,
-      completionTokens: record.completion_tokens || 0,
-      avgLatency: (record.latency || 0) / 1_000_000,
-      p50Latency: (record.p50_latency || 0) / 1_000_000,
-      p95Latency: (record.p95_latency || 0) / 1_000_000,
-      p99Latency: (record.p99_latency || 0) / 1_000_000,
-      errorRate: record.error_rate || 0,
-      requestCount: record.request_count || 0
+      tokens: Number(record.tokens) || 0,
+      promptTokens: Number(record.prompt_tokens) || 0,
+      completionTokens: Number(record.completion_tokens) || 0,
+      avgLatency: (Number(record.latency) || 0) / 1_000_000,
+      p50Latency: (Number(record.p50_latency) || 0) / 1_000_000,
+      p95Latency: (Number(record.p95_latency) || 0) / 1_000_000,
+      p99Latency: (Number(record.p99_latency) || 0) / 1_000_000,
+      errorRate: Number(record.error_rate) || 0,
+      requestCount: Number(record.request_count) || 0
     }));
   }, []);
 
@@ -1857,21 +1858,22 @@ ${providerFilter}
     return records.map((record: any) => {
       const model = record.model || 'Unknown';
       const provider = record.provider || deriveProviderFromModel(model);
-      const inputTokens = record.input_tokens || 0;
-      const outputTokens = record.output_tokens || 0;
+      const inputTokens = Number(record.input_tokens) || 0;
+      const outputTokens = Number(record.output_tokens) || 0;
+      const totalRequests = Number(record.total_requests) || 0;
       
       return {
         model,
         provider,
-        totalRequests: record.total_requests || 0,
+        totalRequests,
         inputTokens,
         outputTokens,
         totalTokens: inputTokens + outputTokens,
-        avgLatency: (record.avg_latency || 0) / 1_000_000,
-        errorRate: record.error_rate || 0,
+        avgLatency: (Number(record.avg_latency) || 0) / 1_000_000,
+        errorRate: Number(record.error_rate) || 0,
         estimatedCost: estimateCost(provider, inputTokens, outputTokens),
-        costPerRequest: record.total_requests > 0 
-          ? estimateCost(provider, inputTokens, outputTokens) / record.total_requests 
+        costPerRequest: totalRequests > 0 
+          ? estimateCost(provider, inputTokens, outputTokens) / totalRequests 
           : 0
       };
     });

@@ -122,7 +122,7 @@ export function useWorkflows(): UseWorkflowsResult {
       const workflowList: WorkflowDefinition[] = records.map((record: any) => ({
         id: record['workflow.id'] || `workflow-${Math.random().toString(36).substring(7)}`,
         title: record['workflow.title'] || 'Unknown Workflow',
-        description: `Executed ${record.runs || 0} times in last 7 days`,
+        description: `Executed ${Number(record.runs) || 0} times in last 7 days`,
         trigger: 'manual',
         isPrivate: false,
         owner: 'Dynatrace',

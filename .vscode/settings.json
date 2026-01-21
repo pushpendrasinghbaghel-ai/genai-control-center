@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx dt-app dev$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

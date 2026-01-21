@@ -14,6 +14,7 @@ import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIco
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
+import { formatRequestCount, formatCostPer1K } from '../utils';
 import { 
   useProviderComparison, 
   useDistinctServices, 
@@ -418,10 +419,10 @@ export const FinOps: React.FC = () => {
               </Tooltip>
             </Flex>
             <Heading level={4}>
-              {costBreakdown.reduce((sum, c) => sum + c.requestCount, 0).toLocaleString()}
+              {formatRequestCount(costBreakdown.reduce((sum, c) => sum + c.requestCount, 0))}
             </Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              ${costBreakdown.length > 0 ? (totalCost / costBreakdown.reduce((sum, c) => sum + c.requestCount, 0)).toFixed(4) : '0.00'}/request avg
+              {formatCostPer1K(totalCost, costBreakdown.reduce((sum, c) => sum + c.requestCount, 0))}
             </Text>
           </Flex>
         </Surface>
@@ -670,7 +671,7 @@ export const FinOps: React.FC = () => {
         <Flex flexDirection="column" gap={12}>
           <Flex alignItems="center" gap={8}>
             <Heading level={6}>Cost Breakdown by Provider</Heading>
-            <Tooltip text="Detailed cost analysis per AI provider. Input tokens = prompt/context tokens (cheaper), Output tokens = completion tokens (more expensive). $/Request helps identify expensive operations.">
+            <Tooltip text="Detailed cost analysis per AI provider. Input tokens = prompt/context tokens (cheaper), Output tokens = completion tokens (more expensive). $/1K Req shows cost per 1,000 requests for comparison.">
               <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
             </Tooltip>
           </Flex>
@@ -693,7 +694,7 @@ export const FinOps: React.FC = () => {
                 <span style={{ flex: 1, textAlign: 'right' }}>Output</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>$/Request</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
               </Flex>
               {/* Table Rows */}
               {costBreakdown.map((row, idx) => (
@@ -710,8 +711,8 @@ export const FinOps: React.FC = () => {
                   <span style={{ flex: 1, textAlign: 'right' }}>{row.inputTokens.toLocaleString()}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>{row.outputTokens.toLocaleString()}</span>
                   <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${row.estimatedCost.toFixed(2)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.requestCount.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>${row.avgCostPerRequest.toFixed(4)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.requestCount)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>${(row.avgCostPerRequest * 1000).toFixed(2)}</span>
                 </Flex>
               ))}
             </Flex>
@@ -726,7 +727,7 @@ export const FinOps: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <AiIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color06.Default }} />
               <Heading level={6}>Cost Breakdown by Model</Heading>
-              <Tooltip text="Granular cost breakdown by specific model (e.g., gpt-4, claude-3-opus). Models highlighted in orange have costs >$1. Use $/Request to find expensive models that might benefit from caching or downgrades.">
+              <Tooltip text="Granular cost breakdown by specific model (e.g., gpt-4, claude-3-opus). Models highlighted in orange have costs >$1. Use $/1K Req to find expensive models that might benefit from caching or downgrades.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
             </Flex>
@@ -755,7 +756,7 @@ export const FinOps: React.FC = () => {
                 <span style={{ flex: 1, textAlign: 'right' }}>Output Tokens</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>$/Request</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
               </Flex>
               {/* Table Rows */}
               {modelCosts.map((row: any, idx: number) => (
@@ -774,8 +775,8 @@ export const FinOps: React.FC = () => {
                   <span style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: row.estimatedCost > 1 ? Colors.Text.Warning.Default : 'inherit' }}>
                     ${row.estimatedCost.toFixed(2)}
                   </span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.totalRequests.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>${row.costPerRequest.toFixed(4)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.totalRequests)}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>${(row.costPerRequest * 1000).toFixed(2)}</span>
                 </Flex>
               ))}
               {/* Summary Row */}
@@ -798,7 +799,7 @@ export const FinOps: React.FC = () => {
                   ${modelCosts.reduce((sum: number, r: any) => sum + r.estimatedCost, 0).toFixed(2)}
                 </span>
                 <span style={{ flex: 1, textAlign: 'right' }}>
-                  {modelCosts.reduce((sum: number, r: any) => sum + r.totalRequests, 0).toLocaleString()}
+                  {formatRequestCount(modelCosts.reduce((sum: number, r: any) => sum + r.totalRequests, 0))}
                 </span>
                 <span style={{ flex: 1, textAlign: 'right' }}>-</span>
               </Flex>
@@ -906,7 +907,7 @@ export const FinOps: React.FC = () => {
                     <span style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={svc.serviceId}>
                       {svc.serviceId.replace('SERVICE-', '').substring(0, 12)}...
                     </span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{svc.totalRequests.toLocaleString()}</span>
+                    <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(svc.totalRequests)}</span>
                     <span style={{ flex: 1, textAlign: 'right' }}>{(svc.totalTokens / 1000).toFixed(1)}K</span>
                     <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${svc.estimatedCost.toFixed(2)}</span>
                   </Flex>
