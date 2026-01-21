@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.3
+# GenAI Control Center (GCC) v2.4
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -50,11 +50,14 @@
 ## 🚀 Key Features
 
 ### 💰 FinOps - Cost Management
-- **Real-time Spend Dashboard** - Track AI costs across all providers
+- **Real-time Spend Dashboard** - Track AI costs across all providers with hero card layout
 - **Cost Forecasting** - 7/14/30-day projections with confidence levels
 - **Budget Breach ETA** - Predict when you'll exceed budget
 - **Provider Comparison** - Cost-per-token by provider and model
-- **Service Cost Attribution** - Breakdown by business unit
+- **Service Cost Attribution** - Breakdown by business unit (chargeback)
+- **Embedding vs Completion** - Token type split analysis
+- **Token Efficiency Analysis** - Detect wasteful prompts (high input, low output)
+- **Cost Trend Charts** - Timeseries visualization by provider
 
 ### 🛡️ Governance - Compliance & Risk
 - **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
@@ -251,11 +254,35 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.3.0 | © 2026*
+*Version 2.4.0 | © 2026*
 
 ---
 
 ## 📋 Changelog
+
+### v2.4.0 (January 2026)
+- 🆕 **Enhanced Home Dashboard**: 
+  - 8 trend charts organized in 2x2 CSS Grid sections
+  - Token Usage, Cost, Request Volume, Provider Distribution
+  - Error Rate, P95 Latency, Token Efficiency, Model Usage trends
+  - Section headers for "Usage & Cost Trends" and "Performance & Quality"
+- 🆕 **Improved FinOps Dashboard**:
+  - Hero card layout with Total Spend as primary metric (2x width)
+  - Color-coded budget progress indicator (green/orange/red)
+  - Section headers for logical grouping (Budget Overview, Cost Trends, Analysis, Optimization)
+  - Embedding vs Completion split visualization
+  - Cost by Service (chargeback) table
+  - Token Efficiency Analysis with waste detection
+- 🆕 **Contextual Tooltips**: Help icons (ℹ️) on all cards and sections explaining:
+  - How metrics are calculated
+  - What values mean
+  - Actionable guidance
+- ✨ **Better Layout Organization**:
+  - CSS Grid for consistent 2-column layouts
+  - Section dividers with icons and uppercase headers
+  - Improved card sizing and visual hierarchy
+- 🐛 **DonutChart Fix**: Replaced problematic DonutChart with ProgressBar-based visualization
+- 🐛 **DQL String Handling**: Fixed number parsing from DQL (values returned as strings)
 
 ### v2.3.0 (January 2026)
 - 🆕 **Prompt Governance Page**: Dedicated page for prompt security analysis

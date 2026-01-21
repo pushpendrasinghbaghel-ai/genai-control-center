@@ -10,6 +10,7 @@ import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, HeartIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -71,8 +72,9 @@ const MetricCard: React.FC<{
   value: string | number; 
   label: string; 
   icon: React.ReactNode; 
-  color?: string 
-}> = ({ value, label, icon, color }) => (
+  color?: string;
+  tooltip?: string;
+}> = ({ value, label, icon, color, tooltip }) => (
   <Flex 
     alignItems="center" 
     gap={8} 
@@ -86,7 +88,14 @@ const MetricCard: React.FC<{
     <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
     <div>
       <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
-      <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+      <Flex alignItems="center" gap={4}>
+        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        {tooltip && (
+          <Tooltip text={tooltip}>
+            <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        )}
+      </Flex>
     </div>
   </Flex>
 );
@@ -374,10 +383,30 @@ export const HealthDashboard: React.FC = () => {
         </Flex>
 
         {/* Metrics - Compact - Key aggregates only (avoid duplicating per-row data) */}
-        <MetricCard value={services.length} label="Services" icon={<ServicesIcon style={{ width: 18, height: 18 }} />} />
-        <MetricCard value={formatNumber(healthMetrics.totalTokensToday)} label="Tokens" icon={<BarChartIcon style={{ width: 18, height: 18 }} />} />
-        <MetricCard value={formatCurrency(healthMetrics.totalCostToday)} label="Cost" icon={<MoneyIcon style={{ width: 18, height: 18 }} />} />
-        <MetricCard value={`${healthMetrics.avgLatency.toFixed(0)}ms`} label="Avg Latency" icon={<ClockIcon style={{ width: 18, height: 18 }} />} />
+        <MetricCard 
+          value={services.length} 
+          label="Services" 
+          icon={<ServicesIcon style={{ width: 18, height: 18 }} />} 
+          tooltip="Total number of services using gen_ai.* OpenTelemetry attributes. Each service represents a unique application calling AI APIs."
+        />
+        <MetricCard 
+          value={formatNumber(healthMetrics.totalTokensToday)} 
+          label="Tokens" 
+          icon={<BarChartIcon style={{ width: 18, height: 18 }} />} 
+          tooltip="Sum of all input (prompt) and output (completion) tokens across all services. 1K tokens ≈ 750 words."
+        />
+        <MetricCard 
+          value={formatCurrency(healthMetrics.totalCostToday)} 
+          label="Cost" 
+          icon={<MoneyIcon style={{ width: 18, height: 18 }} />} 
+          tooltip="Estimated cost based on token usage × provider pricing. Uses public rates (varies by provider and model)."
+        />
+        <MetricCard 
+          value={`${healthMetrics.avgLatency.toFixed(0)}ms`} 
+          label="Avg Latency" 
+          icon={<ClockIcon style={{ width: 18, height: 18 }} />} 
+          tooltip="Average response time across all AI requests. Higher latency may indicate model complexity, long prompts, or provider issues."
+        />
       </Flex>
 
       {/* Service List - Table Style */}
@@ -395,11 +424,36 @@ export const HealthDashboard: React.FC = () => {
               Service
             </Text>
             <Flex style={{ flex: 2 }} gap={20}>
-              <Text style={{ textAlign: 'right', minWidth: 70, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</Text>
-              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</Text>
-              <Text style={{ textAlign: 'right', minWidth: 60, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Cost</Text>
-              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow %</Text>
-              <Text style={{ textAlign: 'right', minWidth: 50, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Low Out %</Text>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 70 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</Text>
+                <Tooltip text="Total input + output tokens consumed by this service">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Latency</Text>
+                <Tooltip text="Average response time for AI requests from this service">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 60 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Cost</Text>
+                <Tooltip text="Estimated cost based on tokens × provider pricing">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow %</Text>
+                <Tooltip text="Percentage of requests taking >3 seconds. High % indicates performance issues">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Low Out %</Text>
+                <Tooltip text="Percentage of requests with output tokens <10% of input. May indicate prompt waste">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
             </Flex>
             <div style={{ width: 90 }} />
           </Flex>

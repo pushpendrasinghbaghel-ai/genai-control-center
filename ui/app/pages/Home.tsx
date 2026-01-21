@@ -7,6 +7,7 @@ import { Button } from "@dynatrace/strato-components/buttons";
 import { TitleBar } from "@dynatrace/strato-components-preview/layouts";
 import { TimeframeSelector } from "@dynatrace/strato-components-preview/filters";
 import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components-preview/charts";
+import { Tooltip } from "@dynatrace/strato-components-preview/overlays";
 import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
 import type { Timeframe } from "@dynatrace/strato-components-preview/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
@@ -22,9 +23,10 @@ import {
   ClockIcon,
   HostsIcon,
   ServicesIcon,
-  HomeIcon
+  HomeIcon,
+  HelpIcon
 } from "@dynatrace/strato-icons";
-import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider } from "../hooks";
+import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
 
 // Dynatrace Status Color Tokens (following Status and Health guidelines)
@@ -162,6 +164,10 @@ export const Home = () => {
   // Real DQL timeseries data
   const { data: trendData, loading: trendLoading } = useAIServicesTrend(timeframe);
   const { data: providerData, loading: providerLoading } = useTokensByProvider(timeframe);
+  const { data: errorTrendData, loading: errorTrendLoading } = useErrorRateTrendByModel(timeframe);
+  const { data: latencyTrendData, loading: latencyTrendLoading } = useLatencyTrendByProvider(timeframe);
+  const { data: efficiencyTrendData, loading: efficiencyTrendLoading } = useTokenEfficiencyByProvider(timeframe);
+  const { data: modelUsageData, loading: modelUsageLoading } = useModelUsageTrend(timeframe);
 
   // Calculate health color using Strato tokens
   const healthColor = healthMetrics?.overallHealth === 'healthy' 
@@ -193,6 +199,38 @@ export const Home = () => {
     }
     return [];
   }, [trendData]);
+
+  // Error rate trend data for line chart
+  const errorRateTimeseriesData = useMemo((): Timeseries[] => {
+    if (errorTrendData && errorTrendData.length > 0 && errorTrendData[0].datapoints.length > 1) {
+      return errorTrendData as Timeseries[];
+    }
+    return [];
+  }, [errorTrendData]);
+
+  // Latency P95 trend data
+  const latencyTimeseriesData = useMemo((): Timeseries[] => {
+    if (latencyTrendData && latencyTrendData.length > 0 && latencyTrendData[0].datapoints.length > 1) {
+      return latencyTrendData as Timeseries[];
+    }
+    return [];
+  }, [latencyTrendData]);
+
+  // Token efficiency ratio trend data
+  const efficiencyTimeseriesData = useMemo((): Timeseries[] => {
+    if (efficiencyTrendData && efficiencyTrendData.length > 0 && efficiencyTrendData[0].datapoints.length > 1) {
+      return efficiencyTrendData as Timeseries[];
+    }
+    return [];
+  }, [efficiencyTrendData]);
+
+  // Model usage trend data
+  const modelUsageTimeseriesData = useMemo((): Timeseries[] => {
+    if (modelUsageData && modelUsageData.length > 0 && modelUsageData[0].datapoints.length > 1) {
+      return modelUsageData as Timeseries[];
+    }
+    return [];
+  }, [modelUsageData]);
 
   // DonutChart data for token distribution by provider
   const donutChartSlices = useMemo(() => {
@@ -296,16 +334,32 @@ export const Home = () => {
           )}
       </Flex>
 
-      {/* Trend Charts - 2x2 grid with real DQL data */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Usage & Cost Trends */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
       {healthMetrics && (
-        <Flex gap={16} flexWrap="wrap">
-          {/* Token Trend - Real DQL Timeseries */}
-          <Surface padding={16} style={{ borderRadius: 8, flex: '1 1 45%', minWidth: 300 }}>
+        <>
+          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+            <BarChartIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Usage & Cost Trends</span>
+          </Flex>
+
+          {/* Usage & Cost Grid - 2x2 */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gap: 16,
+          }}>
+            {/* Token Trend - Real DQL Timeseries */}
+            <Surface padding={16} style={{ borderRadius: 8 }}>
             <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={8}>
                   <BarChartIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} aria-hidden="true" />
                   <span style={{ fontSize: 12, fontWeight: 600 }}>Token Usage Trend</span>
+                  <Tooltip text="Total tokens (input + output) consumed over time by provider. Each color = different provider. Spikes indicate high usage periods. 1K tokens ≈ 750 words.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
                 </Flex>
                 <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</span>
               </Flex>
@@ -333,12 +387,15 @@ export const Home = () => {
           </Surface>
           
           {/* Cost Trend - Derived from Token Data */}
-          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+          <Surface padding={16} style={{ borderRadius: 8 }}>
             <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <MoneyIcon style={{ width: 14, height: 14, color: CHART_COLORS.warning }} />
                   <span style={{ fontSize: 12, fontWeight: 600 }}>Cost Trend</span>
+                  <Tooltip text="Estimated costs based on token usage × provider pricing. Uses public rates (OpenAI $0.50-$15/MTok). Watch for unexpected spikes indicating cost anomalies.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
                 </Flex>
                 <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.warning }}>{formatCurrency(chartTotals.cost)}</span>
               </Flex>
@@ -366,12 +423,15 @@ export const Home = () => {
           </Surface>
 
           {/* Request Volume - Real DQL Timeseries */}
-          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+          <Surface padding={16} style={{ borderRadius: 8 }}>
             <Flex flexDirection="column" gap={8}>
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <ServicesIcon style={{ width: 14, height: 14, color: CHART_COLORS.secondary }} />
                   <span style={{ fontSize: 12, fontWeight: 600 }}>Request Volume</span>
+                  <Tooltip text="Total number of AI API calls (chat completions, embeddings, etc.) over time. Higher volume = more active usage. Each request consumes tokens and incurs cost.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
                 </Flex>
                 <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.secondary }}>
                   {formatNumber(chartTotals.requests)}
@@ -401,11 +461,14 @@ export const Home = () => {
           </Surface>
 
           {/* Token Distribution by Provider - DonutChart */}
-          <Surface padding={12} style={{ borderRadius: 6, flex: '1 1 45%', minWidth: 300 }}>
+          <Surface padding={16} style={{ borderRadius: 8 }}>
             <Flex flexDirection="column" gap={8}>
               <Flex alignItems="center" gap={6}>
                 <AiIcon style={{ width: 14, height: 14, color: CHART_COLORS.tertiary }} />
                 <span style={{ fontSize: 12, fontWeight: 600 }}>Tokens by Provider</span>
+                <Tooltip text="Distribution of token consumption across AI providers. High concentration in one provider = vendor lock-in risk. Consider multi-provider strategy for resilience.">
+                  <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
               </Flex>
               {providerLoading ? (
                 <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
@@ -444,7 +507,183 @@ export const Home = () => {
               )}
             </Flex>
           </Surface>
-        </Flex>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════════════════ */}
+          {/* SECTION: Performance & Quality */}
+          {/* ══════════════════════════════════════════════════════════════════════════════ */}
+          <Flex alignItems="center" gap={8} style={{ marginTop: 16 }}>
+            <ClockIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Performance & Quality</span>
+          </Flex>
+
+          {/* Performance Grid - 2x2 */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gap: 16,
+          }}>
+            {/* Error Rate Trend by Provider - Line Chart */}
+            <Surface padding={16} style={{ borderRadius: 8 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Flex alignItems="center" gap={6}>
+                  <WarningIcon style={{ width: 14, height: 14, color: CHART_COLORS.critical }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Error Rate by Provider (%)</span>
+                  <Tooltip text="Percentage of failed AI requests per provider. Errors include: rate limits (429), auth failures (401), model overload (503). Target: <1% error rate.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {errorRateTimeseriesData.length > 0 && (
+                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    {errorRateTimeseriesData.length} provider{errorRateTimeseriesData.length > 1 ? 's' : ''} with errors
+                  </span>
+                )}
+              </Flex>
+              {errorTrendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : errorRateTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={errorRateTimeseriesData}
+                  variant="line"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <WarningIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No errors in timeframe 🎉</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+
+          {/* Latency P95 Trend by Provider - Line Chart */}
+          <Surface padding={16} style={{ borderRadius: 8 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Flex alignItems="center" gap={6}>
+                  <ClockIcon style={{ width: 14, height: 14, color: CHART_COLORS.secondary }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>P95 Latency by Provider (ms)</span>
+                  <Tooltip text="95th percentile response time. P95 means 95% of requests complete faster than this. Higher values = slower responses. Compare providers to identify performance differences.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {latencyTimeseriesData.length > 0 && (
+                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    {latencyTimeseriesData.length} provider{latencyTimeseriesData.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </Flex>
+              {latencyTrendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : latencyTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={latencyTimeseriesData}
+                  variant="line"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <ClockIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No latency data available</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+
+          {/* Token Efficiency Trend by Provider - Line Chart */}
+          <Surface padding={16} style={{ borderRadius: 8 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Flex alignItems="center" gap={6}>
+                  <ServiceLevelObjectivesIcon style={{ width: 14, height: 14, color: CHART_COLORS.success }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Token Efficiency by Provider</span>
+                  <Tooltip text="Output/Input token ratio. Higher = more output per input (efficient). Values <0.5 suggest large prompts with small responses (potential waste). Optimize by reducing context size.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {efficiencyTimeseriesData.length > 0 && (
+                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    output/input ratio
+                  </span>
+                )}
+              </Flex>
+              {efficiencyTrendLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : efficiencyTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={efficiencyTimeseriesData}
+                  variant="line"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <ServiceLevelObjectivesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No token data available</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+
+          {/* Model Usage Trend - Area Chart */}
+          <Surface padding={16} style={{ borderRadius: 8 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex justifyContent="space-between" alignItems="center">
+                <Flex alignItems="center" gap={6}>
+                  <AiIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} />
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Model Usage Trend</span>
+                  <Tooltip text="Request count by model over time. Shows which models are most used. Use this to identify model popularity, plan capacity, and detect unexpected model switches.">
+                    <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {modelUsageTimeseriesData.length > 0 && (
+                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    Top {modelUsageTimeseriesData.length} models
+                  </span>
+                )}
+              </Flex>
+              {modelUsageLoading ? (
+                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                  <ProgressCircle size="small" />
+                </Flex>
+              ) : modelUsageTimeseriesData.length > 0 ? (
+                <TimeseriesChart
+                  data={modelUsageTimeseriesData}
+                  variant="area"
+                  height={120}
+                  colorPalette={CATEGORICAL_PALETTE}
+                >
+                  <TimeseriesChart.Tooltip variant="shared" />
+                  <TimeseriesChart.Legend hidden />
+                </TimeseriesChart>
+              ) : (
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No model usage data available</span>
+                </Flex>
+              )}
+            </Flex>
+          </Surface>
+          </div>
+        </>
       )}
 
       {/* Core Capabilities - On-demand documentation panel */}
@@ -489,16 +728,16 @@ export const Home = () => {
               />
               <PillarCard
                 icon={<ServiceLevelObjectivesIcon style={{ width: 20, height: 20, color: CHART_COLORS.tertiary }} />}
-                title="AI Quality"
-                description="Track response quality metrics. Use Davis AI to forecast trends and detect anomalies before they impact users."
-                path="/quality"
+                title="Response Analytics"
+                description="Analyze token efficiency, model performance rankings, and output consistency. Identify optimization opportunities."
+                path="/analytics"
                 color={CHART_COLORS.tertiary}
               />
               <PillarCard
                 icon={<WarningIcon style={{ width: 20, height: 20, color: CHART_COLORS.critical }} />}
-                title="Real-Time Alerts"
+                title="Real-Time Problems"
                 description="View active Dynatrace problems filtered to GenAI context. Get instant visibility into issues affecting AI services."
-                path="/alerts"
+                path="/problems"
                 color={CHART_COLORS.critical}
               />
             </Flex>

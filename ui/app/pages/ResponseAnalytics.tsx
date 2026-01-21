@@ -2,14 +2,15 @@
 // For ML Engineers & Developers: Token efficiency, output consistency, model comparison
 // Based on real observable metrics from OpenTelemetry gen_ai.* spans
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { Select, SelectOption } from '@dynatrace/strato-components-preview/forms';
+import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
+import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 
@@ -257,14 +258,34 @@ function ServiceRow({ metric }: ServiceRowProps) {
 // Main Response Analytics Page
 // ============================================
 
+/** Create a default Timeframe object (last 24 hours) */
+const createDefaultTimeframe = (): Timeframe => ({
+  from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
+  to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
+});
+
+/** Convert Timeframe to simple string for hook */
+const getTimeframeString = (timeframe: Timeframe): string => {
+  const from = timeframe.from?.value || 'now()-24h';
+  if (from === 'now()-1h') return '1h';
+  if (from === 'now()-6h') return '6h';
+  if (from === 'now()-12h') return '12h';
+  if (from === 'now()-24h') return '24h';
+  if (from === 'now()-7d') return '7d';
+  if (from === 'now()-30d') return '30d';
+  return '24h';
+};
+
 export function ResponseAnalytics() {
   const { metrics, modelComparisons, loading, error, summary, analyzeResponses } = useResponseAnalytics();
-  const [timeframe, setTimeframe] = useState('24h');
+  const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
   const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient'>('overview');
 
+  const timeframeString = useMemo(() => getTimeframeString(timeframe), [timeframe]);
+
   useEffect(() => {
-    analyzeResponses(timeframe);
-  }, [timeframe, analyzeResponses]);
+    analyzeResponses(timeframeString);
+  }, [timeframeString, analyzeResponses]);
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -275,18 +296,13 @@ export function ResponseAnalytics() {
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
-            <Select 
-              value={timeframe} 
-              onChange={(val) => val && setTimeframe(val)}
-              aria-label="Select timeframe"
-            >
-              <SelectOption value="1h">Last 1 hour</SelectOption>
-              <SelectOption value="6h">Last 6 hours</SelectOption>
-              <SelectOption value="24h">Last 24 hours</SelectOption>
-              <SelectOption value="7d">Last 7 days</SelectOption>
-            </Select>
+            <TimeframeSelector
+              value={timeframe}
+              onChange={(tf) => tf && setTimeframe(tf)}
+              aria-label="Select time range"
+            />
             <Button 
-              onClick={() => analyzeResponses(timeframe)}
+              onClick={() => analyzeResponses(timeframeString)}
               aria-label="Refresh analytics"
             >
               <RefreshIcon /> Refresh

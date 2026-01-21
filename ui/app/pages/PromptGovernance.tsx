@@ -16,14 +16,15 @@ import {
   HelpIcon, 
   InformationIcon, 
   ExternalLinkIcon,
-  ResearchIcon
+  ResearchIcon,
+  CriticalIcon
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 
 import { FilterBar } from '../components';
 import { useGlobalFilters } from '../context';
-import { usePromptAnalysis, AnalyzedPrompt, PromptFlag, QueryFilters } from '../hooks/useDQLQueries';
+import { usePromptAnalysis, useGenAIErrors, AnalyzedPrompt, GenAIError, PromptFlag, QueryFilters } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, DavisPromptScore } from '../hooks/useDavisAI';
 import { useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
 
@@ -169,7 +170,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
           <Surface style={{ 
             padding: '16px', 
             backgroundColor: 'rgba(0,0,0,0.03)',
-            maxHeight: '200px',
+            maxHeight: '300px',
             overflow: 'auto'
           }}>
             <pre style={{ 
@@ -179,13 +180,13 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
               fontFamily: 'monospace',
               fontSize: '13px'
             }}>
-              {prompt.promptPreview}
+              {prompt.fullPrompt || prompt.promptPreview}
             </pre>
           </Surface>
         </Flex>
 
         {/* Full Response Content (if available) */}
-        {prompt.completionPreview && (
+        {(prompt.fullCompletion || prompt.completionPreview) && (
           <Flex flexDirection="column" gap={8}>
             <Flex alignItems="center" gap={8}>
               <Text textStyle="base-emphasized">Model Response</Text>
@@ -204,7 +205,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
             <Surface style={{ 
               padding: '16px', 
               backgroundColor: hasHallucination ? 'rgba(255,165,0,0.1)' : 'rgba(0,0,0,0.03)',
-              maxHeight: '200px',
+              maxHeight: '300px',
               overflow: 'auto',
               border: hasHallucination ? '2px solid orange' : 'none'
             }}>
@@ -215,7 +216,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                 fontFamily: 'monospace',
                 fontSize: '13px'
               }}>
-                {prompt.completionPreview}
+                {prompt.fullCompletion || prompt.completionPreview}
               </pre>
             </Surface>
           </Flex>
@@ -436,6 +437,9 @@ export function PromptGovernance() {
   // Fetch prompts with applied filters
   const { data: promptsRaw, loading: promptsLoading, error: promptsError, refetch: refetchPrompts } = usePromptAnalysis(queryFilters);
   const prompts = promptsRaw || [];
+  
+  // Fetch GenAI errors separately (these are error spans that may not have prompt content)
+  const { data: genaiErrors, loading: errorsLoading, refetch: refetchErrors } = useGenAIErrors(queryFilters);
 
   // Davis AI scoring
   const { 
@@ -449,6 +453,7 @@ export function PromptGovernance() {
   // Local UI state
   const [governanceFilter, setGovernanceFilter] = useState<'all' | 'pii' | 'injection' | 'expensive' | 'repetitive' | 'hallucination' | 'error'>('all');
   const [detailPrompt, setDetailPrompt] = useState<AnalyzedPrompt | null>(null);
+  const [detailError, setDetailError] = useState<GenAIError | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Create Davis score map for quick lookup
@@ -462,9 +467,22 @@ export function PromptGovernance() {
   const filteredPrompts = useMemo(() => {
     let filtered = prompts;
     
-    // Filter by flag type
-    if (governanceFilter !== 'all') {
+    // Filter by flag type (except 'error' which uses separate data)
+    if (governanceFilter !== 'all' && governanceFilter !== 'error') {
       filtered = filtered.filter(p => p.flags.some(f => f.type === governanceFilter));
+    }
+    
+    // For hallucination filter, deduplicate by prompt content to show only unique prompts
+    if (governanceFilter === 'hallucination') {
+      const seenPrompts = new Set<string>();
+      filtered = filtered.filter(p => {
+        const promptKey = p.promptPreview.trim().toLowerCase();
+        if (seenPrompts.has(promptKey)) {
+          return false;
+        }
+        seenPrompts.add(promptKey);
+        return true;
+      });
     }
     
     // Text search
@@ -480,19 +498,40 @@ export function PromptGovernance() {
     
     return filtered;
   }, [prompts, governanceFilter, searchQuery]);
+  
+  // Filter errors by search query
+  const filteredErrors = useMemo(() => {
+    if (!genaiErrors) return [];
+    if (!searchQuery.trim()) return genaiErrors;
+    
+    const query = searchQuery.toLowerCase();
+    return genaiErrors.filter(e => 
+      e.serviceName.toLowerCase().includes(query) ||
+      e.model.toLowerCase().includes(query) ||
+      e.provider.toLowerCase().includes(query) ||
+      e.spanName.toLowerCase().includes(query) ||
+      e.traceId.toLowerCase().includes(query)
+    );
+  }, [genaiErrors, searchQuery]);
 
-  // Calculate governance stats
-  const governanceStats = useMemo(() => ({
-    total: prompts.length,
-    withFlags: prompts.filter(p => p.flags.length > 0).length,
-    pii: prompts.filter(p => p.flags.some(f => f.type === 'pii')).length,
-    injection: prompts.filter(p => p.flags.some(f => f.type === 'injection')).length,
-    expensive: prompts.filter(p => p.flags.some(f => f.type === 'expensive')).length,
-    repetitive: prompts.filter(p => p.flags.some(f => f.type === 'repetitive')).length,
-    hallucination: prompts.filter(p => p.flags.some(f => f.type === 'hallucination')).length,
-    error: prompts.filter(p => p.flags.some(f => f.type === 'error')).length,
-    critical: prompts.filter(p => p.flags.some(f => f.severity === 'critical')).length,
-  }), [prompts]);
+  // Calculate governance stats - use actual error count from errors query
+  // For hallucination, count unique prompts only
+  const governanceStats = useMemo(() => {
+    const hallucinationPrompts = prompts.filter(p => p.flags.some(f => f.type === 'hallucination'));
+    const uniqueHallucinationPrompts = new Set(hallucinationPrompts.map(p => p.promptPreview.trim().toLowerCase()));
+    
+    return {
+      total: prompts.length,
+      withFlags: prompts.filter(p => p.flags.length > 0).length,
+      pii: prompts.filter(p => p.flags.some(f => f.type === 'pii')).length,
+      injection: prompts.filter(p => p.flags.some(f => f.type === 'injection')).length,
+      expensive: prompts.filter(p => p.flags.some(f => f.type === 'expensive')).length,
+      repetitive: prompts.filter(p => p.flags.some(f => f.type === 'repetitive')).length,
+      hallucination: uniqueHallucinationPrompts.size,  // Count unique prompts only
+      error: genaiErrors?.length || 0,  // Use actual error spans count
+      critical: prompts.filter(p => p.flags.some(f => f.severity === 'critical')).length,
+    };
+  }, [prompts, genaiErrors]);
 
   // Run Davis AI scoring
   const runDavisScoring = async () => {
@@ -513,6 +552,7 @@ export function PromptGovernance() {
 
   const handleRefresh = useCallback(() => {
     refetchPrompts();
+    refetchErrors();
   }, [refetchPrompts]);
 
   return (
@@ -692,53 +732,145 @@ export function PromptGovernance() {
         </Flex>
       </Surface>
 
-      {/* Prompts List */}
+      {/* Prompts List or Errors List */}
       <Surface style={{ padding: '20px' }}>
         <Flex flexDirection="column" gap={16}>
-          <Flex alignItems="center" gap={8}>
-            <LockIcon />
-            <Heading level={4}>Prompt Analysis</Heading>
-            <Text textStyle="small" style={{ opacity: 0.7 }}>
-              {filteredPrompts.length} prompts {governanceFilter !== 'all' ? `with ${governanceFilter} flags` : ''}
-            </Text>
-          </Flex>
+          {governanceFilter === 'error' ? (
+            /* Error Spans Section */
+            <>
+              <Flex alignItems="center" gap={8}>
+                <CriticalIcon style={{ color: STATUS_COLORS.poor }} />
+                <Heading level={4}>GenAI Error Spans</Heading>
+                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                  {filteredErrors.length} error spans
+                </Text>
+              </Flex>
 
-          {promptsLoading && (
-            <Flex justifyContent="center" padding={32}>
-              <ProgressCircle />
-            </Flex>
-          )}
+              {errorsLoading && (
+                <Flex justifyContent="center" padding={32}>
+                  <ProgressCircle />
+                </Flex>
+              )}
 
-          {promptsError && (
-            <Text style={{ color: STATUS_COLORS.poor }}>
-              Error loading prompts: {promptsError.message}
-            </Text>
-          )}
+              {!errorsLoading && filteredErrors.length === 0 && (
+                <Flex alignItems="center" gap={8}>
+                  <CheckmarkIcon style={{ color: STATUS_COLORS.excellent }} />
+                  <Text style={{ color: STATUS_COLORS.excellent }}>
+                    No GenAI errors found in this timeframe - great!
+                  </Text>
+                </Flex>
+              )}
 
-          {!promptsLoading && filteredPrompts.length === 0 && (
-            <Flex alignItems="center" gap={8}>
-              <CheckmarkIcon style={{ color: STATUS_COLORS.excellent }} />
-              <Text style={{ color: STATUS_COLORS.excellent }}>
-                {governanceFilter === 'all' 
-                  ? 'No prompts found. Ensure gen_ai.prompt.*.content attributes are being captured.'
-                  : `No prompts with ${governanceFilter} flags - looking good!`}
-              </Text>
-            </Flex>
-          )}
+              {filteredErrors.slice(0, 100).map(error => (
+                <Surface key={error.id} style={{ padding: '16px', borderLeft: `3px solid ${STATUS_COLORS.poor}` }}>
+                  <Flex flexDirection="column" gap={12}>
+                    {/* Header */}
+                    <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={8}>
+                      <Flex flexDirection="column" gap={4}>
+                        <Flex alignItems="center" gap={8}>
+                          <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.poor }} />
+                          <Text textStyle="base-emphasized">{error.spanName}</Text>
+                        </Flex>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>
+                          {error.serviceName} • {error.provider || 'Unknown Provider'} • {error.model || 'Unknown Model'}
+                        </Text>
+                      </Flex>
+                      <Button onClick={() => openTraceInDistributedTraces(error.traceId, error.timestamp)}>
+                        <ExternalLinkIcon /> View Trace
+                      </Button>
+                    </Flex>
+                    
+                    {/* Error Details */}
+                    <Flex gap={16} flexWrap="wrap">
+                      <Flex flexDirection="column" gap={2}>
+                        <Text textStyle="small" style={{ opacity: 0.5 }}>Error Type</Text>
+                        <Text textStyle="small-emphasized">{error.errorType || 'N/A'}</Text>
+                      </Flex>
+                      <Flex flexDirection="column" gap={2}>
+                        <Text textStyle="small" style={{ opacity: 0.5 }}>Latency</Text>
+                        <Text textStyle="small-emphasized">{error.latencyMs.toFixed(0)}ms</Text>
+                      </Flex>
+                      <Flex flexDirection="column" gap={2}>
+                        <Text textStyle="small" style={{ opacity: 0.5 }}>Trace ID</Text>
+                        <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{error.traceId}</Text>
+                      </Flex>
+                    </Flex>
+                    
+                    {/* Prompt Content if available */}
+                    {error.promptContent && (
+                      <Surface style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.03)' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text textStyle="small" style={{ opacity: 0.5 }}>Prompt Content</Text>
+                          <pre style={{ margin: 0, fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {error.promptContent.substring(0, 300)}{error.promptContent.length > 300 ? '...' : ''}
+                          </pre>
+                        </Flex>
+                      </Surface>
+                    )}
+                    
+                    {/* Timestamp */}
+                    <Text textStyle="small" style={{ opacity: 0.5, fontSize: '10px' }}>
+                      {new Date(error.timestamp).toLocaleString()}
+                    </Text>
+                  </Flex>
+                </Surface>
+              ))}
 
-          {filteredPrompts.slice(0, 50).map(prompt => (
-            <PromptGovernanceCard 
-              key={prompt.id} 
-              prompt={prompt}
-              davisScore={davisScoreMap.get(prompt.id)}
-              onViewDetail={setDetailPrompt}
-            />
-          ))}
+              {filteredErrors.length > 100 && (
+                <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
+                  Showing 100 of {filteredErrors.length} errors. Use filters to narrow results.
+                </Text>
+              )}
+            </>
+          ) : (
+            /* Prompts Section */
+            <>
+              <Flex alignItems="center" gap={8}>
+                <LockIcon />
+                <Heading level={4}>Prompt Analysis</Heading>
+                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                  {filteredPrompts.length} prompts {governanceFilter !== 'all' ? `with ${governanceFilter} flags` : ''}
+                </Text>
+              </Flex>
 
-          {filteredPrompts.length > 50 && (
-            <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
-              Showing first 50 of {filteredPrompts.length} prompts
-            </Text>
+              {promptsLoading && (
+                <Flex justifyContent="center" padding={32}>
+                  <ProgressCircle />
+                </Flex>
+              )}
+
+              {promptsError && (
+                <Text style={{ color: STATUS_COLORS.poor }}>
+                  Error loading prompts: {promptsError.message}
+                </Text>
+              )}
+
+              {!promptsLoading && filteredPrompts.length === 0 && (
+                <Flex alignItems="center" gap={8}>
+                  <CheckmarkIcon style={{ color: STATUS_COLORS.excellent }} />
+                  <Text style={{ color: STATUS_COLORS.excellent }}>
+                    {governanceFilter === 'all' 
+                      ? 'No prompts found. Ensure gen_ai.prompt.*.content attributes are being captured.'
+                      : `No prompts with ${governanceFilter} flags - looking good!`}
+                  </Text>
+                </Flex>
+              )}
+
+              {filteredPrompts.slice(0, 50).map(prompt => (
+                <PromptGovernanceCard 
+                  key={prompt.id} 
+                  prompt={prompt}
+                  davisScore={davisScoreMap.get(prompt.id)}
+                  onViewDetail={setDetailPrompt}
+                />
+              ))}
+
+              {filteredPrompts.length > 50 && (
+                <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
+                  Showing first 50 of {filteredPrompts.length} prompts
+                </Text>
+              )}
+            </>
           )}
         </Flex>
       </Surface>

@@ -15,6 +15,7 @@ import {
   DISTINCT_PROVIDERS_QUERY,
   DISTINCT_MODELS_QUERY,
   PROMPT_ANALYSIS_QUERY,
+  GENAI_ERRORS_QUERY,
   AUDIT_TRAIL_QUERY,
   QueryFilters,
   buildTimeRangeClauseFromTimeframe
@@ -242,18 +243,25 @@ export function useProviderComparison(filters?: QueryFilters) {
                        record['gen_ai.provider.name'] || 
                        record['gen_ai.request.model'] || 
                        'Unknown';
+      // Extract actual input/output tokens from query results
+      const inputTokens = record.input_tokens || 0;
+      const outputTokens = record.output_tokens || 0;
+      const totalTokens = record.total_tokens || (inputTokens + outputTokens);
+      
       return {
         provider: provider,
         models: record.models || [],
         totalRequests: record.total_requests || 0,
         avgLatency: (record.avg_latency || 0) / 1_000_000,
         errorRate: record.error_rate || 0,
-        totalTokens: record.total_tokens || 0,
+        totalTokens: totalTokens,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
         successRate: record.success_rate || 0,
         estimatedCost: estimateCost(
           provider,
-          record.input_tokens || record.total_tokens * 0.3,
-          record.output_tokens || record.total_tokens * 0.7
+          inputTokens || totalTokens * 0.3,
+          outputTokens || totalTokens * 0.7
         ),
         // GenAI Quality Metrics
         slowRequestRate: record.slow_request_rate || 0,
@@ -473,8 +481,10 @@ export interface AnalyzedPrompt {
   serviceName: string;
   model: string;
   provider: string;
-  promptPreview: string;
-  completionPreview?: string;   // Model's response - key for hallucination detection
+  promptPreview: string;        // Truncated preview for list display
+  fullPrompt?: string;          // Full prompt content for detail view
+  completionPreview?: string;   // Model's response preview
+  fullCompletion?: string;      // Full model response for detail view
   inputTokens: number;          // Total tokens for all requests with this pattern
   outputTokens: number;         // Total tokens for all requests with this pattern
   totalCost: number;            // Total cost for all requests with this pattern
@@ -823,18 +833,22 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
                                  modelName.toLowerCase().includes('embed') ||
                                  modelName.toLowerCase().includes('ada-002');
         
-        // Prompt preview from grouped query
+        // Prompt preview from grouped query (truncated for list display)
         const promptPreview = record['prompt_preview'] || '[No prompt content]';
+        // Full prompt for detail view (sampled from last matching span)
+        const fullPrompt = record['sample_full_prompt'] || promptPreview;
+        // Response previews
         const completionPreview = record['sample_response'] || '';
+        const fullCompletion = record['sample_full_response'] || completionPreview;
         const latencyMs = Number(record['avg_latency'] || 0) / 1_000_000;
         
         // Calculate cost (for all requests in this group)
         const cost = estimateCost(provider, inputTokens, outputTokens);
         
-        // Build context for flag detection
+        // Build context for flag detection - use full content for better analysis
         const context: PromptContext = {
           systemPrompt: '',
-          completion: completionPreview,
+          completion: fullCompletion || completionPreview,
           hasToolUsage: false,
           hasAvailableTools: false,
           finishReason: ''
@@ -846,12 +860,12 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
         
         if (!isEmbeddingModel) {
           // Analyze prompt for issues (PII, injection, etc.)
+          // Use FULL prompt content for better flag detection (PII, injection patterns)
           // Use TOTAL cost/tokens for expensive detection (grouped patterns can have high aggregated cost)
-          // Other flags (PII, injection) use per-request analysis since they're content-based
-          promptFlags = analyzePromptForFlags(promptPreview, totalTokens, cost, context);
+          promptFlags = analyzePromptForFlags(fullPrompt || promptPreview, totalTokens, cost, context);
           
-          // Analyze completion for hallucination
-          hallucinationFlags = analyzeCompletionForHallucination(completionPreview);
+          // Analyze completion for hallucination - use full completion for better analysis
+          hallucinationFlags = analyzeCompletionForHallucination(fullCompletion || completionPreview);
         }
         
         // Merge all flags
@@ -890,7 +904,9 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
           model: modelName,
           provider: provider,
           promptPreview,
+          fullPrompt,             // Full prompt content for detail view
           completionPreview,
+          fullCompletion,         // Full response content for detail view
           inputTokens,           // Total for all requests
           outputTokens,          // Total for all requests
           totalCost: cost,       // Total for all requests
@@ -906,6 +922,128 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
 
       setData(prompts);
     } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * GenAI Error interface - represents error spans from GenAI operations
+ */
+export interface GenAIError {
+  id: string;
+  traceId: string;
+  spanId: string;
+  spanName: string;
+  timestamp: string;
+  provider: string;
+  model: string;
+  serviceName: string;
+  serviceEntityId: string;
+  latencyMs: number;
+  errorType: string;
+  errorMessage: string;
+  statusMessage: string;
+  promptContent?: string;
+  responseContent?: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
+ * Hook for fetching GenAI error spans
+ * These are spans with status_code == "error" that may not have prompt content
+ */
+export function useGenAIErrors(filters?: QueryFilters): UseQueryResult<GenAIError[]> {
+  const query = useMemo(() => GENAI_ERRORS_QUERY(filters), [filters]);
+  const [data, setData] = useState<GenAIError[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('[GCC] Executing GenAI Errors query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      
+      // Fetch entity names for service IDs
+      const serviceEntityIds = [...new Set(records.map((r: any) => r['service']).filter(Boolean))];
+      const entityNamesMap = new Map<string, string>();
+      
+      if (serviceEntityIds.length > 0) {
+        try {
+          const filterConditions = serviceEntityIds.map((id: string) => `id == "${id}"`).join(' OR ');
+          const entityQueryStr = `fetch dt.entity.service | filter ${filterConditions} | fields id, entity.name`;
+          
+          const entityQuery = await queryExecutionClient.queryExecute({
+            body: {
+              query: entityQueryStr,
+              requestTimeoutMilliseconds: 30000,
+              fetchTimeoutSeconds: 30
+            }
+          });
+          
+          (entityQuery.result?.records || []).forEach((rec: any) => {
+            if (rec.id && rec['entity.name']) {
+              entityNamesMap.set(rec.id, rec['entity.name']);
+            }
+          });
+        } catch (e) {
+          console.error('[GCC] Could not fetch entity names for errors:', e);
+        }
+      }
+
+      const errors: GenAIError[] = records
+        .filter((record) => record !== null)
+        .map((record: any, index: number) => {
+          const serviceEntityId = record['service'] || 'Unknown';
+          const serviceName = entityNamesMap.get(serviceEntityId) || serviceEntityId;
+          const modelName = record['model'] || '';
+          const provider = record['provider'] || deriveProviderFromModel(modelName) || 'Unknown';
+          
+          return {
+            id: `error-${index}-${record['span_id'] || Date.now()}`,
+            traceId: record['trace_id'] || '',
+            spanId: record['span_id'] || '',
+            spanName: record['span_name'] || '',
+            timestamp: record['timestamp'] || new Date().toISOString(),
+            provider,
+            model: modelName,
+            serviceName,
+            serviceEntityId,
+            latencyMs: Number(record['latency_ns'] || 0) / 1_000_000,
+            errorType: record['error_type'] || '',
+            errorMessage: record['error_message'] || '',
+            statusMessage: record['status_message'] || '',
+            promptContent: record['prompt_content'] || undefined,
+            responseContent: record['response_content'] || undefined,
+            inputTokens: Number(record['input_tokens'] || 0),
+            outputTokens: Number(record['output_tokens'] || 0),
+          };
+        });
+
+      console.log(`[GCC] Found ${errors.length} GenAI errors`);
+      setData(errors);
+    } catch (err) {
+      console.error('[GCC] Error fetching GenAI errors:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
@@ -1205,4 +1343,703 @@ fetch spans, ${timeClause}
   }, [refetch]);
 
   return { data, loading, error, refetch };
+}
+/**
+ * Hook for Error Rate Trend by Provider (real DQL timeseries data)
+ * Returns error rate percentage over time, grouped by provider
+ * Each provider gets its own line in the chart
+ * Note: Error spans often don't have model info, so we group by provider instead
+ */
+export function useErrorRateTrendByModel(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    // Determine interval based on timeframe
+    const from = timeframe?.from?.value || 'now()-24h';
+    let interval = '1h'; // default for 24h
+    if (from.includes('1h')) interval = '5m';
+    else if (from.includes('6h')) interval = '15m';
+    else if (from.includes('12h')) interval = '30m';
+    else if (from.includes('7d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    // makeTimeseries grouped by provider - calculate error rate as percentage
+    // Error spans often don't have model info, so provider is more reliable
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown"),
+            is_error = (span.status_code == "error" OR isNotNull(error.type))
+| makeTimeseries {
+    total = count(),
+    errors = countIf(is_error)
+  }, by: {provider}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<TimeseriesData[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Error Rate Trend by Provider query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      
+      // Transform makeTimeseries by-provider result to chart-ready format
+      const errorRateSeries: TimeseriesData[] = [];
+      
+      records.forEach((record: any) => {
+        const provider = record.provider || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const totalArray = record.total || [];
+        const errorsArray = record.errors || [];
+        const intervalMs = Number(record.interval) / 1000000; // nanoseconds to ms
+        
+        if (timeframeInfo && totalArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          // Calculate error rate percentage for each interval
+          const errorRateDatapoints: TimeseriesDataPoint[] = totalArray.map((total: number, i: number) => {
+            const errors = errorsArray[i] || 0;
+            const errorRate = total > 0 ? (errors / total) * 100 : 0;
+            return {
+              start: new Date(startTime + i * intervalMs),
+              end: new Date(startTime + (i + 1) * intervalMs),
+              value: errorRate
+            };
+          });
+          
+          // Only include providers that have some errors (to reduce clutter)
+          const hasAnyErrors = errorsArray.some((e: number) => e > 0);
+          if (hasAnyErrors) {
+            errorRateSeries.push({ name: provider, datapoints: errorRateDatapoints, unit: '%' });
+          }
+        }
+      });
+      
+      // Sort by total errors (providers with most errors first)
+      errorRateSeries.sort((a, b) => {
+        const aTotal = a.datapoints.reduce((sum, d) => sum + d.value, 0);
+        const bTotal = b.datapoints.reduce((sum, d) => sum + d.value, 0);
+        return bTotal - aTotal;
+      });
+
+      setData(errorRateSeries.slice(0, 10)); // Limit to top 10 providers
+    } catch (err) {
+      console.error('[GCC] Error Rate Trend query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Latency Trend (P95) by Provider
+ * Returns P95 latency in milliseconds over time, grouped by provider
+ */
+export function useLatencyTrendByProvider(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    const from = timeframe?.from?.value || 'now()-24h';
+    let interval = '1h';
+    if (from.includes('1h')) interval = '5m';
+    else if (from.includes('6h')) interval = '15m';
+    else if (from.includes('12h')) interval = '30m';
+    else if (from.includes('7d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
+| makeTimeseries p95_latency = percentile(duration, 95), by: {provider}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<TimeseriesData[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Latency Trend by Provider query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      const latencySeries: TimeseriesData[] = [];
+      
+      records.forEach((record: any) => {
+        const provider = record.provider || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const latencyArray = record.p95_latency || [];
+        const intervalMs = Number(record.interval) / 1000000;
+        
+        if (timeframeInfo && latencyArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          // Convert nanoseconds to milliseconds
+          const datapoints: TimeseriesDataPoint[] = latencyArray.map((val: number, i: number) => ({
+            start: new Date(startTime + i * intervalMs),
+            end: new Date(startTime + (i + 1) * intervalMs),
+            value: (val || 0) / 1_000_000 // ns to ms
+          }));
+          
+          latencySeries.push({ name: provider, datapoints, unit: 'ms' });
+        }
+      });
+      
+      // Sort by average latency (slowest first)
+      latencySeries.sort((a, b) => {
+        const aAvg = a.datapoints.reduce((sum, d) => sum + d.value, 0) / a.datapoints.length;
+        const bAvg = b.datapoints.reduce((sum, d) => sum + d.value, 0) / b.datapoints.length;
+        return bAvg - aAvg;
+      });
+
+      setData(latencySeries);
+    } catch (err) {
+      console.error('[GCC] Latency Trend query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Token Efficiency Ratio (output/input) by Provider
+ * Returns the ratio of output to input tokens over time
+ * Higher ratio = more output per input token
+ */
+export function useTokenEfficiencyByProvider(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    const from = timeframe?.from?.value || 'now()-24h';
+    let interval = '1h';
+    if (from.includes('1h')) interval = '5m';
+    else if (from.includes('6h')) interval = '15m';
+    else if (from.includes('12h')) interval = '30m';
+    else if (from.includes('7d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown"),
+            input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+            output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| makeTimeseries {
+    total_input = sum(input_tokens),
+    total_output = sum(output_tokens)
+  }, by: {provider}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<TimeseriesData[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Token Efficiency by Provider query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      const efficiencySeries: TimeseriesData[] = [];
+      
+      records.forEach((record: any) => {
+        const provider = record.provider || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const inputArray = record.total_input || [];
+        const outputArray = record.total_output || [];
+        const intervalMs = Number(record.interval) / 1000000;
+        
+        if (timeframeInfo && inputArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          // Calculate efficiency ratio (output/input)
+          const datapoints: TimeseriesDataPoint[] = inputArray.map((input: number, i: number) => {
+            const output = outputArray[i] || 0;
+            const ratio = input > 0 ? output / input : 0;
+            return {
+              start: new Date(startTime + i * intervalMs),
+              end: new Date(startTime + (i + 1) * intervalMs),
+              value: ratio
+            };
+          });
+          
+          // Only include providers with actual token data
+          const hasTokenData = inputArray.some((v: number) => v > 0) || outputArray.some((v: number) => v > 0);
+          if (hasTokenData) {
+            efficiencySeries.push({ name: provider, datapoints, unit: 'ratio' });
+          }
+        }
+      });
+      
+      // Sort by average efficiency (highest first)
+      efficiencySeries.sort((a, b) => {
+        const aAvg = a.datapoints.reduce((sum, d) => sum + d.value, 0) / a.datapoints.length;
+        const bAvg = b.datapoints.reduce((sum, d) => sum + d.value, 0) / b.datapoints.length;
+        return bAvg - aAvg;
+      });
+
+      setData(efficiencySeries);
+    } catch (err) {
+      console.error('[GCC] Token Efficiency query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Model Usage Trend
+ * Returns request count over time, grouped by model
+ * Shows which models are gaining/losing usage
+ */
+export function useModelUsageTrend(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    const from = timeframe?.from?.value || 'now()-24h';
+    let interval = '1h';
+    if (from.includes('1h')) interval = '5m';
+    else if (from.includes('6h')) interval = '15m';
+    else if (from.includes('12h')) interval = '30m';
+    else if (from.includes('7d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd model = coalesce(gen_ai.request.model, gen_ai.response.model, "Unknown")
+| makeTimeseries requests = count(), by: {model}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<TimeseriesData[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Model Usage Trend query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      const usageSeries: TimeseriesData[] = [];
+      
+      records.forEach((record: any) => {
+        const model = record.model || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const requestsArray = record.requests || [];
+        const intervalMs = Number(record.interval) / 1000000;
+        
+        if (timeframeInfo && requestsArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          const datapoints: TimeseriesDataPoint[] = requestsArray.map((val: number, i: number) => ({
+            start: new Date(startTime + i * intervalMs),
+            end: new Date(startTime + (i + 1) * intervalMs),
+            value: val || 0
+          }));
+          
+          usageSeries.push({ name: model, datapoints, unit: 'count' });
+        }
+      });
+      
+      // Sort by total requests (most popular first)
+      usageSeries.sort((a, b) => {
+        const aTotal = a.datapoints.reduce((sum, d) => sum + d.value, 0);
+        const bTotal = b.datapoints.reduce((sum, d) => sum + d.value, 0);
+        return bTotal - aTotal;
+      });
+
+      // Limit to top 8 models to keep chart readable
+      setData(usageSeries.slice(0, 8));
+    } catch (err) {
+      console.error('[GCC] Model Usage Trend query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Cost Trend - timeseries of estimated cost by provider
+ * Used in FinOps dashboard for cost visualization
+ */
+export function useCostTrend(timeframe?: Timeframe) {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
+    const from = timeframe?.from?.value || 'now()-24h';
+    
+    // Determine interval based on timeframe
+    let interval = '1h';
+    if (from.includes('7d') || from.includes('14d')) interval = '4h';
+    else if (from.includes('30d')) interval = '1d';
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| filter isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.output_tokens)
+| fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
+| fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
+| fieldsAdd output_tok = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| makeTimeseries 
+    input_tokens = sum(input_tok),
+    output_tokens = sum(output_tok),
+    requests = count(),
+    by: {provider}, interval: ${interval}
+`;
+  }, [timeframe]);
+  
+  const [data, setData] = useState<TimeseriesData[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[GCC] Executing Cost Trend query');
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60,
+        },
+      });
+
+      const records = response.result?.records || [];
+      const costSeries: TimeseriesData[] = [];
+      
+      records.forEach((record: any) => {
+        const provider = record.provider || 'Unknown';
+        const timeframeInfo = record.timeframe;
+        const inputArray = record.input_tokens || [];
+        const outputArray = record.output_tokens || [];
+        const intervalMs = Number(record.interval) / 1000000;
+        
+        if (timeframeInfo && inputArray.length > 0) {
+          const startTime = new Date(timeframeInfo.start).getTime();
+          
+          // Calculate cost for each interval
+          const datapoints: TimeseriesDataPoint[] = inputArray.map((inputVal: number, i: number) => {
+            const outputVal = outputArray[i] || 0;
+            const cost = estimateCost(provider, inputVal || 0, outputVal || 0);
+            return {
+              start: new Date(startTime + i * intervalMs),
+              end: new Date(startTime + (i + 1) * intervalMs),
+              value: cost
+            };
+          });
+          
+          costSeries.push({ name: provider, datapoints, unit: '$' });
+        }
+      });
+      
+      // Sort by total cost (highest first)
+      costSeries.sort((a, b) => {
+        const aTotal = a.datapoints.reduce((sum, d) => sum + d.value, 0);
+        const bTotal = b.datapoints.reduce((sum, d) => sum + d.value, 0);
+        return bTotal - aTotal;
+      });
+
+      setData(costSeries);
+    } catch (err) {
+      console.error('[GCC] Cost Trend query failed:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
+/**
+ * Hook for Model Cost Breakdown - cost by model with tokens breakdown
+ * Used in FinOps dashboard for detailed cost analysis
+ */
+export function useModelCostBreakdown(filters?: QueryFilters) {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(filters?.timeframe);
+    const serviceFilter = filters?.serviceName ? `| filter dt.entity.service == "${filters.serviceName}"` : '';
+    const providerFilter = filters?.provider ? `| filter gen_ai.provider.name == "${filters.provider}"` : '';
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model) OR isNotNull(gen_ai.response.model)
+${serviceFilter}
+${providerFilter}
+| summarize {
+    total_requests = count(),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    avg_latency = avg(duration),
+    error_rate = toDouble(countIf(span.status_code == "error")) / toDouble(count()) * 100.0
+  }, by: { model = coalesce(gen_ai.request.model, gen_ai.response.model), provider = gen_ai.provider.name }
+| sort input_tokens + output_tokens desc
+| limit 15
+`;
+  }, [filters]);
+  
+  const transform = useCallback((records: unknown[]) => {
+    return records.map((record: any) => {
+      const model = record.model || 'Unknown';
+      const provider = record.provider || deriveProviderFromModel(model);
+      const inputTokens = record.input_tokens || 0;
+      const outputTokens = record.output_tokens || 0;
+      
+      return {
+        model,
+        provider,
+        totalRequests: record.total_requests || 0,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        avgLatency: (record.avg_latency || 0) / 1_000_000,
+        errorRate: record.error_rate || 0,
+        estimatedCost: estimateCost(provider, inputTokens, outputTokens),
+        costPerRequest: record.total_requests > 0 
+          ? estimateCost(provider, inputTokens, outputTokens) / record.total_requests 
+          : 0
+      };
+    });
+  }, []);
+
+  return useDQLQuery(query, transform);
+}
+
+/**
+ * Hook for Cost by Service - chargeback/allocation data
+ * Groups costs by dt.entity.service for internal billing
+ */
+export function useCostByService(filters?: QueryFilters) {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(filters?.timeframe);
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize 
+    total_requests = count(),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    errors = countIf(span.status_code == "error"),
+    by: { service_id = dt.entity.service }
+| sort input_tokens + output_tokens desc
+| limit 20
+`;
+  }, [filters]);
+  
+  const transform = useCallback((records: unknown[]) => {
+    if (!records || !Array.isArray(records)) return [];
+    
+    return records.map((record: any) => {
+      const inputTokens = Number(record.input_tokens) || 0;
+      const outputTokens = Number(record.output_tokens) || 0;
+      const totalRequests = Number(record.total_requests) || 0;
+      const errors = Number(record.errors) || 0;
+      // Use average pricing across providers for service-level cost
+      const estimatedCost = estimateCost('openai', inputTokens, outputTokens);
+      
+      return {
+        serviceId: record.service_id || 'Unknown',
+        totalRequests,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        errors,
+        errorRate: totalRequests > 0 ? (errors / totalRequests) * 100 : 0,
+        estimatedCost,
+        costPerRequest: totalRequests > 0 ? estimatedCost / totalRequests : 0
+      };
+    });
+  }, []);
+
+  return useDQLQuery(query, transform);
+}
+
+/**
+ * Hook for Embedding vs Completion cost split
+ * Separates embedding models (cheaper) from completion models
+ */
+export function useEmbeddingVsCompletion(filters?: QueryFilters) {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(filters?.timeframe);
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+| fieldsAdd is_embedding = if(
+    contains(lower(gen_ai.request.model), "embed") OR 
+    contains(lower(gen_ai.request.model), "gecko") OR
+    contains(lower(gen_ai.request.model), "ada"), 
+    true, else: false)
+| summarize 
+    requests = count(),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, 0)),
+    by: { model_type = if(is_embedding, "Embedding", else: "Completion") }
+| sort requests desc
+`;
+  }, [filters]);
+  
+  const transform = useCallback((records: unknown[]) => {
+    if (!records || !Array.isArray(records)) return [];
+    
+    return records.map((record: any) => {
+      const inputTokens = Number(record.input_tokens) || 0;
+      const outputTokens = Number(record.output_tokens) || 0;
+      const requests = Number(record.requests) || 0;
+      const isEmbedding = record.model_type === 'Embedding';
+      
+      // Embeddings are ~10x cheaper than completions
+      const estimatedCost = isEmbedding 
+        ? inputTokens * 0.0001 / 1000  // ~$0.0001/1K tokens for embeddings
+        : estimateCost('openai', inputTokens, outputTokens);
+      
+      return {
+        modelType: record.model_type || 'Unknown',
+        requests,
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        estimatedCost,
+        costPerRequest: record.requests > 0 ? estimatedCost / record.requests : 0
+      };
+    });
+  }, []);
+
+  return useDQLQuery(query, transform);
+}
+
+/**
+ * Hook for Token Efficiency Analysis - find wasteful prompts
+ * Low efficiency = high input, low output (potential waste)
+ */
+export function useTokenEfficiency(filters?: QueryFilters) {
+  const query = useMemo(() => {
+    const timeClause = buildTimeRangeClauseFromTimeframe(filters?.timeframe);
+    
+    return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model) AND isNotNull(gen_ai.usage.input_tokens) AND isNotNull(gen_ai.usage.output_tokens)
+| summarize 
+    requests = count(),
+    total_input = sum(gen_ai.usage.input_tokens),
+    total_output = sum(gen_ai.usage.output_tokens),
+    avg_input = avg(gen_ai.usage.input_tokens),
+    avg_output = avg(gen_ai.usage.output_tokens),
+    by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
+| fieldsAdd efficiency = toDouble(total_output) / toDouble(if(total_input > 0, total_input, else: 1))
+| sort efficiency asc
+| limit 15
+`;
+  }, [filters]);
+  
+  const transform = useCallback((records: unknown[]) => {
+    if (!records || !Array.isArray(records)) return [];
+    
+    return records.map((record: any) => {
+      const model = record.model || 'Unknown';
+      const provider = record.provider || deriveProviderFromModel(model);
+      const inputTokens = Number(record.total_input) || 0;
+      const outputTokens = Number(record.total_output) || 0;
+      const requests = Number(record.requests) || 0;
+      const efficiency = Number(record.efficiency) || 0;
+      const avgInput = Number(record.avg_input) || 0;
+      const avgOutput = Number(record.avg_output) || 0;
+      
+      return {
+        model,
+        provider,
+        requests,
+        totalInput: inputTokens,
+        totalOutput: outputTokens,
+        avgInput,
+        avgOutput,
+        efficiency,
+        // Flag as wasteful if efficiency < 0.5 (less than 50% output vs input)
+        isWasteful: efficiency < 0.5,
+        estimatedCost: estimateCost(provider, inputTokens, outputTokens),
+        // Potential savings if efficiency improved to 1.0
+        potentialSavings: efficiency < 1.0 
+          ? estimateCost(provider, inputTokens * (1 - efficiency), 0)
+          : 0
+      };
+    });
+  }, []);
+
+  return useDQLQuery(query, transform);
 }

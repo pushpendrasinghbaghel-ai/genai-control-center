@@ -392,8 +392,8 @@ ${modelFilter}
 | fieldsAdd prompt = coalesce(gen_ai.prompt.1.content, gen_ai.prompt.0.content)
 | fieldsAdd response = gen_ai.completion.0.content
 | filter isNotNull(prompt)
-| fieldsAdd prompt_preview = substring(prompt, from:0, to:100)
-| fieldsAdd response_preview = substring(response, from:0, to:200)
+| fieldsAdd prompt_preview = substring(prompt, from:0, to:150)
+| fieldsAdd response_preview = substring(response, from:0, to:500)
 | fieldsAdd has_error = (span.status_code == "error" OR isNotNull(error.type))
 | summarize {
     request_count = count(),
@@ -403,6 +403,8 @@ ${modelFilter}
     avg_latency = avg(duration),
     sample_trace_id = takeLast(trace.id),
     sample_span_id = takeLast(span.id),
+    sample_full_prompt = takeLast(prompt),
+    sample_full_response = takeLast(response),
     sample_response = takeLast(response_preview),
     sample_timestamp = takeLast(start_time),
     sample_error_type = takeLast(error.type),
@@ -415,6 +417,45 @@ ${modelFilter}
   }
 | sort request_count desc
 | limit 500
+`;
+};
+
+/**
+ * Query for GenAI Errors - Fetch error spans that may not have prompt content
+ * Error spans often don't have prompt/completion data since the error occurred before/during processing
+ */
+export const GENAI_ERRORS_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  const modelFilter = buildModelFilter(filters?.model);
+  
+  return `
+fetch spans, ${timeClause}
+| filter span.status_code == "error"
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+${providerFilter}
+${modelFilter}
+| fieldsAdd prompt = coalesce(gen_ai.prompt.1.content, gen_ai.prompt.0.content)
+| fieldsAdd response = gen_ai.completion.0.content
+| fields 
+    trace_id = trace.id,
+    span_id = span.id,
+    span_name = span.name,
+    timestamp = start_time,
+    provider = gen_ai.provider.name,
+    model = gen_ai.request.model,
+    service = dt.entity.service,
+    latency_ns = duration,
+    error_type = error.type,
+    error_message = error.message,
+    status_message = status.message,
+    span_status = span.status_code,
+    prompt_content = prompt,
+    response_content = response,
+    input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+    output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| sort timestamp desc
+| limit 200
 `;
 };
 
