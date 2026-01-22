@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.4
+# GenAI Control Center (GCC) v2.5
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -28,6 +28,7 @@
 | 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
 | 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
 | 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
+| 🤖 **Agent Tools** | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
 | 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
 | 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, provider risk scoring, governance challenges |
 | 🔒 **Prompt Governance** | Prompt Security & Analysis | PII detection, injection risks, Davis AI scoring, cache candidates |
@@ -58,6 +59,14 @@
 - **Embedding vs Completion** - Token type split analysis
 - **Token Efficiency Analysis** - Detect wasteful prompts (high input, low output)
 - **Cost Trend Charts** - Timeseries visualization by provider
+
+### 🤖 Agent Tools - AI Agent Monitoring
+- **Active Agents Table** - All detected agents with trace counts, tool calls, durations, error rates
+- **Tool Call Frequency** - Tool usage metrics with call counts, health status, calls per trace
+- **Agent Tool Flows** - Common tool calling sequences with occurrence counts and sample traces
+- **Loop Detection** - Identify suspicious patterns (>10 calls to same tool) indicating infinite loops
+- **View Sample Trace** - Direct deep-link to Distributed Traces for any agent or flow
+- **Pagination & Filtering** - Standard Dynatrace DataTable with sorting, filtering, pagination
 
 ### 🛡️ Governance - Compliance & Risk
 - **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
@@ -166,6 +175,7 @@ gcc/
 │       │   ├── Home.tsx          # Executive dashboard
 │       │   ├── HealthDashboard.tsx # Service health
 │       │   ├── AITopology.tsx    # Interactive flow visualization
+│       │   ├── AgentTools.tsx    # AI agent tool monitoring
 │       │   ├── FinOps.tsx        # Cost management
 │       │   ├── Governance.tsx    # Compliance & risk
 │       │   ├── PromptGovernance.tsx # PII/injection detection, Davis AI scoring
@@ -179,6 +189,7 @@ gcc/
 │       ├── hooks/            # Data fetching hooks
 │       │   ├── useDQLQueries.ts
 │       │   ├── useDavisAI.ts
+│       │   ├── useAgentTools.ts  # Agent tool monitoring
 │       │   ├── useAIArchitect.ts
 │       │   ├── useResponseAnalytics.ts # Token efficiency metrics
 │       │   └── useRemediation.ts

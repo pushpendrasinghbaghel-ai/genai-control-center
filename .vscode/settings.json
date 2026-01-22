@@ -3,6 +3,7 @@
         "/^npx dt-app dev$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "git commit": true
     }
 }
