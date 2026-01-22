@@ -19,7 +19,6 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
-import { SampleDataBadge } from '../components';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
 import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence } from '../hooks/useAgentTools';
@@ -1336,10 +1335,6 @@ export const AgentTools: React.FC = () => {
     }
   ], []);
 
-  // Check if we have data
-  const hasData = toolUsage.length > 0 || agentFlows.length > 0;
-  const isSampleData = !hasData; // Would show sample data if no real data
-
   return (
     <Flex flexDirection="column" gap={0} style={{ height: '100%', overflow: 'hidden' }}>
       {/* Header */}
@@ -1348,7 +1343,6 @@ export const AgentTools: React.FC = () => {
           <Flex alignItems="center" gap={8}>
             <SettingIcon />
             Agent Tools
-            {isSampleData && <SampleDataBadge type="sample" />}
           </Flex>
         </TitleBar.Title>
         <TitleBar.Subtitle>
