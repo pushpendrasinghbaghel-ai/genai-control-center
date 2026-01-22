@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.5
+# GenAI Control Center (GCC) v2.7
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -61,11 +61,32 @@
 - **Cost Trend Charts** - Timeseries visualization by provider
 
 ### 🤖 Agent Tools - AI Agent Monitoring
-- **Active Agents Table** - All detected agents with trace counts, tool calls, durations, error rates
-- **Tool Call Frequency** - Tool usage metrics with call counts, health status, calls per trace
+- **Active Agents Table** - Comprehensive agent metrics including:
+  - Tool calls, avg tools per trace, avg duration
+  - **Token Usage** - Input tokens, output tokens, total tokens per agent
+  - **LLM Cost** - Estimated inference cost per agent
+  - **LLM/Tool Split** - Visual breakdown of time spent on LLM inference vs tool execution
+- **Tool Call Frequency** - Tool usage metrics with call counts, health status, error rates
 - **Agent Tool Flows** - Common tool calling sequences with occurrence counts and sample traces
+- **Agent Handoffs** - Cross-agent communication patterns with:
+  - Source → Target agent visualization
+  - Self-transfer detection (agents restarting their own flow)
+  - Handoff counts and average durations
+- **� Tool Reliability** - Per-agent tool usage patterns and reliability metrics:
+  - Call counts and traces per agent-tool combination
+  - **Calls/Trace** - Ratio indicating potential retry behavior (>1 = retries)
+  - **Avg/P95 Duration** - Performance metrics per tool
+  - **Error Rate** - Tool failure rates with health indicators
+  - **Health Status** - Visual indicator based on error rate and retry patterns
+- **🔗 Tool Topology** - Interactive SVG visualization of tool relationships:
+  - Circular layout showing all tools used together
+  - Edge thickness indicates co-occurrence frequency
+  - Node size based on tool call volume
+  - Error rate indicators (red border for high error tools)
+  - Hover tooltips with detailed metrics
 - **Loop Detection** - Identify suspicious patterns (>10 calls to same tool) indicating infinite loops
 - **View Sample Trace** - Direct deep-link to Distributed Traces for any agent or flow
+- **Case-Normalized Names** - Agent names normalized to prevent duplicates from case differences
 - **Pagination & Filtering** - Standard Dynatrace DataTable with sorting, filtering, pagination
 
 ### 🛡️ Governance - Compliance & Risk

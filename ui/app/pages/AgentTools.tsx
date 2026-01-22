@@ -22,7 +22,7 @@ import { useAgentTools } from '../hooks/useAgentTools';
 import { SampleDataBadge } from '../components';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
-import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo } from '../hooks/useAgentTools';
+import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence } from '../hooks/useAgentTools';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
 // ============================================
@@ -53,6 +53,16 @@ const FLOW_COLORS = [
 const NODE_CONFIGS = {
   agent: { label: 'Agent', color: '#14a8f5', bgColor: '#14a8f5' },  // Dynatrace blue
   tool: { label: 'Tool', color: '#6f2da8', bgColor: '#6f2da8' },    // Purple
+};
+
+/**
+ * Format duration intelligently: show seconds for >= 1000ms, otherwise ms
+ */
+const formatDuration = (ms: number): string => {
+  if (ms >= 1000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  return `${Math.round(ms)}ms`;
 };
 
 /**
@@ -185,8 +195,8 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
           </Surface>
           <Surface style={{ padding: 12, flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Avg Tokens</Text>
-              <Text style={{ fontSize: 20, fontWeight: 600 }}>{formatNumber(flow.avgTokens)}</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tool Count</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600 }}>{flow.toolCount}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: 12, flex: '1 1 120px' }}>
@@ -541,6 +551,211 @@ const ToolFlowCard: React.FC<{
 );
 
 // ============================================
+// Tool Topology SVG Visualization
+// ============================================
+interface ToolTopologySVGProps {
+  toolCoOccurrence: ToolCoOccurrence[];
+  toolUsage: ToolUsage[];
+}
+
+const ToolTopologySVG: React.FC<ToolTopologySVGProps> = ({ toolCoOccurrence, toolUsage }) => {
+  // Create a list of unique tools from co-occurrence data
+  const uniqueTools = useMemo(() => {
+    const toolSet = new Set<string>();
+    toolCoOccurrence.forEach(co => {
+      toolSet.add(co.tool1);
+      toolSet.add(co.tool2);
+    });
+    return Array.from(toolSet);
+  }, [toolCoOccurrence]);
+
+  // Create a map of tool usage data for sizing and coloring nodes
+  const toolUsageMap = useMemo(() => {
+    return new Map(toolUsage.map(t => [t.toolName, t]));
+  }, [toolUsage]);
+
+  // Calculate max co-occurrence for edge thickness scaling
+  const maxCoOccurrence = useMemo(() => {
+    return Math.max(...toolCoOccurrence.map(co => co.coOccurrenceCount), 1);
+  }, [toolCoOccurrence]);
+
+  // Layout: Arrange tools in a circular layout
+  const nodeCount = uniqueTools.length;
+  const svgWidth = 800;
+  const svgHeight = 300;
+  const centerX = svgWidth / 2;
+  const centerY = svgHeight / 2;
+  const radius = Math.min(svgWidth, svgHeight) * 0.35;
+
+  // Calculate node positions in a circle
+  const nodePositions = useMemo(() => {
+    const positions: { [key: string]: { x: number; y: number } } = {};
+    
+    if (nodeCount <= 1) {
+      uniqueTools.forEach((tool) => {
+        positions[tool] = { x: centerX, y: centerY };
+      });
+      return positions;
+    }
+    
+    uniqueTools.forEach((tool, index) => {
+      const angle = (2 * Math.PI * index) / nodeCount - Math.PI / 2;
+      positions[tool] = {
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle)
+      };
+    });
+    return positions;
+  }, [uniqueTools, nodeCount, centerX, centerY, radius]);
+
+  // Calculate node sizes based on call count (min 20, max 35)
+  const getNodeSize = (toolName: string): number => {
+    const usage = toolUsageMap.get(toolName);
+    if (!usage || toolUsage.length === 0) return 25;
+    const maxCalls = Math.max(...toolUsage.map(t => t.callCount));
+    const ratio = usage.callCount / maxCalls;
+    return 20 + ratio * 15;
+  };
+
+  // Get node color based on error rate
+  const getNodeColor = (toolName: string): string => {
+    const usage = toolUsageMap.get(toolName);
+    if (!usage) return NODE_CONFIGS.tool.color;
+    if (usage.errorRate > 5) return STATUS_COLORS.critical;
+    if (usage.errorRate > 2) return STATUS_COLORS.warning;
+    return NODE_CONFIGS.tool.color;
+  };
+
+  // Render edges (connections between tools)
+  const edges = toolCoOccurrence.map((co, index) => {
+    const pos1 = nodePositions[co.tool1];
+    const pos2 = nodePositions[co.tool2];
+    if (!pos1 || !pos2) return null;
+
+    // Calculate edge thickness based on co-occurrence count
+    const thickness = 1 + (co.coOccurrenceCount / maxCoOccurrence) * 5;
+    const opacity = 0.2 + (co.coOccurrenceCount / maxCoOccurrence) * 0.4;
+
+    return (
+      <g key={`edge-${index}`}>
+        <line
+          x1={pos1.x}
+          y1={pos1.y}
+          x2={pos2.x}
+          y2={pos2.y}
+          stroke={NODE_CONFIGS.tool.color}
+          strokeWidth={thickness}
+          strokeOpacity={opacity}
+        />
+        {/* Show co-occurrence count on hover */}
+        <title>{`${co.tool1} ↔ ${co.tool2}: ${co.coOccurrenceCount} traces`}</title>
+      </g>
+    );
+  });
+
+  // Render nodes
+  const nodes = uniqueTools.map((toolName) => {
+    const pos = nodePositions[toolName];
+    if (!pos) return null;
+
+    const size = getNodeSize(toolName);
+    const color = getNodeColor(toolName);
+    const usage = toolUsageMap.get(toolName);
+    const hasHighError = usage && usage.errorRate > 5;
+
+    // Truncate long tool names for display
+    const displayName = toolName.length > 15 ? toolName.substring(0, 12) + '...' : toolName;
+
+    return (
+      <g key={`node-${toolName}`} style={{ cursor: 'pointer' }}>
+        {/* Node circle */}
+        <circle
+          cx={pos.x}
+          cy={pos.y}
+          r={size}
+          fill={color}
+          stroke={hasHighError ? STATUS_COLORS.critical : 'rgba(255,255,255,0.3)'}
+          strokeWidth={hasHighError ? 3 : 1}
+        />
+        
+        {/* Error indicator */}
+        {hasHighError && (
+          <text
+            x={pos.x}
+            y={pos.y + 4}
+            textAnchor="middle"
+            fill="white"
+            fontSize={12}
+            fontWeight="bold"
+          >
+            !
+          </text>
+        )}
+        
+        {/* Tool name label */}
+        <text
+          x={pos.x}
+          y={pos.y + size + 14}
+          textAnchor="middle"
+          fill="var(--dt-colors-text-primary-default)"
+          fontSize={10}
+          fontFamily="monospace"
+        >
+          {displayName}
+        </text>
+        
+        {/* Tooltip with full info */}
+        <title>
+          {`${toolName}\nCalls: ${usage?.callCount ?? 'N/A'}\nError Rate: ${usage?.errorRate?.toFixed(1) ?? 'N/A'}%`}
+        </title>
+      </g>
+    );
+  });
+
+  if (uniqueTools.length === 0) {
+    return (
+      <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`}>
+        <text
+          x={centerX}
+          y={centerY}
+          textAnchor="middle"
+          fill="var(--dt-colors-text-secondary-default)"
+          fontSize={14}
+        >
+          No tool co-occurrence data available
+        </text>
+      </svg>
+    );
+  }
+
+  return (
+    <svg 
+      width="100%" 
+      height="100%" 
+      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+      style={{ minHeight: 280 }}
+    >
+      {/* Edges first so nodes appear on top */}
+      <g className="edges">{edges}</g>
+      
+      {/* Nodes */}
+      <g className="nodes">{nodes}</g>
+      
+      {/* Center label */}
+      <text
+        x={centerX}
+        y={20}
+        textAnchor="middle"
+        fill="var(--dt-colors-text-secondary-default)"
+        fontSize={11}
+      >
+        {uniqueTools.length} tools • {toolCoOccurrence.length} connections
+      </text>
+    </svg>
+  );
+};
+
+// ============================================
 // Main Component
 // ============================================
 export const AgentTools: React.FC = () => {
@@ -565,6 +780,11 @@ export const AgentTools: React.FC = () => {
     suspiciousLoops, 
     agentFlows, 
     summary,
+    agentTokenCosts,
+    agentHandoffs,
+    agentLatency,
+    agentToolReliability,
+    toolCoOccurrence,
     loading, 
     error, 
     fetchAgentToolsData,
@@ -596,14 +816,32 @@ export const AgentTools: React.FC = () => {
     return data;
   }, [agentFlows, agentFilter, toolFilter]);
 
-  // Filter agent list based on agent filter
+  // Filter agent list and merge with latency data
   const filteredAgentList = useMemo(() => {
-    let data = agentList;
+    // Create lookup maps for latency and token cost data
+    const latencyMap = new Map(agentLatency.map(l => [l.agentName, l]));
+    const tokenCostMap = new Map(agentTokenCosts.map(t => [t.agentName, t]));
+    
+    // Merge agent list with latency and token cost data
+    let data = agentList.map(agent => {
+      const latency = latencyMap.get(agent.agentName);
+      const tokenCost = tokenCostMap.get(agent.agentName);
+      return {
+        ...agent,
+        llmPct: latency?.llmPct ?? 0,
+        toolPct: latency?.toolPct ?? 0,
+        inputTokens: tokenCost?.totalInputTokens ?? 0,
+        outputTokens: tokenCost?.totalOutputTokens ?? 0,
+        totalTokens: tokenCost?.totalTokens ?? 0,
+        estimatedCostUsd: tokenCost?.estimatedCostUsd ?? 0
+      };
+    });
+    
     if (agentFilter) {
       data = data.filter(a => a.agentName.toLowerCase().includes(agentFilter.toLowerCase()));
     }
     return data;
-  }, [agentList, agentFilter]);
+  }, [agentList, agentLatency, agentTokenCosts, agentFilter]);
 
   // Prepare table columns for tool usage - using proper cell renderers
   const toolColumns: any[] = useMemo(() => [
@@ -651,16 +889,6 @@ export const AgentTools: React.FC = () => {
       alignment: 'right'
     },
     {
-      header: 'Calls/Trace',
-      accessor: 'avgCallsPerTrace',
-      id: 'avgCallsPerTrace',
-      cell: ({ value }: { value: number }) => (
-        <Text style={{ textAlign: 'right', display: 'block' }}>{Number(value).toFixed(1)}</Text>
-      ),
-      minWidth: 90,
-      alignment: 'right'
-    },
-    {
       header: 'Health',
       accessor: (row: ToolUsage) => getToolHealth(row),
       id: 'health',
@@ -676,21 +904,11 @@ export const AgentTools: React.FC = () => {
       accessor: 'agentName',
       id: 'agentName',
       cell: ({ value }: { value: string }) => (
-        <Text style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+        <Text style={{ fontWeight: 600 }}>
           {value}
         </Text>
       ),
       minWidth: 180
-    },
-    {
-      header: 'Traces',
-      accessor: 'traceCount',
-      id: 'traceCount',
-      cell: ({ value }: { value: number }) => (
-        <Text style={{ textAlign: 'right', display: 'block' }}>{formatNumber(value)}</Text>
-      ),
-      minWidth: 80,
-      alignment: 'right'
     },
     {
       header: 'Tool Calls',
@@ -717,38 +935,119 @@ export const AgentTools: React.FC = () => {
       accessor: 'avgDuration',
       id: 'avgDuration',
       cell: ({ value }: { value: number }) => (
-        <Text style={{ textAlign: 'right', display: 'block' }}>{Math.round(value)}ms</Text>
+        <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
       ),
       minWidth: 100,
       alignment: 'right'
     },
     {
-      header: 'Error Rate',
-      accessor: 'errorRate',
-      id: 'errorRate',
-      cell: ({ value }: { value: number }) => {
-        const rate = Number(value);
-        const color = rate > 5 ? STATUS_COLORS.critical : rate > 2 ? STATUS_COLORS.warning : 'inherit';
-        return <Text style={{ color, textAlign: 'right', display: 'block' }}>{rate.toFixed(2)}%</Text>;
-      },
+      header: 'Input Tokens',
+      accessor: 'inputTokens',
+      id: 'inputTokens',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>
+          {value > 0 ? formatNumber(value) : '-'}
+        </Text>
+      ),
+      minWidth: 100,
+      alignment: 'right'
+    },
+    {
+      header: 'Output Tokens',
+      accessor: 'outputTokens',
+      id: 'outputTokens',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>
+          {value > 0 ? formatNumber(value) : '-'}
+        </Text>
+      ),
+      minWidth: 110,
+      alignment: 'right'
+    },
+    {
+      header: 'Total Tokens',
+      accessor: 'totalTokens',
+      id: 'totalTokens',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>
+          {value > 0 ? formatNumber(value) : '-'}
+        </Text>
+      ),
+      minWidth: 100,
+      alignment: 'right'
+    },
+    {
+      header: 'LLM Cost',
+      accessor: 'estimatedCostUsd',
+      id: 'estimatedCostUsd',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block', color: value > 0 ? Colors.Charts.Categorical.Color01.Default : 'inherit', fontWeight: value > 0 ? 600 : 400 }}>
+          {value > 0 ? `$${Number(value).toFixed(2)}` : '-'}
+        </Text>
+      ),
       minWidth: 90,
       alignment: 'right'
+    },
+    {
+      header: 'LLM / Tool',
+      accessor: 'llmPct',
+      id: 'llmToolSplit',
+      cell: ({ rowData }: { rowData: AgentInfo & { llmPct?: number; toolPct?: number } }) => {
+        const llmPct = Math.round(Number(rowData.llmPct) || 0);
+        const toolPct = Math.round(Number(rowData.toolPct) || 0);
+        if (llmPct === 0 && toolPct === 0) {
+          return <Text style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', display: 'block' }}>-</Text>;
+        }
+        return (
+          <Flex alignItems="center" justifyContent="center" gap={6} style={{ width: '100%' }}>
+            <div style={{ 
+              width: 80,
+              height: 14, 
+              background: 'var(--dt-colors-background-container-neutral-subdued)',
+              borderRadius: 3,
+              overflow: 'hidden',
+              display: 'flex'
+            }}>
+              <div style={{ 
+                width: `${llmPct}%`, 
+                height: '100%', 
+                background: Colors.Charts.Categorical.Color01.Default
+              }} />
+              <div style={{ 
+                width: `${toolPct}%`, 
+                height: '100%', 
+                background: Colors.Charts.Categorical.Color02.Default
+              }} />
+            </div>
+            <Text style={{ fontSize: 10, minWidth: 55 }}>
+              {llmPct}% / {toolPct}%
+            </Text>
+          </Flex>
+        );
+      },
+      minWidth: 180,
+      alignment: 'center'
     },
     {
       header: 'Actions',
       accessor: 'sampleTraceId',
       id: 'actions',
-      cell: ({ rowData }: { rowData: AgentInfo }) => rowData.sampleTraceId ? (
-        <Tooltip text="View sample trace for this agent">
-          <Button 
-            variant="default" 
-            onClick={() => openTraceInDistributedTraces(rowData.sampleTraceId!, rowData.lastSeen)}
-          >
-            <ExternalLinkIcon style={{ width: 14, height: 14 }} />
-          </Button>
-        </Tooltip>
-      ) : <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>-</Text>,
-      autoWidth: true
+      cell: ({ rowData }: { rowData: AgentInfo }) => (
+        <Flex justifyContent="center" style={{ width: '100%' }}>
+          {rowData.sampleTraceId ? (
+            <Tooltip text="View sample trace for this agent">
+              <Button 
+                variant="default" 
+                onClick={() => openTraceInDistributedTraces(rowData.sampleTraceId!, rowData.lastSeen)}
+              >
+                <ExternalLinkIcon style={{ width: 14, height: 14 }} />
+              </Button>
+            </Tooltip>
+          ) : <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>-</Text>}
+        </Flex>
+      ),
+      autoWidth: true,
+      alignment: 'center'
     }
   ], []);
 
@@ -759,7 +1058,7 @@ export const AgentTools: React.FC = () => {
       accessor: 'agentName',
       id: 'agentName',
       cell: ({ value }: { value: string }) => (
-        <Text style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{value}</Text>
+        <Text style={{ fontWeight: 600 }}>{value}</Text>
       ),
       minWidth: 150
     },
@@ -795,13 +1094,13 @@ export const AgentTools: React.FC = () => {
       alignment: 'right'
     },
     {
-      header: 'Avg Tokens',
-      accessor: 'avgTokens',
-      id: 'avgTokens',
+      header: 'Tool Count',
+      accessor: 'toolCount',
+      id: 'toolCount',
       cell: ({ value }: { value: number }) => (
-        <Text style={{ textAlign: 'right', display: 'block' }}>{Math.round(value)}</Text>
+        <Text style={{ textAlign: 'right', display: 'block' }}>{value}</Text>
       ),
-      minWidth: 100,
+      minWidth: 90,
       alignment: 'right'
     },
     {
@@ -828,6 +1127,212 @@ export const AgentTools: React.FC = () => {
         </Flex>
       ),
       autoWidth: true
+    }
+  ], []);
+
+  // Prepare table columns for agent handoffs
+  const handoffColumns: any[] = useMemo(() => [
+    {
+      header: 'Source Agent',
+      accessor: 'sourceAgent',
+      id: 'sourceAgent',
+      cell: ({ rowData }: { rowData: AgentHandoff }) => {
+        const isSelfTransfer = rowData.sourceAgent === rowData.targetAgent;
+        return (
+          <Flex alignItems="center" gap={6}>
+            <span style={{ 
+              width: 10, height: 10, borderRadius: '50%', 
+              backgroundColor: NODE_CONFIGS.agent.color 
+            }} />
+            <Text style={{ fontWeight: 600, opacity: isSelfTransfer ? 0.7 : 1 }}>{rowData.sourceAgent}</Text>
+          </Flex>
+        );
+      },
+      minWidth: 150
+    },
+    {
+      header: '',
+      accessor: 'handoffCount',
+      id: 'arrow',
+      cell: ({ rowData }: { rowData: AgentHandoff }) => {
+        const isSelfTransfer = rowData.sourceAgent === rowData.targetAgent;
+        return (
+          <Flex alignItems="center" gap={4}>
+            <Text style={{ color: isSelfTransfer ? STATUS_COLORS.warning : 'var(--dt-colors-text-secondary-default)' }}>
+              {isSelfTransfer ? '↻' : '→'}
+            </Text>
+            {isSelfTransfer && (
+              <Tooltip text="Self-transfer: Agent restarting its own flow">
+                <Text style={{ fontSize: 9, color: STATUS_COLORS.warning, fontWeight: 600 }}>SELF</Text>
+              </Tooltip>
+            )}
+          </Flex>
+        );
+      },
+      autoWidth: true
+    },
+    {
+      header: 'Target Agent',
+      accessor: 'targetAgent',
+      id: 'targetAgent',
+      cell: ({ rowData }: { rowData: AgentHandoff }) => {
+        const isSelfTransfer = rowData.sourceAgent === rowData.targetAgent;
+        return (
+          <Flex alignItems="center" gap={6}>
+            <span style={{ 
+              width: 10, height: 10, borderRadius: '50%', 
+              backgroundColor: isSelfTransfer ? STATUS_COLORS.warning : Colors.Charts.Categorical.Color03.Default 
+            }} />
+            <Text style={{ fontWeight: 600, opacity: isSelfTransfer ? 0.7 : 1 }}>{rowData.targetAgent}</Text>
+          </Flex>
+        );
+      },
+      minWidth: 150
+    },
+    {
+      header: 'Handoffs',
+      accessor: 'handoffCount',
+      id: 'handoffCount',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>{formatNumber(value)}</Text>
+      ),
+      minWidth: 100,
+      alignment: 'right'
+    },
+    {
+      header: 'Avg Duration',
+      accessor: 'avgDurationMs',
+      id: 'avgDurationMs',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
+      ),
+      minWidth: 100,
+      alignment: 'right'
+    }
+  ], []);
+
+  // Prepare table columns for tool reliability (agent-tool usage patterns)
+  const reliabilityColumns: any[] = useMemo(() => [
+    {
+      header: 'Agent',
+      accessor: 'agentName',
+      id: 'agentName',
+      cell: ({ value }: { value: string }) => (
+        <Flex alignItems="center" gap={6}>
+          <span style={{ 
+            width: 10, height: 10, borderRadius: '50%', 
+            backgroundColor: NODE_CONFIGS.agent.color 
+          }} />
+          <Text style={{ fontWeight: 600 }}>{value}</Text>
+        </Flex>
+      ),
+      minWidth: 130
+    },
+    {
+      header: 'Tool',
+      accessor: 'toolName',
+      id: 'toolName',
+      cell: ({ value }: { value: string }) => (
+        <Flex alignItems="center" gap={6}>
+          <span style={{ 
+            width: 10, height: 10, borderRadius: '50%', 
+            backgroundColor: NODE_CONFIGS.tool.color 
+          }} />
+          <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{value}</Text>
+        </Flex>
+      ),
+      minWidth: 180
+    },
+    {
+      header: 'Calls',
+      accessor: 'totalCalls',
+      id: 'totalCalls',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>{formatNumber(value)}</Text>
+      ),
+      minWidth: 70,
+      alignment: 'right'
+    },
+    {
+      header: 'Traces',
+      accessor: 'tracesCount',
+      id: 'tracesCount',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>{formatNumber(value)}</Text>
+      ),
+      minWidth: 70,
+      alignment: 'right'
+    },
+    {
+      header: 'Calls/Trace',
+      accessor: 'callsPerTrace',
+      id: 'callsPerTrace',
+      cell: ({ value }: { value: number }) => {
+        // Highlight if > 1 (indicates retries or repeated calls)
+        const isRetry = value > 1.05;
+        return (
+          <Text style={{ 
+            textAlign: 'right', 
+            display: 'block',
+            color: isRetry ? STATUS_COLORS.warning : 'inherit',
+            fontWeight: isRetry ? 600 : 400
+          }}>
+            {value.toFixed(2)}
+            {isRetry && ' ⟳'}
+          </Text>
+        );
+      },
+      minWidth: 90,
+      alignment: 'right'
+    },
+    {
+      header: 'Avg Duration',
+      accessor: 'avgDurationMs',
+      id: 'avgDurationMs',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
+      ),
+      minWidth: 90,
+      alignment: 'right'
+    },
+    {
+      header: 'P95 Duration',
+      accessor: 'p95DurationMs',
+      id: 'p95DurationMs',
+      cell: ({ value }: { value: number }) => (
+        <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
+      ),
+      minWidth: 90,
+      alignment: 'right'
+    },
+    {
+      header: 'Error Rate',
+      accessor: 'errorRate',
+      id: 'errorRate',
+      cell: ({ value }: { value: number }) => {
+        const color = value > 5 ? STATUS_COLORS.critical : value > 2 ? STATUS_COLORS.warning : STATUS_COLORS.ideal;
+        return (
+          <Flex alignItems="center" gap={6} style={{ justifyContent: 'flex-end' }}>
+            <Text style={{ color, fontWeight: value > 0 ? 600 : 400 }}>{value.toFixed(1)}%</Text>
+            {value === 0 && <CheckmarkIcon style={{ color: STATUS_COLORS.ideal, width: 12, height: 12 }} />}
+          </Flex>
+        );
+      },
+      minWidth: 90,
+      alignment: 'right'
+    },
+    {
+      header: 'Health',
+      accessor: 'errorRate',
+      id: 'health',
+      cell: ({ rowData }: { rowData: AgentToolReliability }) => {
+        // Calculate health based on error rate and calls per trace
+        const hasErrors = rowData.errorRate > 5;
+        const hasRetries = rowData.callsPerTrace > 1.1;
+        const health = hasErrors ? 'critical' : hasRetries ? 'warning' : 'healthy';
+        return <HealthCell health={health} />;
+      },
+      minWidth: 90
     }
   ], []);
 
@@ -962,7 +1467,7 @@ export const AgentTools: React.FC = () => {
             {/* Agents Table */}
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
-                <Flex alignItems="center" gap={8}>
+                <Flex alignItems="center" gap={8} flexWrap="wrap">
                   <Heading level={5}>Active Agents</Heading>
                   <Tooltip text="AI agents detected from gen_ai.agent.name or traceloop.span.kind=agent spans">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
@@ -972,6 +1477,16 @@ export const AgentTools: React.FC = () => {
                       (Filtered by: {agentFilter})
                     </Text>
                   )}
+                  <Flex gap={12} style={{ marginLeft: 'auto' }}>
+                    <Flex alignItems="center" gap={4}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
+                      <Text style={{ fontSize: 11 }}>LLM</Text>
+                    </Flex>
+                    <Flex alignItems="center" gap={4}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
+                      <Text style={{ fontSize: 11 }}>Tool</Text>
+                    </Flex>
+                  </Flex>
                 </Flex>
                 
                 {filteredAgentList.length > 0 ? (
@@ -1079,6 +1594,150 @@ export const AgentTools: React.FC = () => {
                   >
                     <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
                       No agent flow data available. Agent flows require gen_ai.agent.name attribute in spans.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
+            {/* Agent Handoffs */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <Heading level={5}>Agent Handoffs</Heading>
+                  <Tooltip text="Communication patterns between agents. Shows how often one agent calls or delegates to another.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentHandoffs.length} handoff patterns)
+                  </Text>
+                </Flex>
+                
+                {agentHandoffs.length > 0 ? (
+                  <DataTable 
+                    data={agentHandoffs} 
+                    columns={handoffColumns}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={5} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No agent handoff data available. Handoffs are detected via parent/child agent spans within traces.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
+            {/* Tool Reliability - Agent-Tool Usage Patterns */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ color: Colors.Charts.Categorical.Color05.Default }} />
+                  <Heading level={5}>Tool Reliability</Heading>
+                  <Tooltip text="Per-agent tool usage patterns including call counts, duration metrics, and error rates. Calls/Trace > 1 may indicate retry behavior.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentToolReliability.length} agent-tool combinations)
+                  </Text>
+                </Flex>
+                
+                {agentToolReliability.length > 0 ? (
+                  <DataTable 
+                    data={agentToolReliability} 
+                    columns={reliabilityColumns}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={10} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No tool reliability data available. Ensure tools are instrumented with gen_ai.tool.name attribute.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
+            {/* Tool Topology / Co-occurrence */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <SmartscapeIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />
+                  <Heading level={5}>Tool Topology</Heading>
+                  <Tooltip text="Tools that frequently appear together in the same traces. Thicker lines indicate stronger co-occurrence.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({toolCoOccurrence.length} tool relationships)
+                  </Text>
+                </Flex>
+                
+                {toolCoOccurrence.length > 0 ? (
+                  <Flex flexDirection="column" gap={16}>
+                    {/* SVG Topology Visualization */}
+                    <div style={{ 
+                      width: '100%', 
+                      minHeight: 300, 
+                      backgroundColor: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6,
+                      overflow: 'hidden'
+                    }}>
+                      <ToolTopologySVG toolCoOccurrence={toolCoOccurrence} toolUsage={filteredToolUsage} />
+                    </div>
+                    
+                    {/* Legend */}
+                    <Flex gap={16} flexWrap="wrap" justifyContent="center">
+                      <Flex alignItems="center" gap={6}>
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: NODE_CONFIGS.tool.color }} />
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tool Node</Text>
+                      </Flex>
+                      <Flex alignItems="center" gap={6}>
+                        <span style={{ width: 20, height: 3, backgroundColor: 'rgba(111, 45, 168, 0.4)', borderRadius: 2 }} />
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Co-occurrence (thicker = more frequent)</Text>
+                      </Flex>
+                      <Flex alignItems="center" gap={6}>
+                        <span style={{ 
+                          width: 16, height: 16, borderRadius: '50%', 
+                          backgroundColor: STATUS_COLORS.critical, 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10, color: 'white', fontWeight: 600
+                        }}>!</span>
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High Error Rate (&gt;5%)</Text>
+                      </Flex>
+                    </Flex>
+                  </Flex>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No tool co-occurrence data available. Tools appearing together in traces will be visualized here.
                     </Text>
                   </Flex>
                 )}
