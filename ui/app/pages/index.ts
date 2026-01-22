@@ -26,6 +26,9 @@ export { PromptGovernance } from './PromptGovernance';
 // NEW: Real-Time Alerts
 export { RealTimeAlerts } from './RealTimeAlerts';
 
+// NEW: Agent Tools (AI agent workflow monitoring)
+export { AgentTools } from './AgentTools';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

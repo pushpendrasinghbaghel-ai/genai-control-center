@@ -145,34 +145,34 @@ const SmartscapeCardNode: React.FC<{
       <g transform="translate(0, 0)">
         <rect
           width={cardWidth}
-          height={20}
+          height={22}
           rx={5}
           ry={5}
-          fill={config.bgColor}
+          fill={config.color}
         />
         <rect
-          y={12}
+          y={14}
           width={cardWidth}
           height={8}
-          fill={config.bgColor}
+          fill={config.color}
         />
         <text
           x={8}
-          y={13}
-          fontSize={8}
+          y={14}
+          fontSize={9}
           fontWeight={600}
-          fill={config.color}
-          style={{ textTransform: 'uppercase', letterSpacing: '0.4px' }}
+          fill="#ffffff"
+          style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}
         >
           {config.label}
         </text>
         {/* Count badge */}
         <text
           x={cardWidth - 8}
-          y={13}
-          fontSize={8}
-          fontWeight={500}
-          fill="var(--dt-colors-text-secondary-default)"
+          y={14}
+          fontSize={9}
+          fontWeight={600}
+          fill="#ffffff"
           textAnchor="end"
         >
           {node.metrics.requests > 1000 ? `${(node.metrics.requests/1000).toFixed(1)}K` : node.metrics.requests}
@@ -180,8 +180,8 @@ const SmartscapeCardNode: React.FC<{
         {/* External link icon for services */}
         {node.type === 'service' && node.entityId && (
           <a href={getSmartscapeUrl(node.entityId)} target="_blank" rel="noopener noreferrer">
-            <g transform={`translate(${cardWidth - 22}, 5)`} style={{ cursor: 'pointer' }}>
-              <ExternalLinkIcon style={{ width: 9, height: 9, color: config.color }} />
+            <g transform={`translate(${cardWidth - 22}, 6)`} style={{ cursor: 'pointer' }}>
+              <ExternalLinkIcon style={{ width: 10, height: 10, color: '#ffffff' }} />
             </g>
           </a>
         )}
@@ -205,9 +205,9 @@ const SmartscapeCardNode: React.FC<{
         x={cardWidth / 2}
         y={68}
         textAnchor="middle"
-        fontSize={9}
-        fontWeight={500}
-        fill="var(--dt-colors-text-primary-default)"
+        fontSize={10}
+        fontWeight={600}
+        fill="#1f2937"
       >
         {node.name.length > 16 ? node.name.substring(0, 14) + '...' : node.name}
       </text>

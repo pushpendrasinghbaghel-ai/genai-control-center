@@ -38,3 +38,11 @@ npm run deploy # Deploy to Dynatrace
 - `src/app/App.tsx` - Main app with routing
 - `src/hooks/useDQLQueries.ts` - DQL query execution
 - `src/hooks/useDavisAI.ts` - Davis CoPilot integration
+
+## Documentation & Learning Resources
+- **Official Dynatrace Developer Portal**: https://developer.dynatrace.com
+  - App development guides
+  - Strato Design System components
+  - SDK references (@dynatrace-sdk/*)
+  - DQL syntax and functions
+  - Best practices for AppEngine apps

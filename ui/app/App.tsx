@@ -16,7 +16,8 @@ import {
   AITopology,
   ResponseAnalytics,
   PromptGovernance,
-  RealTimeAlerts
+  RealTimeAlerts,
+  AgentTools
 } from "./pages";
 
 export const App = () => {
@@ -65,6 +66,9 @@ export const App = () => {
                 
                 {/* GenAI Problems - Problems affecting AI services */}
                 <Route path="/problems" element={<RealTimeAlerts />} />
+                
+                {/* Agent Tools - AI agent workflow monitoring */}
+                <Route path="/agents" element={<AgentTools />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

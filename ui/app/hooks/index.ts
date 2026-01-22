@@ -5,3 +5,4 @@ export * from './useAIArchitect';
 export * from './useWorkflows';
 export * from './useAIQuality';
 export * from './useResponseAnalytics';
+export * from './useAgentTools';

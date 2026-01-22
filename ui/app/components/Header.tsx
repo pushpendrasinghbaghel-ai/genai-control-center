@@ -1,6 +1,6 @@
 // GenAI Control Center - Navigation Header
 // Navigation Pattern: Observe → Analyze → Act
-// Home → FinOps → Analytics → Governance → Topology → Health → Intelligence → Operations
+// Home → FinOps → Analytics → Governance → Topology → Health → Agents → Intelligence → Operations
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
@@ -12,7 +12,8 @@ import {
   LockIcon,            // Prompt Governance
   MoneyIcon,           // FinOps
   AiIcon,              // Intelligence
-  WorkflowsIcon        // Operations
+  WorkflowsIcon,       // Operations
+  SettingIcon          // Agent Tools
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -39,7 +40,7 @@ export const Header = () => {
   });
 
   // Navigation follows Observe → Analyze → Act pattern
-  // Home → FinOps → Analytics → Governance → Topology → Health → Intelligence → Operations
+  // Home → FinOps → Analytics → Governance → Topology → Health → Agents → Intelligence → Operations
   return (
     <AppHeader>
       <AppHeader.NavItems>
@@ -76,12 +77,17 @@ export const Header = () => {
           <HeartIcon aria-hidden="true" /> Health
         </AppHeader.NavItem>
         
-        {/* 7. Intelligence: AI-powered investigation - Deep dive with Davis */}
+        {/* 7. Agents: AI agent tool monitoring - "How are agents behaving?" */}
+        <AppHeader.NavItem as={Link} to="/agents" style={getNavItemStyle('/agents')} aria-label="Agent Tools">
+          <SettingIcon aria-hidden="true" /> Agents
+        </AppHeader.NavItem>
+        
+        {/* 8. Intelligence: AI-powered investigation - Deep dive with Davis */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="AI Intelligence">
           <AiIcon aria-hidden="true" /> Intelligence
         </AppHeader.NavItem>
         
-        {/* 8. Operations: Runbooks & remediation - Take action */}
+        {/* 9. Operations: Runbooks & remediation - Take action */}
         <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')} aria-label="Operations and Automation">
           <WorkflowsIcon aria-hidden="true" /> Operations
         </AppHeader.NavItem>
