@@ -34,7 +34,9 @@ export const App = () => {
                 {/* Home: Executive Dashboard */}
                 <Route path="/" element={<Home />} />
                 
-                {/* Health Dashboard: Auto-discovery and monitoring */}
+                {/* AI Services: Auto-discovery and monitoring */}
+                <Route path="/services" element={<HealthDashboard />} />
+                {/* Legacy route redirect */}
                 <Route path="/health" element={<HealthDashboard />} />
                 
                 {/* FinOps: AI Cost Management and Optimization */}

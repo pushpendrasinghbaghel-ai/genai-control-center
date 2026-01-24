@@ -8,6 +8,7 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon, SmartscapeIcon, ServicesIcon, AppsIcon } from '@dynatrace/strato-icons';
+import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { FilterBar } from '../components/FilterBar';
@@ -212,6 +213,20 @@ const SmartscapeCardNode: React.FC<{
         {node.name.length > 16 ? node.name.substring(0, 14) + '...' : node.name}
       </text>
       
+      {/* Click to explore hint for services */}
+      {node.type === 'service' && isHovered && (
+        <text
+          x={cardWidth / 2}
+          y={cardHeight - 4}
+          textAnchor="middle"
+          fontSize={8}
+          fill={config.color}
+          fontWeight={500}
+        >
+          Click to explore →
+        </text>
+      )}
+      
       {/* Health indicator */}
       <circle
         cx={cardWidth - 8}
@@ -224,7 +239,7 @@ const SmartscapeCardNode: React.FC<{
 };
 
 // ============================================
-// Edge Component with Label
+// Edge Component with Label (Clean, Simple)
 // ============================================
 
 const SmartscapeEdge: React.FC<{
@@ -245,7 +260,7 @@ const SmartscapeEdge: React.FC<{
   // Calculate edge points from card boundaries
   const startX = sourceNode.position.x + (dx / length) * (cardWidth / 2 + 6);
   const startY = sourceNode.position.y + (dy / length) * (cardHeight / 2);
-  const endX = targetNode.position.x - (dx / length) * (cardWidth / 2 + 6);
+  const endX = targetNode.position.x - (dx / length) * (cardWidth / 2 + 12);
   const endY = targetNode.position.y - (dy / length) * (cardHeight / 2);
   
   const midX = (startX + endX) / 2;
@@ -266,7 +281,7 @@ const SmartscapeEdge: React.FC<{
 
   return (
     <g>
-      {/* Connection line - thinner, more subtle */}
+      {/* Simple straight line connection */}
       <line
         x1={startX}
         y1={startY}
@@ -281,27 +296,365 @@ const SmartscapeEdge: React.FC<{
       {/* Compact edge label */}
       <rect
         x={midX - 24}
-        y={midY - 8}
+        y={midY - 9}
         width={48}
-        height={16}
+        height={18}
         rx={3}
         fill="#ffffff"
         stroke="#e5e7eb"
         strokeWidth={1}
       />
       
-      {/* Edge label */}
+      {/* Edge label text */}
       <text
         x={midX}
-        y={midY + 3}
+        y={midY + 4}
         textAnchor="middle"
-        fontSize={8}
+        fontSize={9}
         fontWeight={500}
         fill="#6b7280"
       >
         {edgeLabel} {edgeUnit}
       </text>
     </g>
+  );
+};
+
+// ============================================
+// Service Detail Modal - Full View of Service Connections
+// ============================================
+
+interface ServiceDetailModalProps {
+  service: TopologyNode;
+  allNodes: TopologyNode[];
+  allEdges: TopologyEdge[];
+  onClose: () => void;
+}
+
+const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNodes, allEdges, onClose }) => {
+  // Find all connected providers and models for this service
+  const connectedProviderIds = allEdges
+    .filter(e => e.source === service.id)
+    .map(e => e.target);
+  
+  const connectedProviders = allNodes.filter(n => connectedProviderIds.includes(n.id));
+  
+  // For each provider, find connected models
+  const providerToModels: Record<string, TopologyNode[]> = {};
+  const providerEdges: Record<string, TopologyEdge> = {};
+  
+  connectedProviders.forEach(provider => {
+    // Edge from service to provider
+    const edgeToProvider = allEdges.find(e => e.source === service.id && e.target === provider.id);
+    if (edgeToProvider) {
+      providerEdges[provider.id] = edgeToProvider;
+    }
+    
+    // Find models connected to this provider
+    const modelIds = allEdges
+      .filter(e => e.source === provider.id)
+      .map(e => e.target);
+    providerToModels[provider.id] = allNodes.filter(n => modelIds.includes(n.id));
+  });
+
+  // Calculate SVG dimensions
+  const cardWidth = 130;
+  const cardHeight = 80;
+  const horizontalGap = 80;
+  const verticalGap = 100;
+  
+  // Find max models per provider for height calculation
+  const maxModels = Math.max(...connectedProviders.map(p => providerToModels[p.id]?.length || 0), 1);
+  const svgWidth = Math.max(700, connectedProviders.length * (cardWidth + horizontalGap) + 200);
+  const svgHeight = Math.max(350, 120 + maxModels * (cardHeight + 20) + verticalGap);
+  
+  // Node positions
+  const serviceX = 80;
+  const serviceY = svgHeight / 2;
+  
+  const getProviderX = (idx: number) => 240 + idx * (cardWidth + horizontalGap);
+  const providerY = 100;
+  
+  const getModelY = (modelIdx: number) => providerY + verticalGap + modelIdx * (cardHeight + 20);
+
+  // Format number helper
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
+
+  return (
+    <Modal 
+      title={`Service Details: ${service.name}`}
+      show={true}
+      onDismiss={onClose}
+      size="large"
+    >
+      <Flex flexDirection="column" gap={20} style={{ padding: 16, maxHeight: '80vh', overflow: 'auto' }}>
+        {/* Service Summary Stats */}
+        <Flex gap={16} flexWrap="wrap">
+          <Surface style={{ padding: 12, flex: '1 1 140px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Total Requests</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600 }}>{formatNumber(service.metrics.requests)}</Text>
+            </Flex>
+          </Surface>
+          <Surface style={{ padding: 12, flex: '1 1 140px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Total Tokens</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600 }}>{formatNumber(service.metrics.tokens)}</Text>
+            </Flex>
+          </Surface>
+          <Surface style={{ padding: 12, flex: '1 1 140px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Avg Latency</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600 }}>{service.metrics.latency.toFixed(0)}ms</Text>
+            </Flex>
+          </Surface>
+          <Surface style={{ padding: 12, flex: '1 1 140px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Error Rate</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600, color: service.metrics.errorRate > 5 ? '#dc172a' : undefined }}>
+                {service.metrics.errorRate.toFixed(1)}%
+              </Text>
+            </Flex>
+          </Surface>
+          <Surface style={{ padding: 12, flex: '1 1 140px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Providers</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600, color: '#6f2da8' }}>{connectedProviders.length}</Text>
+            </Flex>
+          </Surface>
+        </Flex>
+
+        {/* SVG Topology - Service -> Providers -> Models */}
+        <Surface style={{ padding: 0, overflow: 'auto' }}>
+          <Flex flexDirection="column" gap={0}>
+            <Flex alignItems="center" gap={8} style={{ padding: '12px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+              <SmartscapeIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />
+              <Heading level={6}>Service → Provider → Model Flow</Heading>
+              <Flex gap={12} style={{ marginLeft: 'auto' }}>
+                <Flex alignItems="center" gap={4}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#14a8f5' }} />
+                  <Text style={{ fontSize: 11 }}>Service</Text>
+                </Flex>
+                <Flex alignItems="center" gap={4}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6f2da8' }} />
+                  <Text style={{ fontSize: 11 }}>Provider</Text>
+                </Flex>
+                <Flex alignItems="center" gap={4}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#73be28' }} />
+                  <Text style={{ fontSize: 11 }}>Model</Text>
+                </Flex>
+              </Flex>
+            </Flex>
+            
+            <div style={{ background: '#f9fafb', overflow: 'auto', padding: '8px 0' }}>
+              <svg 
+                width={svgWidth}
+                height={svgHeight}
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                style={{ display: 'block', minWidth: svgWidth }}
+              >
+                <defs>
+                  <marker id="arrowhead-modal" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+                    <polygon points="0 0, 6 2.5, 0 5" fill="#9ca3af" />
+                  </marker>
+                  <pattern id="dotPatternModal" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
+                  </pattern>
+                </defs>
+
+                <rect width="100%" height="100%" fill="#f9fafb" />
+                <rect width="100%" height="100%" fill="url(#dotPatternModal)" />
+
+                {/* Edges: Service → Providers */}
+                {connectedProviders.map((provider, idx) => {
+                  const edge = providerEdges[provider.id];
+                  const startX = serviceX + cardWidth / 2 + 6;
+                  const endX = getProviderX(idx) - cardWidth / 2 - 6;
+                  const midX = (startX + endX) / 2;
+                  
+                  return (
+                    <g key={`s2p-${provider.id}`}>
+                      <line
+                        x1={startX}
+                        y1={serviceY}
+                        x2={endX}
+                        y2={providerY}
+                        stroke="#9ca3af"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 2"
+                        markerEnd="url(#arrowhead-modal)"
+                      />
+                      {edge && (
+                        <>
+                          <rect x={midX - 22} y={(serviceY + providerY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke="#e5e7eb" />
+                          <text x={midX} y={(serviceY + providerY) / 2 + 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                            {formatNumber(edge.metrics.tokens)} tok
+                          </text>
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* Edges: Providers → Models */}
+                {connectedProviders.map((provider, pIdx) => {
+                  const models = providerToModels[provider.id] || [];
+                  return models.map((model, mIdx) => {
+                    const edge = allEdges.find(e => e.source === provider.id && e.target === model.id);
+                    const startX = getProviderX(pIdx);
+                    const startY = providerY + cardHeight / 2 + 6;
+                    const endY = getModelY(mIdx) - cardHeight / 2 - 6;
+                    
+                    return (
+                      <g key={`p2m-${provider.id}-${model.id}`}>
+                        <line
+                          x1={startX}
+                          y1={startY}
+                          x2={startX}
+                          y2={endY}
+                          stroke="#9ca3af"
+                          strokeWidth={1.5}
+                          strokeDasharray="4 2"
+                          markerEnd="url(#arrowhead-modal)"
+                        />
+                        {edge && (
+                          <>
+                            <rect x={startX - 22} y={(startY + endY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke="#e5e7eb" />
+                            <text x={startX} y={(startY + endY) / 2 + 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                              {formatNumber(edge.metrics.requests)} req
+                            </text>
+                          </>
+                        )}
+                      </g>
+                    );
+                  });
+                })}
+
+                {/* Service Node */}
+                <g transform={`translate(${serviceX - cardWidth / 2}, ${serviceY - cardHeight / 2})`}>
+                  <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#14a8f5" strokeWidth={2} />
+                  <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(20, 168, 245, 0.1)" />
+                  <rect y={16} width={cardWidth} height={8} fill="rgba(20, 168, 245, 0.1)" />
+                  <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#14a8f5">SERVICE</text>
+                  <ServicesIcon style={{ position: 'absolute' }} />
+                  <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                    {service.name.length > 14 ? service.name.substring(0, 12) + '...' : service.name}
+                  </text>
+                  <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                    {formatNumber(service.metrics.requests)} req
+                  </text>
+                </g>
+
+                {/* Provider Nodes */}
+                {connectedProviders.map((provider, idx) => (
+                  <g key={provider.id} transform={`translate(${getProviderX(idx) - cardWidth / 2}, ${providerY - cardHeight / 2})`}>
+                    <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#6f2da8" strokeWidth={2} />
+                    <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(111, 45, 168, 0.1)" />
+                    <rect y={16} width={cardWidth} height={8} fill="rgba(111, 45, 168, 0.1)" />
+                    <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#6f2da8">PROVIDER</text>
+                    <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                      {provider.name.length > 14 ? provider.name.substring(0, 12) + '...' : provider.name}
+                    </text>
+                    <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                      {formatNumber(provider.metrics.tokens)} tok
+                    </text>
+                  </g>
+                ))}
+
+                {/* Model Nodes */}
+                {connectedProviders.map((provider, pIdx) => {
+                  const models = providerToModels[provider.id] || [];
+                  return models.map((model, mIdx) => (
+                    <g key={model.id} transform={`translate(${getProviderX(pIdx) - cardWidth / 2}, ${getModelY(mIdx) - cardHeight / 2})`}>
+                      <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#73be28" strokeWidth={2} />
+                      <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(115, 190, 40, 0.1)" />
+                      <rect y={16} width={cardWidth} height={8} fill="rgba(115, 190, 40, 0.1)" />
+                      <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#73be28">MODEL</text>
+                      <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                        {model.name.length > 14 ? model.name.substring(0, 12) + '...' : model.name}
+                      </text>
+                      <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                        {model.metrics.latency.toFixed(0)}ms
+                      </text>
+                    </g>
+                  ));
+                })}
+              </svg>
+            </div>
+          </Flex>
+        </Surface>
+
+        {/* Connected Providers List */}
+        <Surface style={{ padding: 16 }}>
+          <Heading level={6} style={{ marginBottom: 12 }}>Connected Providers & Models</Heading>
+          <Flex flexDirection="column" gap={12}>
+            {connectedProviders.map(provider => {
+              const models = providerToModels[provider.id] || [];
+              const edge = providerEdges[provider.id];
+              return (
+                <Surface key={provider.id} style={{ padding: 12, background: 'var(--dt-colors-surface-neutral-default)' }}>
+                  <Flex justifyContent="space-between" alignItems="flex-start">
+                    <Flex flexDirection="column" gap={4}>
+                      <Flex alignItems="center" gap={8}>
+                        {getProviderIcon(provider.name, 16)}
+                        <Text style={{ fontWeight: 600 }}>{provider.name}</Text>
+                      </Flex>
+                      <Flex gap={16} style={{ marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {formatNumber(edge?.metrics.tokens || 0)} tokens
+                        </Text>
+                        <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {formatNumber(edge?.metrics.requests || 0)} requests
+                        </Text>
+                        <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {(edge?.metrics.avgLatency || 0).toFixed(0)}ms avg
+                        </Text>
+                      </Flex>
+                    </Flex>
+                    <Flex gap={8} flexWrap="wrap" style={{ maxWidth: '50%' }}>
+                      {models.map(model => (
+                        <div 
+                          key={model.id} 
+                          style={{ 
+                            padding: '4px 8px', 
+                            background: 'rgba(115, 190, 40, 0.1)', 
+                            borderRadius: 4, 
+                            fontSize: 11,
+                            border: '1px solid rgba(115, 190, 40, 0.3)'
+                          }}
+                        >
+                          {getModelIcon(model.name, 12)} {model.name}
+                        </div>
+                      ))}
+                    </Flex>
+                  </Flex>
+                </Surface>
+              );
+            })}
+          </Flex>
+        </Surface>
+
+        {/* Action Buttons */}
+        <Flex gap={12} justifyContent="flex-end">
+          {service.entityId && (
+            <Button 
+              as="a" 
+              href={getSmartscapeUrl(service.entityId)} 
+              target="_blank"
+              variant="accent"
+            >
+              <Button.Prefix><ExternalLinkIcon /></Button.Prefix>
+              View in Smartscape
+            </Button>
+          )}
+          <Button onClick={onClose}>Close</Button>
+        </Flex>
+      </Flex>
+    </Modal>
   );
 };
 
@@ -317,6 +670,16 @@ export const AITopology: React.FC = () => {
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [serviceDetailModal, setServiceDetailModal] = useState<TopologyNode | null>(null);
+
+  // Handle node click - show modal for services
+  const handleNodeClick = useCallback((node: TopologyNode) => {
+    if (node.type === 'service') {
+      setServiceDetailModal(node);
+    } else {
+      setSelectedNode(node);
+    }
+  }, []);
 
   // Track mouse position globally for tooltip
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -908,15 +1271,15 @@ export const AITopology: React.FC = () => {
           <defs>
             <marker
               id="arrowhead-smartscape"
-              markerWidth="10"
-              markerHeight="8"
-              refX="9"
-              refY="4"
+              markerWidth="6"
+              markerHeight="5"
+              refX="5"
+              refY="2.5"
               orient="auto"
             >
               <polygon 
-                points="0 0, 10 4, 0 8" 
-                fill="#6b7280"
+                points="0 0, 6 2.5, 0 5" 
+                fill="#9ca3af"
               />
             </marker>
             {/* Glow filter for nodes */}
@@ -965,7 +1328,7 @@ export const AITopology: React.FC = () => {
               node={node}
               isSelected={selectedNode?.id === node.id}
               isHovered={hoveredNode?.id === node.id}
-              onSelect={setSelectedNode}
+              onSelect={handleNodeClick}
               onHover={setHoveredNode}
             />
           ))}
@@ -1021,6 +1384,16 @@ export const AITopology: React.FC = () => {
             </Flex>
           </Flex>
         </div>
+      )}
+
+      {/* Service Detail Modal */}
+      {serviceDetailModal && topologyData && (
+        <ServiceDetailModal
+          service={serviceDetailModal}
+          allNodes={topologyData.nodes}
+          allEdges={topologyData.edges}
+          onClose={() => setServiceDetailModal(null)}
+        />
       )}
     </Flex>
   );

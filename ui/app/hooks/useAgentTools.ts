@@ -111,6 +111,20 @@ export interface ToolCoOccurrence {
   avgSequenceGap: number;  // How many steps apart they typically are
 }
 
+// Time-series trend data for charts
+export interface ToolCallsTrend {
+  timestamp: string;
+  callCount: number;
+  uniqueTools: number;
+}
+
+export interface AgentActivityTrend {
+  timestamp: string;
+  agentName: string;
+  invocationCount: number;
+  avgDurationMs: number;
+}
+
 // ============================================
 // DQL Queries
 // ============================================
@@ -359,6 +373,31 @@ fetch spans, ${buildTimeFilter(filters)}
 | limit 50
 `;
 
+// Tool Calls Trend - time-series of tool call volume over time
+const TOOL_CALLS_TREND_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter traceloop.span.kind == "tool" OR gen_ai.operation.kind == "tool" OR isNotNull(gen_ai.tool.name)
+| fieldsAdd tool_name = coalesce(gen_ai.tool.name, span.name, "unknown")
+| summarize 
+    call_count = count(),
+    unique_tools = countDistinct(tool_name),
+    by: { time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc
+`;
+
+// Agent Activity Trend - time-series of agent invocations per agent
+const AGENT_ACTIVITY_TREND_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+| fieldsAdd agent_name = coalesce(gen_ai.agent.name, traceloop.entity.name, span.name)
+| summarize 
+    invocation_count = countDistinct(trace.id),
+    avg_duration_ms = avg(duration) / 1000000,
+    by: { agent_name, time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc, invocation_count desc
+| limit 500
+`;
+
 // ============================================
 // Main Hook
 // ============================================
@@ -374,6 +413,8 @@ export function useAgentTools(filters?: QueryFilters) {
   const [agentLatency, setAgentLatency] = useState<AgentLatencyBreakdown[]>([]);
   const [agentToolReliability, setAgentToolReliability] = useState<AgentToolReliability[]>([]);
   const [toolCoOccurrence, setToolCoOccurrence] = useState<ToolCoOccurrence[]>([]);
+  const [toolCallsTrend, setToolCallsTrend] = useState<ToolCallsTrend[]>([]);
+  const [agentActivityTrend, setAgentActivityTrend] = useState<AgentActivityTrend[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -393,7 +434,7 @@ export function useAgentTools(filters?: QueryFilters) {
 
     try {
       // Execute all queries in parallel
-      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse] = await Promise.all([
+      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse] = await Promise.all([
         queryExecutionClient.queryExecute({
           body: {
             query: TOOL_USAGE_QUERY(currentFilters),
@@ -474,6 +515,20 @@ export function useAgentTools(filters?: QueryFilters) {
         queryExecutionClient.queryExecute({
           body: {
             query: TOOL_COOCCURRENCE_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        queryExecutionClient.queryExecute({
+          body: {
+            query: TOOL_CALLS_TREND_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_ACTIVITY_TREND_QUERY(currentFilters),
             requestTimeoutMilliseconds: 60000,
             fetchTimeoutSeconds: 60
           }
@@ -626,6 +681,25 @@ export function useAgentTools(filters?: QueryFilters) {
       }));
       setToolCoOccurrence(processedCoOccurrence);
 
+      // Process tool calls trend
+      const toolCallsTrendRecords = toolCallsTrendResponse.result?.records || [];
+      const processedToolCallsTrend: ToolCallsTrend[] = toolCallsTrendRecords.map((record: any) => ({
+        timestamp: record.time_bucket ? new Date(record.time_bucket).toISOString() : new Date().toISOString(),
+        callCount: Number(record.call_count) || 0,
+        uniqueTools: Number(record.unique_tools) || 0
+      }));
+      setToolCallsTrend(processedToolCallsTrend);
+
+      // Process agent activity trend
+      const agentActivityRecords = agentActivityTrendResponse.result?.records || [];
+      const processedAgentActivity: AgentActivityTrend[] = agentActivityRecords.map((record: any) => ({
+        timestamp: record.time_bucket ? new Date(record.time_bucket).toISOString() : new Date().toISOString(),
+        agentName: String(record.agent_name || 'Unknown'),
+        invocationCount: Number(record.invocation_count) || 0,
+        avgDurationMs: Number(record.avg_duration_ms) || 0
+      }));
+      setAgentActivityTrend(processedAgentActivity);
+
     } catch (err) {
       console.error('[GCC] Agent tools query failed:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch agent tools data'));
@@ -659,6 +733,8 @@ export function useAgentTools(filters?: QueryFilters) {
     agentLatency,
     agentToolReliability,
     toolCoOccurrence,
+    toolCallsTrend,
+    agentActivityTrend,
     loading,
     error,
     fetchAgentToolsData,

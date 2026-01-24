@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.7
+# GenAI Control Center (GCC) v2.8
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -27,7 +27,7 @@
 |------|---------|--------------|
 | 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
 | 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
-| 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
+| 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service detail modal, service→provider→model connections |
 | 🤖 **Agent Tools** | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
 | 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
 | 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, provider risk scoring, governance challenges |
@@ -339,7 +339,19 @@ MIT License - see [LICENSE](LICENSE) for details.
 - 🛠️ **useResponseAnalytics Hook**: New hook for token efficiency metrics
 - 🐛 **Accessibility**: Added aria-labels and aria-hidden throughout
 
-### v2.2.0 (January 2026)
+### v2.8.0 (January 2026)
+- 🆕 **Service Detail Modal**: Click any Service node in Topology to open a full-screen modal with:
+  - Summary stats: Total requests, tokens, latency, error rate, provider count
+  - Interactive SVG topology showing all connected providers and models
+  - Provider cards with model badges and detailed metrics
+  - Direct "View in Smartscape" link for deep diving
+- 🆕 **Home Page Agents Stat**: New StatCard showing active AI agents count
+- ✨ **Simplified Topology Edges**: Cleaner, thinner dashed lines with smaller arrowheads
+- ✨ **Click to Explore Hint**: Service nodes show "Click to explore →" on hover
+- 🔄 **Agent Activity Chart**: Replaced Tool Error Rate chart with Agent Activity Over Time
+- 🔄 **Tool Calls Chart**: Replaced Loop Incidents chart with Tool Calls Over Time
+
+### v2.7.0 (January 2026)
 - 🆕 **AI Topology Page**: Interactive Smartscape-style visualization of GenAI service flows
   - Card-based nodes for Services (blue), Providers (purple), and Models (teal)
   - Connection-aware filtering - shows only related entities

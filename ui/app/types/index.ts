@@ -54,6 +54,7 @@ export interface HealthMetrics {
   criticalCount: number;
   totalTokensToday: number;
   totalCostToday: number;
+  totalRequests: number;
   avgLatency: number;
   avgErrorRate: number;
   /** GenAI Quality Metrics */

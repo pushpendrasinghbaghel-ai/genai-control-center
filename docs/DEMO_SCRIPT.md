@@ -131,7 +131,7 @@
 
 ---
 
-### 🗺️ DEMO STOP 6: AI Topology - Visual Flow (30 seconds)
+### 🗺️ DEMO STOP 6: AI Topology - Visual Flow (45 seconds)
 
 **Navigate to:** `/topology`
 
@@ -139,10 +139,20 @@
 - Smartscape-style visualization
 - Service → Provider → Model relationships
 - Health indicators on each node
-- Click on a service to show metrics
+- Hover over a service node to see "Click to explore →" hint
+
+**Demo Action:** Click on a Service node to open the Service Detail Modal
+
+**Show:**
+- Summary stats: requests, tokens, latency, error rate
+- Interactive SVG showing all connected providers and models
+- Provider cards with model badges
+- "View in Smartscape" button for deep diving
 
 **Say:**
-> "This is your AI architecture at a glance. See exactly which services call which providers and models, with real-time health overlaid. Click any node to drill down."
+> "This is your AI architecture at a glance. See exactly which services call which providers and models, with real-time health overlaid."
+>
+> "Click any service to open a detailed view - you get the complete picture: all providers used, all models called, with performance metrics. One click to jump into Smartscape for distributed tracing."
 
 ---
 
@@ -230,4 +240,4 @@ Focus on: Home dashboard, overall health score, cost trends, risk summary
 
 ---
 
-*Demo created for GenAI Control Center v2.3*
+*Demo created for GenAI Control Center v2.8*

@@ -1,19 +1,19 @@
 // GenAI Control Center - Navigation Header
 // Navigation Pattern: Observe → Analyze → Act
-// Home → FinOps → Analytics → Governance → Topology → Health → Agents → Intelligence → Operations
+// Home → FinOps → Analytics → Governance → Topology → Services → Agents → Intelligence → Operations
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
 import { 
   HomeIcon, 
-  HeartIcon,           // Health dashboard
+  ServicesIcon,        // AI Services
   SmartscapeIcon,      // Topology
   BarChartIcon,        // Response Analytics
   LockIcon,            // Prompt Governance
   MoneyIcon,           // FinOps
   AiIcon,              // Intelligence
   WorkflowsIcon,       // Operations
-  SettingIcon          // Agent Tools
+  AgentIcon            // Agent Tools (AI agents)
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -72,14 +72,14 @@ export const Header = () => {
           <SmartscapeIcon aria-hidden="true" /> Topology
         </AppHeader.NavItem>
         
-        {/* 6. Health: Monitoring & errors - "Is everything working?" */}
-        <AppHeader.NavItem as={Link} to="/health" style={getNavItemStyle('/health')} aria-label="Health Dashboard">
-          <HeartIcon aria-hidden="true" /> Health
+        {/* 6. Services: AI services overview - "What services are using AI?" */}
+        <AppHeader.NavItem as={Link} to="/services" style={getNavItemStyle('/services')} aria-label="AI Services">
+          <ServicesIcon aria-hidden="true" /> Services
         </AppHeader.NavItem>
         
         {/* 7. Agents: AI agent tool monitoring - "How are agents behaving?" */}
         <AppHeader.NavItem as={Link} to="/agents" style={getNavItemStyle('/agents')} aria-label="Agent Tools">
-          <SettingIcon aria-hidden="true" /> Agents
+          <AgentIcon aria-hidden="true" /> Agents
         </AppHeader.NavItem>
         
         {/* 8. Intelligence: AI-powered investigation - Deep dive with Davis */}

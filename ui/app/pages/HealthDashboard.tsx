@@ -11,7 +11,7 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, HeartIcon } from '@dynatrace/strato-icons';
+import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
@@ -116,7 +116,7 @@ const openEntityInServices = (entityId: string): void => {
   window.open(intentUrl, '_blank', 'noopener,noreferrer');
 };
 
-// Service Row Component - Compact table-style layout
+// Service Row Component - Compact table-style layout with full metrics
 const ServiceRow: React.FC<{ 
   service: AIService; 
   onInvestigate: (name: string) => void 
@@ -159,8 +159,12 @@ const ServiceRow: React.FC<{
         </div>
       </Flex>
       
-      <Flex alignItems="center" gap={20} style={{ flex: 2 }}>
-        <div style={{ textAlign: 'right', minWidth: 70 }}>
+      <Flex alignItems="center" gap={16} style={{ flex: 3 }}>
+        <div style={{ textAlign: 'right', minWidth: 55 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.requestCount)}</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>requests</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 65 }}>
           <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.totalTokens)}</div>
           <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>tokens</div>
         </div>
@@ -168,11 +172,24 @@ const ServiceRow: React.FC<{
           <div style={{ fontSize: 12, fontWeight: 600 }}>{Number(service.avgLatency || 0).toFixed(0)}ms</div>
           <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>latency</div>
         </div>
-        <div style={{ textAlign: 'right', minWidth: 60 }}>
+        <div style={{ textAlign: 'right', minWidth: 50 }}>
+          <div style={{ 
+            fontSize: 12, fontWeight: 600,
+            color: Number(service.errorRate || 0) > 5 
+              ? 'var(--dt-colors-feedback-critical-default)' 
+              : Number(service.errorRate || 0) > 1 
+              ? 'var(--dt-colors-feedback-warning-default)' 
+              : 'var(--dt-colors-feedback-success-default)'
+          }}>
+            {Number(service.errorRate || 0).toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>error rate</div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: 55 }}>
           <div style={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(service.estimatedCost)}</div>
           <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>cost</div>
         </div>
-        <div style={{ textAlign: 'right', minWidth: 50 }}>
+        <div style={{ textAlign: 'right', minWidth: 45 }}>
           <div style={{ 
             fontSize: 12, fontWeight: 600,
             color: Number(service.slowRequestRate || 0) > 10 
@@ -183,16 +200,7 @@ const ServiceRow: React.FC<{
           }}>
             {Number(service.slowRequestRate || 0).toFixed(1)}%
           </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }} title="Requests taking >3 seconds">slow (&gt;3s)</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 50 }}>
-          <div style={{ 
-            fontSize: 12, fontWeight: 600,
-            color: Number(service.lowOutputRate || 0) > 20 ? 'var(--dt-colors-feedback-warning-default)' : 'inherit'
-          }}>
-            {Number(service.lowOutputRate || 0).toFixed(1)}%
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>low output</div>
+          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>slow</div>
         </div>
       </Flex>
       
@@ -320,10 +328,10 @@ export const HealthDashboard: React.FC = () => {
       {/* Page TitleBar */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true">
-          <HeartIcon />
+          <ServicesIcon />
         </TitleBar.Prefix>
-        <TitleBar.Title>Health Dashboard</TitleBar.Title>
-        <TitleBar.Subtitle>Auto-discovered AI services health at a glance</TitleBar.Subtitle>
+        <TitleBar.Title>AI Services</TitleBar.Title>
+        <TitleBar.Subtitle>Auto-discovered services using GenAI APIs with health and performance metrics</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Button variant="accent" onClick={() => navigate('/architect')} aria-label="View AI Architect recommendations">
             Recommendations
@@ -390,6 +398,12 @@ export const HealthDashboard: React.FC = () => {
           tooltip="Total number of services using gen_ai.* OpenTelemetry attributes. Each service represents a unique application calling AI APIs."
         />
         <MetricCard 
+          value={formatNumber(healthMetrics.totalRequests)} 
+          label="Requests" 
+          icon={<AnalyticsIcon style={{ width: 18, height: 18 }} />} 
+          tooltip="Total number of AI API requests across all services in the selected timeframe."
+        />
+        <MetricCard 
           value={formatNumber(healthMetrics.totalTokensToday)} 
           label="Tokens" 
           icon={<BarChartIcon style={{ width: 18, height: 18 }} />} 
@@ -409,6 +423,66 @@ export const HealthDashboard: React.FC = () => {
         />
       </Flex>
 
+      {/* Top Consumers - Quick insight into highest usage services */}
+      {services.length > 1 && (
+        <Surface>
+          <Flex padding={16} flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <AnalyticsIcon style={{ width: 16, height: 16 }} />
+              <Text style={{ fontWeight: 600 }}>Top Consumers</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                Services with highest AI usage
+              </Text>
+            </Flex>
+            <Flex gap={16} flexWrap="wrap">
+              {services
+                .sort((a, b) => b.estimatedCost - a.estimatedCost)
+                .slice(0, 3)
+                .map((service, idx) => (
+                  <Flex 
+                    key={`top-${idx}`}
+                    padding={12}
+                    gap={12}
+                    alignItems="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-default-secondary)',
+                      borderRadius: 6,
+                      flex: '1 1 200px',
+                      minWidth: 200
+                    }}
+                  >
+                    <div style={{ 
+                      width: 24, 
+                      height: 24, 
+                      borderRadius: '50%', 
+                      background: idx === 0 ? 'var(--dt-colors-feedback-warning-default)' : 'var(--dt-colors-border-neutral-default)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: idx === 0 ? '#000' : 'inherit'
+                    }}>
+                      {idx + 1}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: 600, fontSize: 13 }}>{service.serviceName}</Text>
+                      <Flex gap={12} style={{ marginTop: 2 }}>
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {formatCurrency(service.estimatedCost)} cost
+                        </Text>
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {formatNumber(service.totalTokens)} tokens
+                        </Text>
+                      </Flex>
+                    </div>
+                  </Flex>
+                ))}
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
+
       {/* Service List - Table Style */}
       <Surface>
         <Flex flexDirection="column">
@@ -423,8 +497,14 @@ export const HealthDashboard: React.FC = () => {
             <Text style={{ flex: 2, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>
               Service
             </Text>
-            <Flex style={{ flex: 2 }} gap={20}>
-              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 70 }}>
+            <Flex style={{ flex: 3 }} gap={16}>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 55 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Requests</Text>
+                <Tooltip text="Total number of AI API calls made by this service">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 65 }}>
                 <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Tokens</Text>
                 <Tooltip text="Total input + output tokens consumed by this service">
                   <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
@@ -436,21 +516,21 @@ export const HealthDashboard: React.FC = () => {
                   <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                 </Tooltip>
               </Flex>
-              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 60 }}>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Errors</Text>
+                <Tooltip text="Percentage of failed AI requests. >1% is warning, >5% is critical">
+                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 55 }}>
                 <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Cost</Text>
                 <Tooltip text="Estimated cost based on tokens × provider pricing">
                   <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                 </Tooltip>
               </Flex>
-              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
-                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow %</Text>
-                <Tooltip text="Percentage of requests taking >3 seconds. High % indicates performance issues">
-                  <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                </Tooltip>
-              </Flex>
-              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 50 }}>
-                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Low Out %</Text>
-                <Tooltip text="Percentage of requests with output tokens <10% of input. May indicate prompt waste">
+              <Flex alignItems="center" gap={4} style={{ textAlign: 'right', minWidth: 45 }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>Slow%</Text>
+                <Tooltip text="Requests taking >3 seconds. High % indicates performance issues">
                   <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                 </Tooltip>
               </Flex>

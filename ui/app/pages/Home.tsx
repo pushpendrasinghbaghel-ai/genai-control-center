@@ -13,6 +13,7 @@ import type { Timeframe } from "@dynatrace/strato-components-preview/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
 import {
   AiIcon,
+  AgentIcon,
   BarChartIcon,
   MoneyIcon,
   SmartscapeIcon,
@@ -26,7 +27,7 @@ import {
   HomeIcon,
   HelpIcon
 } from "@dynatrace/strato-icons";
-import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend } from "../hooks";
+import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend, useAgentTools } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
 
 // Dynatrace Status Color Tokens (following Status and Health guidelines)
@@ -160,6 +161,14 @@ export const Home = () => {
   // Core data hooks
   const { data: services, loading } = useAIServicesDiscovery();
   const healthMetrics = services ? calculateOverallHealth(services) : null;
+  
+  // Agent tools data for stat cards
+  const { summary: agentSummary, fetchAgentToolsData } = useAgentTools();
+  
+  // Fetch agent data on mount
+  React.useEffect(() => {
+    fetchAgentToolsData();
+  }, [fetchAgentToolsData]);
   
   // Real DQL timeseries data
   const { data: trendData, loading: trendLoading } = useAIServicesTrend(timeframe);
@@ -327,6 +336,11 @@ export const Home = () => {
                   : healthMetrics.avgSlowRequestRate > 5 
                   ? STATUS_COLORS.warning
                   : STATUS_COLORS.ideal}
+              />
+              <StatCard 
+                icon={<AgentIcon style={{ width: 18, height: 18 }} aria-hidden="true" />} 
+                label="Agents" 
+                value={agentSummary?.totalAgents ?? 0}
               />
             </Flex>
           ) : (
@@ -718,6 +732,13 @@ export const Home = () => {
                 path="/health"
                 color={CHART_COLORS.success}
                 metrics={healthMetrics ? `${healthMetrics.totalServices} services monitored` : undefined}
+              />
+              <PillarCard
+                icon={<AgentIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color07.Default }} />}
+                title="Agent Analytics"
+                description="Monitor AI agent tool usage, detect infinite loops, and analyze agent workflows. Track tool calls, latency, and error rates."
+                path="/agents"
+                color={Colors.Charts.Categorical.Color07.Default}
               />
               <PillarCard
                 icon={<SmartscapeIcon style={{ width: 20, height: 20, color: CHART_COLORS.secondary }} />}

@@ -9,19 +9,21 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
+import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
+import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
 import { 
   RefreshIcon, WarningIcon, CheckmarkIcon, CriticalIcon, 
   HelpIcon, SettingIcon, WorkflowsIcon, BarChartIcon,
-  ExternalLinkIcon, SmartscapeIcon
+  ExternalLinkIcon, SmartscapeIcon, AgentIcon
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
-import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence } from '../hooks/useAgentTools';
+import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend } from '../hooks/useAgentTools';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
 // ============================================
@@ -47,6 +49,19 @@ const FLOW_COLORS = [
   '#2ab6f4', // Light blue
   '#9b59b6', // Violet
 ];
+
+// Chart color palette for timeseries
+const CHART_COLORS = {
+  toolCalls: '#14a8f5', // Dynatrace blue for tool activity
+  agentActivity: [
+    Colors.Charts.Categorical.Color01.Default,
+    Colors.Charts.Categorical.Color02.Default,
+    Colors.Charts.Categorical.Color03.Default,
+    Colors.Charts.Categorical.Color04.Default,
+    Colors.Charts.Categorical.Color05.Default,
+    Colors.Charts.Categorical.Color06.Default,
+  ],
+};
 
 // SVG Topology Node Types - Dynatrace standard colors
 const NODE_CONFIGS = {
@@ -552,204 +567,433 @@ const ToolFlowCard: React.FC<{
 // ============================================
 // Tool Topology SVG Visualization
 // ============================================
-interface ToolTopologySVGProps {
-  toolCoOccurrence: ToolCoOccurrence[];
-  toolUsage: ToolUsage[];
+// ============================================
+// Agent-Tool Topology SVG Component - Smartscape Card Style
+// Shows which agents use which tools with card-based visualization
+// ============================================
+interface AgentToolTopologyProps {
+  agentToolReliability: AgentToolReliability[];
 }
 
-const ToolTopologySVG: React.FC<ToolTopologySVGProps> = ({ toolCoOccurrence, toolUsage }) => {
-  // Create a list of unique tools from co-occurrence data
-  const uniqueTools = useMemo(() => {
-    const toolSet = new Set<string>();
-    toolCoOccurrence.forEach(co => {
-      toolSet.add(co.tool1);
-      toolSet.add(co.tool2);
+// Smartscape Card Node for Agent-Tool Topology
+const AgentToolCardNode: React.FC<{
+  x: number;
+  y: number;
+  type: 'agent' | 'tool';
+  name: string;
+  metrics: { calls: number; errorRate: number; avgDuration?: number };
+  isHighlighted: boolean;
+  onHover: (name: string | null) => void;
+}> = ({ x, y, type, name, metrics, isHighlighted, onHover }) => {
+  const cardWidth = 140;
+  const cardHeight = 72;
+  
+  const config = type === 'agent' 
+    ? { label: 'Agent', color: '#14a8f5', icon: 'A' }
+    : { label: 'Tool', color: '#6f2da8', icon: 'T' };
+  
+  // Determine health status
+  const health = metrics.errorRate > 5 ? 'critical' : metrics.errorRate > 2 ? 'warning' : 'healthy';
+  const healthColor = health === 'critical' ? '#dc172a' : health === 'warning' ? '#f5d30f' : '#73be28';
+  
+  // Display name with truncation
+  const displayName = name.length > 14 ? name.substring(0, 12) + '...' : name;
+  
+  // Format calls
+  const callsDisplay = metrics.calls > 1000 
+    ? `${(metrics.calls / 1000).toFixed(1)}K` 
+    : String(metrics.calls);
+
+  return (
+    <g
+      transform={`translate(${x - cardWidth/2}, ${y - cardHeight/2})`}
+      style={{ cursor: 'pointer' }}
+      onMouseEnter={() => onHover(name)}
+      onMouseLeave={() => onHover(null)}
+    >
+      {/* Card shadow */}
+      <rect
+        x={2}
+        y={2}
+        width={cardWidth}
+        height={cardHeight}
+        rx={6}
+        fill="rgba(0,0,0,0.08)"
+      />
+      
+      {/* Card background */}
+      <rect
+        width={cardWidth}
+        height={cardHeight}
+        rx={6}
+        fill="#ffffff"
+        stroke={isHighlighted ? config.color : '#e5e7eb'}
+        strokeWidth={isHighlighted ? 2 : 1}
+      />
+      
+      {/* Colored header bar */}
+      <rect
+        width={cardWidth}
+        height={20}
+        rx={6}
+        fill={config.color}
+      />
+      <rect
+        y={14}
+        width={cardWidth}
+        height={6}
+        fill={config.color}
+      />
+      
+      {/* Type label */}
+      <text
+        x={10}
+        y={13}
+        fontSize={9}
+        fontWeight={600}
+        fill="#ffffff"
+        style={{ textTransform: 'uppercase' }}
+      >
+        {config.label}
+      </text>
+      
+      {/* Call count badge */}
+      <text
+        x={cardWidth - 10}
+        y={13}
+        fontSize={9}
+        fontWeight={600}
+        fill="#ffffff"
+        textAnchor="end"
+      >
+        {callsDisplay}
+      </text>
+      
+      {/* Hexagonal icon container */}
+      <g transform={`translate(${cardWidth/2}, 40)`}>
+        <polygon
+          points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7"
+          fill="#ffffff"
+          stroke={config.color}
+          strokeWidth={1.5}
+        />
+        <text
+          x={0}
+          y={5}
+          textAnchor="middle"
+          fontSize={12}
+          fontWeight={700}
+          fill={config.color}
+        >
+          {config.icon}
+        </text>
+      </g>
+      
+      {/* Entity name */}
+      <text
+        x={cardWidth / 2}
+        y={64}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={600}
+        fill="#1f2937"
+      >
+        {displayName}
+      </text>
+      
+      {/* Health indicator dot */}
+      <circle
+        cx={cardWidth - 10}
+        cy={cardHeight - 10}
+        r={4}
+        fill={healthColor}
+      />
+      
+      {/* Tooltip */}
+      <title>{`${name}\nCalls: ${formatNumber(metrics.calls)}\nError Rate: ${metrics.errorRate.toFixed(1)}%${metrics.avgDuration ? `\nAvg Duration: ${formatDuration(metrics.avgDuration)}` : ''}`}</title>
+    </g>
+  );
+};
+
+const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolReliability }) => {
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  
+  // Extract unique agents and tools with metrics
+  const { agents, tools, agentMetrics, toolMetrics, maxCalls } = useMemo(() => {
+    const agentMap = new Map<string, { calls: number; errorRate: number; toolCount: number }>();
+    const toolMap = new Map<string, { calls: number; errorRate: number; avgDuration: number; agentCount: number }>();
+    let max = 1;
+    
+    agentToolReliability.forEach(rel => {
+      // Aggregate agent metrics
+      if (!agentMap.has(rel.agentName)) {
+        agentMap.set(rel.agentName, { calls: 0, errorRate: 0, toolCount: 0 });
+      }
+      const agentM = agentMap.get(rel.agentName)!;
+      agentM.calls += rel.totalCalls;
+      agentM.errorRate = Math.max(agentM.errorRate, rel.errorRate);
+      agentM.toolCount += 1;
+      
+      // Aggregate tool metrics
+      if (!toolMap.has(rel.toolName)) {
+        toolMap.set(rel.toolName, { calls: 0, errorRate: 0, avgDuration: 0, agentCount: 0 });
+      }
+      const toolM = toolMap.get(rel.toolName)!;
+      toolM.calls += rel.totalCalls;
+      toolM.errorRate = Math.max(toolM.errorRate, rel.errorRate);
+      toolM.avgDuration = rel.avgDurationMs;
+      toolM.agentCount += 1;
+      
+      if (rel.totalCalls > max) max = rel.totalCalls;
     });
-    return Array.from(toolSet);
-  }, [toolCoOccurrence]);
+    
+    return {
+      agents: Array.from(agentMap.keys()),
+      tools: Array.from(toolMap.keys()),
+      agentMetrics: agentMap,
+      toolMetrics: toolMap,
+      maxCalls: max
+    };
+  }, [agentToolReliability]);
 
-  // Create a map of tool usage data for sizing and coloring nodes
-  const toolUsageMap = useMemo(() => {
-    return new Map(toolUsage.map(t => [t.toolName, t]));
-  }, [toolUsage]);
+  // SVG dimensions - responsive to content
+  const cardWidth = 140;
+  const cardHeight = 72;
+  const horizontalPadding = 80;
+  const verticalPadding = 60;
+  const verticalSpacing = 90;
+  
+  const maxNodes = Math.max(agents.length, tools.length);
+  const svgWidth = 700;
+  const svgHeight = Math.max(300, verticalPadding * 2 + maxNodes * verticalSpacing);
+  
+  const agentColumnX = horizontalPadding + cardWidth / 2;
+  const toolColumnX = svgWidth - horizontalPadding - cardWidth / 2;
 
-  // Calculate max co-occurrence for edge thickness scaling
-  const maxCoOccurrence = useMemo(() => {
-    return Math.max(...toolCoOccurrence.map(co => co.coOccurrenceCount), 1);
-  }, [toolCoOccurrence]);
-
-  // Layout: Arrange tools in a circular layout
-  const nodeCount = uniqueTools.length;
-  const svgWidth = 800;
-  const svgHeight = 300;
-  const centerX = svgWidth / 2;
-  const centerY = svgHeight / 2;
-  const radius = Math.min(svgWidth, svgHeight) * 0.35;
-
-  // Calculate node positions in a circle
-  const nodePositions = useMemo(() => {
+  // Calculate positions
+  const agentPositions = useMemo(() => {
     const positions: { [key: string]: { x: number; y: number } } = {};
+    const startY = (svgHeight - (agents.length - 1) * verticalSpacing) / 2;
     
-    if (nodeCount <= 1) {
-      uniqueTools.forEach((tool) => {
-        positions[tool] = { x: centerX, y: centerY };
-      });
-      return positions;
-    }
-    
-    uniqueTools.forEach((tool, index) => {
-      const angle = (2 * Math.PI * index) / nodeCount - Math.PI / 2;
-      positions[tool] = {
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle)
+    agents.forEach((agent, index) => {
+      positions[agent] = {
+        x: agentColumnX,
+        y: startY + index * verticalSpacing
       };
     });
     return positions;
-  }, [uniqueTools, nodeCount, centerX, centerY, radius]);
+  }, [agents, svgHeight, agentColumnX, verticalSpacing]);
 
-  // Calculate node sizes based on call count (min 20, max 35)
-  const getNodeSize = (toolName: string): number => {
-    const usage = toolUsageMap.get(toolName);
-    if (!usage || toolUsage.length === 0) return 25;
-    const maxCalls = Math.max(...toolUsage.map(t => t.callCount));
-    const ratio = usage.callCount / maxCalls;
-    return 20 + ratio * 15;
+  const toolPositions = useMemo(() => {
+    const positions: { [key: string]: { x: number; y: number } } = {};
+    const startY = (svgHeight - (tools.length - 1) * verticalSpacing) / 2;
+    
+    tools.forEach((tool, index) => {
+      positions[tool] = {
+        x: toolColumnX,
+        y: startY + index * verticalSpacing
+      };
+    });
+    return positions;
+  }, [tools, svgHeight, toolColumnX, verticalSpacing]);
+
+  // Check if an edge should be highlighted
+  const isEdgeHighlighted = (agentName: string, toolName: string) => {
+    return hoveredNode === agentName || hoveredNode === toolName;
   };
 
-  // Get node color based on error rate
-  const getNodeColor = (toolName: string): string => {
-    const usage = toolUsageMap.get(toolName);
-    if (!usage) return NODE_CONFIGS.tool.color;
-    if (usage.errorRate > 5) return STATUS_COLORS.critical;
-    if (usage.errorRate > 2) return STATUS_COLORS.warning;
-    return NODE_CONFIGS.tool.color;
-  };
+  // Render connection edges
+  const edges = agentToolReliability.map((rel, index) => {
+    const agentPos = agentPositions[rel.agentName];
+    const toolPos = toolPositions[rel.toolName];
+    if (!agentPos || !toolPos) return null;
 
-  // Render edges (connections between tools)
-  const edges = toolCoOccurrence.map((co, index) => {
-    const pos1 = nodePositions[co.tool1];
-    const pos2 = nodePositions[co.tool2];
-    if (!pos1 || !pos2) return null;
+    const highlighted = isEdgeHighlighted(rel.agentName, rel.toolName);
+    
+    // Edge styling based on metrics
+    const baseThickness = 1.5 + (rel.totalCalls / maxCalls) * 3;
+    const thickness = highlighted ? baseThickness + 1 : baseThickness;
+    const opacity = highlighted ? 0.9 : 0.5;
+    
+    // Color based on error rate
+    const edgeColor = rel.errorRate > 5 ? '#dc172a' : 
+                      rel.errorRate > 2 ? '#f5d30f' : 
+                      '#9ca3af';
 
-    // Calculate edge thickness based on co-occurrence count
-    const thickness = 1 + (co.coOccurrenceCount / maxCoOccurrence) * 5;
-    const opacity = 0.2 + (co.coOccurrenceCount / maxCoOccurrence) * 0.4;
+    // Calculate edge endpoints (from card edges)
+    const startX = agentPos.x + cardWidth / 2 + 5;
+    const endX = toolPos.x - cardWidth / 2 - 5;
+    
+    // Create curved bezier path
+    const midX = (startX + endX) / 2;
+    const pathD = `M ${startX} ${agentPos.y} C ${midX} ${agentPos.y}, ${midX} ${toolPos.y}, ${endX} ${toolPos.y}`;
+
+    // Edge label (calls + error rate)
+    const labelX = midX;
+    const labelY = (agentPos.y + toolPos.y) / 2;
+    const callsLabel = rel.totalCalls > 1000 ? `${(rel.totalCalls/1000).toFixed(1)}K` : rel.totalCalls;
 
     return (
-      <g key={`edge-${index}`}>
-        <line
-          x1={pos1.x}
-          y1={pos1.y}
-          x2={pos2.x}
-          y2={pos2.y}
-          stroke={NODE_CONFIGS.tool.color}
+      <g key={`edge-${index}`} style={{ opacity: highlighted ? 1 : (hoveredNode ? 0.2 : 1) }}>
+        {/* Connection curve */}
+        <path
+          d={pathD}
+          fill="none"
+          stroke={edgeColor}
           strokeWidth={thickness}
           strokeOpacity={opacity}
-        />
-        {/* Show co-occurrence count on hover */}
-        <title>{`${co.tool1} ↔ ${co.tool2}: ${co.coOccurrenceCount} traces`}</title>
-      </g>
-    );
-  });
-
-  // Render nodes
-  const nodes = uniqueTools.map((toolName) => {
-    const pos = nodePositions[toolName];
-    if (!pos) return null;
-
-    const size = getNodeSize(toolName);
-    const color = getNodeColor(toolName);
-    const usage = toolUsageMap.get(toolName);
-    const hasHighError = usage && usage.errorRate > 5;
-
-    // Truncate long tool names for display
-    const displayName = toolName.length > 15 ? toolName.substring(0, 12) + '...' : toolName;
-
-    return (
-      <g key={`node-${toolName}`} style={{ cursor: 'pointer' }}>
-        {/* Node circle */}
-        <circle
-          cx={pos.x}
-          cy={pos.y}
-          r={size}
-          fill={color}
-          stroke={hasHighError ? STATUS_COLORS.critical : 'rgba(255,255,255,0.3)'}
-          strokeWidth={hasHighError ? 3 : 1}
+          strokeDasharray={highlighted ? undefined : '6 3'}
+          markerEnd="url(#arrowhead-agent-tool)"
         />
         
-        {/* Error indicator */}
-        {hasHighError && (
-          <text
-            x={pos.x}
-            y={pos.y + 4}
-            textAnchor="middle"
-            fill="white"
-            fontSize={12}
-            fontWeight="bold"
-          >
-            !
-          </text>
+        {/* Edge label box */}
+        {highlighted && (
+          <>
+            <rect
+              x={labelX - 28}
+              y={labelY - 10}
+              width={56}
+              height={20}
+              rx={4}
+              fill="#ffffff"
+              stroke="#e5e7eb"
+              strokeWidth={1}
+              style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
+            />
+            <text
+              x={labelX}
+              y={labelY + 4}
+              textAnchor="middle"
+              fontSize={9}
+              fontWeight={500}
+              fill="#374151"
+            >
+              {callsLabel} calls
+            </text>
+          </>
         )}
         
-        {/* Tool name label */}
-        <text
-          x={pos.x}
-          y={pos.y + size + 14}
-          textAnchor="middle"
-          fill="var(--dt-colors-text-primary-default)"
-          fontSize={10}
-          fontFamily="monospace"
-        >
-          {displayName}
-        </text>
-        
-        {/* Tooltip with full info */}
-        <title>
-          {`${toolName}\nCalls: ${usage?.callCount ?? 'N/A'}\nError Rate: ${usage?.errorRate?.toFixed(1) ?? 'N/A'}%`}
-        </title>
+        <title>{`${rel.agentName} → ${rel.toolName}\nCalls: ${formatNumber(rel.totalCalls)}\nError Rate: ${rel.errorRate.toFixed(1)}%\nAvg Duration: ${formatDuration(rel.avgDurationMs)}`}</title>
       </g>
     );
   });
 
-  if (uniqueTools.length === 0) {
+  if (agents.length === 0 || tools.length === 0) {
     return (
-      <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`}>
-        <text
-          x={centerX}
-          y={centerY}
-          textAnchor="middle"
-          fill="var(--dt-colors-text-secondary-default)"
-          fontSize={14}
-        >
-          No tool co-occurrence data available
-        </text>
-      </svg>
+      <Flex justifyContent="center" alignItems="center" style={{ height: 200, color: 'var(--dt-colors-text-secondary-default)' }}>
+        <Flex flexDirection="column" alignItems="center" gap={8}>
+          <SmartscapeIcon style={{ width: 32, height: 32, opacity: 0.4 }} />
+          <Text>No agent-tool relationship data available</Text>
+        </Flex>
+      </Flex>
     );
   }
 
   return (
     <svg 
       width="100%" 
-      height="100%" 
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-      style={{ minHeight: 280 }}
+      style={{ minHeight: Math.min(400, svgHeight), maxHeight: 500 }}
     >
-      {/* Edges first so nodes appear on top */}
+      {/* Arrow marker definition */}
+      <defs>
+        <marker
+          id="arrowhead-agent-tool"
+          markerWidth={8}
+          markerHeight={6}
+          refX={8}
+          refY={3}
+          orient="auto"
+        >
+          <polygon points="0 0, 8 3, 0 6" fill="#9ca3af" />
+        </marker>
+      </defs>
+      
+      {/* Column headers with icons */}
+      <g transform={`translate(${agentColumnX}, 25)`}>
+        <text
+          x={0}
+          y={0}
+          textAnchor="middle"
+          fontSize={11}
+          fontWeight={600}
+          fill="var(--dt-colors-text-secondary-default)"
+          style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}
+        >
+          Agents ({agents.length})
+        </text>
+      </g>
+      <g transform={`translate(${toolColumnX}, 25)`}>
+        <text
+          x={0}
+          y={0}
+          textAnchor="middle"
+          fontSize={11}
+          fontWeight={600}
+          fill="var(--dt-colors-text-secondary-default)"
+          style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}
+        >
+          Tools ({tools.length})
+        </text>
+      </g>
+      
+      {/* Edges layer (behind nodes) */}
       <g className="edges">{edges}</g>
       
-      {/* Nodes */}
-      <g className="nodes">{nodes}</g>
+      {/* Agent nodes */}
+      {agents.map(agentName => {
+        const pos = agentPositions[agentName];
+        const metrics = agentMetrics.get(agentName)!;
+        const highlighted = hoveredNode === agentName || 
+          agentToolReliability.some(r => r.agentName === agentName && r.toolName === hoveredNode);
+        
+        return (
+          <AgentToolCardNode
+            key={`agent-${agentName}`}
+            x={pos.x}
+            y={pos.y}
+            type="agent"
+            name={agentName}
+            metrics={{ calls: metrics.calls, errorRate: metrics.errorRate }}
+            isHighlighted={highlighted}
+            onHover={setHoveredNode}
+          />
+        );
+      })}
       
-      {/* Center label */}
-      <text
-        x={centerX}
-        y={20}
-        textAnchor="middle"
-        fill="var(--dt-colors-text-secondary-default)"
-        fontSize={11}
-      >
-        {uniqueTools.length} tools • {toolCoOccurrence.length} connections
-      </text>
+      {/* Tool nodes */}
+      {tools.map(toolName => {
+        const pos = toolPositions[toolName];
+        const metrics = toolMetrics.get(toolName)!;
+        const highlighted = hoveredNode === toolName ||
+          agentToolReliability.some(r => r.toolName === toolName && r.agentName === hoveredNode);
+        
+        return (
+          <AgentToolCardNode
+            key={`tool-${toolName}`}
+            x={pos.x}
+            y={pos.y}
+            type="tool"
+            name={toolName}
+            metrics={{ calls: metrics.calls, errorRate: metrics.errorRate, avgDuration: metrics.avgDuration }}
+            isHighlighted={highlighted}
+            onHover={setHoveredNode}
+          />
+        );
+      })}
+      
+      {/* Legend */}
+      <g transform={`translate(${svgWidth / 2}, ${svgHeight - 20})`}>
+        <text
+          x={0}
+          y={0}
+          textAnchor="middle"
+          fontSize={10}
+          fill="var(--dt-colors-text-secondary-default)"
+        >
+          Line thickness = call volume • Red = high errors ({'>'}5%) • Yellow = warnings (2-5%)
+        </text>
+      </g>
     </svg>
   );
 };
@@ -784,6 +1028,8 @@ export const AgentTools: React.FC = () => {
     agentLatency,
     agentToolReliability,
     toolCoOccurrence,
+    toolCallsTrend,
+    agentActivityTrend,
     loading, 
     error, 
     fetchAgentToolsData,
@@ -841,6 +1087,52 @@ export const AgentTools: React.FC = () => {
     }
     return data;
   }, [agentList, agentLatency, agentTokenCosts, agentFilter]);
+
+  // Convert tool calls trend to TimeseriesChart format
+  const toolCallsTimeseriesData: Timeseries[] = useMemo(() => {
+    if (toolCallsTrend.length === 0) return [];
+    
+    return [{
+      name: 'Tool Calls',
+      datapoints: toolCallsTrend.map(item => ({
+        start: new Date(item.timestamp),
+        value: item.callCount
+      }))
+    }];
+  }, [toolCallsTrend]);
+
+  // Convert agent activity trend to TimeseriesChart format (grouped by agent)
+  const agentActivityTimeseriesData: Timeseries[] = useMemo(() => {
+    if (agentActivityTrend.length === 0) return [];
+    
+    // Group by agent name
+    const agentGroups = new Map<string, { start: Date; value: number }[]>();
+    
+    agentActivityTrend.forEach(item => {
+      const agentName = item.agentName;
+      if (!agentGroups.has(agentName)) {
+        agentGroups.set(agentName, []);
+      }
+      agentGroups.get(agentName)!.push({
+        start: new Date(item.timestamp),
+        value: item.invocationCount
+      });
+    });
+    
+    // Convert to Timeseries array (limit to top 6 agents by total invocations)
+    const agentTotals = Array.from(agentGroups.entries()).map(([name, datapoints]) => ({
+      name,
+      total: datapoints.reduce((sum, d) => sum + d.value, 0),
+      datapoints
+    }));
+    
+    agentTotals.sort((a, b) => b.total - a.total);
+    
+    return agentTotals.slice(0, 6).map(({ name, datapoints }) => ({
+      name,
+      datapoints
+    }));
+  }, [agentActivityTrend]);
 
   // Prepare table columns for tool usage - using proper cell renderers
   const toolColumns: any[] = useMemo(() => [
@@ -1341,7 +1633,7 @@ export const AgentTools: React.FC = () => {
       <TitleBar>
         <TitleBar.Title>
           <Flex alignItems="center" gap={8}>
-            <SettingIcon />
+            <AgentIcon />
             Agent Tools
           </Flex>
         </TitleBar.Title>
@@ -1457,6 +1749,91 @@ export const AgentTools: React.FC = () => {
                 />
               </Flex>
             )}
+
+            {/* Agent Activity Trends */}
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {/* Tool Calls Over Time */}
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <WorkflowsIcon style={{ width: 16, height: 16, color: CHART_COLORS.toolCalls }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Tool Calls Over Time</Text>
+                      <Tooltip text="Hourly trend of tool invocations across all agents. Helps identify usage patterns and peak activity periods.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.toolCalls }}>
+                      {formatNumber(toolCallsTrend.reduce((sum, item) => sum + item.callCount, 0))} total
+                    </Text>
+                  </Flex>
+                  
+                  {toolCallsTimeseriesData.length > 0 ? (
+                    <TimeseriesChart
+                      data={toolCallsTimeseriesData}
+                      variant="area"
+                      height={140}
+                      colorPalette={[CHART_COLORS.toolCalls]}
+                    >
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend hidden />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex 
+                      justifyContent="center" 
+                      alignItems="center" 
+                      flexDirection="column" 
+                      gap={4}
+                      style={{ height: 140, color: 'var(--dt-colors-text-secondary-default)' }}
+                    >
+                      <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No tool call data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+
+              {/* Agent Activity Over Time */}
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <AgentIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Agent Activity Over Time</Text>
+                      <Tooltip text="Hourly agent invocations (unique traces) per agent. Shows which agents are most active and when.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      Top {Math.min(6, agentActivityTimeseriesData.length)} agents
+                    </Text>
+                  </Flex>
+                  
+                  {agentActivityTimeseriesData.length > 0 ? (
+                    <TimeseriesChart
+                      data={agentActivityTimeseriesData}
+                      variant="line"
+                      height={140}
+                      colorPalette={CHART_COLORS.agentActivity}
+                    >
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend position="bottom" />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex 
+                      justifyContent="center" 
+                      alignItems="center" 
+                      flexDirection="column" 
+                      gap={4}
+                      style={{ height: 140, color: 'var(--dt-colors-text-secondary-default)' }}
+                    >
+                      <AgentIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No agent activity in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+            </Flex>
 
             {/* Agents Table */}
             <Surface padding={16}>
@@ -1673,50 +2050,49 @@ export const AgentTools: React.FC = () => {
               </Flex>
             </Surface>
 
-            {/* Tool Topology / Co-occurrence */}
+            {/* Agent-Tool Topology - Which agents use which tools */}
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
                   <SmartscapeIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />
-                  <Heading level={5}>Tool Topology</Heading>
-                  <Tooltip text="Tools that frequently appear together in the same traces. Thicker lines indicate stronger co-occurrence.">
+                  <Heading level={5}>Agent-Tool Map</Heading>
+                  <Tooltip text="Visual map showing which agents use which tools. Edge thickness indicates call frequency. Red edges/nodes indicate high error rates.">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                   <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                    ({toolCoOccurrence.length} tool relationships)
+                    ({agentToolReliability.length} relationships)
                   </Text>
                 </Flex>
                 
-                {toolCoOccurrence.length > 0 ? (
+                {agentToolReliability.length > 0 ? (
                   <Flex flexDirection="column" gap={16}>
                     {/* SVG Topology Visualization */}
                     <div style={{ 
                       width: '100%', 
-                      minHeight: 300, 
+                      minHeight: 320, 
                       backgroundColor: 'var(--dt-colors-background-container-neutral-subdued)',
                       borderRadius: 6,
                       overflow: 'hidden'
                     }}>
-                      <ToolTopologySVG toolCoOccurrence={toolCoOccurrence} toolUsage={filteredToolUsage} />
+                      <AgentToolTopologySVG agentToolReliability={agentToolReliability} />
                     </div>
                     
                     {/* Legend */}
                     <Flex gap={16} flexWrap="wrap" justifyContent="center">
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: NODE_CONFIGS.tool.color }} />
-                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tool Node</Text>
+                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.agent.color }} />
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Agent</Text>
                       </Flex>
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 20, height: 3, backgroundColor: 'rgba(111, 45, 168, 0.4)', borderRadius: 2 }} />
-                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Co-occurrence (thicker = more frequent)</Text>
+                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.tool.color }} />
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tool</Text>
                       </Flex>
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ 
-                          width: 16, height: 16, borderRadius: '50%', 
-                          backgroundColor: STATUS_COLORS.critical, 
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10, color: 'white', fontWeight: 600
-                        }}>!</span>
+                        <span style={{ width: 30, height: 3, backgroundColor: 'var(--dt-colors-border-neutral-default)', borderRadius: 2 }} />
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Usage (thicker = more calls)</Text>
+                      </Flex>
+                      <Flex alignItems="center" gap={6}>
+                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: STATUS_COLORS.critical }} />
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High Error Rate (&gt;5%)</Text>
                       </Flex>
                     </Flex>
@@ -1731,7 +2107,7 @@ export const AgentTools: React.FC = () => {
                     }}
                   >
                     <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                      No tool co-occurrence data available. Tools appearing together in traces will be visualized here.
+                      No agent-tool relationship data available. Ensure agents and tools are instrumented with gen_ai attributes.
                     </Text>
                   </Flex>
                 )}

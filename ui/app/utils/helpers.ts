@@ -87,6 +87,7 @@ export function calculateOverallHealth(services: AIService[]): HealthMetrics {
     criticalCount,
     totalTokensToday: services.reduce((sum, s) => sum + s.totalTokens, 0),
     totalCostToday: services.reduce((sum, s) => sum + s.estimatedCost, 0),
+    totalRequests: services.reduce((sum, s) => sum + (s.requestCount || 0), 0),
     avgLatency: services.length > 0
       ? services.reduce((sum, s) => sum + s.avgLatency, 0) / services.length
       : 0,
