@@ -499,9 +499,16 @@ export interface AnalyzedPrompt {
 }
 
 export interface PromptFlag {
-  type: 'pii' | 'hallucination' | 'expensive' | 'repetitive' | 'injection' | 'sensitive' | 'bias' | 'error';
+  type: 'pii' | 'hallucination' | 'expensive' | 'repetitive' | 'injection' | 'sensitive' | 'bias' | 'error' | 'ungrounded';
   severity: 'low' | 'medium' | 'high' | 'critical';
   detail: string;
+  /** Additional metadata for advanced detection */
+  metadata?: {
+    confidence?: number;       // 0-1 confidence score
+    detectionMethod?: string;  // Which method detected this
+    urls?: string[];           // Extracted URLs for validation
+    groundingScore?: number;   // 0-100 grounding score
+  };
 }
 
 /**
@@ -514,84 +521,110 @@ interface PromptContext {
   hasToolUsage?: boolean;      // gen_ai.completion.0.tool_calls present
   hasAvailableTools?: boolean; // llm.request.functions present
   finishReason?: string;       // "tool_calls" indicates tool usage
+  inputTokens?: number;        // Token counts for cost analysis
+  outputTokens?: number;       // Token counts for cost analysis
+  ragDocuments?: string[];     // RAG context documents for grounding score
+  ragContext?: string;         // Full RAG context if available
 }
 
 /**
- * Analyze the MODEL'S RESPONSE (completion) for hallucination indicators
- * This is the most reliable way to detect hallucination - look at what the model actually said
+ * Calculate retrieval grounding score - how much of response is grounded in RAG context
+ * Returns score 0-100 (100 = fully grounded, 0 = no grounding)
  */
-function analyzeCompletionForHallucination(completion: string): PromptFlag[] {
+function calculateGroundingScore(completion: string, ragContext?: string, ragDocuments?: string[]): number {
+  if (!ragContext && (!ragDocuments || ragDocuments.length === 0)) {
+    return -1; // No RAG context available, can't calculate
+  }
+  
+  const contextText = ragContext || (ragDocuments || []).join(' ');
+  if (!contextText.trim()) return -1;
+  
+  const completionLower = completion.toLowerCase();
+  const contextLower = contextText.toLowerCase();
+  
+  // Extract key phrases/entities from completion (3+ word phrases)
+  const completionWords = completionLower.split(/\s+/).filter(w => w.length > 3);
+  const uniqueWords = [...new Set(completionWords)];
+  
+  // Count how many key words from completion appear in context
+  let groundedCount = 0;
+  for (const word of uniqueWords) {
+    if (contextLower.includes(word)) {
+      groundedCount++;
+    }
+  }
+  
+  // Calculate percentage (with minimum threshold)
+  const score = uniqueWords.length > 0 
+    ? Math.round((groundedCount / uniqueWords.length) * 100) 
+    : 0;
+  
+  return Math.min(100, Math.max(0, score));
+}
+
+// NOTE: Response length anomaly detection was removed as it produced too many
+// false positives. Long responses to short questions are normal LLM behavior.
+
+/**
+ * Analyze the MODEL'S RESPONSE (completion) for hallucination indicators
+ * 
+ * IMPORTANT: Regex-based hallucination detection has severe limitations.
+ * Most patterns produce false positives because text matching cannot determine factuality.
+ * 
+ * RELIABLE approaches (kept):
+ * - RAG Grounding Score: Compare response against retrieved context
+ * 
+ * REMOVED patterns (too many false positives):
+ * - Fabricated statistics: "73% of users" could be real data
+ * - Fake quotes: Some attributed quotes are real
+ * - URL extraction: Having URLs is good, not bad
+ * - Hedging language: Shows honesty, not hallucination
+ * - Circular definitions: "Love is love" is valid
+ * - Vague authority: Common writing style, not hallucination
+ * - Contradictions: "Never say never" is valid
+ * - LLM-as-Judge: Davis isn't designed for fact-checking
+ * 
+ * For production hallucination detection, consider:
+ * - External fact-checking APIs (Wikipedia, search engines)
+ * - Knowledge graph verification
+ * - Human review for critical content
+ */
+function analyzeCompletionForHallucination(
+  completion: string, 
+  context?: PromptContext
+): PromptFlag[] {
   const flags: PromptFlag[] = [];
   if (!completion) return flags;
   
-  const completionLower = completion.toLowerCase();
-  
-  // Pattern 1: Obvious factual errors (known false statements)
-  // These are fabricated facts that are demonstrably wrong
-  const obviousFalsehoods = [
-    { pattern: /sydney.*(western australia|population of \d{1,3} people|accessed by camel)/i, detail: 'Fabricated geography/demographics' },
-    { pattern: /can only be accessed by (camel|horse|boat)/i, detail: 'Fabricated transportation claim' },
-    { pattern: /population of (\d{1,3}) people/i, detail: 'Unrealistic population number' },
-  ];
-  
-  for (const { pattern, detail } of obviousFalsehoods) {
-    if (pattern.test(completion)) {
-      flags.push({ type: 'hallucination', severity: 'critical', detail: `Hallucination detected: ${detail}` });
+  // ============================================
+  // RELIABLE: RAG Grounding Score
+  // This actually works - comparing response to provided context
+  // ============================================
+  if (context?.ragContext || context?.ragDocuments) {
+    const groundingScore = calculateGroundingScore(completion, context.ragContext, context.ragDocuments);
+    if (groundingScore >= 0 && groundingScore < 30) {
+      flags.push({ 
+        type: 'ungrounded', 
+        severity: 'high', 
+        detail: `Low grounding score (${groundingScore}%) - response may not be based on provided context`,
+        metadata: { detectionMethod: 'grounding_score', confidence: 0.7, groundingScore }
+      });
+    } else if (groundingScore >= 30 && groundingScore < 50) {
+      flags.push({ 
+        type: 'ungrounded', 
+        severity: 'medium', 
+        detail: `Moderate grounding score (${groundingScore}%) - partially based on provided context`,
+        metadata: { detectionMethod: 'grounding_score', confidence: 0.6, groundingScore }
+      });
     }
   }
   
-  // Pattern 2: Hedging language that suggests uncertainty (potential hallucination)
-  const hedgingPatterns = [
-    'i believe', 'i think', 'probably', 'might be', 'could be',
-    'if i recall', 'if i remember', 'i\'m not sure but',
-    'i cannot verify', 'i don\'t have access to'
-  ];
-  let hedgingCount = 0;
-  for (const pattern of hedgingPatterns) {
-    if (completionLower.includes(pattern)) hedgingCount++;
-  }
-  if (hedgingCount >= 2) {
-    flags.push({ type: 'hallucination', severity: 'medium', detail: 'Multiple hedging phrases suggest uncertainty' });
-  }
-  
-  // Pattern 3: Overconfident specificity (making up precise details)
-  // E.g., specific dates, names, or numbers without source
-  const overlySpecificPatterns = [
-    /on (january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2},? \d{4}/i,
-    /according to a \d{4} (study|report|survey)/i,
-    /founded in \d{4} by [A-Z][a-z]+ [A-Z][a-z]+/i,
-  ];
-  for (const pattern of overlySpecificPatterns) {
-    if (pattern.test(completion) && !completionLower.includes('source') && !completionLower.includes('reference')) {
-      flags.push({ type: 'hallucination', severity: 'low', detail: 'Specific claims without cited source - verify accuracy' });
-      break;
-    }
-  }
-  
-  // Pattern 4: Contradictions within the response
-  const contradictions = [
-    { check: /does not have.*(airport|port).*easily accessible/i, detail: 'Contradictory statements about accessibility' },
-    { check: /no.*but also has/i, detail: 'Self-contradictory claim' },
-  ];
-  for (const { check, detail } of contradictions) {
-    if (check.test(completion)) {
-      flags.push({ type: 'hallucination', severity: 'high', detail: `Contradiction: ${detail}` });
-    }
-  }
-  
-  // Pattern 5: Implausible claims (things that don't make sense)
-  const implausiblePatterns = [
-    /known for.*(winter sports|skiing).*tropical/i,
-    /great for winter sports/i,  // Sydney-specific hallucination
-  ];
-  if (completionLower.includes('sydney') || completionLower.includes('australia')) {
-    for (const pattern of implausiblePatterns) {
-      if (pattern.test(completion)) {
-        flags.push({ type: 'hallucination', severity: 'high', detail: 'Implausible geographic claim' });
-        break;
-      }
-    }
-  }
+  // NOTE: For actual hallucination detection in production, consider:
+  // - External fact-checking APIs (Wikipedia, search engines)
+  // - Knowledge graph verification
+  // - Human review for critical content
+  // 
+  // Automated detection without external knowledge sources is unreliable.
   
   return flags;
 }
@@ -847,12 +880,18 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
         const cost = estimateCost(provider, inputTokens, outputTokens);
         
         // Build context for flag detection - use full content for better analysis
+        // Include token counts for response length anomaly detection
         const context: PromptContext = {
           systemPrompt: '',
           completion: fullCompletion || completionPreview,
           hasToolUsage: false,
           hasAvailableTools: false,
-          finishReason: ''
+          finishReason: '',
+          inputTokens: inputTokens / Math.max(1, requestCount),   // Average per request for anomaly detection
+          outputTokens: outputTokens / Math.max(1, requestCount), // Average per request for anomaly detection
+          // RAG context would be populated from gen_ai.retrieval.documents if available
+          ragContext: record['rag_context'] || undefined,
+          ragDocuments: record['rag_documents'] ? String(record['rag_documents']).split('|||') : undefined
         };
         
         // Skip analysis for embedding models (they return vectors, not text)
@@ -866,7 +905,8 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
           promptFlags = analyzePromptForFlags(fullPrompt || promptPreview, totalTokens, cost, context);
           
           // Analyze completion for hallucination - use full completion for better analysis
-          hallucinationFlags = analyzeCompletionForHallucination(fullCompletion || completionPreview);
+          // Pass context for enhanced detection (length anomaly, grounding score)
+          hallucinationFlags = analyzeCompletionForHallucination(fullCompletion || completionPreview, context);
         }
         
         // Merge all flags

@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.8
+# GenAI Control Center (GCC) v2.10
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -29,7 +29,8 @@
 | 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
 | 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service detail modal, service→provider→model connections |
 | 🤖 **Agent Tools** | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
-| 💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
+| � **Drift** | Model Drift Detection | Behavior drift scoring, version change alerts, baseline comparison, anomaly detection |
+| �💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
 | 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, provider risk scoring, governance challenges |
 | 🔒 **Prompt Governance** | Prompt Security & Analysis | PII detection, injection risks, Davis AI scoring, cache candidates |
 | 📊 **Response Analytics** | ML Engineer Insights | Token efficiency, model ranking, output consistency metrics |
@@ -89,7 +90,89 @@
 - **Case-Normalized Names** - Agent names normalized to prevent duplicates from case differences
 - **Pagination & Filtering** - Standard Dynatrace DataTable with sorting, filtering, pagination
 
-### 🛡️ Governance - Compliance & Risk
+### � Model Drift Detection - AI Behavior Monitoring
+Track AI model behavior changes, semantic drift, and version updates across your GenAI workloads.
+
+#### Drift Score Calculation
+The drift score (0-100) measures how much a model's behavior has deviated from its baseline:
+
+```
+driftScore = min(100, (|current - baseline| / baseline) / threshold × 50)
+```
+
+| Score Range | Severity | Meaning |
+|-------------|----------|---------|
+| 0-39 | 🟢 Normal | Model behaving within expected parameters |
+| 40-69 | 🟡 Warning | Notable deviation, investigation recommended |
+| 70-100 | 🔴 Critical | Significant drift, immediate attention required |
+
+#### Metrics Tracked (Industry-Aligned)
+
+| Metric | Threshold | Weight | Purpose |
+|--------|-----------|--------|---------|
+| **Average Latency** | 30% | 25% | Detect response time degradation |
+| **Output Tokens** | 25% | 15% | Quality/completeness indicator |
+| **Error Rate** | 50% | 20% | Reliability monitoring |
+| **P95 Latency** | 40% | 15% | Tail latency spike detection |
+| **Input Tokens** | 25% | 10% | Cost/prompt bloat indicator |
+| **Token Efficiency** | 30% | 15% | Output/Input ratio (value per token) |
+
+> 🎯 **OpenTelemetry Aligned**: Uses `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, and derives operation type from `span.name` (chat, embeddings, completion)
+
+#### Overall Drift Score Formula
+```
+overallDrift = (latencyDrift × 0.25) + (outputDrift × 0.15) + (errorDrift × 0.20) + 
+               (p95Drift × 0.15) + (inputDrift × 0.10) + (efficiencyDrift × 0.15)
+```
+
+#### Anomaly Detection Rules
+
+| Anomaly Type | Trigger Condition |
+|--------------|-------------------|
+| 🔴 **Latency Spike** | Drift score ≥ 70 |
+| 🟡 **Quality Drop** | Drift ≥ 60 AND output tokens decreased >15% |
+| 🔴 **Error Increase** | Drift ≥ 50 AND error rate >1% |
+| 🟡 **Input Token Spike** | Drift ≥ 60 AND input tokens increased >30% |
+| 🟡 **Efficiency Drop** | Drift ≥ 50 AND efficiency decreased >20% |
+| ⚠️ **Version Change** | `gen_ai.response.model` ≠ `gen_ai.request.model` |
+
+#### Operation Type Segmentation
+Models are categorized by operation type for focused analysis:
+- **Chat** - Conversational AI (detected via `span.name` containing "chat")
+- **Embeddings** - Vector operations (detected via "embed" in span name)
+- **Completion** - Text generation (detected via "complet" or "generate")
+- **Unknown** - Other operations
+
+#### Baseline Comparison Strategy
+- **Auto-Baseline**: Compares last 7-14 days (baseline) vs last 7 days (current)
+- **Manual Baseline**: User can capture baseline via "Set as Baseline" button, persisted in localStorage
+
+#### Trend Classification
+```
+if |change| < 5%  → stable
+if change < 0 AND metric is "lower is better" → improving
+else → degrading
+```
+
+| Metric | Lower is Better? |
+|--------|------------------|
+| Latency | ✅ Yes |
+| Error Rate | ✅ Yes |
+| Input Tokens | ✅ Yes (cost indicator) |
+| Output Tokens | ❌ No (more = richer response) |
+| Token Efficiency | ❌ No (higher = more value per token) |
+
+#### Key Features
+- **Version Drift Detection** - Alert when OpenAI/Azure silently redirects GPT-4o to GPT-3.5
+- **Performance Regression Tracking** - Monitor latency trends over baseline periods
+- **Quality Degradation Alerts** - Detect when embedding models change under the hood
+- **Operation Type Filtering** - Focus on chat, embeddings, or completion operations
+- **Token Efficiency Tracking** - Monitor output/input ratio for cost optimization
+- **Interactive Drift Gauge** - Visual 0-100 score with severity coloring
+- **Baseline Management** - Capture and compare against custom baselines
+- **Anomaly Timeline** - Track when drift events occurred
+
+### �🛡️ Governance - Compliance & Risk
 - **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
   - 🔐 **PII Detection** - SSN, emails, phone numbers, credit cards
   - ⚠️ **Prompt Injection** - Malicious pattern detection
@@ -197,6 +280,7 @@ gcc/
 │       │   ├── HealthDashboard.tsx # Service health
 │       │   ├── AITopology.tsx    # Interactive flow visualization
 │       │   ├── AgentTools.tsx    # AI agent tool monitoring
+│       │   ├── ModelDrift.tsx    # Model drift detection & baseline comparison
 │       │   ├── FinOps.tsx        # Cost management
 │       │   ├── Governance.tsx    # Compliance & risk
 │       │   ├── PromptGovernance.tsx # PII/injection detection, Davis AI scoring
@@ -211,6 +295,7 @@ gcc/
 │       │   ├── useDQLQueries.ts
 │       │   ├── useDavisAI.ts
 │       │   ├── useAgentTools.ts  # Agent tool monitoring
+│       │   ├── useModelDrift.ts  # Drift detection & baseline management
 │       │   ├── useAIArchitect.ts
 │       │   ├── useResponseAnalytics.ts # Token efficiency metrics
 │       │   └── useRemediation.ts
@@ -238,7 +323,8 @@ gcc/
 | Metric | Source | Description |
 |--------|--------|-------------|
 | `gen_ai.system` | Span attribute | AI provider (openai, anthropic, etc.) |
-| `gen_ai.request.model` | Span attribute | Model name (gpt-4, claude-3, etc.) |
+| `gen_ai.request.model` | Span attribute | Requested model name (gpt-4, claude-3, etc.) |
+| `gen_ai.response.model` | Span attribute | Actual model used (for version drift detection) |
 | `gen_ai.usage.input_tokens` | Span attribute | Input token count |
 | `gen_ai.usage.output_tokens` | Span attribute | Output token count |
 | `gen_ai.usage.cost` | Calculated | Cost based on token pricing |

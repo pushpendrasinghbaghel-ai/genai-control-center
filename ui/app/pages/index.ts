@@ -29,6 +29,9 @@ export { RealTimeAlerts } from './RealTimeAlerts';
 // NEW: Agent Tools (AI agent workflow monitoring)
 export { AgentTools } from './AgentTools';
 
+// NEW: Model Drift Detection
+export { ModelDrift } from './ModelDrift';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

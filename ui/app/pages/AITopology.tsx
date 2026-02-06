@@ -726,7 +726,7 @@ export const AITopology: React.FC = () => {
 
       const query = `
         fetch spans, ${timeClause}
-        | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+        | filter isNotNull(gen_ai.request.model) AND gen_ai.request.model != "" AND gen_ai.request.model != "null"
         ${serviceFilterClause}
         ${providerFilterClause}
         ${modelFilterClause}
@@ -793,9 +793,14 @@ export const AITopology: React.FC = () => {
       
       // First pass: build connection maps from actual data
       records.forEach((record: any) => {
-        const providerName = record['gen_ai.provider.name'] || 'Unknown Provider';
+        const providerName = record['gen_ai.provider.name'];
         const serviceEntityId = record['dt.entity.service'];
-        const modelName = record['gen_ai.request.model'] || 'Unknown Model';
+        const modelName = record['gen_ai.request.model'];
+        
+        // Skip records with missing provider or model
+        if (!providerName || !modelName || modelName === 'null' || modelName === '') {
+          return;
+        }
         
         // Track provider → model connections
         if (!providerToModels.has(providerName)) {
@@ -909,24 +914,44 @@ export const AITopology: React.FC = () => {
         modelIdx++;
       });
 
+      // Track errors for weighted average calculation
+      const serviceErrors = new Map<string, { totalErrors: number; totalRequests: number; latencySum: number; latencyCount: number }>();
+      
       // Process records to update metrics and create edges
       records.forEach((record: any) => {
         const serviceEntityId = record['dt.entity.service'];
-        const providerName = record['gen_ai.provider.name'] || 'Unknown Provider';
-        const modelName = record['gen_ai.request.model'] || 'Unknown Model';
+        const providerName = record['gen_ai.provider.name'];
+        const modelName = record['gen_ai.request.model'];
+        
+        // Skip records with missing provider or model
+        if (!providerName || !modelName || modelName === 'null' || modelName === '') {
+          return;
+        }
+        
         const requests = Number(record.requests) || 0;
         const tokens = Number(record.tokens) || 0;
         const latency = Number(record.avg_latency) || 0;
         const errorRate = Number(record.error_rate) || 0;
+        
+        // Calculate estimated errors from error_rate percentage
+        const estimatedErrors = (errorRate / 100) * requests;
 
         // Update node metrics using entity ID
         const serviceNode = nodesMap.get(`service-${serviceEntityId}`);
         if (serviceNode) {
           serviceNode.metrics.requests += requests;
           serviceNode.metrics.tokens += tokens;
-          serviceNode.metrics.latency = (serviceNode.metrics.latency + latency) / 2;
-          serviceNode.metrics.errorRate = Math.max(serviceNode.metrics.errorRate, errorRate);
-          serviceNode.health = errorRate > 10 ? 'critical' : errorRate > 5 ? 'warning' : 'healthy';
+          
+          // Track for weighted average calculations
+          const serviceKey = `service-${serviceEntityId}`;
+          if (!serviceErrors.has(serviceKey)) {
+            serviceErrors.set(serviceKey, { totalErrors: 0, totalRequests: 0, latencySum: 0, latencyCount: 0 });
+          }
+          const stats = serviceErrors.get(serviceKey)!;
+          stats.totalErrors += estimatedErrors;
+          stats.totalRequests += requests;
+          stats.latencySum += latency * requests; // Weight latency by request count
+          stats.latencyCount += requests;
         }
 
         const providerNode = nodesMap.get(`provider-${providerName}`);
@@ -969,9 +994,17 @@ export const AITopology: React.FC = () => {
           if (placeholderNode) {
             placeholderNode.metrics.requests += requests;
             placeholderNode.metrics.tokens += tokens;
-            placeholderNode.metrics.latency = (placeholderNode.metrics.latency + latency) / 2;
-            placeholderNode.metrics.errorRate = Math.max(placeholderNode.metrics.errorRate, errorRate);
-            placeholderNode.health = errorRate > 10 ? 'critical' : errorRate > 5 ? 'warning' : 'healthy';
+            
+            // Track for weighted average calculations
+            const placeholderKey = 'service-application';
+            if (!serviceErrors.has(placeholderKey)) {
+              serviceErrors.set(placeholderKey, { totalErrors: 0, totalRequests: 0, latencySum: 0, latencyCount: 0 });
+            }
+            const stats = serviceErrors.get(placeholderKey)!;
+            stats.totalErrors += estimatedErrors;
+            stats.totalRequests += requests;
+            stats.latencySum += latency * requests;
+            stats.latencyCount += requests;
           }
         }
 
@@ -991,6 +1024,19 @@ export const AITopology: React.FC = () => {
               metrics: { requests, tokens, avgLatency: latency }
             });
           }
+        }
+      });
+
+      // Calculate weighted average error rates and latencies for service nodes
+      serviceErrors.forEach((stats, serviceKey) => {
+        const node = nodesMap.get(serviceKey);
+        if (node && stats.totalRequests > 0) {
+          // Weighted average error rate
+          node.metrics.errorRate = (stats.totalErrors / stats.totalRequests) * 100;
+          // Weighted average latency
+          node.metrics.latency = stats.latencySum / stats.latencyCount;
+          // Set health based on weighted error rate
+          node.health = node.metrics.errorRate > 10 ? 'critical' : node.metrics.errorRate > 5 ? 'warning' : 'healthy';
         }
       });
 
@@ -1380,7 +1426,7 @@ export const AITopology: React.FC = () => {
             </Flex>
             <Flex justifyContent="space-between">
               <Text style={{ fontSize: 11, color: '#6b7280' }}>Error Rate</Text>
-              <Text style={{ fontWeight: 600, fontSize: 11 }}>{(hoveredNode.metrics.errorRate * 100).toFixed(1)}%</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.errorRate.toFixed(1)}%</Text>
             </Flex>
           </Flex>
         </div>

@@ -25,7 +25,8 @@ import {
   HostsIcon,
   ServicesIcon,
   HomeIcon,
-  HelpIcon
+  HelpIcon,
+  ResearchIcon
 } from "@dynatrace/strato-icons";
 import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend, useAgentTools } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
@@ -760,6 +761,13 @@ export const Home = () => {
                 description="View active Dynatrace problems filtered to GenAI context. Get instant visibility into issues affecting AI services."
                 path="/problems"
                 color={CHART_COLORS.critical}
+              />
+              <PillarCard
+                icon={<ResearchIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color08.Default }} />}
+                title="Model Drift"
+                description="Track AI model behavior changes over time. Detect semantic drift, version updates, and quality degradation."
+                path="/drift"
+                color={Colors.Charts.Categorical.Color08.Default}
               />
             </Flex>
 

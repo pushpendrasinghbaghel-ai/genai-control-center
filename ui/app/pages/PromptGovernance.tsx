@@ -139,28 +139,113 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
           </Surface>
         )}
 
-        {/* Detected Flags */}
+        {/* Detected Flags - ONE badge per category */}
         {prompt.flags.length > 0 && (
-          <Flex flexDirection="column" gap={8}>
+          <Flex flexDirection="column" gap={12}>
             <Text textStyle="base-emphasized">Pattern-based Flags</Text>
             <Flex gap={8} flexWrap="wrap">
-              {prompt.flags.map((flag, idx) => (
-                <Tooltip key={idx} text={flag.detail}>
-                  <span style={{
-                    padding: '4px 12px',
-                    borderRadius: '4px',
-                    backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
-                                     flag.severity === 'high' ? STATUS_COLORS.poor :
-                                     flag.severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
-                    color: 'white',
-                    fontSize: '12px',
-                    textTransform: 'uppercase'
-                  }}>
-                    {flag.type}
-                  </span>
-                </Tooltip>
-              ))}
+              {/* Deduplicate flags by type, show one badge per category */}
+              {(() => {
+                const seenTypes = new Set<string>();
+                return prompt.flags.filter(flag => {
+                  if (seenTypes.has(flag.type)) return false;
+                  seenTypes.add(flag.type);
+                  return true;
+                }).map((flag, idx) => {
+                  const countOfType = prompt.flags.filter(f => f.type === flag.type).length;
+                  return (
+                    <Tooltip key={idx} text={flag.detail}>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: '4px',
+                        backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
+                                         flag.severity === 'high' ? STATUS_COLORS.poor :
+                                         flag.severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
+                        color: 'white',
+                        fontSize: '12px',
+                        textTransform: 'uppercase'
+                      }}>
+                        {flag.type}{countOfType > 1 ? ` (${countOfType})` : ''}
+                      </span>
+                    </Tooltip>
+                  );
+                });
+              })()}
             </Flex>
+            
+            {/* Detailed Detection Legend */}
+            <Surface style={{ 
+              padding: '16px', 
+              backgroundColor: 'rgba(0,0,0,0.03)',
+              borderLeft: '4px solid rgba(100,100,100,0.3)'
+            }}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <ResearchIcon />
+                  <Text textStyle="base-emphasized">Detection Details</Text>
+                </Flex>
+                <Flex flexDirection="column" gap={8}>
+                  {/* Group and explain each flag type */}
+                  {(() => {
+                    const flagsByType = prompt.flags.reduce((acc, flag) => {
+                      if (!acc[flag.type]) acc[flag.type] = [];
+                      acc[flag.type].push(flag);
+                      return acc;
+                    }, {} as Record<string, typeof prompt.flags>);
+                    
+                    return Object.entries(flagsByType).map(([type, flags]) => (
+                      <Flex key={type} flexDirection="column" gap={4}>
+                        <Flex alignItems="center" gap={8}>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: flags[0].severity === 'critical' ? STATUS_COLORS.poor :
+                                             flags[0].severity === 'high' ? STATUS_COLORS.poor :
+                                             flags[0].severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
+                            color: 'white',
+                            fontSize: '10px',
+                            textTransform: 'uppercase'
+                          }}>
+                            {type}
+                          </span>
+                          <Text textStyle="small-emphasized" style={{ textTransform: 'capitalize' }}>
+                            {type.replace(/_/g, ' ')} ({flags.length} detection{flags.length > 1 ? 's' : ''})
+                          </Text>
+                        </Flex>
+                        <Flex flexDirection="column" gap={2} style={{ marginLeft: 16 }}>
+                          {flags.map((flag, idx) => (
+                            <Flex key={idx} flexDirection="column" gap={2}>
+                              <Text textStyle="small" style={{ color: 'rgba(0,0,0,0.7)' }}>
+                                • <strong style={{ 
+                                    color: flag.severity === 'critical' ? STATUS_COLORS.poor : 
+                                           flag.severity === 'high' ? STATUS_COLORS.poor : 
+                                           'inherit' 
+                                  }}>
+                                  [{flag.severity.toUpperCase()}]
+                                </strong> {flag.detail}
+                              </Text>
+                              {flag.metadata && (
+                                <Text textStyle="small" style={{ color: 'rgba(0,0,0,0.5)', marginLeft: 16, fontStyle: 'italic' }}>
+                                  {flag.metadata.detectionMethod && (
+                                    <>Detection: {flag.metadata.detectionMethod.replace(/_/g, ' ')}</>
+                                  )}
+                                  {flag.metadata.confidence && (
+                                    <> • Confidence: {Math.round(flag.metadata.confidence * 100)}%</>
+                                  )}
+                                  {flag.metadata.groundingScore !== undefined && flag.metadata.groundingScore >= 0 && (
+                                    <> • Grounding: {flag.metadata.groundingScore}%</>
+                                  )}
+                                </Text>
+                              )}
+                            </Flex>
+                          ))}
+                        </Flex>
+                      </Flex>
+                    ));
+                  })()}
+                </Flex>
+              </Flex>
+            </Surface>
           </Flex>
         )}
 
@@ -288,6 +373,18 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
   const hasHallucinationFlag = prompt.flags.some(f => f.type === 'hallucination');
   const hasResponse = !!prompt.completionPreview;
   
+  // Deduplicate flags by type and count occurrences
+  const flagCountByType = prompt.flags.reduce((acc, flag) => {
+    acc[flag.type] = (acc[flag.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const uniqueFlagTypes = Object.keys(flagCountByType);
+  const uniqueFlags = uniqueFlagTypes.map(type => ({
+    ...prompt.flags.find(f => f.type === type)!,
+    count: flagCountByType[type]
+  }));
+  
   return (
     <Surface style={{ padding: '16px' }}>
       <Flex flexDirection="column" gap={12}>
@@ -299,9 +396,9 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
           </Flex>
           
           <Flex gap={8} alignItems="center" flexWrap="wrap">
-            {/* Flags */}
-            {prompt.flags.slice(0, 3).map((flag, idx) => (
-              <Tooltip key={idx} text={flag.detail}>
+            {/* Flags - One badge per category with count */}
+            {uniqueFlags.slice(0, 4).map((flag, idx) => (
+              <Tooltip key={idx} text={`${flag.detail}${flag.count > 1 ? ` (${flag.count} detections)` : ''}`}>
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
@@ -313,12 +410,12 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
                   textTransform: 'uppercase',
                   cursor: 'help'
                 }}>
-                  {flag.type}
+                  {flag.type}{flag.count > 1 ? ` (${flag.count})` : ''}
                 </span>
               </Tooltip>
             ))}
-            {prompt.flags.length > 3 && (
-              <Text textStyle="small" style={{ opacity: 0.7 }}>+{prompt.flags.length - 3}</Text>
+            {uniqueFlags.length > 4 && (
+              <Text textStyle="small" style={{ opacity: 0.7 }}>+{uniqueFlags.length - 4}</Text>
             )}
             
             {/* Davis Score */}

@@ -499,6 +499,21 @@ Response format (JSON only, no markdown):
   }
 }
 
+// ============================================
+// NOTE: LLM-AS-JUDGE HALLUCINATION DETECTION REMOVED
+// ============================================
+// The Davis CoPilot LLM-as-Judge approach was removed because:
+// 1. Davis isn't designed for fact-checking - it's for NL2DQL/DQL2NL
+// 2. Using AI to judge AI hallucinations is circular and unreliable
+// 3. Without external knowledge bases, no LLM can verify facts
+// 4. High latency/cost for questionable value
+//
+// For hallucination detection, use:
+// - RAG Grounding Score (compare response to provided context)
+// - External fact-checking APIs (Wikipedia, search engines)
+// - Human review for critical content
+// ============================================
+
 /**
  * Use Davis CoPilot to analyze and score a single prompt for risk
  * This provides AI-powered analysis beyond simple regex patterns

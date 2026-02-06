@@ -13,7 +13,8 @@ import {
   MoneyIcon,           // FinOps
   AiIcon,              // Intelligence
   WorkflowsIcon,       // Operations
-  AgentIcon            // Agent Tools (AI agents)
+  AgentIcon,           // Agent Tools (AI agents)
+  ResearchIcon         // Model Drift
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -82,12 +83,17 @@ export const Header = () => {
           <AgentIcon aria-hidden="true" /> Agents
         </AppHeader.NavItem>
         
-        {/* 8. Intelligence: AI-powered investigation - Deep dive with Davis */}
+        {/* 8. Drift: Model behavior tracking - "Are models changing?" */}
+        <AppHeader.NavItem as={Link} to="/drift" style={getNavItemStyle('/drift')} aria-label="Model Drift Detection">
+          <ResearchIcon aria-hidden="true" /> Drift
+        </AppHeader.NavItem>
+        
+        {/* 9. Intelligence: AI-powered investigation - Deep dive with Davis */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="AI Intelligence">
           <AiIcon aria-hidden="true" /> Intelligence
         </AppHeader.NavItem>
         
-        {/* 9. Operations: Runbooks & remediation - Take action */}
+        {/* 10. Operations: Runbooks & remediation - Take action */}
         <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')} aria-label="Operations and Automation">
           <WorkflowsIcon aria-hidden="true" /> Operations
         </AppHeader.NavItem>

@@ -17,7 +17,8 @@ import {
   ResponseAnalytics,
   PromptGovernance,
   RealTimeAlerts,
-  AgentTools
+  AgentTools,
+  ModelDrift
 } from "./pages";
 
 export const App = () => {
@@ -71,6 +72,9 @@ export const App = () => {
                 
                 {/* Agent Tools - AI agent workflow monitoring */}
                 <Route path="/agents" element={<AgentTools />} />
+                
+                {/* Model Drift Detection - Track behavior changes */}
+                <Route path="/drift" element={<ModelDrift />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

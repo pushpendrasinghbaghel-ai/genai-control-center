@@ -97,7 +97,7 @@ export const Governance: React.FC = () => {
   }), [globalFilters]);
 
   const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'challenges' | 'audit'>('policies');
-  const [promptFilter, setPromptFilter] = useState<'all' | 'error' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'repetitive' | 'bias'>('all');
+  const [promptFilter, setPromptFilter] = useState<'all' | 'error' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'ungrounded' | 'repetitive' | 'bias'>('all');
   
   // Configurable threshold for cache-eligible prompts (minimum requests in timeframe)
   const CACHE_THRESHOLD = 15;
@@ -386,6 +386,7 @@ export const Governance: React.FC = () => {
     const errorCount = grouped.filter(p => p.flagTypes.has('error')).length;
     const piiCount = grouped.filter(p => p.flagTypes.has('pii')).length;
     const hallucinationCount = grouped.filter(p => p.flagTypes.has('hallucination')).length;
+    const ungroundedCount = grouped.filter(p => p.flagTypes.has('ungrounded')).length;
     const expensiveCount = grouped.filter(p => p.flagTypes.has('expensive')).length;
     const repetitiveCount = grouped.filter(p => p.flagTypes.has('repetitive')).length;
     const injectionCount = grouped.filter(p => p.flagTypes.has('injection')).length;
@@ -397,7 +398,7 @@ export const Governance: React.FC = () => {
     const totalRequests = grouped.reduce((sum, p) => sum + p.count, 0);  // Sum of all request counts
     
     return { 
-      errorCount, piiCount, hallucinationCount, expensiveCount, repetitiveCount, injectionCount, biasCount, criticalCount, 
+      errorCount, piiCount, hallucinationCount, ungroundedCount, expensiveCount, repetitiveCount, injectionCount, biasCount, criticalCount, 
       totalCost, 
       total: grouped.length,  // Unique patterns
       totalRequests  // Total individual requests (aggregated from server)
@@ -448,6 +449,7 @@ export const Governance: React.FC = () => {
       error: 'ERR',
       pii: 'PII',
       hallucination: 'HAL',
+      ungrounded: 'UNG',
       expensive: '$$$',
       repetitive: 'RPT',
       injection: 'INJ',
@@ -812,6 +814,12 @@ export const Governance: React.FC = () => {
               </Surface>
               <Surface style={{ padding: 12, minWidth: 100 }}>
                 <Flex flexDirection="column" alignItems="center" gap={4}>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Ungrounded</Text>
+                  <Heading level={3}>{promptStats.ungroundedCount}</Heading>
+                </Flex>
+              </Surface>
+              <Surface style={{ padding: 12, minWidth: 100 }}>
+                <Flex flexDirection="column" alignItems="center" gap={4}>
                   <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <MoneyIcon style={{ width: 12, height: 12 }} /> Expensive
                 </Text>
@@ -879,6 +887,12 @@ export const Governance: React.FC = () => {
                 onClick={() => setPromptFilter('hallucination')}
               >
                 Hallucination ({promptStats.hallucinationCount})
+              </Button>
+              <Button 
+                variant={promptFilter === 'ungrounded' ? 'emphasized' : 'default'}
+                onClick={() => setPromptFilter('ungrounded')}
+              >
+                Ungrounded ({promptStats.ungroundedCount})
               </Button>
               <Button 
                 variant={promptFilter === 'repetitive' ? 'emphasized' : 'default'}
@@ -1033,25 +1047,104 @@ export const Governance: React.FC = () => {
                       </Flex>
                     )}
                     
-                    {/* Flags - inline */}
+                    {/* Flags - inline with detection reason for transparency */}
                     {prompt.flags.length > 0 && (
-                      <Flex gap={4} style={{ flexWrap: 'wrap' }}>
-                        {prompt.flags.map((flag, idx) => (
-                          <span key={idx} style={{
-                            padding: '1px 6px',
-                            borderRadius: 3,
-                            fontSize: 10,
-                            fontWeight: 500,
-                            backgroundColor: flag.severity === 'critical' ? 'rgba(255, 50, 50, 0.2)' :
-                                           flag.severity === 'high' ? 'rgba(255, 150, 50, 0.2)' :
-                                           'rgba(100, 180, 255, 0.2)',
-                            color: flag.severity === 'critical' ? Colors.Text.Critical.Default :
-                                   flag.severity === 'high' ? Colors.Text.Warning.Default :
-                                   Colors.Text.Primary.Default
+                      <Flex flexDirection="column" gap={4}>
+                        <Flex gap={4} style={{ flexWrap: 'wrap' }}>
+                          {/* Group flags by type and show count if > 1 */}
+                          {(() => {
+                            // Group flags by type
+                            const flagsByType = prompt.flags.reduce((acc, flag) => {
+                              const key = flag.type;
+                              if (!acc[key]) {
+                                acc[key] = { flags: [], count: 0 };
+                              }
+                              acc[key].flags.push(flag);
+                              acc[key].count++;
+                              return acc;
+                            }, {} as Record<string, { flags: PromptFlag[]; count: number }>);
+                            
+                            // Render one badge per flag type with count
+                            return Object.entries(flagsByType).map(([type, { flags: typeFlags, count }]) => {
+                              const highestSeverity = typeFlags.reduce((max, f) => {
+                                const order = { critical: 4, high: 3, medium: 2, low: 1 };
+                                return order[f.severity] > order[max] ? f.severity : max;
+                              }, 'low' as PromptFlag['severity']);
+                              
+                              return (
+                                <span 
+                                  key={type} 
+                                  title={typeFlags.map(f => f.detail).join('\n')}
+                                  style={{
+                                    padding: '1px 6px',
+                                    borderRadius: 3,
+                                    fontSize: 10,
+                                    fontWeight: 500,
+                                    cursor: 'help',
+                                    backgroundColor: highestSeverity === 'critical' ? 'rgba(255, 50, 50, 0.2)' :
+                                                   highestSeverity === 'high' ? 'rgba(255, 150, 50, 0.2)' :
+                                                   highestSeverity === 'medium' ? 'rgba(255, 200, 50, 0.2)' :
+                                                   'rgba(100, 180, 255, 0.2)',
+                                    color: highestSeverity === 'critical' ? Colors.Text.Critical.Default :
+                                           highestSeverity === 'high' ? Colors.Text.Warning.Default :
+                                           highestSeverity === 'medium' ? '#C99700' :
+                                           Colors.Text.Primary.Default
+                                  }}
+                                >
+                                  {getFlagIcon(type as PromptFlag['type'])} {type.toUpperCase()}{count > 1 ? ` ×${count}` : ''}
+                                </span>
+                              );
+                            });
+                          })()}
+                        </Flex>
+                        
+                        {/* Show detection reasons for hallucination flags (transparency) */}
+                        {prompt.flagTypes.has('hallucination') && (
+                          <Flex flexDirection="column" gap={2} style={{ 
+                            marginTop: 2,
+                            padding: '4px 8px',
+                            backgroundColor: 'rgba(255, 150, 50, 0.08)',
+                            borderRadius: 4,
+                            borderLeft: '2px solid rgba(255, 150, 50, 0.5)'
                           }}>
-                            {getFlagIcon(flag.type)} {flag.type}
-                          </span>
-                        ))}
+                            <Text textStyle="small" style={{ fontWeight: 600, fontSize: 9, color: Colors.Text.Warning.Default }}>
+                              🔍 Detection Reasons:
+                            </Text>
+                            {prompt.flags
+                              .filter(f => f.type === 'hallucination' || f.type === 'ungrounded')
+                              .slice(0, 5) // Limit to 5 reasons
+                              .map((flag, idx) => (
+                                <Text key={idx} textStyle="small" style={{ fontSize: 9, color: Colors.Text.Neutral.Subdued }}>
+                                  • <strong style={{ color: 
+                                    flag.severity === 'critical' ? Colors.Text.Critical.Default :
+                                    flag.severity === 'high' ? Colors.Text.Warning.Default : 
+                                    Colors.Text.Neutral.Default 
+                                  }}>
+                                    [{flag.severity.toUpperCase()}]
+                                  </strong> {flag.detail}
+                                  {flag.metadata?.detectionMethod && (
+                                    <span style={{ color: Colors.Text.Neutral.Subdued, fontStyle: 'italic' }}>
+                                      {' '}({flag.metadata.detectionMethod.replace(/_/g, ' ')})
+                                    </span>
+                                  )}
+                                  {flag.metadata?.confidence && (
+                                    <span style={{ color: Colors.Text.Neutral.Subdued }}>
+                                      {' '}• {Math.round(flag.metadata.confidence * 100)}% confidence
+                                    </span>
+                                  )}
+                                </Text>
+                              ))}
+                          </Flex>
+                        )}
+                        
+                        {/* Show grounding score if available */}
+                        {prompt.flags.some(f => f.metadata?.groundingScore !== undefined && f.metadata.groundingScore >= 0) && (
+                          <Text textStyle="small" style={{ fontSize: 9, color: Colors.Text.Neutral.Subdued }}>
+                            📊 Grounding Score: {
+                              prompt.flags.find(f => f.metadata?.groundingScore !== undefined)?.metadata?.groundingScore
+                            }% (how much response is based on provided context)
+                          </Text>
+                        )}
                       </Flex>
                     )}
                     
