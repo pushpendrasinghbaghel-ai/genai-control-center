@@ -10,7 +10,7 @@ import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components-preview/charts';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
-import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon } from '@dynatrace/strato-icons';
+import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -24,9 +24,10 @@ import {
   useModelCostBreakdown,
   useCostByService,
   useEmbeddingVsCompletion,
-  useTokenEfficiency
+  useTokenEfficiency,
+  useSemanticCacheSavings
 } from '../hooks/useDQLQueries';
-import type { QueryFilters } from '../hooks/useDQLQueries';
+import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
 
 // Strato Design Tokens for status colors
 const STATUS_COLORS = {
@@ -145,6 +146,10 @@ export const FinOps: React.FC = () => {
   const { data: serviceCosts, loading: serviceCostsLoading } = useCostByService(queryFilters);
   const { data: embeddingVsCompletion, loading: embeddingLoading } = useEmbeddingVsCompletion(queryFilters);
   const { data: tokenEfficiency, loading: efficiencyLoading } = useTokenEfficiency(queryFilters);
+  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
+  // const { data: cacheSavings, loading: cacheSavingsLoading } = useSemanticCacheSavings(queryFilters);
+  const cacheSavings: any = null;  // typed as any to avoid TS errors in hidden code
+  const cacheSavingsLoading = false;
   
   const handleRefresh = useCallback(() => {
     void refetch();
@@ -929,6 +934,166 @@ export const FinOps: React.FC = () => {
         <WarningIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
         <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Efficiency & Optimization</Text>
       </Flex>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
+      {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator - TEMPORARILY HIDDEN */}
+      {/* Pending DQL validation with Demo Dynatrace MCP server */}
+      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
+      {false && (
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${STATUS_COLORS.ideal}` }}>
+        <Flex flexDirection="column" gap={16}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <RefreshIcon style={{ width: 18, height: 18, color: STATUS_COLORS.ideal }} />
+              <Heading level={6}>💰 Semantic Cache Savings Calculator</Heading>
+              <span style={{ 
+                fontSize: 9, 
+                padding: '2px 6px', 
+                backgroundColor: 'rgba(99, 102, 241, 0.15)', 
+                color: '#6366f1',
+                borderRadius: 10,
+                fontWeight: 600
+              }}>
+                UNIQUE GCC
+              </span>
+              <Tooltip text="Identifies repeated prompts that could be cached. When you implement semantic caching, identical prompts return cached responses instead of calling the LLM again - saving tokens and cost. ROI shows potential savings if caching was implemented.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+            </Flex>
+            {cacheSavings && cacheSavings.totalCandidates > 0 && (
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: STATUS_COLORS.ideal + '20',
+                color: STATUS_COLORS.ideal,
+                borderRadius: 16,
+                fontSize: 12,
+                fontWeight: 600
+              }}>
+                ${cacheSavings.totalPotentialSavings.toFixed(2)} potential savings
+              </span>
+            )}
+          </Flex>
+
+          {cacheSavingsLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : cacheSavings && cacheSavings.totalCandidates > 0 ? (
+            <>
+              {/* Summary Stats Row */}
+              <Flex gap={16} style={{ flexWrap: 'wrap' }}>
+                <Surface style={{ flex: '1 1 160px', padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Savings</Text>
+                    <Heading level={3} style={{ color: STATUS_COLORS.ideal }}>
+                      ${cacheSavings.totalPotentialSavings.toFixed(2)}
+                    </Heading>
+                    <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
+                      ↓ {((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% of current spend
+                    </Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Cache Candidates</Text>
+                    <Heading level={3}>{cacheSavings.totalCandidates}</Heading>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                      unique prompt patterns
+                    </Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Repeated Requests</Text>
+                    <Heading level={3}>{cacheSavings.totalRepetitiveRequests.toLocaleString()}</Heading>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                      cacheable invocations
+                    </Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Cache Hit Rate</Text>
+                    <Heading level={3}>{(cacheSavings.avgPotentialCacheHitRate * 100).toFixed(0)}%</Heading>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                      of requests cacheable
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+
+              {/* Top Cache Candidates Table */}
+              <Flex flexDirection="column" gap={8}>
+                <Text textStyle="small" style={{ fontWeight: 600 }}>Top Cache Candidates (by savings)</Text>
+                <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 6, fontSize: 11, fontWeight: 600 }}>
+                  <span style={{ flex: 3 }}>Prompt Pattern</span>
+                  <span style={{ flex: 1 }}>Model</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>Hit Rate</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>Current Cost</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>Savings</span>
+                </Flex>
+                {cacheSavings.topCandidates.slice(0, 5).map((candidate: SemanticCacheCandidate, idx: number) => (
+                  <Flex 
+                    key={idx} 
+                    style={{ 
+                      padding: '6px 0', 
+                      borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', 
+                      fontSize: 11,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span style={{ 
+                      flex: 3, 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis', 
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      color: Colors.Text.Neutral.Subdued
+                    }} title={candidate.promptPattern}>
+                      {candidate.promptPattern.substring(0, 50)}...
+                    </span>
+                    <span style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</span>
+                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</span>
+                    <span style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>
+                      {(candidate.cacheHitRate * 100).toFixed(0)}%
+                    </span>
+                    <span style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</span>
+                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>
+                      ${candidate.potentialSavings.toFixed(3)}
+                    </span>
+                  </Flex>
+                ))}
+              </Flex>
+
+              {/* Action Recommendation */}
+              <Surface style={{ padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
+                <Flex alignItems="flex-start" gap={8}>
+                  <CheckmarkIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal, marginTop: 2 }} />
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontWeight: 600, color: STATUS_COLORS.ideal }}>Recommended Action</Text>
+                    <Text textStyle="small">
+                      Implement semantic caching for these {cacheSavings.totalCandidates} prompt patterns to save 
+                      <strong> ${cacheSavings.totalPotentialSavings.toFixed(2)}</strong> ({((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% reduction).
+                      Consider tools like GPTCache, LangChain Cache, or Redis-based semantic search.
+                    </Text>
+                  </Flex>
+                </Flex>
+              </Surface>
+            </>
+          ) : (
+            <Flex flexDirection="column" alignItems="center" gap={8} style={{ padding: 24, opacity: 0.7 }}>
+              <RefreshIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small">No repeated prompt patterns detected (5+ occurrences required)</Text>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                This is good! Your prompts are unique, or you may already have caching in place.
+              </Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+      )}
 
       {/* Token Efficiency Analysis - Find Waste */}
       <Surface style={{ padding: 16 }}>

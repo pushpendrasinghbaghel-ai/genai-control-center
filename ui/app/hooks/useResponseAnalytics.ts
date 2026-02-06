@@ -348,3 +348,199 @@ function estimateTokenCost(provider: string, model: string, inputTokens: number,
   
   return inputCost + outputCost;
 }
+
+// ============================================
+// Response Quality Trends Hook
+// Tracks quality signals over time: empty responses, truncated, errors, latency anomalies
+// ============================================
+
+export interface QualityTrendDataPoint {
+  timestamp: Date;
+  totalRequests: number;
+  emptyResponseCount: number;
+  truncatedCount: number;
+  errorCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  emptyRate: number;
+  errorRate: number;
+}
+
+export interface QualityAnomaly {
+  type: 'empty_spike' | 'error_spike' | 'latency_spike' | 'truncation_spike';
+  timestamp: Date;
+  severity: 'warning' | 'critical';
+  message: string;
+  value: number;
+  threshold: number;
+}
+
+export interface QualitySummary {
+  overallHealthScore: number;  // 0-100
+  totalRequests: number;
+  emptyResponseRate: number;
+  truncatedRate: number;
+  errorRate: number;
+  avgLatencyMs: number;
+  trendDirection: 'improving' | 'stable' | 'degrading';
+  recentAnomalies: QualityAnomaly[];
+}
+
+export function useResponseQualityTrends() {
+  const [trendData, setTrendData] = useState<QualityTrendDataPoint[]>([]);
+  const [summary, setSummary] = useState<QualitySummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const analyzeQualityTrends = useCallback(async (timeframe: string = '24h') => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Determine bucket size based on timeframe
+      let bucketSize = '1h';
+      if (timeframe === '1h') bucketSize = '5m';
+      else if (timeframe === '6h') bucketSize = '15m';
+      else if (timeframe === '12h') bucketSize = '30m';
+      else if (timeframe === '7d') bucketSize = '6h';
+      else if (timeframe === '30d') bucketSize = '1d';
+
+      const response = await queryExecutionClient.queryExecute({
+        body: {
+          query: `
+            fetch spans, from: now()-${timeframe}, to: now()
+            | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+            | summarize {
+                request_count = count(),
+                empty_response_count = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 5),
+                truncated_count = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 20),
+                error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+                avg_latency = avg(duration) / 1000000,
+                p95_latency = percentile(duration / 1000000, 95)
+              }, by: { bin(timestamp, ${bucketSize}) }
+            | sort timestamp asc
+          `,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60
+        }
+      });
+
+      const records = response.result?.records || [];
+      
+      // Transform to trend data
+      const trends: QualityTrendDataPoint[] = records.map((r: any) => {
+        const total = Number(r.request_count) || 1;
+        const emptyCount = Number(r.empty_response_count) || 0;
+        const truncatedCount = Number(r.truncated_count) || 0;
+        const errorCount = Number(r.error_count) || 0;
+        
+        return {
+          timestamp: new Date(r.timestamp || r['bin(timestamp)'] || Date.now()),
+          totalRequests: total,
+          emptyResponseCount: emptyCount,
+          truncatedCount: truncatedCount,
+          errorCount: errorCount,
+          avgLatencyMs: Number(r.avg_latency) || 0,
+          p95LatencyMs: Number(r.p95_latency) || 0,
+          emptyRate: (emptyCount / total) * 100,
+          errorRate: (errorCount / total) * 100
+        };
+      });
+
+      setTrendData(trends);
+
+      // Calculate summary and detect anomalies
+      if (trends.length > 0) {
+        const totalRequests = trends.reduce((sum, t) => sum + t.totalRequests, 0);
+        const totalEmpty = trends.reduce((sum, t) => sum + t.emptyResponseCount, 0);
+        const totalTruncated = trends.reduce((sum, t) => sum + t.truncatedCount, 0);
+        const totalErrors = trends.reduce((sum, t) => sum + t.errorCount, 0);
+        const avgLatency = trends.reduce((sum, t) => sum + t.avgLatencyMs * t.totalRequests, 0) / totalRequests;
+
+        // Calculate trend direction (compare first half vs second half)
+        const midpoint = Math.floor(trends.length / 2);
+        const firstHalf = trends.slice(0, midpoint);
+        const secondHalf = trends.slice(midpoint);
+        
+        const firstHalfErrorRate = firstHalf.length > 0 
+          ? firstHalf.reduce((sum, t) => sum + t.errorRate, 0) / firstHalf.length 
+          : 0;
+        const secondHalfErrorRate = secondHalf.length > 0 
+          ? secondHalf.reduce((sum, t) => sum + t.errorRate, 0) / secondHalf.length 
+          : 0;
+
+        let trendDirection: 'improving' | 'stable' | 'degrading' = 'stable';
+        if (secondHalfErrorRate > firstHalfErrorRate * 1.2) trendDirection = 'degrading';
+        else if (secondHalfErrorRate < firstHalfErrorRate * 0.8) trendDirection = 'improving';
+
+        // Detect anomalies
+        const anomalies: QualityAnomaly[] = [];
+        const avgEmptyRate = (totalEmpty / totalRequests) * 100;
+        const avgErrorRate = (totalErrors / totalRequests) * 100;
+        const avgLatencyOverall = avgLatency;
+
+        trends.forEach((t, idx) => {
+          // Empty response spike
+          if (t.emptyRate > avgEmptyRate * 2 && t.emptyRate > 5) {
+            anomalies.push({
+              type: 'empty_spike',
+              timestamp: t.timestamp,
+              severity: t.emptyRate > 20 ? 'critical' : 'warning',
+              message: `Empty response rate spiked to ${t.emptyRate.toFixed(1)}%`,
+              value: t.emptyRate,
+              threshold: avgEmptyRate * 2
+            });
+          }
+          
+          // Error spike
+          if (t.errorRate > avgErrorRate * 2 && t.errorRate > 5) {
+            anomalies.push({
+              type: 'error_spike',
+              timestamp: t.timestamp,
+              severity: t.errorRate > 20 ? 'critical' : 'warning',
+              message: `Error rate spiked to ${t.errorRate.toFixed(1)}%`,
+              value: t.errorRate,
+              threshold: avgErrorRate * 2
+            });
+          }
+
+          // Latency spike
+          if (t.avgLatencyMs > avgLatencyOverall * 2 && t.avgLatencyMs > 5000) {
+            anomalies.push({
+              type: 'latency_spike',
+              timestamp: t.timestamp,
+              severity: t.avgLatencyMs > 10000 ? 'critical' : 'warning',
+              message: `Latency spiked to ${(t.avgLatencyMs / 1000).toFixed(1)}s`,
+              value: t.avgLatencyMs,
+              threshold: avgLatencyOverall * 2
+            });
+          }
+        });
+
+        // Calculate health score (0-100)
+        const emptyPenalty = Math.min((totalEmpty / totalRequests) * 100 * 2, 30);
+        const errorPenalty = Math.min((totalErrors / totalRequests) * 100 * 3, 40);
+        const latencyPenalty = avgLatency > 5000 ? Math.min((avgLatency - 5000) / 100, 30) : 0;
+        const healthScore = Math.max(0, 100 - emptyPenalty - errorPenalty - latencyPenalty);
+
+        setSummary({
+          overallHealthScore: Math.round(healthScore),
+          totalRequests,
+          emptyResponseRate: (totalEmpty / totalRequests) * 100,
+          truncatedRate: (totalTruncated / totalRequests) * 100,
+          errorRate: (totalErrors / totalRequests) * 100,
+          avgLatencyMs: avgLatency,
+          trendDirection,
+          recentAnomalies: anomalies.slice(-5)  // Last 5 anomalies
+        });
+      }
+
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to analyze quality trends'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { trendData, summary, loading, error, analyzeQualityTrends };
+}

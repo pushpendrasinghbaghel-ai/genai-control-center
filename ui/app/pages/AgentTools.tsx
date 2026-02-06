@@ -17,13 +17,15 @@ import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters'
 import { 
   RefreshIcon, WarningIcon, CheckmarkIcon, CriticalIcon, 
   HelpIcon, SettingIcon, WorkflowsIcon, BarChartIcon,
-  ExternalLinkIcon, SmartscapeIcon, AgentIcon
+  ExternalLinkIcon, SmartscapeIcon, AgentIcon, ServicesIcon,
+  AiIcon, DatabaseIcon, AppsIcon
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
-import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend } from '../hooks/useAgentTools';
+import { getProviderIcon } from '../utils/providerIcons';
+import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
 // ============================================
@@ -1030,6 +1032,9 @@ export const AgentTools: React.FC = () => {
     toolCoOccurrence,
     toolCallsTrend,
     agentActivityTrend,
+    agentServiceDeps,
+    agentLLMProviders,
+    agentEntityMappings,
     loading, 
     error, 
     fetchAgentToolsData,
@@ -1133,6 +1138,127 @@ export const AgentTools: React.FC = () => {
       datapoints
     }));
   }, [agentActivityTrend]);
+
+  // ============================================
+  // Agent Flow Efficiency Metrics - UNIQUE GCC
+  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
+  // Calculates conversation efficiency, back-and-forth waste, handoff success
+  // ============================================
+  const flowEfficiencyMetrics: any = null; // Temporarily disabled - typed as any to avoid TS errors
+  /* ORIGINAL CODE - Uncomment when ready:
+  const flowEfficiencyMetrics = useMemo(() => {
+    if (agentFlows.length === 0 && agentHandoffs.length === 0 && agentLatency.length === 0) {
+      return null;
+    }
+
+    // Calculate total tool calls from flows
+    const totalToolCalls = agentFlows.reduce((sum, flow) => sum + (flow.toolCount * flow.occurrences), 0);
+    const totalFlowOccurrences = agentFlows.reduce((sum, flow) => sum + flow.occurrences, 0);
+    const avgToolsPerFlow = totalFlowOccurrences > 0 ? totalToolCalls / totalFlowOccurrences : 0;
+
+    // Identify repetitive/back-and-forth patterns (same tool called multiple times in a flow)
+    const repetitiveFlows = agentFlows.filter(flow => {
+      const toolCounts = new Map<string, number>();
+      flow.toolSequence.forEach(tool => {
+        toolCounts.set(tool, (toolCounts.get(tool) || 0) + 1);
+      });
+      // If any tool appears more than twice, it's repetitive
+      return Array.from(toolCounts.values()).some(count => count > 2);
+    });
+    const repetitiveRate = agentFlows.length > 0 
+      ? (repetitiveFlows.length / agentFlows.length) * 100 
+      : 0;
+
+    // Calculate wasted tokens in back-and-forth (estimate: repetitive flows have ~30% waste)
+    const wastedTokensEstimate = agentTokenCosts.reduce((sum, cost) => sum + cost.totalTokens, 0) * (repetitiveRate / 100) * 0.3;
+
+    // Handoff efficiency: analyze latency in handoffs
+    const totalHandoffs = agentHandoffs.reduce((sum, h) => sum + h.handoffCount, 0);
+    const avgHandoffLatency = agentHandoffs.length > 0
+      ? agentHandoffs.reduce((sum, h) => sum + h.avgDurationMs * h.handoffCount, 0) / totalHandoffs
+      : 0;
+
+    // LLM vs Tool time efficiency from latency data
+    const totalLLMTime = agentLatency.reduce((sum, l) => sum + l.llmTimeMs, 0);
+    const totalToolTime = agentLatency.reduce((sum, l) => sum + l.toolTimeMs, 0);
+    const totalTime = totalLLMTime + totalToolTime;
+    const llmTimeRatio = totalTime > 0 ? (totalLLMTime / totalTime) * 100 : 0;
+    const toolTimeRatio = totalTime > 0 ? (totalToolTime / totalTime) * 100 : 0;
+
+    // Flow complexity: flows with >5 tools are considered complex
+    const complexFlows = agentFlows.filter(f => f.toolSequence.length > 5);
+    const complexFlowRate = agentFlows.length > 0 
+      ? (complexFlows.length / agentFlows.length) * 100 
+      : 0;
+
+    // Calculate efficiency score (0-100)
+    // Lower is worse: high repetition, high complexity, slow handoffs
+    const repetitionPenalty = Math.min(repetitiveRate * 2, 30);
+    const complexityPenalty = Math.min(complexFlowRate * 1.5, 25);
+    const handoffPenalty = avgHandoffLatency > 2000 ? Math.min((avgHandoffLatency - 2000) / 100, 25) : 0;
+    const llmHeavyPenalty = llmTimeRatio > 80 ? (llmTimeRatio - 80) * 0.5 : 0; // Penalty if LLM dominates
+    const efficiencyScore = Math.max(0, Math.round(100 - repetitionPenalty - complexityPenalty - handoffPenalty - llmHeavyPenalty));
+
+    // Determine trend/status
+    const status: 'excellent' | 'good' | 'warning' | 'critical' = 
+      efficiencyScore >= 80 ? 'excellent' :
+      efficiencyScore >= 60 ? 'good' :
+      efficiencyScore >= 40 ? 'warning' : 'critical';
+
+    return {
+      efficiencyScore,
+      status,
+      avgToolsPerFlow,
+      repetitiveRate,
+      repetitiveFlowCount: repetitiveFlows.length,
+      wastedTokensEstimate: Math.round(wastedTokensEstimate),
+      totalHandoffs,
+      avgHandoffLatency,
+      llmTimeRatio,
+      toolTimeRatio,
+      complexFlowRate,
+      complexFlowCount: complexFlows.length,
+      totalFlows: agentFlows.length,
+      recommendations: [] as string[]
+    };
+  }, [agentFlows, agentHandoffs, agentLatency, agentTokenCosts]);
+  END OF COMMENTED CODE */
+
+  // Generate recommendations based on efficiency metrics
+  const efficiencyRecommendations: string[] = []; // Temporarily disabled
+  /* ORIGINAL CODE - Uncomment when ready:
+  const efficiencyRecommendations = useMemo(() => {
+    if (!flowEfficiencyMetrics) return [];
+    
+    const recommendations: string[] = [];
+    
+    if (flowEfficiencyMetrics.repetitiveRate > 15) {
+      recommendations.push(`🔄 ${flowEfficiencyMetrics.repetitiveFlowCount} flows show repetitive tool calls. Consider adding caching or improving tool selection logic.`);
+    }
+    
+    if (flowEfficiencyMetrics.complexFlowRate > 20) {
+      recommendations.push(`🧩 ${flowEfficiencyMetrics.complexFlowCount} flows have >5 tools. Break down complex tasks into specialized sub-agents.`);
+    }
+    
+    if (flowEfficiencyMetrics.avgHandoffLatency > 3000) {
+      recommendations.push(`⏱️ Agent handoffs average ${(flowEfficiencyMetrics.avgHandoffLatency / 1000).toFixed(1)}s. Consider async handoffs or connection pooling.`);
+    }
+    
+    if (flowEfficiencyMetrics.llmTimeRatio > 70) {
+      recommendations.push(`🤖 LLM calls consume ${flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% of flow time. Optimize prompts or cache similar requests.`);
+    }
+    
+    if (flowEfficiencyMetrics.wastedTokensEstimate > 10000) {
+      recommendations.push(`💸 ~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
+    }
+    
+    if (recommendations.length === 0) {
+      recommendations.push('✅ Agent flows are operating efficiently. No immediate optimizations needed.');
+    }
+    
+    return recommendations;
+  }, [flowEfficiencyMetrics]);
+  END OF COMMENTED RECOMMENDATIONS CODE */
 
   // Prepare table columns for tool usage - using proper cell renderers
   const toolColumns: any[] = useMemo(() => [
@@ -1750,6 +1876,578 @@ export const AgentTools: React.FC = () => {
               </Flex>
             )}
 
+            {/* Suspicious Loops Details (if any) - UNIQUE GCC GOVERNANCE */}
+            {suspiciousLoops.length > 0 && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={12}>
+                  <Flex alignItems="center" gap={8}>
+                    <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
+                    <Heading level={5}>🚨 Suspicious Loop Details</Heading>
+                    <Tooltip text="Potential infinite loop or runaway agent behavior detected. Traces with >10 calls to the same tool.">
+                      <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                    </Tooltip>
+                  </Flex>
+                  
+                  <Flex flexDirection="column" gap={8}>
+                    {suspiciousLoops.slice(0, 10).map((loop) => (
+                      <Flex
+                        key={`${loop.traceId}-${loop.toolName}`}
+                        padding={12}
+                        alignItems="center"
+                        justifyContent="space-between"
+                        style={{
+                          background: 'var(--dt-colors-background-critical-subdued)',
+                          borderRadius: 6,
+                          border: `1px solid ${STATUS_COLORS.critical}`
+                        }}
+                      >
+                        <Flex flexDirection="column" gap={2}>
+                          <Text style={{ fontWeight: 600 }}>{loop.toolName}</Text>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            Agent: {loop.agentName}
+                          </Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end" gap={2}>
+                          <Text style={{ fontWeight: 600, color: STATUS_COLORS.critical }}>
+                            {loop.callCount} calls
+                          </Text>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {loop.totalDuration.toFixed(0)}ms total
+                          </Text>
+                        </Flex>
+                      </Flex>
+                    ))}
+                  </Flex>
+                </Flex>
+              </Surface>
+            )}
+
+            {/* Agent Handoffs - UNIQUE GCC: Multi-agent orchestration visibility */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <Heading level={5}>🤝 Agent Handoffs</Heading>
+                  <Tooltip text="Communication patterns between agents. Shows how often one agent calls or delegates to another. Unique to GCC - not available in standard AI Observability.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentHandoffs.length} handoff patterns)
+                  </Text>
+                </Flex>
+                
+                {agentHandoffs.length > 0 ? (
+                  <DataTable 
+                    data={agentHandoffs} 
+                    columns={handoffColumns}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={5} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No agent handoff data available. Handoffs are detected via parent/child agent spans within traces.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
+            {/* Agent Flow Efficiency - UNIQUE GCC: TEMPORARILY HIDDEN */}
+            {/* Pending DQL validation with Demo Dynatrace MCP server */}
+            {false && (
+            <Surface padding={16} style={{ borderLeft: flowEfficiencyMetrics ? 
+              `4px solid ${flowEfficiencyMetrics.status === 'excellent' ? STATUS_COLORS.ideal : 
+                          flowEfficiencyMetrics.status === 'good' ? STATUS_COLORS.good :
+                          flowEfficiencyMetrics.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.critical}` : 
+              'none' 
+            }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex alignItems="center" gap={8}>
+                  <WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color06.Default }} />
+                  <Heading level={5}>🔄 Agent Flow Efficiency</Heading>
+                  <span style={{ 
+                    padding: '2px 8px', 
+                    borderRadius: '4px', 
+                    backgroundColor: '#7c3aed',
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: 600
+                  }}>
+                    UNIQUE GCC
+                  </span>
+                  <Tooltip text="Analyzes multi-step agent conversations for efficiency. Detects repetitive patterns, token waste, and optimization opportunities. Exclusive to GenAI Control Center.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+
+                {flowEfficiencyMetrics ? (
+                  <>
+                    {/* Efficiency Score + Key Metrics */}
+                    <Flex gap={16} flexWrap="wrap">
+                      {/* Efficiency Score Card */}
+                      <Surface style={{ 
+                        padding: '20px', 
+                        flex: '1 1 180px', 
+                        minWidth: '180px',
+                        background: flowEfficiencyMetrics.status === 'excellent' ? 'rgba(46, 160, 67, 0.1)' :
+                                    flowEfficiencyMetrics.status === 'good' ? 'rgba(20, 168, 245, 0.1)' :
+                                    flowEfficiencyMetrics.status === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(220, 38, 38, 0.1)'
+                      }}>
+                        <Flex flexDirection="column" gap={8} alignItems="center">
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Flow Efficiency Score</Text>
+                          <Heading level={1} style={{ 
+                            color: flowEfficiencyMetrics.status === 'excellent' ? STATUS_COLORS.ideal :
+                                   flowEfficiencyMetrics.status === 'good' ? STATUS_COLORS.good :
+                                   flowEfficiencyMetrics.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.critical,
+                            lineHeight: 1
+                          }}>
+                            {flowEfficiencyMetrics.efficiencyScore}
+                          </Heading>
+                          <Text style={{ fontSize: 12 }}>/ 100</Text>
+                          <Flex alignItems="center" gap={4}>
+                            {flowEfficiencyMetrics.status === 'excellent' && <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.ideal }} />}
+                            {flowEfficiencyMetrics.status === 'good' && <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.good }} />}
+                            {flowEfficiencyMetrics.status === 'warning' && <WarningIcon style={{ width: 14, height: 14, color: STATUS_COLORS.warning }} />}
+                            {flowEfficiencyMetrics.status === 'critical' && <CriticalIcon style={{ width: 14, height: 14, color: STATUS_COLORS.critical }} />}
+                            <Text style={{ 
+                              fontSize: 11, 
+                              textTransform: 'capitalize',
+                              color: flowEfficiencyMetrics.status === 'excellent' ? STATUS_COLORS.ideal :
+                                     flowEfficiencyMetrics.status === 'good' ? STATUS_COLORS.good :
+                                     flowEfficiencyMetrics.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.critical
+                            }}>
+                              {flowEfficiencyMetrics.status}
+                            </Text>
+                          </Flex>
+                        </Flex>
+                      </Surface>
+
+                      {/* Repetitive Pattern Rate */}
+                      <Surface style={{ padding: '16px', flex: '1 1 140px', minWidth: '140px' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Repetitive Patterns</Text>
+                          <Heading level={3} style={{ 
+                            color: flowEfficiencyMetrics.repetitiveRate > 20 ? STATUS_COLORS.warning : 'inherit'
+                          }}>
+                            {flowEfficiencyMetrics.repetitiveRate.toFixed(1)}%
+                          </Heading>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {flowEfficiencyMetrics.repetitiveFlowCount} of {flowEfficiencyMetrics.totalFlows} flows
+                          </Text>
+                        </Flex>
+                      </Surface>
+
+                      {/* Estimated Token Waste */}
+                      <Surface style={{ padding: '16px', flex: '1 1 140px', minWidth: '140px' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Est. Token Waste</Text>
+                          <Heading level={3} style={{ 
+                            color: flowEfficiencyMetrics.wastedTokensEstimate > 10000 ? STATUS_COLORS.warning : 'inherit'
+                          }}>
+                            {formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)}
+                          </Heading>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            ~${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)} cost
+                          </Text>
+                        </Flex>
+                      </Surface>
+
+                      {/* Handoff Latency */}
+                      <Surface style={{ padding: '16px', flex: '1 1 140px', minWidth: '140px' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Avg Handoff Time</Text>
+                          <Heading level={3} style={{ 
+                            color: flowEfficiencyMetrics.avgHandoffLatency > 3000 ? STATUS_COLORS.warning : 'inherit'
+                          }}>
+                            {flowEfficiencyMetrics.avgHandoffLatency > 0 
+                              ? formatDuration(flowEfficiencyMetrics.avgHandoffLatency)
+                              : '-'}
+                          </Heading>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {flowEfficiencyMetrics.totalHandoffs} total handoffs
+                          </Text>
+                        </Flex>
+                      </Surface>
+
+                      {/* LLM vs Tool Time */}
+                      <Surface style={{ padding: '16px', flex: '1 1 160px', minWidth: '160px' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Time Distribution</Text>
+                          <Flex gap={6} alignItems="baseline">
+                            <Text style={{ fontSize: 14, fontWeight: 600, color: Colors.Charts.Categorical.Color01.Default }}>
+                              {flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% LLM
+                            </Text>
+                            <Text style={{ fontSize: 12 }}>|</Text>
+                            <Text style={{ fontSize: 14, fontWeight: 600, color: Colors.Charts.Categorical.Color02.Default }}>
+                              {flowEfficiencyMetrics.toolTimeRatio.toFixed(0)}% Tool
+                            </Text>
+                          </Flex>
+                          {/* Mini progress bar */}
+                          <div style={{ 
+                            width: '100%', 
+                            height: 6, 
+                            borderRadius: 3, 
+                            background: '#e0e0e0',
+                            overflow: 'hidden',
+                            display: 'flex'
+                          }}>
+                            <div style={{ 
+                              width: `${flowEfficiencyMetrics.llmTimeRatio}%`, 
+                              background: Colors.Charts.Categorical.Color01.Default 
+                            }} />
+                            <div style={{ 
+                              width: `${flowEfficiencyMetrics.toolTimeRatio}%`, 
+                              background: Colors.Charts.Categorical.Color02.Default 
+                            }} />
+                          </div>
+                        </Flex>
+                      </Surface>
+
+                      {/* Complex Flows */}
+                      <Surface style={{ padding: '16px', flex: '1 1 140px', minWidth: '140px' }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Complex Flows</Text>
+                          <Heading level={3} style={{ 
+                            color: flowEfficiencyMetrics.complexFlowRate > 25 ? STATUS_COLORS.warning : 'inherit'
+                          }}>
+                            {flowEfficiencyMetrics.complexFlowRate.toFixed(1)}%
+                          </Heading>
+                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {flowEfficiencyMetrics.complexFlowCount} flows with &gt;5 tools
+                          </Text>
+                        </Flex>
+                      </Surface>
+                    </Flex>
+
+                    {/* Recommendations */}
+                    <Surface style={{ 
+                      padding: '16px', 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}>
+                      <Flex flexDirection="column" gap={8}>
+                        <Flex alignItems="center" gap={8}>
+                          <AiIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color01.Default }} />
+                          <Text style={{ fontSize: 13, fontWeight: 600 }}>Optimization Recommendations</Text>
+                        </Flex>
+                        <Flex flexDirection="column" gap={6}>
+                          {efficiencyRecommendations.map((rec, idx) => (
+                            <Text key={idx} style={{ fontSize: 12 }}>{rec}</Text>
+                          ))}
+                        </Flex>
+                      </Flex>
+                    </Surface>
+                  </>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No agent flow data available. Flow efficiency requires agent tool call sequences to analyze.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+            )}
+
+            {/* Agent → Backend Service Dependencies - UNIQUE GCC - HIDDEN: Pending DQL validation with Demo MCP */}
+            {false && (
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <ServicesIcon style={{ color: Colors.Charts.Categorical.Color05.Default }} />
+                  <Heading level={5}>🔗 Agent → Service Dependencies</Heading>
+                  <Tooltip text="Backend services (HTTP APIs, databases, message queues) called by agents. Unique to GCC - shows what external dependencies each agent relies on.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentServiceDeps.length} dependencies)
+                  </Text>
+                </Flex>
+                
+                {agentServiceDeps.length > 0 ? (
+                  <DataTable 
+                    data={agentServiceDeps} 
+                    columns={[
+                      {
+                        header: 'Agent',
+                        accessor: 'agentName',
+                        id: 'agentName',
+                        cell: ({ value }: { value: string }) => (
+                          <Flex alignItems="center" gap={6}>
+                            <AgentIcon style={{ width: 14, height: 14, color: NODE_CONFIGS.agent.color }} />
+                            <Text style={{ fontWeight: 600 }}>{value}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 150
+                      },
+                      {
+                        header: 'Service',
+                        accessor: 'serviceName',
+                        id: 'serviceName',
+                        cell: ({ rowData }: { rowData: AgentServiceDependency }) => (
+                          <Flex alignItems="center" gap={6}>
+                            {rowData.serviceType === 'database' ? (
+                              <DatabaseIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color03.Default }} />
+                            ) : rowData.serviceType === 'http' ? (
+                              <AppsIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color02.Default }} />
+                            ) : (
+                              <ServicesIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+                            )}
+                            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{rowData.serviceName}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 200
+                      },
+                      {
+                        header: 'Type',
+                        accessor: 'serviceType',
+                        id: 'serviceType',
+                        cell: ({ value }: { value: string }) => {
+                          const typeColors: Record<string, string> = {
+                            http: Colors.Charts.Categorical.Color02.Default,
+                            database: Colors.Charts.Categorical.Color03.Default,
+                            grpc: Colors.Charts.Categorical.Color04.Default,
+                            messaging: Colors.Charts.Categorical.Color05.Default,
+                            other: 'var(--dt-colors-text-secondary-default)'
+                          };
+                          return (
+                            <span style={{ 
+                              padding: '2px 8px', 
+                              borderRadius: 4, 
+                              backgroundColor: `${typeColors[value] || typeColors.other}20`,
+                              color: typeColors[value] || typeColors.other,
+                              fontSize: 11,
+                              fontWeight: 500,
+                              textTransform: 'uppercase'
+                            }}>
+                              {value}
+                            </span>
+                          );
+                        },
+                        minWidth: 90
+                      },
+                      {
+                        header: 'Calls',
+                        accessor: 'callCount',
+                        id: 'callCount',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>{formatNumber(value)}</Text>
+                        ),
+                        minWidth: 80,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Avg Latency',
+                        accessor: 'avgLatencyMs',
+                        id: 'avgLatencyMs',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
+                        ),
+                        minWidth: 100,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Error Rate',
+                        accessor: 'errorRate',
+                        id: 'errorRate',
+                        cell: ({ value }: { value: number }) => {
+                          const color = value > 5 ? STATUS_COLORS.critical : value > 2 ? STATUS_COLORS.warning : STATUS_COLORS.ideal;
+                          return (
+                            <Text style={{ textAlign: 'right', display: 'block', color, fontWeight: value > 0 ? 600 : 400 }}>
+                              {value.toFixed(1)}%
+                            </Text>
+                          );
+                        },
+                        minWidth: 90,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Actions',
+                        accessor: 'entityId',
+                        id: 'actions',
+                        cell: ({ rowData }: { rowData: AgentServiceDependency }) => (
+                          rowData.entityId ? (
+                            <Tooltip text="Open in Services app">
+                              <Button 
+                                variant="default" 
+                                onClick={() => {
+                                  const url = `/ui/apps/dynatrace.classic.services/ui/entity/${rowData.entityId}`;
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                              >
+                                <ExternalLinkIcon style={{ width: 14, height: 14 }} />
+                              </Button>
+                            </Tooltip>
+                          ) : <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>-</Text>
+                        ),
+                        minWidth: 80
+                      }
+                    ] as any}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={5} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No service dependency data available. Ensure HTTP/database spans are captured within agent traces.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+            )}
+
+            {/* Agent → Dynatrace Entity Mapping - UNIQUE GCC */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <SmartscapeIcon style={{ color: Colors.Charts.Categorical.Color06.Default }} />
+                  <Heading level={5}>🏢 Agent → Dynatrace Service Mapping</Heading>
+                  <Tooltip text="Maps AI agents to their host Dynatrace service entities. Unique to GCC - links agents to the Dynatrace topology for deep-dive analysis.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentEntityMappings.length} mappings)
+                  </Text>
+                </Flex>
+                
+                {agentEntityMappings.length > 0 ? (
+                  <DataTable 
+                    data={agentEntityMappings} 
+                    columns={[
+                      {
+                        header: 'Agent',
+                        accessor: 'agentName',
+                        id: 'agentName',
+                        cell: ({ value }: { value: string }) => (
+                          <Flex alignItems="center" gap={6}>
+                            <AgentIcon style={{ width: 14, height: 14, color: NODE_CONFIGS.agent.color }} />
+                            <Text style={{ fontWeight: 600 }}>{value}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 180
+                      },
+                      {
+                        header: 'Dynatrace Service',
+                        accessor: 'entityName',
+                        id: 'entityName',
+                        cell: ({ rowData }: { rowData: AgentEntityMapping }) => (
+                          <Flex alignItems="center" gap={6}>
+                            <ServicesIcon style={{ width: 14, height: 14, color: '#14a8f5' }} />
+                            <Text style={{ fontWeight: 500 }}>{rowData.entityName}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 200
+                      },
+                      {
+                        header: 'Entity ID',
+                        accessor: 'entityId',
+                        id: 'entityId',
+                        cell: ({ value }: { value: string }) => (
+                          <Text style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7 }}>{value}</Text>
+                        ),
+                        minWidth: 180
+                      },
+                      {
+                        header: 'Traces',
+                        accessor: 'traceCount',
+                        id: 'traceCount',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>{formatNumber(value)}</Text>
+                        ),
+                        minWidth: 80,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Avg Duration',
+                        accessor: 'avgDuration',
+                        id: 'avgDuration',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block' }}>{formatDuration(value)}</Text>
+                        ),
+                        minWidth: 100,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Actions',
+                        accessor: 'entityId',
+                        id: 'actions',
+                        cell: ({ rowData }: { rowData: AgentEntityMapping }) => (
+                          <Flex gap={4}>
+                            <Tooltip text="Open in Services app">
+                              <Button 
+                                variant="default" 
+                                onClick={() => {
+                                  const url = `/ui/apps/dynatrace.classic.services/ui/entity/${rowData.entityId}`;
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                              >
+                                <ServicesIcon style={{ width: 14, height: 14 }} />
+                              </Button>
+                            </Tooltip>
+                            <Tooltip text="View in Smartscape">
+                              <Button 
+                                variant="default" 
+                                onClick={() => {
+                                  const url = `/ui/apps/dynatrace.classic.technologies/ui/entity/${rowData.entityId}`;
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                              >
+                                <SmartscapeIcon style={{ width: 14, height: 14 }} />
+                              </Button>
+                            </Tooltip>
+                          </Flex>
+                        ),
+                        minWidth: 100
+                      }
+                    ] as any}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={5} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No entity mapping data available. Ensure dt.entity.service is captured in agent spans.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
             {/* Agent Activity Trends */}
             <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
               {/* Tool Calls Over Time */}
@@ -1971,45 +2669,6 @@ export const AgentTools: React.FC = () => {
               </Flex>
             </Surface>
 
-            {/* Agent Handoffs */}
-            <Surface padding={16}>
-              <Flex flexDirection="column" gap={12}>
-                <Flex alignItems="center" gap={8}>
-                  <Heading level={5}>Agent Handoffs</Heading>
-                  <Tooltip text="Communication patterns between agents. Shows how often one agent calls or delegates to another.">
-                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                  </Tooltip>
-                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                    ({agentHandoffs.length} handoff patterns)
-                  </Text>
-                </Flex>
-                
-                {agentHandoffs.length > 0 ? (
-                  <DataTable 
-                    data={agentHandoffs} 
-                    columns={handoffColumns}
-                    sortable
-                    resizable
-                  >
-                    <DataTable.Pagination defaultPageSize={5} />
-                  </DataTable>
-                ) : (
-                  <Flex 
-                    padding={32} 
-                    justifyContent="center"
-                    style={{ 
-                      background: 'var(--dt-colors-background-container-neutral-subdued)',
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                      No agent handoff data available. Handoffs are detected via parent/child agent spans within traces.
-                    </Text>
-                  </Flex>
-                )}
-              </Flex>
-            </Surface>
-
             {/* Tool Reliability - Agent-Tool Usage Patterns */}
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
@@ -2114,48 +2773,142 @@ export const AgentTools: React.FC = () => {
               </Flex>
             </Surface>
 
-            {/* Suspicious Loops Details (if any) */}
-            {suspiciousLoops.length > 0 && (
-              <Surface padding={16}>
-                <Flex flexDirection="column" gap={12}>
-                  <Flex alignItems="center" gap={8}>
-                    <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
-                    <Heading level={5}>Suspicious Loop Details</Heading>
-                  </Flex>
-                  
-                  <Flex flexDirection="column" gap={8}>
-                    {suspiciousLoops.slice(0, 10).map((loop) => (
-                      <Flex
-                        key={`${loop.traceId}-${loop.toolName}`}
-                        padding={12}
-                        alignItems="center"
-                        justifyContent="space-between"
-                        style={{
-                          background: 'var(--dt-colors-background-critical-subdued)',
-                          borderRadius: 6,
-                          border: `1px solid ${STATUS_COLORS.critical}`
-                        }}
-                      >
-                        <Flex flexDirection="column" gap={2}>
-                          <Text style={{ fontWeight: 600 }}>{loop.toolName}</Text>
-                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                            Agent: {loop.agentName}
-                          </Text>
-                        </Flex>
-                        <Flex flexDirection="column" alignItems="flex-end" gap={2}>
-                          <Text style={{ fontWeight: 600, color: STATUS_COLORS.critical }}>
-                            {loop.callCount} calls
-                          </Text>
-                          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                            {loop.totalDuration.toFixed(0)}ms total
-                          </Text>
-                        </Flex>
-                      </Flex>
-                    ))}
-                  </Flex>
+            {/* NEW: Agent → LLM Provider Relationships */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <AiIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />
+                  <Heading level={5}>Agent → LLM Provider Map</Heading>
+                  <Tooltip text="Shows which AI providers and models each agent uses. Includes token usage and estimated costs per agent-provider relationship.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentLLMProviders.length} relationships)
+                  </Text>
                 </Flex>
-              </Surface>
-            )}
+                
+                {agentLLMProviders.length > 0 ? (
+                  <DataTable 
+                    data={agentLLMProviders} 
+                    columns={[
+                      {
+                        header: 'Agent',
+                        accessor: 'agentName',
+                        id: 'agentName',
+                        cell: ({ value }: { value: string }) => (
+                          <Flex alignItems="center" gap={6}>
+                            <AgentIcon style={{ width: 14, height: 14, color: NODE_CONFIGS.agent.color }} />
+                            <Text style={{ fontWeight: 600 }}>{value}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 150
+                      },
+                      {
+                        header: 'Provider',
+                        accessor: 'provider',
+                        id: 'provider',
+                        cell: ({ value }: { value: string }) => (
+                          <Flex alignItems="center" gap={6}>
+                            {getProviderIcon(value, 16)}
+                            <Text style={{ fontWeight: 500 }}>{value || 'Unknown'}</Text>
+                          </Flex>
+                        ),
+                        minWidth: 120
+                      },
+                      {
+                        header: 'Model',
+                        accessor: 'model',
+                        id: 'model',
+                        cell: ({ value }: { value: string }) => (
+                          <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{value}</Text>
+                        ),
+                        minWidth: 180
+                      },
+                      {
+                        header: 'Calls',
+                        accessor: 'callCount',
+                        id: 'callCount',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block', fontWeight: 600 }}>{formatNumber(value)}</Text>
+                        ),
+                        minWidth: 70,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Input Tokens',
+                        accessor: 'totalInputTokens',
+                        id: 'totalInputTokens',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block' }}>{formatNumber(value)}</Text>
+                        ),
+                        minWidth: 100,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Output Tokens',
+                        accessor: 'totalOutputTokens',
+                        id: 'totalOutputTokens',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ textAlign: 'right', display: 'block' }}>{formatNumber(value)}</Text>
+                        ),
+                        minWidth: 100,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Est. Cost',
+                        accessor: 'estimatedCostUsd',
+                        id: 'estimatedCostUsd',
+                        cell: ({ value }: { value: number }) => (
+                          <Text style={{ 
+                            textAlign: 'right', 
+                            display: 'block', 
+                            color: value > 1 ? STATUS_COLORS.warning : Colors.Charts.Categorical.Color01.Default,
+                            fontWeight: 600 
+                          }}>
+                            ${value.toFixed(4)}
+                          </Text>
+                        ),
+                        minWidth: 90,
+                        alignment: 'right' as const
+                      },
+                      {
+                        header: 'Error Rate',
+                        accessor: 'errorRate',
+                        id: 'errorRate',
+                        cell: ({ value }: { value: number }) => {
+                          const color = value > 5 ? STATUS_COLORS.critical : value > 2 ? STATUS_COLORS.warning : STATUS_COLORS.ideal;
+                          return (
+                            <Text style={{ textAlign: 'right', display: 'block', color }}>
+                              {value.toFixed(1)}%
+                            </Text>
+                          );
+                        },
+                        minWidth: 80,
+                        alignment: 'right' as const
+                      }
+                    ] as any}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={5} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No LLM provider data available. Ensure gen_ai.request.model and gen_ai.provider.name attributes are captured.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
           </>
         )}
       </Flex>

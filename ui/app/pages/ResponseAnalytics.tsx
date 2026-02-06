@@ -11,10 +11,19 @@ import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
-import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon } from '@dynatrace/strato-icons';
+import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ArrowUpRightIcon, ArrowDownRightIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
+import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
+import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 
-import { useResponseAnalytics, TokenEfficiencyMetrics, ModelComparison } from '../hooks/useResponseAnalytics';
+import { 
+  useResponseAnalytics, 
+  useResponseQualityTrends,
+  TokenEfficiencyMetrics, 
+  ModelComparison,
+  QualityTrendDataPoint,
+  QualityAnomaly
+} from '../hooks/useResponseAnalytics';
 
 // Status colors from Strato design tokens
 const STATUS_COLORS = {
@@ -278,14 +287,49 @@ const getTimeframeString = (timeframe: Timeframe): string => {
 
 export function ResponseAnalytics() {
   const { metrics, modelComparisons, loading, error, summary, analyzeResponses } = useResponseAnalytics();
+  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
+  // const { 
+  //   trendData, 
+  //   summary: qualitySummary, 
+  //   loading: qualityLoading, 
+  //   analyzeQualityTrends 
+  // } = useResponseQualityTrends();
+  const trendData: QualityTrendDataPoint[] = [];
+  const qualitySummary: any = null;  // typed as any to avoid TS errors in hidden code
+  const qualityLoading = false;
+  const analyzeQualityTrends = () => {};
+  
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient' | 'quality'>('overview');
 
   const timeframeString = useMemo(() => getTimeframeString(timeframe), [timeframe]);
 
   useEffect(() => {
     analyzeResponses(timeframeString);
+    // analyzeQualityTrends(timeframeString);  // TEMPORARILY DISABLED
   }, [timeframeString, analyzeResponses]);
+
+  // Transform trend data for TimeseriesChart
+  const qualityChartData: Timeseries[] = useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    
+    return [
+      {
+        name: 'Empty Rate (%)',
+        datapoints: trendData.map(d => ({
+          start: new Date(d.timestamp),
+          value: d.emptyRate
+        }))
+      },
+      {
+        name: 'Error Rate (%)',
+        datapoints: trendData.map(d => ({
+          start: new Date(d.timestamp),
+          value: d.errorRate
+        }))
+      }
+    ];
+  }, [trendData]);
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -384,6 +428,26 @@ export function ResponseAnalytics() {
         >
           <ServicesIcon /> Service Analysis
         </Button>
+        {/* TEMPORARILY HIDDEN - Pending DQL validation with Demo Dynatrace MCP server */}
+        {false && (
+        <Button
+          variant={activeTab === 'quality' ? 'accent' : 'default'}
+          onClick={() => setActiveTab('quality')}
+        >
+          <BarChartIcon /> Quality Trends
+          <span style={{ 
+            padding: '2px 6px', 
+            borderRadius: '4px', 
+            backgroundColor: '#7c3aed',
+            color: 'white',
+            fontSize: '9px',
+            marginLeft: '4px',
+            fontWeight: 600
+          }}>
+            UNIQUE
+          </span>
+        </Button>
+        )}
         <Button
           variant={activeTab === 'inefficient' ? 'accent' : 'default'}
           onClick={() => setActiveTab('inefficient')}
@@ -552,6 +616,226 @@ export function ResponseAnalytics() {
                   </Surface>
                 ))}
               </Flex>
+            )}
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Quality Trends Tab - UNIQUE GCC FEATURE - TEMPORARILY HIDDEN */}
+      {/* Pending DQL validation with Demo Dynatrace MCP server */}
+      {false && activeTab === 'quality' && (
+        <Surface style={{ padding: '20px' }}>
+          <Flex flexDirection="column" gap={20}>
+            <Flex alignItems="center" gap={8}>
+              <BarChartIcon />
+              <Heading level={4}>📈 Response Quality Trends</Heading>
+              <span style={{ 
+                padding: '4px 8px', 
+                borderRadius: '4px', 
+                backgroundColor: '#7c3aed',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 600
+              }}>
+                UNIQUE GCC
+              </span>
+            </Flex>
+            <Text style={{ opacity: 0.7 }}>
+              Track response quality signals over time: empty responses, errors, and latency spikes.
+              This goes beyond basic metrics to show degradation patterns and predict quality issues.
+            </Text>
+
+            {qualityLoading && (
+              <Flex justifyContent="center" padding={32}>
+                <ProgressCircle />
+              </Flex>
+            )}
+
+            {/* Quality Health Score */}
+            {qualitySummary && (
+              <Flex gap={16} flexWrap="wrap">
+                <Surface style={{ 
+                  padding: '20px', 
+                  flex: '1 1 200px', 
+                  minWidth: '200px',
+                  borderLeft: `4px solid ${
+                    qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
+                    qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
+                  }`
+                }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Quality Health Score</Text>
+                    <Flex alignItems="baseline" gap={8}>
+                      <Heading level={1} style={{ 
+                        color: qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
+                               qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
+                      }}>
+                        {qualitySummary.overallHealthScore}
+                      </Heading>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>/ 100</Text>
+                    </Flex>
+                    <Flex alignItems="center" gap={4}>
+                      {qualitySummary.trendDirection === 'improving' && (
+                        <><ArrowUpRightIcon style={{ color: STATUS_COLORS.excellent, width: 16 }} />
+                        <Text textStyle="small" style={{ color: STATUS_COLORS.excellent }}>Improving</Text></>
+                      )}
+                      {qualitySummary.trendDirection === 'degrading' && (
+                        <><ArrowDownRightIcon style={{ color: STATUS_COLORS.poor, width: 16 }} />
+                        <Text textStyle="small" style={{ color: STATUS_COLORS.poor }}>Degrading</Text></>
+                      )}
+                      {qualitySummary.trendDirection === 'stable' && (
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Stable</Text>
+                      )}
+                    </Flex>
+                  </Flex>
+                </Surface>
+
+                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Empty Response Rate</Text>
+                    <Heading level={3} style={{ 
+                      color: qualitySummary.emptyResponseRate > 5 ? STATUS_COLORS.poor : 'inherit'
+                    }}>
+                      {qualitySummary.emptyResponseRate.toFixed(1)}%
+                    </Heading>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>responses with &lt;5 tokens</Text>
+                  </Flex>
+                </Surface>
+
+                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Error Rate</Text>
+                    <Heading level={3} style={{ 
+                      color: qualitySummary.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
+                    }}>
+                      {qualitySummary.errorRate.toFixed(1)}%
+                    </Heading>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>failed requests</Text>
+                  </Flex>
+                </Surface>
+
+                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Truncated Rate</Text>
+                    <Heading level={3} style={{ 
+                      color: qualitySummary.truncatedRate > 10 ? STATUS_COLORS.fair : 'inherit'
+                    }}>
+                      {qualitySummary.truncatedRate.toFixed(1)}%
+                    </Heading>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>short responses (&lt;20 tokens)</Text>
+                  </Flex>
+                </Surface>
+
+                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
+                    <Heading level={3} style={{ 
+                      color: qualitySummary.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
+                    }}>
+                      {(qualitySummary.avgLatencyMs / 1000).toFixed(1)}s
+                    </Heading>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>response time</Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            )}
+
+            {/* Quality Trend Chart */}
+            {qualityChartData.length > 0 && trendData.length > 0 && (
+              <Surface style={{ padding: '20px' }}>
+                <Flex flexDirection="column" gap={12}>
+                  <Heading level={5}>Quality Metrics Over Time</Heading>
+                  <div style={{ height: '300px' }}>
+                    <TimeseriesChart
+                      data={qualityChartData}
+                    >
+                      <TimeseriesChart.Legend />
+                    </TimeseriesChart>
+                  </div>
+                </Flex>
+              </Surface>
+            )}
+
+            {/* Recent Anomalies */}
+            {qualitySummary?.recentAnomalies && qualitySummary.recentAnomalies.length > 0 && (
+              <Surface style={{ padding: '20px', borderLeft: `4px solid ${STATUS_COLORS.fair}` }}>
+                <Flex flexDirection="column" gap={12}>
+                  <Flex alignItems="center" gap={8}>
+                    <WarningIcon style={{ color: STATUS_COLORS.fair }} />
+                    <Heading level={5}>Recent Quality Anomalies</Heading>
+                  </Flex>
+                  <Text textStyle="small" style={{ opacity: 0.7 }}>
+                    Automated detection of quality degradation events
+                  </Text>
+                  
+                  <Flex flexDirection="column" gap={8}>
+                    {qualitySummary.recentAnomalies.map((anomaly, idx) => (
+                      <Surface key={idx} style={{ 
+                        padding: '12px',
+                        backgroundColor: anomaly.severity === 'critical' ? 'rgba(220, 38, 38, 0.1)' : 'rgba(245, 158, 11, 0.1)'
+                      }}>
+                        <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
+                          <Flex flexDirection="column" gap={4}>
+                            <Flex alignItems="center" gap={8}>
+                              <span style={{ 
+                                padding: '2px 6px', 
+                                borderRadius: '4px', 
+                                backgroundColor: anomaly.severity === 'critical' ? STATUS_COLORS.poor : STATUS_COLORS.fair,
+                                color: 'white',
+                                fontSize: '10px',
+                                textTransform: 'uppercase'
+                              }}>
+                                {anomaly.severity}
+                              </span>
+                              <Text textStyle="base-emphasized">{anomaly.message}</Text>
+                            </Flex>
+                            <Text textStyle="small" style={{ opacity: 0.7 }}>
+                              {new Date(anomaly.timestamp).toLocaleString()}
+                            </Text>
+                          </Flex>
+                          <Flex alignItems="center" gap={12}>
+                            <Flex flexDirection="column" alignItems="flex-end">
+                              <Text textStyle="small" style={{ opacity: 0.7 }}>Value</Text>
+                              <Text textStyle="base-emphasized">
+                                {anomaly.type === 'latency_spike' 
+                                  ? `${(anomaly.value / 1000).toFixed(1)}s`
+                                  : `${anomaly.value.toFixed(1)}%`
+                                }
+                              </Text>
+                            </Flex>
+                            <Flex flexDirection="column" alignItems="flex-end">
+                              <Text textStyle="small" style={{ opacity: 0.7 }}>Threshold</Text>
+                              <Text textStyle="small">
+                                {anomaly.type === 'latency_spike' 
+                                  ? `${(anomaly.threshold / 1000).toFixed(1)}s`
+                                  : `${anomaly.threshold.toFixed(1)}%`
+                                }
+                              </Text>
+                            </Flex>
+                          </Flex>
+                        </Flex>
+                      </Surface>
+                    ))}
+                  </Flex>
+                </Flex>
+              </Surface>
+            )}
+
+            {qualitySummary?.recentAnomalies?.length === 0 && !qualityLoading && (
+              <Surface style={{ padding: '20px', borderLeft: `4px solid ${STATUS_COLORS.excellent}` }}>
+                <Flex alignItems="center" gap={8}>
+                  <CheckmarkIcon style={{ color: STATUS_COLORS.excellent }} />
+                  <Text style={{ color: STATUS_COLORS.excellent }}>
+                    No quality anomalies detected in the selected timeframe - responses are healthy!
+                  </Text>
+                </Flex>
+              </Surface>
+            )}
+
+            {!qualitySummary && !qualityLoading && (
+              <Text style={{ opacity: 0.7 }}>
+                No quality data available. Ensure your services emit gen_ai.* span attributes with token counts.
+              </Text>
             )}
           </Flex>
         </Surface>

@@ -125,6 +125,40 @@ export interface AgentActivityTrend {
   avgDurationMs: number;
 }
 
+// NEW: Agent → Backend Service Dependencies
+export interface AgentServiceDependency {
+  agentName: string;
+  serviceName: string;
+  serviceType: 'http' | 'database' | 'messaging' | 'grpc' | 'other';
+  entityId?: string;
+  callCount: number;
+  avgLatencyMs: number;
+  errorRate: number;
+  lastSeen: string;
+}
+
+// NEW: Agent → LLM Provider Relationships
+export interface AgentLLMProvider {
+  agentName: string;
+  provider: string;
+  model: string;
+  callCount: number;
+  avgLatencyMs: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  errorRate: number;
+  estimatedCostUsd: number;
+}
+
+// NEW: Agent with Dynatrace Entity Mapping
+export interface AgentEntityMapping {
+  agentName: string;
+  entityId: string;
+  entityName: string;
+  traceCount: number;
+  avgDuration: number;
+}
+
 // ============================================
 // DQL Queries
 // ============================================
@@ -398,6 +432,87 @@ fetch spans, ${buildTimeFilter(filters)}
 | limit 500
 `;
 
+// NEW: Agent → Backend Service Dependencies Query
+// Finds HTTP, database, and other service calls made within agent traces
+const AGENT_SERVICE_DEPENDENCIES_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter isNotNull(http.url) OR isNotNull(db.system) OR isNotNull(rpc.system) OR isNotNull(messaging.system)
+| fieldsAdd service_type = if(isNotNull(db.system), then: "database", 
+    else: if(isNotNull(http.url), then: "http",
+    else: if(isNotNull(rpc.system), then: "grpc",
+    else: if(isNotNull(messaging.system), then: "messaging", else: "other"))))
+| fieldsAdd service_name = coalesce(
+    db.system,
+    http.host,
+    rpc.service,
+    messaging.destination.name,
+    peer.service,
+    server.address,
+    net.peer.name,
+    span.name
+  )
+| fieldsAdd is_error = if(otel.status_code == "ERROR" OR span.status == "error" OR http.status_code >= 400, then: 1, else: 0)
+| lookup [
+    fetch spans, ${buildTimeFilter(filters)}
+    | filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+    | fieldsAdd agent_name = coalesce(gen_ai.agent.name, traceloop.entity.name, span.name)
+    | summarize agent_name = takeFirst(agent_name), by: { trace_id = trace.id }
+  ], sourceField:trace.id, lookupField:trace_id, prefix:"agent."
+| filter isNotNull(agent.agent_name)
+| summarize 
+    call_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    error_count = sum(is_error),
+    last_seen = max(start_time),
+    entity_id = takeFirst(dt.entity.service),
+    by: { agent_name = agent.agent_name, service_name, service_type }
+| fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)
+| sort call_count desc
+| limit 100
+`;
+
+// NEW: Agent → LLM Provider Relationships Query
+// Shows which AI providers/models each agent uses
+const AGENT_LLM_PROVIDER_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter isNotNull(gen_ai.request.model)
+| fieldsAdd is_error = if(otel.status_code == "ERROR" OR span.status == "error", then: 1, else: 0)
+| lookup [
+    fetch spans, ${buildTimeFilter(filters)}
+    | filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+    | fieldsAdd agent_name = coalesce(gen_ai.agent.name, traceloop.entity.name, span.name)
+    | summarize agent_name = takeFirst(agent_name), by: { trace_id = trace.id }
+  ], sourceField:trace.id, lookupField:trace_id, prefix:"agent."
+| filter isNotNull(agent.agent_name)
+| summarize 
+    call_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    total_input_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0))),
+    total_output_tokens = sum(toLong(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))),
+    error_count = sum(is_error),
+    by: { agent_name = agent.agent_name, provider = gen_ai.provider.name, model = gen_ai.request.model }
+| fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)
+| fieldsAdd est_cost_usd = (toDouble(total_input_tokens) * 0.00000015) + (toDouble(total_output_tokens) * 0.0000006)
+| sort call_count desc
+| limit 100
+`;
+
+// NEW: Agent → Dynatrace Entity Mapping Query
+// Maps agents to their host Dynatrace service entities
+const AGENT_ENTITY_MAPPING_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+| filter isNotNull(dt.entity.service)
+| fieldsAdd agent_name = coalesce(gen_ai.agent.name, traceloop.entity.name, span.name)
+| summarize 
+    trace_count = countDistinct(trace.id),
+    avg_duration = avg(duration) / 1000000,
+    entity_name = takeFirst(service.name),
+    by: { agent_name, entity_id = dt.entity.service }
+| sort trace_count desc
+| limit 50
+`;
+
 // ============================================
 // Main Hook
 // ============================================
@@ -415,6 +530,9 @@ export function useAgentTools(filters?: QueryFilters) {
   const [toolCoOccurrence, setToolCoOccurrence] = useState<ToolCoOccurrence[]>([]);
   const [toolCallsTrend, setToolCallsTrend] = useState<ToolCallsTrend[]>([]);
   const [agentActivityTrend, setAgentActivityTrend] = useState<AgentActivityTrend[]>([]);
+  const [agentServiceDeps, setAgentServiceDeps] = useState<AgentServiceDependency[]>([]);
+  const [agentLLMProviders, setAgentLLMProviders] = useState<AgentLLMProvider[]>([]);
+  const [agentEntityMappings, setAgentEntityMappings] = useState<AgentEntityMapping[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -434,7 +552,7 @@ export function useAgentTools(filters?: QueryFilters) {
 
     try {
       // Execute all queries in parallel
-      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse] = await Promise.all([
+      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse, serviceDepsResponse, llmProviderResponse, entityMappingResponse] = await Promise.all([
         queryExecutionClient.queryExecute({
           body: {
             query: TOOL_USAGE_QUERY(currentFilters),
@@ -529,6 +647,30 @@ export function useAgentTools(filters?: QueryFilters) {
         queryExecutionClient.queryExecute({
           body: {
             query: AGENT_ACTIVITY_TREND_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // NEW: Agent Service Dependencies
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_SERVICE_DEPENDENCIES_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // NEW: Agent LLM Providers
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_LLM_PROVIDER_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // NEW: Agent Entity Mappings
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_ENTITY_MAPPING_QUERY(currentFilters),
             requestTimeoutMilliseconds: 60000,
             fetchTimeoutSeconds: 60
           }
@@ -700,6 +842,46 @@ export function useAgentTools(filters?: QueryFilters) {
       }));
       setAgentActivityTrend(processedAgentActivity);
 
+      // NEW: Process agent service dependencies
+      const serviceDepsRecords = serviceDepsResponse.result?.records || [];
+      const processedServiceDeps: AgentServiceDependency[] = serviceDepsRecords.map((record: any) => ({
+        agentName: String(record.agent_name || 'Unknown'),
+        serviceName: String(record.service_name || 'Unknown'),
+        serviceType: String(record.service_type || 'other') as 'http' | 'database' | 'messaging' | 'grpc' | 'other',
+        entityId: record.entity_id ? String(record.entity_id) : undefined,
+        callCount: Number(record.call_count) || 0,
+        avgLatencyMs: Number(record.avg_latency_ms) || 0,
+        errorRate: Number(record.error_rate) || 0,
+        lastSeen: record.last_seen ? new Date(record.last_seen).toISOString() : new Date().toISOString()
+      }));
+      setAgentServiceDeps(processedServiceDeps);
+
+      // NEW: Process agent LLM providers
+      const llmProviderRecords = llmProviderResponse.result?.records || [];
+      const processedLLMProviders: AgentLLMProvider[] = llmProviderRecords.map((record: any) => ({
+        agentName: String(record.agent_name || 'Unknown'),
+        provider: String(record.provider || 'Unknown'),
+        model: String(record.model || 'Unknown'),
+        callCount: Number(record.call_count) || 0,
+        avgLatencyMs: Number(record.avg_latency_ms) || 0,
+        totalInputTokens: Number(record.total_input_tokens) || 0,
+        totalOutputTokens: Number(record.total_output_tokens) || 0,
+        errorRate: Number(record.error_rate) || 0,
+        estimatedCostUsd: Number(record.est_cost_usd) || 0
+      }));
+      setAgentLLMProviders(processedLLMProviders);
+
+      // NEW: Process agent entity mappings
+      const entityMappingRecords = entityMappingResponse.result?.records || [];
+      const processedEntityMappings: AgentEntityMapping[] = entityMappingRecords.map((record: any) => ({
+        agentName: String(record.agent_name || 'Unknown'),
+        entityId: String(record.entity_id || ''),
+        entityName: String(record.entity_name || 'Unknown'),
+        traceCount: Number(record.trace_count) || 0,
+        avgDuration: Number(record.avg_duration) || 0
+      }));
+      setAgentEntityMappings(processedEntityMappings);
+
     } catch (err) {
       console.error('[GCC] Agent tools query failed:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch agent tools data'));
@@ -735,6 +917,9 @@ export function useAgentTools(filters?: QueryFilters) {
     toolCoOccurrence,
     toolCallsTrend,
     agentActivityTrend,
+    agentServiceDeps,
+    agentLLMProviders,
+    agentEntityMappings,
     loading,
     error,
     fetchAgentToolsData,

@@ -2085,3 +2085,130 @@ fetch spans, ${timeClause}
 
   return useDQLQuery(query, transform);
 }
+
+// ============================================
+// Semantic Cache Savings Calculator
+// ============================================
+
+export interface SemanticCacheCandidate {
+  promptPattern: string;
+  serviceName: string;
+  model: string;
+  provider: string;
+  requestCount: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+  totalCost: number;
+  potentialSavings: number;  // Cost if we cached after first request
+  cacheHitRate: number;      // (count-1)/count = potential cache hits
+}
+
+export interface SemanticCacheSummary {
+  totalCandidates: number;
+  totalPotentialSavings: number;
+  totalRepetitiveRequests: number;
+  avgPotentialCacheHitRate: number;
+  topCandidates: SemanticCacheCandidate[];
+}
+
+/**
+ * Hook for calculating semantic cache savings opportunities
+ * Identifies repeated prompts that could benefit from caching
+ */
+export function useSemanticCacheSavings(filters?: QueryFilters) {
+  const timeClause = buildTimeRangeClauseFromTimeframe(filters?.timeframe);
+  
+  const query = useMemo(() => {
+    let filterClause = '';
+    if (filters?.serviceName) {
+      filterClause += ` | filter dt.entity.service == "${filters.serviceName}"`;
+    }
+    if (filters?.provider) {
+      filterClause += ` | filter gen_ai.provider.name == "${filters.provider}"`;
+    }
+    if (filters?.model) {
+      filterClause += ` | filter gen_ai.request.model == "${filters.model}"`;
+    }
+    
+    // Query for repeated prompts grouped by normalized content
+    return `
+      fetch spans, ${timeClause}
+      | filter isNotNull(gen_ai.prompt.0.content) OR isNotNull(gen_ai.request.model)
+      | filter span.kind == "CLIENT" OR span.kind == "INTERNAL"
+      ${filterClause}
+      | fieldsAdd prompt_normalized = lower(trim(substring(coalesce(gen_ai.prompt.0.content, ""), 0, 150)))
+      | summarize {
+          request_count = count(),
+          total_input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+          total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+          avg_input = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+          avg_output = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+        }, by: { prompt_normalized, dt.entity.service, gen_ai.request.model, gen_ai.provider.name }
+      | filter request_count >= 5
+      | sort request_count desc
+      | limit 50
+    `;
+  }, [filters, timeClause]);
+  
+  const transform = useCallback((records: unknown[]): SemanticCacheSummary => {
+    if (!records || !Array.isArray(records) || records.length === 0) {
+      return {
+        totalCandidates: 0,
+        totalPotentialSavings: 0,
+        totalRepetitiveRequests: 0,
+        avgPotentialCacheHitRate: 0,
+        topCandidates: []
+      };
+    }
+    
+    const candidates: SemanticCacheCandidate[] = records.map((record: any) => {
+      const model = record['gen_ai.request.model'] || 'Unknown';
+      const provider = record['gen_ai.provider.name'] || deriveProviderFromModel(model);
+      const requestCount = Number(record.request_count) || 0;
+      const totalInput = Number(record.total_input_tokens) || 0;
+      const totalOutput = Number(record.total_output_tokens) || 0;
+      const avgInput = Number(record.avg_input) || 0;
+      const avgOutput = Number(record.avg_output) || 0;
+      
+      // Calculate total cost for all requests
+      const totalCost = estimateCost(provider, totalInput, totalOutput);
+      
+      // If cached after first request, we'd save (count-1)/count of the cost
+      // (First request pays full cost, subsequent requests are free/minimal)
+      const cacheHitRate = requestCount > 1 ? (requestCount - 1) / requestCount : 0;
+      const potentialSavings = totalCost * cacheHitRate * 0.95; // 95% savings (5% cache overhead)
+      
+      return {
+        promptPattern: record.prompt_normalized || '[Pattern]',
+        serviceName: record['dt.entity.service'] || 'Unknown',
+        model,
+        provider,
+        requestCount,
+        avgInputTokens: avgInput,
+        avgOutputTokens: avgOutput,
+        totalCost,
+        potentialSavings,
+        cacheHitRate
+      };
+    });
+    
+    // Filter to only patterns with meaningful savings (>$0.001)
+    const meaningfulCandidates = candidates.filter(c => c.potentialSavings > 0.001);
+    
+    const totalSavings = meaningfulCandidates.reduce((sum, c) => sum + c.potentialSavings, 0);
+    const totalRequests = meaningfulCandidates.reduce((sum, c) => sum + c.requestCount, 0);
+    const avgHitRate = meaningfulCandidates.length > 0
+      ? meaningfulCandidates.reduce((sum, c) => sum + c.cacheHitRate, 0) / meaningfulCandidates.length
+      : 0;
+    
+    return {
+      totalCandidates: meaningfulCandidates.length,
+      totalPotentialSavings: totalSavings,
+      totalRepetitiveRequests: totalRequests,
+      avgPotentialCacheHitRate: avgHitRate,
+      topCandidates: meaningfulCandidates.slice(0, 10)
+    };
+  }, []);
+
+  return useDQLQuery(query, transform);
+}

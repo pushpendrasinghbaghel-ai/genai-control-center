@@ -9,7 +9,8 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
 import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
+import { TimeframeSelector, FilterBar } from '@dynatrace/strato-components-preview/filters';
+import { SelectV2 } from '@dynatrace/strato-components-preview/forms';
 import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
 import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
@@ -190,6 +191,16 @@ interface ServiceUsage {
   errorRate: number;
 }
 
+// NEW: Agents impacted by model drift
+interface ImpactedAgent {
+  agentName: string;
+  callCount: number;
+  avgLatency: number;
+  errorRate: number;
+  totalTokens: number;
+  lastSeen: string;
+}
+
 interface DriftDetailModalProps {
   summary: ModelDriftSummary;
   onClose: () => void;
@@ -206,6 +217,8 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
   const [servicesLoading, setServicesLoading] = useState(false);
   const [services, setServices] = useState<ServiceUsage[]>([]);
   const [showDetailedMetrics, setShowDetailedMetrics] = useState(false);
+  const [impactedAgents, setImpactedAgents] = useState<ImpactedAgent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
 
   // Fetch services using this model
   useEffect(() => {
@@ -244,6 +257,57 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
       }
     };
     fetchServices();
+  }, [summary.model, summary.provider]);
+
+  // NEW: Fetch agents impacted by this model's drift
+  useEffect(() => {
+    const fetchImpactedAgents = async () => {
+      setAgentsLoading(true);
+      try {
+        const response = await queryExecutionClient.queryExecute({
+          body: {
+            query: `
+              fetch spans, from: now()-7d
+              | filter gen_ai.request.model == "${summary.model}" 
+                AND gen_ai.provider.name == "${summary.provider}"
+              | lookup [
+                  fetch spans, from: now()-7d
+                  | filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+                  | fieldsAdd agent_name = coalesce(gen_ai.agent.name, traceloop.entity.name, span.name)
+                  | summarize agent_name = takeFirst(agent_name), by: { trace_id = trace.id }
+                ], sourceField:trace.id, lookupField:trace_id, prefix:"agent."
+              | filter isNotNull(agent.agent_name)
+              | fieldsAdd is_error = if(otel.status_code == "ERROR" OR span.status == "error", then: 1, else: 0)
+              | summarize {
+                  call_count = count(),
+                  avg_latency = avg(duration) / 1000000,
+                  error_count = sum(is_error),
+                  total_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0)) + toLong(coalesce(gen_ai.usage.output_tokens, 0))),
+                  last_seen = max(start_time)
+                }, by: { agent_name = agent.agent_name }
+              | fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)
+              | sort call_count desc
+              | limit 10
+            `,
+            requestTimeoutMilliseconds: 30000
+          }
+        });
+        const records = response.result?.records || [];
+        setImpactedAgents(records.map((r: any) => ({
+          agentName: String(r.agent_name || 'Unknown'),
+          callCount: Number(r.call_count) || 0,
+          avgLatency: Number(r.avg_latency) || 0,
+          errorRate: Number(r.error_rate) || 0,
+          totalTokens: Number(r.total_tokens) || 0,
+          lastSeen: r.last_seen ? new Date(r.last_seen).toISOString() : new Date().toISOString()
+        })));
+      } catch (err) {
+        console.error('Failed to fetch impacted agents:', err);
+      } finally {
+        setAgentsLoading(false);
+      }
+    };
+    fetchImpactedAgents();
   }, [summary.model, summary.provider]);
 
   // Generate DRIFT SCORE trend (primary chart)
@@ -537,6 +601,108 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
           )}
         </Flex>
 
+        {/* NEW: Agents Impacted by Drift */}
+        <Flex flexDirection="column" gap={8}>
+          <Flex alignItems="center" gap={8}>
+            <ResearchIcon style={{ width: 14, height: 14 }} />
+            <Text textStyle="base-emphasized">AI Agents Impacted by Drift</Text>
+            {impactedAgents.length > 0 && (
+              <span style={{ 
+                padding: '2px 8px', 
+                borderRadius: 12, 
+                backgroundColor: summary.severity === 'critical' ? `${STATUS_COLORS.critical}20` : `${STATUS_COLORS.warning}20`,
+                color: summary.severity === 'critical' ? STATUS_COLORS.critical : STATUS_COLORS.warning,
+                fontSize: 11,
+                fontWeight: 600
+              }}>
+                {impactedAgents.length} agent{impactedAgents.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </Flex>
+          {agentsLoading ? (
+            <Flex justifyContent="center" padding={16}>
+              <ProgressCircle aria-label="Loading agents" />
+            </Flex>
+          ) : impactedAgents.length > 0 ? (
+            <Surface style={{ borderRadius: 6 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>AGENT NAME</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>CALLS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>AVG LATENCY</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>TOKENS</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>ERROR RATE</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>DRIFT IMPACT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {impactedAgents.map((agent, idx) => {
+                    // Calculate impact based on call volume and drift severity
+                    const callShare = impactedAgents.length > 0 ? (agent.callCount / impactedAgents.reduce((sum, a) => sum + a.callCount, 0)) * 100 : 0;
+                    const impactLevel = callShare > 50 ? 'High' : callShare > 20 ? 'Medium' : 'Low';
+                    const impactColor = impactLevel === 'High' ? STATUS_COLORS.critical : impactLevel === 'Medium' ? STATUS_COLORS.warning : STATUS_COLORS.neutral;
+                    
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                        <td style={{ padding: '8px 12px', fontSize: 12 }}>
+                          <Flex alignItems="center" gap={6}>
+                            <span style={{ 
+                              width: 8, height: 8, borderRadius: '50%', 
+                              backgroundColor: '#14a8f5' 
+                            }} />
+                            <Text textStyle="small-emphasized">{agent.agentName}</Text>
+                          </Flex>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
+                          {agent.callCount.toLocaleString()}
+                          <span style={{ fontSize: 10, opacity: 0.6 }}> ({callShare.toFixed(0)}%)</span>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
+                          {agent.avgLatency.toFixed(0)}ms
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
+                          {agent.totalTokens.toLocaleString()}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace', color: agent.errorRate > 1 ? STATUS_COLORS.critical : 'inherit' }}>
+                          {agent.errorRate.toFixed(2)}%
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <span style={{ 
+                            display: 'inline-flex',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            backgroundColor: `${impactColor}20`,
+                            color: impactColor,
+                            fontSize: 10,
+                            fontWeight: 600
+                          }}>
+                            {impactLevel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Surface>
+          ) : (
+            <Surface style={{ padding: 16, borderRadius: 6, textAlign: 'center' }}>
+              <Text textStyle="small" style={{ opacity: 0.6 }}>No agent data available for this model</Text>
+            </Surface>
+          )}
+          {impactedAgents.length > 0 && summary.severity !== 'normal' && (
+            <Surface style={{ padding: 10, borderRadius: 6, backgroundColor: `${STATUS_COLORS.critical}10`, borderLeft: `3px solid ${STATUS_COLORS.critical}` }}>
+              <Text textStyle="small" style={{ opacity: 0.9 }}>
+                🤖 <strong>Agent Impact:</strong> {impactedAgents.length} AI agent(s) are using this drifting model. 
+                {summary.severity === 'critical' 
+                  ? ' Agent behavior may be significantly affected - consider fallback models or rollback.'
+                  : ' Monitor agent outputs for quality degradation.'}
+              </Text>
+            </Surface>
+          )}
+        </Flex>
+
         {/* Anomalies */}
         {summary.anomalies.length > 0 && (
           <Flex flexDirection="column" gap={8}>
@@ -580,6 +746,8 @@ export const ModelDrift: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
   const [selectedModel, setSelectedModel] = useState<ModelDriftSummary | null>(null);
   const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all');
+  const [selectedTrendModels, setSelectedTrendModels] = useState<string[]>([]);
+  const [showModelSelector, setShowModelSelector] = useState(false);
   
   const {
     versions,
@@ -616,15 +784,32 @@ export const ModelDrift: React.FC = () => {
     return counts;
   }, [driftSummaries]);
 
-  // Generate mock trend data for visualization
+  // Available models for trend chart selection
+  const availableTrendModels = useMemo(() => {
+    return filteredSummaries.map(s => ({
+      id: s.model,
+      label: `${s.model} (${s.provider})`,
+      driftScore: s.overallDriftScore
+    }));
+  }, [filteredSummaries]);
+
+  // Auto-select top 5 models by drift score when data loads or filter changes
+  useEffect(() => {
+    if (filteredSummaries.length > 0 && selectedTrendModels.length === 0) {
+      const top5 = filteredSummaries.slice(0, 5).map(s => s.model);
+      setSelectedTrendModels(top5);
+    }
+  }, [filteredSummaries]);
+
+  // Generate trend data for selected models
   const driftTrendData = useMemo((): Timeseries[] => {
-    if (filteredSummaries.length === 0) return [];
+    if (filteredSummaries.length === 0 || selectedTrendModels.length === 0) return [];
     
-    // Create trend lines for top 5 models by drift score
-    const topModels = filteredSummaries.slice(0, 5);
+    // Filter to only selected models
+    const modelsToShow = filteredSummaries.filter(s => selectedTrendModels.includes(s.model));
     const now = Date.now();
     
-    return topModels.map((summary) => ({
+    return modelsToShow.map((summary) => ({
       name: summary.model,
       datapoints: Array.from({ length: 24 }, (_, i) => {
         const timestamp = new Date(now - (23 - i) * 3600000);
@@ -635,7 +820,7 @@ export const ModelDrift: React.FC = () => {
         };
       })
     })) as Timeseries[];
-  }, [filteredSummaries]);
+  }, [filteredSummaries, selectedTrendModels]);
 
   // DataTable columns for drift summaries (using any[] type for flexibility)
   const driftTableColumns: any[] = [
@@ -929,111 +1114,25 @@ export const ModelDrift: React.FC = () => {
         </Flex>
       </Flex>
 
-      {/* Main Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: 16 }}>
-        {/* Drift Scores Table */}
-        <Surface padding={16} style={{ borderRadius: 8 }}>
-          <Flex flexDirection="column" gap={12}>
+      {/* Model Drift Scores Table - Full Width */}
+      <Surface padding={16} style={{ borderRadius: 8 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex alignItems="center" justifyContent="space-between">
             <Flex alignItems="center" gap={8}>
               <AiIcon style={{ width: 16, height: 16 }} />
               <Heading level={6}>Model Drift Scores</Heading>
-              <Tooltip text="Drift score measures how much model behavior has changed from baseline. Higher scores indicate more significant changes that may affect quality or performance.">
+              <Tooltip text="Model Drift detects AI behavior changes using weighted metrics:&#10;&#10;• Latency (25%) - Response time degradation&#10;• Output Tokens (15%) - Quality/completeness&#10;• Error Rate (20%) - Reliability issues&#10;• P95 Latency (15%) - Tail latency spikes&#10;• Input Tokens (10%) - Prompt bloat/cost&#10;• Token Efficiency (15%) - Output/Input ratio&#10;&#10;Scores: 0-39 Normal • 40-69 Warning • 70+ Critical&#10;&#10;Baseline: Auto-compares last 7 days vs prior 7 days.">
                 <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
               </Tooltip>
             </Flex>
-
-            {loading ? (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle aria-label="Loading drift data" />
-              </Flex>
-            ) : filteredSummaries.length > 0 ? (
-              <DataTable
-                data={filteredSummaries}
-                columns={driftTableColumns}
-                sortable
-                resizable
-              >
-                <DataTable.EmptyState>No models found</DataTable.EmptyState>
-              </DataTable>
-            ) : (
-              <Flex flexDirection="column" alignItems="center" padding={32} gap={8}>
-                <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
-                <Text style={{ opacity: 0.6 }}>No model data available for drift analysis</Text>
-                <Text textStyle="small" style={{ opacity: 0.4 }}>Models need at least 7 days of data for baseline comparison</Text>
-              </Flex>
-            )}
-          </Flex>
-        </Surface>
-
-        {/* Right Sidebar */}
-        <Flex flexDirection="column" gap={16}>
-          {/* Drift Trend Chart */}
-          <Surface padding={16} style={{ borderRadius: 8 }}>
-            <Flex flexDirection="column" gap={12}>
-              <Flex alignItems="center" gap={8}>
-                <BarChartIcon style={{ width: 14, height: 14 }} />
-                <Text textStyle="small-emphasized">Drift Score Trend (24h)</Text>
-              </Flex>
-              {driftTrendData.length > 0 ? (
-                <TimeseriesChart
-                  data={driftTrendData}
-                  variant="line"
-                  height={180}
-                >
-                  <TimeseriesChart.Tooltip variant="shared" />
-                  <TimeseriesChart.Legend position="bottom" />
-                </TimeseriesChart>
-              ) : (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 180, opacity: 0.5 }}>
-                  <Text textStyle="small">Insufficient data for trend</Text>
-                </Flex>
-              )}
-            </Flex>
-          </Surface>
-
-          {/* What is Model Drift? */}
-          <Surface padding={16} style={{ borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.02)' }}>
-            <Flex flexDirection="column" gap={12}>
-              <Flex alignItems="center" gap={8}>
-                <HelpIcon style={{ width: 14, height: 14 }} />
-                <Text textStyle="small-emphasized">Understanding Model Drift</Text>
-              </Flex>
-              <Text textStyle="small" style={{ lineHeight: 1.6, opacity: 0.8 }}>
-                <strong>Model Drift</strong> detects AI behavior changes using 7 metrics:
-              </Text>
-              <ul style={{ margin: '0 0 0 16px', padding: 0, fontSize: 11, lineHeight: 1.7, opacity: 0.7 }}>
-                <li><strong>Latency</strong> (25%) - Response time degradation</li>
-                <li><strong>Output Tokens</strong> (15%) - Quality/completeness</li>
-                <li><strong>Error Rate</strong> (20%) - Reliability issues</li>
-                <li><strong>P95 Latency</strong> (15%) - Tail latency spikes</li>
-                <li><strong>Input Tokens</strong> (10%) - Prompt bloat/cost</li>
-                <li><strong>Token Efficiency</strong> (15%) - Output/Input ratio</li>
-              </ul>
-              <Text textStyle="small" style={{ lineHeight: 1.5, opacity: 0.8, marginTop: 4 }}>
-                <strong>Scores:</strong> 0-39 Normal • 40-69 Warning • 70+ Critical
-              </Text>
-              <Text textStyle="small" style={{ lineHeight: 1.5, opacity: 0.6, marginTop: 4 }}>
-                <strong>Baseline:</strong> Auto-compares last 7 days vs prior 7 days. Click "Capture Baseline" on any model to set current values as the new reference point.
-              </Text>
-            </Flex>
-          </Surface>
-
-          {/* Quick Actions */}
-          <Surface padding={16} style={{ borderRadius: 8 }}>
-            <Flex flexDirection="column" gap={12}>
-              <Flex alignItems="center" gap={8}>
-                <SettingIcon style={{ width: 14, height: 14 }} />
-                <Text textStyle="small-emphasized">Quick Actions</Text>
-              </Flex>
-              <Button variant="default" style={{ width: '100%' }} onClick={refetch}>
-                <RefreshIcon /> Recalculate All Baselines
+            <Flex alignItems="center" gap={8}>
+              <Button variant="default" onClick={refetch}>
+                <RefreshIcon /> Recalculate
               </Button>
               <Button 
                 variant="default" 
-                style={{ width: '100%' }} 
                 disabled={filteredSummaries.length === 0}
                 onClick={() => {
-                  // Generate CSV export
                   const headers = ['Model', 'Provider', 'Type', 'Drift Score', 'Severity', 'Latency Δ%', 'Quality Δ%', 'Efficiency', 'Anomalies', 'Baseline Period'];
                   const rows = filteredSummaries.map(s => {
                     const latency = s.metrics.find(m => m.metricName === 'Average Latency');
@@ -1062,12 +1161,165 @@ export const ModelDrift: React.FC = () => {
                   URL.revokeObjectURL(url);
                 }}
               >
-                <DocumentIcon /> Export Drift Report
+                <DocumentIcon /> Export
               </Button>
             </Flex>
-          </Surface>
+          </Flex>
+
+          {loading ? (
+            <Flex justifyContent="center" padding={32}>
+              <ProgressCircle aria-label="Loading drift data" />
+            </Flex>
+          ) : filteredSummaries.length > 0 ? (
+            <DataTable
+              data={filteredSummaries}
+              columns={driftTableColumns}
+              sortable
+              resizable
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+              <DataTable.EmptyState>No models found</DataTable.EmptyState>
+            </DataTable>
+          ) : (
+            <Flex flexDirection="column" alignItems="center" padding={32} gap={8}>
+              <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text style={{ opacity: 0.6 }}>No model data available for drift analysis</Text>
+              <Text textStyle="small" style={{ opacity: 0.4 }}>Models need at least 7 days of data for baseline comparison</Text>
+            </Flex>
+          )}
         </Flex>
-      </div>
+      </Surface>
+
+      {/* Drift Score Trend - Full Width Chart */}
+      <Surface padding={16} style={{ borderRadius: 8 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex alignItems="center" justifyContent="space-between">
+            <Flex alignItems="center" gap={8}>
+              <BarChartIcon style={{ width: 16, height: 16 }} />
+              <Heading level={6}>Drift Score Trend (24h)</Heading>
+              <Tooltip text="Shows how drift scores have changed over the last 24 hours for all monitored models. Higher scores indicate more significant behavior changes.">
+                <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+              </Tooltip>
+              {/* Compact model count badge */}
+              <span style={{
+                fontSize: 10,
+                padding: '2px 6px',
+                borderRadius: 10,
+                backgroundColor: 'var(--dt-colors-surface-neutral-default)',
+                color: 'var(--dt-colors-text-secondary-default)'
+              }}>
+                {selectedTrendModels.length} of {availableTrendModels.length} models
+              </span>
+            </Flex>
+            <Flex alignItems="center" gap={12}>
+              <Flex gap={12} style={{ fontSize: 11, opacity: 0.7 }}>
+                <span>🟢 0-39</span>
+                <span>🟡 40-69</span>
+                <span>🔴 70+</span>
+              </Flex>
+              {/* Collapsible model selector toggle */}
+              <Button 
+                variant="default"
+                onClick={() => setShowModelSelector(!showModelSelector)}
+                style={{ fontSize: 11, padding: '4px 10px' }}
+              >
+                <SettingIcon style={{ width: 12, height: 12 }} />
+                {showModelSelector ? 'Hide' : 'Select Models'}
+              </Button>
+            </Flex>
+          </Flex>
+          
+          {/* Collapsible Model Selector */}
+          {showModelSelector && (
+            <Surface style={{ 
+              padding: 12, 
+              borderRadius: 6, 
+              backgroundColor: 'var(--dt-colors-surface-neutral-default)',
+              border: '1px solid var(--dt-colors-border-neutral-default)'
+            }}>
+              <Flex alignItems="center" gap={12} flexWrap="wrap">
+                <Text textStyle="small" style={{ opacity: 0.7, whiteSpace: 'nowrap' }}>Display:</Text>
+                <SelectV2
+                  value={selectedTrendModels}
+                  onChange={(values) => setSelectedTrendModels(values as string[])}
+                  multiple
+                  clearable
+                  style={{ minWidth: 280, flex: 1, maxWidth: 500 }}
+                >
+                  <SelectV2.Trigger placeholder="Select models..." />
+                  <SelectV2.Content style={{ maxHeight: 300 }}>
+                    {availableTrendModels.map(model => (
+                      <SelectV2.Option key={model.id} value={model.id}>
+                        <Flex justifyContent="space-between" alignItems="center" style={{ width: '100%' }}>
+                          <span style={{ fontSize: 12 }}>{model.label}</span>
+                          <span style={{ 
+                            fontSize: 9, 
+                            padding: '1px 4px',
+                            borderRadius: 3,
+                            backgroundColor: model.driftScore >= 70 ? `${STATUS_COLORS.critical}20` : 
+                                             model.driftScore >= 40 ? `${STATUS_COLORS.warning}20` : 
+                                             `${STATUS_COLORS.ideal}20`,
+                            color: model.driftScore >= 70 ? STATUS_COLORS.critical : 
+                                   model.driftScore >= 40 ? STATUS_COLORS.warning : 
+                                   STATUS_COLORS.ideal
+                          }}>
+                            {model.driftScore}
+                          </span>
+                        </Flex>
+                      </SelectV2.Option>
+                    ))}
+                  </SelectV2.Content>
+                </SelectV2>
+                <Flex gap={6}>
+                  <Button 
+                    variant="default" 
+                    onClick={() => setSelectedTrendModels(filteredSummaries.slice(0, 5).map(s => s.model))}
+                    style={{ fontSize: 10, padding: '3px 8px' }}
+                  >
+                    Top 5
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={() => setSelectedTrendModels(filteredSummaries.slice(0, 10).map(s => s.model))}
+                    style={{ fontSize: 10, padding: '3px 8px' }}
+                  >
+                    Top 10
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={() => setSelectedTrendModels(filteredSummaries.map(s => s.model))}
+                    style={{ fontSize: 10, padding: '3px 8px' }}
+                  >
+                    All
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={() => setSelectedTrendModels([])}
+                    style={{ fontSize: 10, padding: '3px 8px' }}
+                  >
+                    Clear
+                  </Button>
+                </Flex>
+              </Flex>
+            </Surface>
+          )}
+
+          {driftTrendData.length > 0 ? (
+            <TimeseriesChart
+              data={driftTrendData}
+              variant="line"
+              height={280}
+            >
+              <TimeseriesChart.Tooltip variant="shared" />
+              <TimeseriesChart.Legend position="bottom" />
+            </TimeseriesChart>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 280, opacity: 0.5 }}>
+              <Text>Insufficient data for drift trend visualization</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
 
       {/* Model Anomalies List */}
       {anomalies.length > 0 && (
