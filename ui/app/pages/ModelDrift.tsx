@@ -748,6 +748,7 @@ export const ModelDrift: React.FC = () => {
   const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all');
   const [selectedTrendModels, setSelectedTrendModels] = useState<string[]>([]);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showDriftHelp, setShowDriftHelp] = useState(false);
   
   const {
     versions,
@@ -1121,24 +1122,14 @@ export const ModelDrift: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <AiIcon style={{ width: 16, height: 16 }} />
               <Heading level={6}>Model Drift Scores</Heading>
-              <Tooltip text={
-                `MODEL DRIFT DETECTION\n\n` +
-                `Detects AI behavior changes using weighted metrics:\n\n` +
-                `METRICS:\n` +
-                `  • Latency (25%) - Response time degradation\n` +
-                `  • Output Tokens (15%) - Quality/completeness\n` +
-                `  • Error Rate (20%) - Reliability issues\n` +
-                `  • P95 Latency (15%) - Tail latency spikes\n` +
-                `  • Input Tokens (10%) - Prompt bloat/cost\n` +
-                `  • Token Efficiency (15%) - Output/Input ratio\n\n` +
-                `SEVERITY SCORES:\n` +
-                `  🟢 0-39 = Normal\n` +
-                `  🟡 40-69 = Warning\n` +
-                `  🔴 70+ = Critical\n\n` +
-                `BASELINE:\n` +
-                `  Auto-compares last 7 days vs prior 7 days.`
-              }>
-                <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+              <Tooltip text="Click for detailed explanation">
+                <Button 
+                  variant="default" 
+                  style={{ padding: '2px 6px', minHeight: 'auto' }}
+                  onClick={() => setShowDriftHelp(!showDriftHelp)}
+                >
+                  <HelpIcon style={{ width: 14, height: 14 }} />
+                </Button>
               </Tooltip>
             </Flex>
             <Flex alignItems="center" gap={8}>
@@ -1182,6 +1173,79 @@ export const ModelDrift: React.FC = () => {
             </Flex>
           </Flex>
 
+          {/* Expandable Help Panel */}
+          {showDriftHelp && (
+            <Surface style={{ 
+              padding: 16, 
+              borderRadius: 8, 
+              backgroundColor: 'var(--dt-colors-surface-neutral-default)',
+              border: '1px solid var(--dt-colors-border-neutral-default)'
+            }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex justifyContent="space-between" alignItems="flex-start">
+                  <Text style={{ fontWeight: 600, fontSize: 15 }}>📊 MODEL DRIFT DETECTION</Text>
+                  <Button variant="default" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={() => setShowDriftHelp(false)}>✕</Button>
+                </Flex>
+                <Text style={{ fontSize: 13, opacity: 0.85 }}>Detects AI behavior changes using weighted metrics to alert you before users notice degradation.</Text>
+                
+                <Flex gap={32} flexWrap="wrap">
+                  {/* Metrics Column */}
+                  <Flex flexDirection="column" gap={8} style={{ flex: '1 1 250px', minWidth: 250 }}>
+                    <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>METRICS (Weighted)</Text>
+                    <Flex flexDirection="column" gap={4} style={{ fontSize: 12 }}>
+                      <Flex justifyContent="space-between"><Text>• Latency</Text><Text style={{ fontWeight: 600 }}>25%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Response time degradation</Text>
+                      <Flex justifyContent="space-between"><Text>• Error Rate</Text><Text style={{ fontWeight: 600 }}>20%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Reliability issues</Text>
+                      <Flex justifyContent="space-between"><Text>• Output Tokens</Text><Text style={{ fontWeight: 600 }}>15%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Quality/completeness indicator</Text>
+                      <Flex justifyContent="space-between"><Text>• P95 Latency</Text><Text style={{ fontWeight: 600 }}>15%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Tail latency spikes</Text>
+                      <Flex justifyContent="space-between"><Text>• Token Efficiency</Text><Text style={{ fontWeight: 600 }}>15%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Output/Input ratio</Text>
+                      <Flex justifyContent="space-between"><Text>• Input Tokens</Text><Text style={{ fontWeight: 600 }}>10%</Text></Flex>
+                      <Text style={{ paddingLeft: 16, opacity: 0.7, fontSize: 11 }}>Prompt bloat/cost indicator</Text>
+                    </Flex>
+                  </Flex>
+                  
+                  {/* Severity Column */}
+                  <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>SEVERITY SCORES</Text>
+                    <Flex flexDirection="column" gap={8} style={{ fontSize: 13 }}>
+                      <Flex alignItems="center" gap={8}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#2ea043' }} />
+                        <Text><strong>0-39</strong> = Normal</Text>
+                      </Flex>
+                      <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Model behaving within expected parameters</Text>
+                      <Flex alignItems="center" gap={8}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#d29922' }} />
+                        <Text><strong>40-69</strong> = Warning</Text>
+                      </Flex>
+                      <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Notable deviation, investigation recommended</Text>
+                      <Flex alignItems="center" gap={8}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#cf222e' }} />
+                        <Text><strong>70-100</strong> = Critical</Text>
+                      </Flex>
+                      <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Significant drift, immediate attention required</Text>
+                    </Flex>
+                  </Flex>
+                  
+                  {/* Baseline Column */}
+                  <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
+                    <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>BASELINE COMPARISON</Text>
+                    <Text style={{ fontSize: 12 }}>Auto-compares:</Text>
+                    <Flex flexDirection="column" gap={4} style={{ fontSize: 12, paddingLeft: 8 }}>
+                      <Text>• <strong>Current:</strong> Last 7 days</Text>
+                      <Text>• <strong>Baseline:</strong> Prior 7 days</Text>
+                    </Flex>
+                    <Text style={{ fontSize: 11, opacity: 0.7, marginTop: 8 }}>
+                      Click "Capture Baseline" on any model to set current values as the new reference point.
+                    </Text>
+                  </Flex>
+                </Flex>
+              </Flex>
+            </Surface>
+          )}
           {loading ? (
             <Flex justifyContent="center" padding={32}>
               <ProgressCircle aria-label="Loading drift data" />
