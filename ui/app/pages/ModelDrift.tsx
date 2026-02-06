@@ -1121,7 +1121,23 @@ export const ModelDrift: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <AiIcon style={{ width: 16, height: 16 }} />
               <Heading level={6}>Model Drift Scores</Heading>
-              <Tooltip text="Model Drift detects AI behavior changes using weighted metrics:&#10;&#10;• Latency (25%) - Response time degradation&#10;• Output Tokens (15%) - Quality/completeness&#10;• Error Rate (20%) - Reliability issues&#10;• P95 Latency (15%) - Tail latency spikes&#10;• Input Tokens (10%) - Prompt bloat/cost&#10;• Token Efficiency (15%) - Output/Input ratio&#10;&#10;Scores: 0-39 Normal • 40-69 Warning • 70+ Critical&#10;&#10;Baseline: Auto-compares last 7 days vs prior 7 days.">
+              <Tooltip text={
+                `MODEL DRIFT DETECTION\n\n` +
+                `Detects AI behavior changes using weighted metrics:\n\n` +
+                `METRICS:\n` +
+                `  • Latency (25%) - Response time degradation\n` +
+                `  • Output Tokens (15%) - Quality/completeness\n` +
+                `  • Error Rate (20%) - Reliability issues\n` +
+                `  • P95 Latency (15%) - Tail latency spikes\n` +
+                `  • Input Tokens (10%) - Prompt bloat/cost\n` +
+                `  • Token Efficiency (15%) - Output/Input ratio\n\n` +
+                `SEVERITY SCORES:\n` +
+                `  🟢 0-39 = Normal\n` +
+                `  🟡 40-69 = Warning\n` +
+                `  🔴 70+ = Critical\n\n` +
+                `BASELINE:\n` +
+                `  Auto-compares last 7 days vs prior 7 days.`
+              }>
                 <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
               </Tooltip>
             </Flex>
