@@ -224,6 +224,97 @@ Mention these upcoming capabilities to drive interest:
 
 ---
 
+## ⏱️ 4-MINUTE POWER DEMO (Alternative Script)
+
+**Target Audience:** SE, Tech Leads, Platform Engineers  
+**Focus:** Model Drift Detection, Response Analytics, FinOps Cost Management, Agent Tools
+
+### 🔥 HOOK (20 seconds)
+
+> "Your organization is running GenAI across multiple providers. But you're flying blind:
+> - Is model behavior changing over time?  
+> - Are responses degrading in quality?
+> - How much are you actually spending?
+> - Which agents are efficient vs wasteful?
+>
+> GenAI Control Center answers all of this."
+
+---
+
+### 📈 STOP 1: Model Drift (60 seconds)
+
+**Navigate to:** `/drift`
+
+**Show:**
+1. Summary Cards - Total Models, Critical/Warning counts
+2. Drift Score Table - Score 0-100 with severity badges
+3. **Click a model** → Detail Modal with:
+   - Drift Score Gauge
+   - **🤖 Agents Impacted by Drift** section
+   - Anomaly timeline
+
+**Say:**
+> "Model Drift is the silent killer. Providers push updates, models change, your app breaks. GCC calculates drift using 6 weighted metrics. Click any model to see which agents are impacted."
+
+---
+
+### 📊 STOP 2: Response Analytics (60 seconds)
+
+**Navigate to:** `/response-analytics`
+
+**Show:**
+1. Top Summary Cards - Total Requests, Token Ratio, Inefficient Services
+2. **Model Rankings** - Efficiency score comparison (GPT-4 vs Claude vs Gemini)
+3. Service Analysis - Per-service token efficiency
+4. Inefficient Prompts - Waste detection
+
+**Say:**
+> "This is ML Engineer's command center. Which model gives best output per token? Which services have inefficient prompts? This efficiency ranking shows you immediately."
+
+---
+
+### 💰 STOP 3: FinOps (60 seconds)
+
+**Navigate to:** `/finops`
+
+**Show:**
+1. Hero Cards - Total Spend, Burn Rate, Budget Breach ETA
+2. Cost by Provider - Donut chart distribution
+3. Cost Trend - Timeseries with provider breakdown
+4. Token Efficiency - High-input/low-output detection
+
+**Say:**
+> "FinOps finally has AI cost visibility. Budget breach ETA tells you WHEN you'll exceed limits. See this service? High input, low output - that's a $200/day optimization opportunity."
+
+---
+
+### 🤖 STOP 4: Agent Tools (60 seconds)
+
+**Navigate to:** `/agent-tools`
+
+**Show:**
+1. Active Agents Summary - Total Agents, Tools, Suspicious Loops
+2. Agents Table - Token usage, **LLM Cost**, LLM/Tool time split
+3. Agent Handoffs - Cross-agent communication patterns
+4. **Agent → LLM Provider Map** - Which agents use which models + cost
+
+**Say:**
+> "For anyone running AI agents - see every agent's tool usage, detect infinite loops, track handoffs, understand cost per agent. This LLM Provider map shows exactly which models each agent consumes."
+
+---
+
+### 🎯 CLOSE (20 seconds)
+
+> "GenAI Control Center:
+> - **Drift** catches behavior changes before impact
+> - **Analytics** optimizes for efficiency
+> - **FinOps** delivers cost visibility
+> - **Agents** monitors complex orchestrations
+>
+> All from OpenTelemetry data. No new instrumentation."
+
+---
+
 ## 📝 Appendix: Persona-Specific Angles
 
 ### For FinOps Teams
