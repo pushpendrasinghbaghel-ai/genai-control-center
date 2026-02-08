@@ -40,6 +40,14 @@ const METRIC_TOOLTIPS = {
   efficiencyScore: "Composite score (0-100) based on: Token Ratio (40%), Response Latency (30%), and Cost Efficiency (30%). Higher is better.",
   variance: "Statistical measure of how spread out the output token counts are. High variance means response lengths vary significantly.",
   lowOutputRate: "Percentage of requests that returned fewer than 10 output tokens. High rates may indicate failed or truncated responses.",
+  // Quality Trends tooltips
+  qualityHealthScore: "Composite score (0-100) measuring overall response quality. Calculated as: 100 - (Empty Rate × 2) - (Error Rate × 3) - (Truncated Rate × 0.5) - (Latency Penalty). Higher is better.",
+  emptyResponseRate: "Percentage of responses with fewer than 5 output tokens. High rates may indicate model failures, incorrect prompts, or embedding-only operations.",
+  errorRate: "Percentage of requests that returned errors (otel.status_code = ERROR). High rates indicate model or service reliability issues.",
+  truncatedRate: "Percentage of responses with 5-20 output tokens. May indicate max_tokens limits, model cutoffs, or incomplete generations.",
+  avgLatency: "Average response time across all GenAI requests. Latency > 5s contributes to quality score degradation.",
+  trendDirection: "Compares first half vs second half of the timeframe. Improving = error rate decreased by >20%. Degrading = error rate increased by >20%.",
+  qualityAnomaly: "Automated detection when a metric exceeds 2× its average value. Anomalies are flagged as Warning (5-20%) or Critical (>20%).",
 };
 
 // ============================================
@@ -296,6 +304,7 @@ export function ResponseAnalytics() {
   
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
   const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient' | 'quality'>('overview');
+  const [showQualityHelp, setShowQualityHelp] = useState(false);
 
   const timeframeString = useMemo(() => getTimeframeString(timeframe), [timeframe]);
 
@@ -617,24 +626,119 @@ export function ResponseAnalytics() {
       {activeTab === 'quality' && (
         <Surface style={{ padding: '20px' }}>
           <Flex flexDirection="column" gap={20}>
-            <Flex alignItems="center" gap={8}>
-              <BarChartIcon />
-              <Heading level={4}>📈 Response Quality Trends</Heading>
-              <span style={{ 
-                padding: '4px 8px', 
-                borderRadius: '4px', 
-                backgroundColor: '#7c3aed',
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: 600
-              }}>
-                UNIQUE GCC
-              </span>
+            {/* Header with Help Button */}
+            <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
+              <Flex alignItems="center" gap={8}>
+                <BarChartIcon />
+                <Heading level={4}>Response Quality Trends</Heading>
+                <Tooltip text="Track AI response quality signals over time with automated anomaly detection">
+                  <span style={{ 
+                    padding: '4px 8px', 
+                    borderRadius: '4px', 
+                    backgroundColor: Colors.Charts.Categorical.Color06.Default,
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: 600
+                  }}>
+                    UNIQUE GCC
+                  </span>
+                </Tooltip>
+              </Flex>
+              <Flex alignItems="center" gap={8}>
+                <Tooltip text="Learn how Quality Score is calculated">
+                  <Button
+                    variant={showQualityHelp ? 'accent' : 'default'}
+                    onClick={() => setShowQualityHelp(!showQualityHelp)}
+                  >
+                    <HelpIcon /> {showQualityHelp ? 'Hide' : 'How It Works'}
+                  </Button>
+                </Tooltip>
+                <Tooltip text="Refresh quality data">
+                  <Button
+                    variant="default"
+                    onClick={() => analyzeQualityTrends(timeframeString)}
+                    disabled={qualityLoading}
+                  >
+                    <RefreshIcon /> Refresh
+                  </Button>
+                </Tooltip>
+              </Flex>
             </Flex>
-            <Text style={{ opacity: 0.7 }}>
-              Track response quality signals over time: empty responses, errors, and latency spikes.
-              This goes beyond basic metrics to show degradation patterns and predict quality issues.
-            </Text>
+
+            {/* Expandable Help Panel */}
+            {showQualityHelp && (
+              <Surface style={{ 
+                padding: 16, 
+                borderRadius: 8, 
+                backgroundColor: 'var(--dt-colors-surface-neutral-default)',
+                border: '1px solid var(--dt-colors-border-neutral-default)'
+              }}>
+                <Flex flexDirection="column" gap={16}>
+                  <Flex justifyContent="space-between" alignItems="flex-start">
+                    <Text style={{ fontWeight: 600, fontSize: 15 }}>📊 QUALITY SCORE CALCULATION</Text>
+                    <Button variant="default" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={() => setShowQualityHelp(false)}>✕</Button>
+                  </Flex>
+                  <Text style={{ fontSize: 13, opacity: 0.85 }}>
+                    Measures AI response quality using observable metrics from OpenTelemetry gen_ai.* spans. No hallucination detection - only real, measurable signals.
+                  </Text>
+                  
+                  <Flex gap={32} flexWrap="wrap">
+                    {/* Score Formula */}
+                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 280px', minWidth: 280 }}>
+                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>SCORE FORMULA</Text>
+                      <Text style={{ fontFamily: 'monospace', fontSize: 12, backgroundColor: 'var(--dt-colors-surface-default)', padding: 8, borderRadius: 4 }}>
+                        Score = 100 - (Empty × 2) - (Error × 3) - (Truncated × 0.5) - (Latency Penalty)
+                      </Text>
+                      <Flex flexDirection="column" gap={4} style={{ fontSize: 12, paddingLeft: 8 }}>
+                        <Text>• <strong>Empty Rate (×2):</strong> Responses &lt;5 tokens</Text>
+                        <Text>• <strong>Error Rate (×3):</strong> Failed requests (highest weight)</Text>
+                        <Text>• <strong>Truncated (×0.5):</strong> Short responses (5-20 tokens)</Text>
+                        <Text>• <strong>Latency Penalty:</strong> +5 if avg &gt; 5s, +10 if &gt; 10s</Text>
+                      </Flex>
+                    </Flex>
+                    
+                    {/* Severity Thresholds */}
+                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
+                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>HEALTH SCORE LEVELS</Text>
+                      <Flex flexDirection="column" gap={8} style={{ fontSize: 13 }}>
+                        <Flex alignItems="center" gap={8}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: STATUS_COLORS.excellent }} />
+                          <Text><strong>80-100</strong> = Excellent</Text>
+                        </Flex>
+                        <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Healthy response quality</Text>
+                        <Flex alignItems="center" gap={8}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: STATUS_COLORS.fair }} />
+                          <Text><strong>50-79</strong> = Fair</Text>
+                        </Flex>
+                        <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Some quality issues detected</Text>
+                        <Flex alignItems="center" gap={8}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: STATUS_COLORS.poor }} />
+                          <Text><strong>0-49</strong> = Poor</Text>
+                        </Flex>
+                        <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Significant quality problems</Text>
+                      </Flex>
+                    </Flex>
+                    
+                    {/* Anomaly Detection */}
+                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
+                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>ANOMALY DETECTION</Text>
+                      <Text style={{ fontSize: 12 }}>Auto-detects spikes when:</Text>
+                      <Flex flexDirection="column" gap={4} style={{ fontSize: 12, paddingLeft: 8 }}>
+                        <Text>• Metric exceeds <strong>2× average</strong></Text>
+                        <Text>• Value is above <strong>5% threshold</strong></Text>
+                      </Flex>
+                      <Text style={{ fontSize: 12, marginTop: 8 }}>Anomaly types:</Text>
+                      <Flex flexDirection="column" gap={2} style={{ fontSize: 11, paddingLeft: 8, opacity: 0.8 }}>
+                        <Text>• Empty Response Spike</Text>
+                        <Text>• Error Rate Spike</Text>
+                        <Text>• Latency Spike</Text>
+                        <Text>• Truncation Spike</Text>
+                      </Flex>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              </Surface>
+            )}
 
             {qualityLoading && (
               <Flex justifyContent="center" padding={32}>
@@ -645,87 +749,131 @@ export function ResponseAnalytics() {
             {/* Quality Health Score */}
             {qualitySummary && (
               <Flex gap={16} flexWrap="wrap">
-                <Surface style={{ 
-                  padding: '20px', 
-                  flex: '1 1 200px', 
-                  minWidth: '200px',
-                  borderLeft: `4px solid ${
-                    qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
-                    qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
-                  }`
-                }}>
-                  <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Quality Health Score</Text>
-                    <Flex alignItems="baseline" gap={8}>
-                      <Heading level={1} style={{ 
-                        color: qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
-                               qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
+                {/* Main Health Score Card */}
+                <Tooltip text={METRIC_TOOLTIPS.qualityHealthScore}>
+                  <Surface style={{ 
+                    padding: '20px', 
+                    flex: '1 1 200px', 
+                    minWidth: '200px',
+                    borderLeft: `4px solid ${
+                      qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
+                      qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
+                    }`,
+                    cursor: 'help'
+                  }}>
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex alignItems="center" gap={4}>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Quality Health Score</Text>
+                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                      </Flex>
+                      <Flex alignItems="baseline" gap={8}>
+                        <Heading level={1} style={{ 
+                          color: qualitySummary.overallHealthScore >= 80 ? STATUS_COLORS.excellent :
+                                 qualitySummary.overallHealthScore >= 50 ? STATUS_COLORS.fair : STATUS_COLORS.poor
+                        }}>
+                          {qualitySummary.overallHealthScore}
+                        </Heading>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>/ 100</Text>
+                      </Flex>
+                      <Tooltip text={METRIC_TOOLTIPS.trendDirection}>
+                        <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
+                          {qualitySummary.trendDirection === 'improving' && (
+                            <><ArrowUpRightIcon style={{ color: STATUS_COLORS.excellent, width: 16 }} />
+                            <Text textStyle="small" style={{ color: STATUS_COLORS.excellent }}>Improving</Text></>
+                          )}
+                          {qualitySummary.trendDirection === 'degrading' && (
+                            <><ArrowDownRightIcon style={{ color: STATUS_COLORS.poor, width: 16 }} />
+                            <Text textStyle="small" style={{ color: STATUS_COLORS.poor }}>Degrading</Text></>
+                          )}
+                          {qualitySummary.trendDirection === 'stable' && (
+                            <Text textStyle="small" style={{ opacity: 0.7 }}>→ Stable</Text>
+                          )}
+                        </Flex>
+                      </Tooltip>
+                    </Flex>
+                  </Surface>
+                </Tooltip>
+
+                {/* Empty Response Rate Card */}
+                <Tooltip text={METRIC_TOOLTIPS.emptyResponseRate}>
+                  <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px', cursor: 'help' }}>
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex alignItems="center" gap={4}>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Empty Response Rate</Text>
+                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                      </Flex>
+                      <Heading level={3} style={{ 
+                        color: qualitySummary.emptyResponseRate > 5 ? STATUS_COLORS.poor : 'inherit'
                       }}>
-                        {qualitySummary.overallHealthScore}
+                        {qualitySummary.emptyResponseRate.toFixed(1)}%
                       </Heading>
-                      <Text textStyle="small" style={{ opacity: 0.7 }}>/ 100</Text>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>responses with &lt;5 tokens</Text>
                     </Flex>
-                    <Flex alignItems="center" gap={4}>
-                      {qualitySummary.trendDirection === 'improving' && (
-                        <><ArrowUpRightIcon style={{ color: STATUS_COLORS.excellent, width: 16 }} />
-                        <Text textStyle="small" style={{ color: STATUS_COLORS.excellent }}>Improving</Text></>
-                      )}
-                      {qualitySummary.trendDirection === 'degrading' && (
-                        <><ArrowDownRightIcon style={{ color: STATUS_COLORS.poor, width: 16 }} />
-                        <Text textStyle="small" style={{ color: STATUS_COLORS.poor }}>Degrading</Text></>
-                      )}
-                      {qualitySummary.trendDirection === 'stable' && (
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>Stable</Text>
-                      )}
+                  </Surface>
+                </Tooltip>
+
+                {/* Error Rate Card */}
+                <Tooltip text={METRIC_TOOLTIPS.errorRate}>
+                  <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px', cursor: 'help' }}>
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex alignItems="center" gap={4}>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Error Rate</Text>
+                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                      </Flex>
+                      <Heading level={3} style={{ 
+                        color: qualitySummary.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
+                      }}>
+                        {qualitySummary.errorRate.toFixed(1)}%
+                      </Heading>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>failed requests</Text>
                     </Flex>
-                  </Flex>
-                </Surface>
+                  </Surface>
+                </Tooltip>
 
+                {/* Truncated Rate Card */}
+                <Tooltip text={METRIC_TOOLTIPS.truncatedRate}>
+                  <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px', cursor: 'help' }}>
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex alignItems="center" gap={4}>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Truncated Rate</Text>
+                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                      </Flex>
+                      <Heading level={3} style={{ 
+                        color: qualitySummary.truncatedRate > 10 ? STATUS_COLORS.fair : 'inherit'
+                      }}>
+                        {qualitySummary.truncatedRate.toFixed(1)}%
+                      </Heading>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>short responses (5-20 tokens)</Text>
+                    </Flex>
+                  </Surface>
+                </Tooltip>
+
+                {/* Avg Latency Card */}
+                <Tooltip text={METRIC_TOOLTIPS.avgLatency}>
+                  <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px', cursor: 'help' }}>
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex alignItems="center" gap={4}>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
+                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                      </Flex>
+                      <Heading level={3} style={{ 
+                        color: qualitySummary.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
+                      }}>
+                        {(qualitySummary.avgLatencyMs / 1000).toFixed(1)}s
+                      </Heading>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>response time</Text>
+                    </Flex>
+                  </Surface>
+                </Tooltip>
+
+                {/* Total Requests Card */}
                 <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
                   <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Empty Response Rate</Text>
-                    <Heading level={3} style={{ 
-                      color: qualitySummary.emptyResponseRate > 5 ? STATUS_COLORS.poor : 'inherit'
-                    }}>
-                      {qualitySummary.emptyResponseRate.toFixed(1)}%
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
+                    <Heading level={3}>
+                      {qualitySummary.totalRequests.toLocaleString()}
                     </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>responses with &lt;5 tokens</Text>
-                  </Flex>
-                </Surface>
-
-                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
-                  <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Error Rate</Text>
-                    <Heading level={3} style={{ 
-                      color: qualitySummary.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
-                    }}>
-                      {qualitySummary.errorRate.toFixed(1)}%
-                    </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>failed requests</Text>
-                  </Flex>
-                </Surface>
-
-                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
-                  <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Truncated Rate</Text>
-                    <Heading level={3} style={{ 
-                      color: qualitySummary.truncatedRate > 10 ? STATUS_COLORS.fair : 'inherit'
-                    }}>
-                      {qualitySummary.truncatedRate.toFixed(1)}%
-                    </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>short responses (&lt;20 tokens)</Text>
-                  </Flex>
-                </Surface>
-
-                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
-                  <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
-                    <Heading level={3} style={{ 
-                      color: qualitySummary.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
-                    }}>
-                      {(qualitySummary.avgLatencyMs / 1000).toFixed(1)}s
-                    </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>response time</Text>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
                   </Flex>
                 </Surface>
               </Flex>
@@ -735,7 +883,12 @@ export function ResponseAnalytics() {
             {qualityChartData.length > 0 && trendData.length > 0 && (
               <Surface style={{ padding: '20px' }}>
                 <Flex flexDirection="column" gap={12}>
-                  <Heading level={5}>Quality Metrics Over Time</Heading>
+                  <Flex alignItems="center" gap={8}>
+                    <Heading level={5}>Quality Metrics Over Time</Heading>
+                    <Tooltip text="Empty Response Rate and Error Rate plotted over time. Look for spikes that correlate with deployments or traffic changes.">
+                      <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                    </Tooltip>
+                  </Flex>
                   <div style={{ height: '300px' }}>
                     <TimeseriesChart
                       data={qualityChartData}
@@ -754,9 +907,12 @@ export function ResponseAnalytics() {
                   <Flex alignItems="center" gap={8}>
                     <WarningIcon style={{ color: STATUS_COLORS.fair }} />
                     <Heading level={5}>Recent Quality Anomalies</Heading>
+                    <Tooltip text={METRIC_TOOLTIPS.qualityAnomaly}>
+                      <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                    </Tooltip>
                   </Flex>
                   <Text textStyle="small" style={{ opacity: 0.7 }}>
-                    Automated detection of quality degradation events
+                    Automated detection of quality degradation events - metrics exceeding 2× their average value
                   </Text>
                   
                   <Flex flexDirection="column" gap={8}>
