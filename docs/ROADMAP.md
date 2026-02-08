@@ -240,23 +240,679 @@ fetch dt.davis.problems, from: now()-7d
 
 ---
 
-## ❌ Not Recommended (No Data Available)
+## Phase 4: Advanced Features (Q4 2026) - Requires Demo App
 
-These features were evaluated but **cannot be built** without external data sources or instrumentation changes:
+> ⚠️ **DEPENDENCY:** These features require Phase 0 (Reference Demo App) to be completed first.
+> They are not data limitations of Dynatrace, but instrumentation gaps that the demo app will fix.
 
-| Feature | Reason | Alternative |
-|---------|--------|-------------|
-| Business Outcome Mapping | No revenue/CSAT/KPI data | Use tags for cost center proxy |
-| Sovereign AI / Data Residency | `cloud.region` is NULL | Would need OTel instrumentation update |
-| User Feedback Integration | No thumbs up/down data | Would need custom bizevents |
-| Source Code Mapping | No code location in spans | Use service → repo mapping manually |
-| Provider Status Integration | No external API | Link to status pages in UI |
+### 4.1 Business ROI Dashboard
+**Priority:** P2 | **Feasibility:** 🟢 HIGH (after Phase 0) | **Status:** 📋 Blocked by Phase 0
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Revenue Attribution | `gen_ai.business_outcome` bizevent | 📋 | Links AI to purchases |
+| Conversion Tracking | `outcome.type`, `outcome.status` | 📋 | Success rate by AI |
+| AI vs Non-AI Comparison | `outcome.channel` | 📋 | Prove AI value |
+| Time to Conversion | `outcome.time_to_conversion_ms` | 📋 | Efficiency metric |
+| Customer LTV by AI Usage | User cohort analysis | 📋 | Long-term value |
+
+#### Proposed Dashboard Widgets
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      AI BUSINESS ROI DASHBOARD                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │  AI-Attributed   │  │  Conversion Rate │  │  Avg. Order      │  │
+│  │    Revenue       │  │  (AI vs Non-AI)  │  │    Value         │  │
+│  │   $2.4M MTD      │  │   34% vs 12%     │  │  $340 vs $220    │  │
+│  │   ↑ 23% MoM      │  │   2.8x lift      │  │   1.5x lift      │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘  │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │            Revenue Attribution by AI Agent                   │   │
+│  │  flight_agent    ████████████████████████████████  $1.2M    │   │
+│  │  hotel_agent     █████████████████████  $800K               │   │
+│  │  activity_agent  ██████████  $400K                          │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │             Conversion Funnel (AI-Assisted)                  │   │
+│  │                                                               │   │
+│  │  Conversations Started        ██████████████████████  10,000 │   │
+│  │  AI Recommendations Used      █████████████████  7,500       │   │
+│  │  Checkout Initiated           ████████████  5,000            │   │
+│  │  Booking Completed            ████████  3,400                │   │
+│  │                                                               │   │
+│  │  Conversion Rate: 34%                                        │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### DQL Queries (Will Work After Phase 0)
+```dql
+-- Revenue by AI agent
+fetch bizevents
+| filter event.type == "gen_ai.business_outcome"
+| filter outcome.status == "success"
+| summarize 
+    total_revenue = sum(outcome.revenue),
+    conversion_count = count(),
+    by: { agent = traceloop.entity.name }
+| sort total_revenue desc
+
+-- AI vs Non-AI conversion comparison
+fetch bizevents
+| filter event.type == "gen_ai.business_outcome"
+| summarize 
+    total = count(),
+    successful = countIf(outcome.status == "success"),
+    by: { channel = outcome.channel }
+| fieldsAdd conversion_rate = (successful / total) * 100
+```
+
+---
+
+### 4.2 User Feedback Analytics (RLHF Insights)
+**Priority:** P2 | **Feasibility:** 🟢 HIGH (after Phase 0) | **Status:** 📋 Blocked by Phase 0
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Thumbs Up/Down Tracking | `feedback.rating` | 📋 | Real-time metrics |
+| Satisfaction by Model | Feedback × model | 📋 | Model comparison |
+| Response Quality Trends | Feedback over time | 📋 | Quality monitoring |
+| Low-Rated Response Analysis | Linked prompts | 📋 | Debug bad responses |
+| Feedback by Agent | Feedback × agent | 📋 | Agent comparison |
+
+#### Proposed Dashboard Widgets
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    USER FEEDBACK ANALYTICS                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │  Satisfaction    │  │  Total Feedback  │  │  Response Rate   │  │
+│  │    Score         │  │  Collected       │  │  (Gave Feedback) │  │
+│  │    4.2 / 5.0     │  │    12,450        │  │     18%          │  │
+│  │   👍 84% 👎 16%  │  │    ↑ 15% WoW     │  │   Target: 25%    │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘  │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │          Satisfaction Score by Model                         │   │
+│  │  gpt-4o           ████████████████████████████████  4.5/5   │   │
+│  │  claude-3-sonnet  ██████████████████████████████  4.3/5     │   │
+│  │  llama3.1:8b      ██████████████████████  3.8/5             │   │
+│  │  mistral:7b       █████████████████████  3.6/5              │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │      🔴 Low-Rated Responses (Needs Review)                   │   │
+│  │                                                               │   │
+│  │  ID      Model        Agent         Rating   Issue           │   │
+│  │  ─────────────────────────────────────────────────────────   │   │
+│  │  #1234   llama3.1     flight_agent  👎       Hallucination   │   │
+│  │  #1235   mistral      hotel_agent   👎       Wrong info      │   │
+│  │  #1236   gpt-4o       activity      👎       Incomplete      │   │
+│  │                                                               │   │
+│  │  [View Prompt] [View Response] [Retrain Signal]              │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### DQL Queries (Will Work After Phase 0)
+```dql
+-- Satisfaction by model
+fetch bizevents
+| filter event.type == "gen_ai.user_feedback"
+| summarize 
+    thumbs_up = countIf(feedback.rating == "thumbs_up"),
+    thumbs_down = countIf(feedback.rating == "thumbs_down"),
+    avg_score = avg(feedback.score),
+    by: { model = gen_ai.response.model }
+| fieldsAdd satisfaction_pct = (thumbs_up / (thumbs_up + thumbs_down)) * 100
+
+-- Low-rated responses for analysis
+fetch bizevents
+| filter event.type == "gen_ai.user_feedback"
+| filter feedback.rating == "thumbs_down"
+| lookup [fetch spans | fieldsKeep trace.id, gen_ai.prompt, gen_ai.completion], sourceField: trace.id, lookupField: trace.id
+| fields trace.id, gen_ai.prompt, feedback.comment
+```
+
+---
+
+### 4.3 Sovereign AI & Data Residency Compliance
+**Priority:** P2 | **Feasibility:** 🟢 HIGH (after Phase 0) | **Status:** 📋 Blocked by Phase 0
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Regional Traffic Map | `cloud.region` | 📋 | Where data flows |
+| Data Residency Violations | Region × data type | 📋 | GDPR compliance |
+| Provider Region Distribution | `cloud.provider` × region | 📋 | Geographic spread |
+| Compliance Framework Tracking | `gen_ai.compliance.framework` | 📋 | GDPR, SOC2, HIPAA |
+| On-Prem vs Cloud Split | `cloud.provider` | 📋 | Sovereignty metrics |
+
+#### Proposed Dashboard Widgets
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  SOVEREIGN AI COMPLIANCE                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌────────────────────────────────────┐  ┌──────────────────────┐  │
+│  │       Global Traffic Distribution  │  │  Compliance Status   │  │
+│  │                                    │  │                      │  │
+│  │    🇺🇸 US (45%)     🇪🇺 EU (35%)   │  │  ✅ GDPR  Compliant  │  │
+│  │        ●                ●          │  │  ✅ SOC2  Compliant  │  │
+│  │                                    │  │  ⚠️ HIPAA Partial    │  │
+│  │    🏢 On-Prem (15%)  🇸🇬 APAC (5%)│  │  ✅ PCI   Compliant  │  │
+│  │        ●                ●          │  │                      │  │
+│  └────────────────────────────────────┘  └──────────────────────┘  │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │        Data Residency Violations (Last 24h)                  │   │
+│  │                                                               │   │
+│  │  ⚠️ 12 EU user queries routed to US-East region             │   │
+│  │  ⚠️ 3 PII-containing prompts sent to non-EU provider        │   │
+│  │  ✅ 99.7% traffic compliant with residency policy            │   │
+│  │                                                               │   │
+│  │  [View Violations] [Update Routing Rules]                    │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │              Traffic by Provider & Region                    │   │
+│  │                                                               │   │
+│  │  Provider        Region         Calls    Data Class          │   │
+│  │  ─────────────────────────────────────────────────────────   │   │
+│  │  Azure OpenAI    eastus         45,000   PII, Sensitive      │   │
+│  │  AWS Bedrock     eu-west-1      35,000   PII (EU only)       │   │
+│  │  Ollama          on-prem        15,000   All (restricted)    │   │
+│  │  Vertex AI       asia-se1       5,000    Public only         │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### DQL Queries (Will Work After Phase 0)
+```dql
+-- Traffic by region
+fetch spans
+| filter isNotNull(gen_ai.system)
+| summarize 
+    calls = count(),
+    by: { cloud.provider, cloud.region, gen_ai.data.residency }
+| sort calls desc
+
+-- Data residency violations (EU users → non-EU providers)
+fetch spans
+| filter gen_ai.data.classification == "PII"
+| filter user.geo.country IN ["DE", "FR", "IT", "ES", "NL"]
+| filter cloud.region NOT IN ["eu-west-1", "eu-central-1", "europe-west1"]
+| summarize violations = count(), by: { cloud.region, gen_ai.system }
+```
+
+---
+
+### 4.4 Source Code Linking
+**Priority:** P3 | **Feasibility:** 🟢 HIGH (after Phase 0) | **Status:** 📋 Blocked by Phase 0
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Click-Through to Source | `code.filepath`, `code.lineno` | 📋 | GitHub integration |
+| Function-Level Attribution | `code.function` | 📋 | Identify hot paths |
+| Git Commit Linking | `vcs.revision` | 📋 | Blame analysis |
+| Code Change Impact | Version × metrics | 📋 | Performance regression |
+
+#### DQL Queries (Will Work After Phase 0)
+```dql
+-- Errors by code location
+fetch spans
+| filter isNotNull(gen_ai.system)
+| filter otel.status_code == "ERROR"
+| summarize 
+    error_count = count(),
+    by: { code.filepath, code.function, code.lineno }
+| sort error_count desc
+
+-- Hot functions (most expensive)
+fetch spans
+| filter isNotNull(gen_ai.system)
+| summarize 
+    total_tokens = sum(gen_ai.usage.output_tokens),
+    avg_latency = avg(duration),
+    by: { code.function, code.namespace }
+| sort total_tokens desc
+```
+
+---
+
+## 🏗️ Phase 0: Reference Demo Application (PRE-REQUISITE)
+
+> **CRITICAL:** This demo app must be built FIRST to unlock all GCC features.
+> Without proper instrumentation, many advanced features remain impossible.
+
+### 0.0 Overview
+
+**Purpose:** Create a fully-instrumented reference demo application that:
+1. ✅ Generates realistic GenAI traffic for ALL GCC features
+2. ✅ Demonstrates proper OpenTelemetry instrumentation patterns
+3. ✅ Enables "Not Recommended" features (business outcomes, feedback, sovereign AI)
+4. ✅ Serves as a customer reference implementation
+
+**Demo App Name:** `AI Travel Advisor Pro`
+
+---
+
+### 0.1 Demo App Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        AI TRAVEL ADVISOR PRO                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │   Frontend   │───▶│  API Gateway │───▶│   Agentic    │          │
+│  │   (React)    │    │   (FastAPI)  │    │  Supervisor  │          │
+│  │              │    │              │    │              │          │
+│  │ - Chat UI    │    │ - Auth       │    │ - Routing    │          │
+│  │ - Feedback👍 │    │ - Rate Limit │    │ - Orchestr.  │          │
+│  │ - Booking    │    │ - Logging    │    │ - Guardrails │          │
+│  └──────────────┘    └──────────────┘    └──────────────┘          │
+│                                                 │                   │
+│                    ┌────────────────────────────┼───────────────┐   │
+│                    │                            │               │   │
+│              ┌─────▼─────┐   ┌─────────────┐   ┌▼──────────┐    │   │
+│              │  Flight   │   │   Hotel     │   │ Activity  │    │   │
+│              │   Agent   │   │   Agent     │   │  Agent    │    │   │
+│              │           │   │             │   │           │    │   │
+│              │ GPT-4o    │   │ Claude-3    │   │ Llama-3   │    │   │
+│              │ (Azure)   │   │ (Bedrock)   │   │ (Ollama)  │    │   │
+│              └─────┬─────┘   └──────┬──────┘   └─────┬─────┘    │   │
+│                    │                │               │           │   │
+│              ┌─────▼─────┐   ┌──────▼──────┐   ┌────▼──────┐    │   │
+│              │  Tools:   │   │   Tools:    │   │  Tools:   │    │   │
+│              │ - search  │   │ - search    │   │ - search  │    │   │
+│              │ - book    │   │ - book      │   │ - book    │    │   │
+│              │ - pricing │   │ - reviews   │   │ - weather │    │   │
+│              └───────────┘   └─────────────┘   └───────────┘    │   │
+│                                                                 │   │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+              ┌─────▼─────┐   ┌─────▼─────┐   ┌─────▼─────┐
+              │  Azure    │   │  AWS      │   │  Local    │
+              │  OpenAI   │   │  Bedrock  │   │  Ollama   │
+              │ (US-East) │   │ (EU-West) │   │ (On-Prem) │
+              │           │   │           │   │           │
+              │ cloud.    │   │ cloud.    │   │ cloud.    │
+              │ region=   │   │ region=   │   │ region=   │
+              │ eastus    │   │ eu-west-1 │   │ on-prem   │
+              └───────────┘   └───────────┘   └───────────┘
+```
+
+---
+
+### 0.2 Instrumentation Specification
+
+#### A. Core GenAI Spans (Already Exists ✅)
+Standard OpenTelemetry GenAI semantic conventions:
+```python
+# These are already instrumented via Traceloop/OpenLLMetry
+span.set_attribute("gen_ai.system", "openai")
+span.set_attribute("gen_ai.request.model", "gpt-4o")
+span.set_attribute("gen_ai.response.model", "gpt-4o-2024-05-13")
+span.set_attribute("gen_ai.usage.input_tokens", 150)
+span.set_attribute("gen_ai.usage.output_tokens", 230)
+```
+
+#### B. Agentic AI Attributes (Already Exists ✅)
+Traceloop instrumentation for agents/tools:
+```python
+span.set_attribute("traceloop.span.kind", "task")  # agent/task/tool/workflow
+span.set_attribute("traceloop.entity.name", "flight_agent")
+span.set_attribute("traceloop.association.properties.conversation_id", "conv-123")
+```
+
+#### C. Source Code Mapping (NEW - Unlocks Feature ⭐)
+**Purpose:** Enable click-through from span → source code
+```python
+# Add to every agent/tool span
+span.set_attribute("code.filepath", "src/agents/flight_agent.py")
+span.set_attribute("code.function", "search_flights")
+span.set_attribute("code.lineno", 142)
+span.set_attribute("code.namespace", "travel_advisor.agents")
+span.set_attribute("code.column", 8)  # Optional
+
+# Repository linkage
+span.set_attribute("vcs.repository.url", "https://github.com/org/ai-travel-advisor")
+span.set_attribute("vcs.revision", "abc123def")  # Git SHA
+```
+
+#### D. Sovereign AI / Data Residency (NEW - Unlocks Feature ⭐)
+**Purpose:** Track where AI calls are processed geographically
+```python
+# Add to every LLM call span
+span.set_attribute("cloud.provider", "azure")  # azure, aws, gcp, on-prem
+span.set_attribute("cloud.region", "eastus")   # Azure region
+span.set_attribute("cloud.availability_zone", "eastus-1")
+
+# Custom: Data sovereignty classification
+span.set_attribute("gen_ai.data.residency", "US")       # US, EU, APAC, etc.
+span.set_attribute("gen_ai.data.classification", "PII") # PII, sensitive, public
+span.set_attribute("gen_ai.compliance.framework", "GDPR,SOC2")  # Applicable frameworks
+```
+
+#### E. Business Context (NEW - Unlocks ROI ⭐)
+**Purpose:** Link AI calls to business operations
+```python
+# Add to conversation/session spans
+span.set_attribute("business.department", "customer_service")
+span.set_attribute("business.cost_center", "CC-12345")
+span.set_attribute("business.use_case", "travel_booking")
+span.set_attribute("business.customer_tier", "premium")  # premium, standard, trial
+span.set_attribute("business.transaction_id", "TXN-789")
+```
+
+---
+
+### 0.3 Business Events Specification
+
+#### A. User Feedback Event (NEW - Unlocks RLHF Analytics ⭐)
+**Event Type:** `gen_ai.user_feedback`
+```json
+{
+  "event.type": "gen_ai.user_feedback",
+  "event.provider": "ai-travel-advisor",
+  
+  // Link to AI response
+  "trace.id": "abc123...",
+  "span.id": "def456...",
+  "gen_ai.response.id": "chatcmpl-xyz",
+  "gen_ai.conversation_id": "conv-789",
+  
+  // Feedback data
+  "feedback.rating": "thumbs_up",         // thumbs_up, thumbs_down
+  "feedback.score": 5,                     // 1-5 scale (optional)
+  "feedback.category": "helpful",          // helpful, accurate, fast, creative
+  "feedback.comment": "Great recommendation!",  // Optional free text
+  "feedback.timestamp": "2026-02-08T10:30:00Z",
+  
+  // User context
+  "user.id": "user-123",
+  "user.type": "customer",                 // customer, internal, test
+  "session.id": "sess-456"
+}
+```
+
+#### B. Business Outcome Event (NEW - Unlocks ROI Dashboard ⭐)
+**Event Type:** `gen_ai.business_outcome`
+```json
+{
+  "event.type": "gen_ai.business_outcome",
+  "event.provider": "ai-travel-advisor",
+  
+  // Link to AI conversation
+  "trace.id": "abc123...",
+  "gen_ai.conversation_id": "conv-789",
+  
+  // Business outcome
+  "outcome.type": "booking_completed",     // booking_completed, lead_generated, issue_resolved
+  "outcome.status": "success",             // success, abandoned, failed
+  "outcome.revenue": 2450.00,              // USD
+  "outcome.currency": "USD",
+  "outcome.order_id": "ORD-12345",
+  
+  // Attribution
+  "outcome.ai_assisted": true,
+  "outcome.ai_recommendation_used": true,
+  "outcome.ai_interactions_count": 5,
+  "outcome.time_to_conversion_ms": 180000, // 3 minutes
+  
+  // Comparison baseline
+  "outcome.channel": "ai_chat",            // ai_chat, web, mobile, phone
+  "outcome.user_segment": "returning"      // new, returning, premium
+}
+```
+
+#### C. Guardrail Trigger Event (NEW - Unlocks Security Analytics ⭐)
+**Event Type:** `gen_ai.guardrail_triggered`
+```json
+{
+  "event.type": "gen_ai.guardrail_triggered",
+  "event.provider": "ai-travel-advisor",
+  
+  // Link to AI call
+  "trace.id": "abc123...",
+  "span.id": "def456...",
+  
+  // Guardrail details
+  "guardrail.name": "pii_detection",
+  "guardrail.type": "input",               // input, output
+  "guardrail.action": "blocked",           // blocked, flagged, redacted
+  "guardrail.severity": "high",            // low, medium, high, critical
+  "guardrail.rule_id": "RULE-PII-001",
+  
+  // Detection details
+  "guardrail.pattern_matched": "SSN",
+  "guardrail.confidence": 0.95,
+  "guardrail.sample_redacted": "User provided SSN: [REDACTED]"
+}
+```
+
+---
+
+### 0.4 Traffic Generation Patterns
+
+#### Data Volume Targets (per day)
+| Metric | Target | Purpose |
+|--------|--------|---------|
+| Total GenAI Calls | 100,000 | Stress test dashboards |
+| Unique Conversations | 10,000 | Session analytics |
+| Agent Task Executions | 50,000 | Agent monitoring |
+| Tool Invocations | 30,000 | Tool reliability |
+| Feedback Events | 5,000 | RLHF analytics |
+| Business Outcomes | 2,000 | ROI calculations |
+| Guardrail Triggers | 500 | Security analytics |
+| Error Scenarios | 2,000 | Incident correlation |
+
+#### Scenario Distribution
+```yaml
+scenarios:
+  happy_path:
+    weight: 60%
+    description: "User asks → AI responds → User books"
+    outcome: booking_completed
+    
+  abandoned_flow:
+    weight: 20%
+    description: "User asks → AI responds → User leaves"
+    outcome: abandoned
+    feedback: null
+    
+  error_scenario:
+    weight: 10%
+    description: "Rate limit, timeout, model error"
+    outcome: failed
+    
+  guardrail_trigger:
+    weight: 5%
+    description: "PII detected, injection attempted"
+    guardrail: triggered
+    
+  multi_agent:
+    weight: 5%
+    description: "Complex trip planning (3+ agents)"
+    agents: [flight, hotel, activity, supervisor]
+```
+
+#### Provider Distribution (Sovereign AI Demo)
+```yaml
+providers:
+  azure_openai:
+    weight: 40%
+    region: eastus
+    models: [gpt-4o, gpt-4-turbo]
+    data_residency: US
+    
+  aws_bedrock:
+    weight: 30%
+    region: eu-west-1
+    models: [claude-3-sonnet, claude-3-haiku]
+    data_residency: EU
+    
+  local_ollama:
+    weight: 20%
+    region: on-prem
+    models: [llama3.1:8b, mistral:7b]
+    data_residency: ON_PREM
+    
+  google_vertex:
+    weight: 10%
+    region: asia-southeast1
+    models: [gemini-pro]
+    data_residency: APAC
+```
+
+---
+
+### 0.5 Implementation Checklist
+
+| Component | Priority | Effort | Status |
+|-----------|----------|--------|--------|
+| **Phase 0a: Core App** | | | |
+| FastAPI backend skeleton | P0 | 2d | 📋 |
+| React chat UI | P0 | 2d | 📋 |
+| OpenTelemetry setup | P0 | 1d | 📋 |
+| Basic agent (1 provider) | P0 | 2d | 📋 |
+| **Phase 0b: Multi-Provider** | | | |
+| Azure OpenAI integration | P0 | 1d | 📋 |
+| AWS Bedrock integration | P0 | 1d | 📋 |
+| Ollama local integration | P0 | 0.5d | 📋 |
+| Google Vertex integration | P1 | 1d | 📋 |
+| **Phase 0c: Agentic Patterns** | | | |
+| Supervisor agent | P0 | 2d | 📋 |
+| Flight booking agent | P0 | 1d | 📋 |
+| Hotel booking agent | P0 | 1d | 📋 |
+| Activity agent | P1 | 1d | 📋 |
+| Tool implementations | P0 | 2d | 📋 |
+| **Phase 0d: Advanced Instrumentation** | | | |
+| `code.*` attributes | P1 | 0.5d | 📋 |
+| `cloud.region` attributes | P1 | 0.5d | 📋 |
+| Business context attributes | P1 | 0.5d | 📋 |
+| **Phase 0e: Business Events** | | | |
+| Feedback UI + bizevent | P0 | 1d | 📋 |
+| Booking → outcome event | P0 | 1d | 📋 |
+| Guardrail trigger events | P1 | 1d | 📋 |
+| **Phase 0f: Traffic Generation** | | | |
+| Load test framework | P1 | 1d | 📋 |
+| Scenario scripts | P1 | 2d | 📋 |
+| Error injection | P2 | 1d | 📋 |
+
+**Total Estimated Effort:** ~25 days
+
+---
+
+### 0.6 GCC Features Unlocked by Demo App
+
+| Feature | Current Status | After Demo App |
+|---------|---------------|----------------|
+| Source Code Mapping | ❌ No Data | ✅ Click-through to code |
+| Business ROI Dashboard | ❌ No Data | ✅ Revenue attribution |
+| User Feedback Analytics | ❌ No Data | ✅ RLHF insights |
+| Sovereign AI Compliance | ❌ No Data | ✅ Regional tracking |
+| Guardrail Analytics | ⚠️ Basic | ✅ Full security view |
+| Agent Loop Detection | ✅ Works | ✅ Enhanced with context |
+| Multi-Provider Comparison | ✅ Works | ✅ With regional costs |
+
+---
+
+### 0.7 Repository Structure
+
+```
+ai-travel-advisor-pro/
+├── README.md
+├── docker-compose.yml
+├── .env.example
+├── pyproject.toml
+├── src/
+│   ├── api/
+│   │   ├── main.py              # FastAPI app
+│   │   ├── routes/
+│   │   │   ├── chat.py          # Chat endpoints
+│   │   │   ├── feedback.py      # Feedback endpoints
+│   │   │   └── booking.py       # Booking endpoints
+│   │   └── middleware/
+│   │       └── telemetry.py     # OTel setup
+│   ├── agents/
+│   │   ├── supervisor.py        # Main orchestrator
+│   │   ├── flight_agent.py
+│   │   ├── hotel_agent.py
+│   │   └── activity_agent.py
+│   ├── tools/
+│   │   ├── flight_search.py
+│   │   ├── hotel_search.py
+│   │   ├── booking.py
+│   │   └── weather.py
+│   ├── providers/
+│   │   ├── azure_openai.py
+│   │   ├── aws_bedrock.py
+│   │   ├── ollama.py
+│   │   └── vertex_ai.py
+│   └── telemetry/
+│       ├── spans.py             # Custom span helpers
+│       ├── bizevents.py         # Business event senders
+│       └── attributes.py        # Attribute constants
+├── frontend/
+│   ├── package.json
+│   └── src/
+│       ├── App.tsx
+│       ├── components/
+│       │   ├── Chat.tsx
+│       │   ├── FeedbackButton.tsx
+│       │   └── BookingConfirmation.tsx
+│       └── hooks/
+│           └── useChat.ts
+├── load_tests/
+│   ├── locustfile.py
+│   └── scenarios/
+│       ├── happy_path.py
+│       ├── error_injection.py
+│       └── guardrail_test.py
+└── deploy/
+    ├── kubernetes/
+    │   ├── deployment.yaml
+    │   └── service.yaml
+    └── terraform/
+        └── main.tf
+```
+
+---
+
+## ❌ Deprecated: Not Recommended (No Data Available)
+
+> ⚠️ **UPDATE:** These features were previously marked as "Not Recommended" but can be
+> **fully implemented** once the Reference Demo App (Phase 0) is built with proper instrumentation.
+> See Phase 0 above for implementation details.
+
+| Feature | Previous Status | New Status | Enabled By |
+|---------|----------------|------------|------------|
+| Business Outcome Mapping | ❌ No Data | ✅ Phase 4 | `gen_ai.business_outcome` bizevent |
+| Sovereign AI / Data Residency | ❌ No Data | ✅ Phase 4 | `cloud.region` span attribute |
+| User Feedback Integration | ❌ No Data | ✅ Phase 4 | `gen_ai.user_feedback` bizevent |
+| Source Code Mapping | ❌ No Data | ✅ Phase 4 | `code.*` span attributes |
+| Provider Status Integration | ❌ No API | 🟡 Phase 5 | External API + Davis events |
 
 ---
 
 ## 📈 Data Availability Summary
 
-### Grail Data Validated (Feb 2026)
+### Current Grail Data (Feb 2026)
 
 | Data Type | Volume | Fields Available |
 |-----------|--------|------------------|
@@ -268,6 +924,39 @@ These features were evaluated but **cannot be built** without external data sour
 | Completions | 209,998 (7d) | Full response content |
 | Davis Problems | 10+ (7d) | AI service correlated |
 | BizEvents | 109,537 (7d) | `gen_ai.auditing` type |
+
+### Data Gaps (To Be Filled by Demo App)
+
+| Data Type | Current State | After Demo App |
+|-----------|---------------|----------------|
+| `code.filepath` | ❌ Empty/generic | ✅ Real file paths |
+| `code.function` | ❌ "Span" only | ✅ Actual function names |
+| `cloud.region` | ❌ NULL | ✅ US/EU/APAC/On-Prem |
+| User Feedback | ❌ None | ✅ 5k+/day thumbs up/down |
+| Business Outcomes | ❌ None (no link) | ✅ 2k+/day bookings |
+| Guardrail Triggers | ❌ None | ✅ 500+/day security events |
+
+### Demo App Target Data Volume (Daily)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DEMO APP DATA GENERATION                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  GenAI Spans        ████████████████████████████████████  100,000  │
+│  Agent Tasks        ██████████████████████████████  50,000         │
+│  Tool Invocations   ██████████████████████  30,000                 │
+│  Unique Sessions    ██████████████████  10,000                     │
+│  Feedback Events    ███████████  5,000                             │
+│  Business Outcomes  ██████  2,000                                   │
+│  Error Scenarios    ██████  2,000                                   │
+│  Guardrail Triggers ██  500                                         │
+│                                                                     │
+│  Total Daily Events: ~200,000                                       │
+│  Monthly Grail Usage Estimate: ~50 GB                               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ### Providers Detected
 1. Azure (65k requests)
@@ -287,11 +976,61 @@ These features were evaluated but **cannot be built** without external data sour
 
 ---
 
+## � Visual Timeline
+
+```
+2026
+──────────────────────────────────────────────────────────────────────────────
+       Q1                    Q2                    Q3                    Q4
+       │                     │                     │                     │
+       │                     │                     │                     │
+  ┌────┴────┐           ┌────┴────┐           ┌────┴────┐           ┌────┴────┐
+  │ PHASE 0 │           │ PHASE 1 │           │ PHASE 2 │           │ PHASE 4 │
+  │ Demo App│           │ Agentic │           │ Quality │           │ Advanced│
+  │ (25 days)│          │ + Costs │           │ + RCA   │           │Features │
+  └────┬────┘           └────┬────┘           └────┬────┘           └────┬────┘
+       │                     │                     │                     │
+       ▼                     ▼                     ▼                     ▼
+  ╔════════════╗       ╔════════════╗       ╔════════════╗       ╔════════════╗
+  ║ 0a: Core   ║       ║ 1.1: Agent ║       ║ 2.1: Model ║       ║ 4.1: ROI   ║
+  ║    Backend ║       ║    Govern  ║       ║    Quality ║       ║  Dashboard ║
+  ║ 0b: Multi- ║       ║ 1.2: Davis ║       ║ 2.2: RCA   ║       ║ 4.2: RLHF  ║
+  ║    Provider║       ║    Forecast║       ║    Correl. ║       ║  Analytics ║
+  ║ 0c: Agents ║       ║ 1.3: Prompt║       ║ 2.3: Basic ║       ║ 4.3: Sovgn ║
+  ║ 0d: OTel   ║       ║    Insights║       ║    Security║       ║    AI      ║
+  ║ 0e: Events ║       ╚════════════╝       ╚════════════╝       ║ 4.4: Code  ║
+  ║ 0f: Load   ║                                                  ║    Linking ║
+  ╚════════════╝                    PHASE 3                       ╚════════════╝
+                                   Q3 2026
+                             ╔════════════════╗
+                             ║ 3.1: Maturity  ║
+                             ║      Score     ║
+                             ║ 3.2: Dev       ║
+                             ║      Experience║
+                             ╚════════════════╝
+
+LEGEND:
+  ═══ = Production Feature
+  ─── = Demo/Enabler
+  
+DEPENDENCIES:
+  Phase 0 ──→ Phase 4 (Demo App unlocks advanced features)
+  Phase 1 ──→ Phase 2 (Cost data enables quality baselines)
+  Phase 2 ──→ Phase 3 (Quality metrics enable maturity score)
+```
+
+---
+
 ## 🔄 Changelog
 
 ### v2.4.0 (Feb 8, 2026)
 - ✅ Improved drift score trend chart with severity-based color coding
 - 📋 Created roadmap based on industry research and Grail validation
+- 📋 **Added Phase 0: Reference Demo App specification**
+- 📋 **Upgraded "Not Recommended" features to Phase 4** (data gap, not platform limitation)
+- 📋 Added comprehensive instrumentation specification
+- 📋 Added business events specification (feedback, outcomes, guardrails)
+- 📋 Added visual timeline and dependency map
 
 ### Previous Versions
 - See git tags for version history
