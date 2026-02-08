@@ -4,6 +4,10 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "git commit": true
+        "git commit": true,
+        "/^npx dt-app dev --open$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
