@@ -732,7 +732,7 @@ export function ResponseAnalytics() {
                   <Flex flexDirection="column" gap={8}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
                     <Heading level={3}>
-                      {qualitySummary.totalRequests.toLocaleString()}
+                      {qualitySummary!.totalRequests.toLocaleString()}
                     </Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
                   </Flex>
@@ -745,7 +745,7 @@ export function ResponseAnalytics() {
                     flex: '1 1 150px', 
                     minWidth: '150px', 
                     cursor: 'help',
-                    borderLeft: qualitySummary.errorRate > 5 ? `4px solid ${STATUS_COLORS.poor}` : undefined
+                    borderLeft: qualitySummary!.errorRate > 5 ? `4px solid ${STATUS_COLORS.poor}` : undefined
                   }}>
                     <Flex flexDirection="column" gap={8}>
                       <Flex alignItems="center" gap={4}>
@@ -753,9 +753,9 @@ export function ResponseAnalytics() {
                         <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
                       </Flex>
                       <Heading level={3} style={{ 
-                        color: qualitySummary.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
+                        color: qualitySummary!.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
                       }}>
-                        {qualitySummary.errorRate.toFixed(1)}%
+                        {qualitySummary!.errorRate.toFixed(1)}%
                       </Heading>
                       <Text textStyle="small" style={{ opacity: 0.7 }}>otel.status_code = ERROR</Text>
                     </Flex>
@@ -769,7 +769,7 @@ export function ResponseAnalytics() {
                     flex: '1 1 150px', 
                     minWidth: '150px', 
                     cursor: 'help',
-                    borderLeft: qualitySummary.avgLatencyMs > 5000 ? `4px solid ${STATUS_COLORS.fair}` : undefined
+                    borderLeft: qualitySummary!.avgLatencyMs > 5000 ? `4px solid ${STATUS_COLORS.fair}` : undefined
                   }}>
                     <Flex flexDirection="column" gap={8}>
                       <Flex alignItems="center" gap={4}>
@@ -777,9 +777,9 @@ export function ResponseAnalytics() {
                         <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
                       </Flex>
                       <Heading level={3} style={{ 
-                        color: qualitySummary.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
+                        color: qualitySummary!.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
                       }}>
-                        {(qualitySummary.avgLatencyMs / 1000).toFixed(2)}s
+                        {(qualitySummary!.avgLatencyMs / 1000).toFixed(2)}s
                       </Heading>
                       <Text textStyle="small" style={{ opacity: 0.7 }}>mean response time</Text>
                     </Flex>
