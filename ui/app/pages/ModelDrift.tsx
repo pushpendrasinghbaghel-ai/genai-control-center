@@ -509,12 +509,6 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
               data={[...driftScoreTrend, ...detailedTrendData]}
               variant="line"
               height={140}
-              seriesActions={(seriesName) => ({
-                color: seriesName.includes('Critical') ? STATUS_COLORS.critical 
-                     : seriesName.includes('Warning') ? STATUS_COLORS.warning 
-                     : seriesName.includes('Normal') ? STATUS_COLORS.ideal
-                     : undefined
-              })}
             >
               <TimeseriesChart.Legend />
               <TimeseriesChart.Tooltip variant="shared" />

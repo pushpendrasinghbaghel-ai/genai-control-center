@@ -287,17 +287,12 @@ const getTimeframeString = (timeframe: Timeframe): string => {
 
 export function ResponseAnalytics() {
   const { metrics, modelComparisons, loading, error, summary, analyzeResponses } = useResponseAnalytics();
-  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
-  // const { 
-  //   trendData, 
-  //   summary: qualitySummary, 
-  //   loading: qualityLoading, 
-  //   analyzeQualityTrends 
-  // } = useResponseQualityTrends();
-  const trendData: QualityTrendDataPoint[] = [];
-  const qualitySummary: any = null;  // typed as any to avoid TS errors in hidden code
-  const qualityLoading = false;
-  const analyzeQualityTrends = () => {};
+  const { 
+    trendData, 
+    summary: qualitySummary, 
+    loading: qualityLoading, 
+    analyzeQualityTrends 
+  } = useResponseQualityTrends();
   
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
   const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient' | 'quality'>('overview');
@@ -306,8 +301,8 @@ export function ResponseAnalytics() {
 
   useEffect(() => {
     analyzeResponses(timeframeString);
-    // analyzeQualityTrends(timeframeString);  // TEMPORARILY DISABLED
-  }, [timeframeString, analyzeResponses]);
+    analyzeQualityTrends(timeframeString);
+  }, [timeframeString, analyzeResponses, analyzeQualityTrends]);
 
   // Transform trend data for TimeseriesChart
   const qualityChartData: Timeseries[] = useMemo(() => {
@@ -428,8 +423,6 @@ export function ResponseAnalytics() {
         >
           <ServicesIcon /> Service Analysis
         </Button>
-        {/* TEMPORARILY HIDDEN - Pending DQL validation with Demo Dynatrace MCP server */}
-        {false && (
         <Button
           variant={activeTab === 'quality' ? 'accent' : 'default'}
           onClick={() => setActiveTab('quality')}
@@ -447,7 +440,6 @@ export function ResponseAnalytics() {
             UNIQUE
           </span>
         </Button>
-        )}
         <Button
           variant={activeTab === 'inefficient' ? 'accent' : 'default'}
           onClick={() => setActiveTab('inefficient')}
@@ -621,9 +613,8 @@ export function ResponseAnalytics() {
         </Surface>
       )}
 
-      {/* Quality Trends Tab - UNIQUE GCC FEATURE - TEMPORARILY HIDDEN */}
-      {/* Pending DQL validation with Demo Dynatrace MCP server */}
-      {false && activeTab === 'quality' && (
+      {/* Quality Trends Tab - UNIQUE GCC FEATURE */}
+      {activeTab === 'quality' && (
         <Surface style={{ padding: '20px' }}>
           <Flex flexDirection="column" gap={20}>
             <Flex alignItems="center" gap={8}>

@@ -414,11 +414,11 @@ export function useResponseQualityTrends() {
                 request_count = count(),
                 empty_response_count = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 5),
                 truncated_count = countIf(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) > 0 AND coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0) < 20),
-                error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+                error_count = countIf(otel.status_code == "ERROR" OR isNotNull(error.type)),
                 avg_latency = avg(duration) / 1000000,
                 p95_latency = percentile(duration / 1000000, 95)
-              }, by: { bin(timestamp, ${bucketSize}) }
-            | sort timestamp asc
+              }, by: { time_bucket = bin(start_time, ${bucketSize}) }
+            | sort time_bucket asc
           `,
           requestTimeoutMilliseconds: 60000,
           fetchTimeoutSeconds: 60
@@ -435,7 +435,7 @@ export function useResponseQualityTrends() {
         const errorCount = Number(r.error_count) || 0;
         
         return {
-          timestamp: new Date(r.timestamp || r['bin(timestamp)'] || Date.now()),
+          timestamp: new Date(r.time_bucket || r['bin(start_time)'] || Date.now()),
           totalRequests: total,
           emptyResponseCount: emptyCount,
           truncatedCount: truncatedCount,
