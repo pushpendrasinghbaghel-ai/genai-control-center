@@ -310,27 +310,33 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
     fetchImpactedAgents();
   }, [summary.model, summary.provider]);
 
-  // Generate DRIFT SCORE trend (primary chart)
+  // Generate DRIFT SCORE trend (primary chart) - split by severity for color coding
   const driftScoreTrend = useMemo((): Timeseries[] => {
     const now = Date.now();
     // Simulate drift score progression over 7 days (daily points)
     const baselineDrift = 10; // Started at low drift
     const currentDrift = summary.overallDriftScore;
     
-    return [{
-      name: 'Drift Score',
-      datapoints: Array.from({ length: 7 }, (_, i) => {
-        const timestamp = new Date(now - (6 - i) * 86400000); // 7 days
-        const progress = i / 6;
-        // Non-linear progression with some variance
-        const value = baselineDrift + (currentDrift - baselineDrift) * Math.pow(progress, 0.7) + (Math.random() - 0.5) * 8;
-        return { 
-          start: timestamp, 
-          end: new Date(timestamp.getTime() + 86400000), 
-          value: Math.max(0, Math.min(100, value)) 
-        };
-      })
-    }] as Timeseries[];
+    // Generate datapoints first
+    const datapoints = Array.from({ length: 7 }, (_, i) => {
+      const timestamp = new Date(now - (6 - i) * 86400000); // 7 days
+      const progress = i / 6;
+      // Non-linear progression with some variance
+      const value = baselineDrift + (currentDrift - baselineDrift) * Math.pow(progress, 0.7) + (Math.random() - 0.5) * 8;
+      return { 
+        start: timestamp, 
+        end: new Date(timestamp.getTime() + 86400000), 
+        value: Math.max(0, Math.min(100, value)) 
+      };
+    });
+    
+    // Determine overall severity for single-color display
+    const lastValue = datapoints[datapoints.length - 1].value;
+    const severityName = lastValue >= 70 ? '🔴 Critical Drift' : lastValue >= 40 ? '🟡 Warning Drift' : '🟢 Normal Drift';
+    
+    return [
+      { name: severityName, datapoints },
+    ] as Timeseries[];
   }, [summary.overallDriftScore]);
 
   // Detailed metrics trend (optional, on-demand)
@@ -503,6 +509,12 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
               data={[...driftScoreTrend, ...detailedTrendData]}
               variant="line"
               height={140}
+              seriesActions={(seriesName) => ({
+                color: seriesName.includes('Critical') ? STATUS_COLORS.critical 
+                     : seriesName.includes('Warning') ? STATUS_COLORS.warning 
+                     : seriesName.includes('Normal') ? STATUS_COLORS.ideal
+                     : undefined
+              })}
             >
               <TimeseriesChart.Legend />
               <TimeseriesChart.Tooltip variant="shared" />
