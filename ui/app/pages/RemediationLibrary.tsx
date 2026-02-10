@@ -7,9 +7,94 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon } from '@dynatrace/strato-icons';
+import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon, RocketIcon, EmailIcon, ChartIcon } from '@dynatrace/strato-icons';
 import { useRemediation, useRemediationActions, useAIServicesDiscovery } from '../hooks';
 import type { RemediationAction, WorkflowExecution } from '../types';
+
+// Agentic Workflow Templates
+const AGENTIC_WORKFLOWS = [
+  {
+    id: 'finops-digest',
+    title: 'Weekly FinOps Digest',
+    description: 'Davis Intelligence analyzes GenAI costs weekly and sends executive summary via email',
+    icon: <EmailIcon style={{ width: 20, height: 20 }} />,
+    trigger: 'Every Monday 9 AM UTC',
+    features: ['DQL cost aggregation', 'Davis AI analysis', 'Email digest'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  },
+  {
+    id: 'budget-alert',
+    title: 'Token Budget Alert',
+    description: 'Alert when token usage exceeds 80% of configured budget threshold',
+    icon: <ChartIcon style={{ width: 20, height: 20 }} />,
+    trigger: 'Hourly check',
+    features: ['Budget monitoring', 'Slack notification', 'Usage %'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  },
+  {
+    id: 'error-monitor',
+    title: 'Model Error Rate Monitor',
+    description: 'Monitors error rates and creates ServiceNow incidents on spikes',
+    icon: <WarningIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-feedback-critical-default)' }} />,
+    trigger: 'Davis Problem',
+    features: ['Davis problem trigger', 'Root cause analysis', 'ServiceNow ticket'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  }
+];
+
+// Agentic Workflow Card Component
+const AgenticWorkflowCard: React.FC<{
+  workflow: typeof AGENTIC_WORKFLOWS[0];
+  onDeploy: (id: string) => void;
+}> = ({ workflow, onDeploy }) => (
+  <Surface style={{ padding: 16, borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
+    <Flex flexDirection="column" gap={12}>
+      <Flex alignItems="center" gap={8}>
+        <span style={{ 
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 36, height: 36, borderRadius: 8,
+          background: 'var(--dt-colors-charts-categorical-default-6)',
+          color: 'white'
+        }}>
+          {workflow.icon}
+        </span>
+        <Flex flexDirection="column" style={{ flex: 1 }}>
+          <Text style={{ fontWeight: 600, fontSize: 14 }}>{workflow.title}</Text>
+          <Text style={{ fontSize: 11, opacity: 0.7 }}>Trigger: {workflow.trigger}</Text>
+        </Flex>
+        <Tooltip text="Agentic Workflow powered by Davis Intelligence">
+          <span style={{ 
+            padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+            background: '#7c3aed', color: 'white'
+          }}>
+            AGENTIC
+          </span>
+        </Tooltip>
+      </Flex>
+      
+      <Text style={{ fontSize: 12, opacity: 0.85 }}>{workflow.description}</Text>
+      
+      <Flex gap={4} flexWrap="wrap">
+        {workflow.features.map((f, i) => (
+          <span key={i} style={{ 
+            padding: '2px 6px', borderRadius: 4, fontSize: 10,
+            background: 'var(--dt-colors-surface-neutral-default)',
+            border: '1px solid var(--dt-colors-border-neutral-default)'
+          }}>
+            {f}
+          </span>
+        ))}
+      </Flex>
+      
+      <Flex justifyContent="flex-end">
+        <Button variant="accent" onClick={() => onDeploy(workflow.id)}>
+          <RocketIcon style={{ width: 14, height: 14 }} /> Deploy to Workflows
+        </Button>
+      </Flex>
+    </Flex>
+  </Surface>
+);
 
 // Action Card Component - Compact
 const ActionCard: React.FC<{
@@ -158,11 +243,46 @@ export const RemediationLibrary: React.FC = () => {
     setActionParams({});
   };
 
+  const handleDeployWorkflow = (workflowId: string) => {
+    // Open Dynatrace Workflows app in new tab
+    const workflow = AGENTIC_WORKFLOWS.find(w => w.id === workflowId);
+    if (workflow) {
+      window.open(workflow.deployUrl, '_blank');
+    }
+  };
+
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
-      {/* Compact Header */}
+      {/* Agentic Workflows Section */}
+      <Flex flexDirection="column" gap={12}>
+        <Flex alignItems="center" gap={8}>
+          <RocketIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
+            Agentic Workflow Templates
+          </Text>
+          <Tooltip text="Powered by Davis Intelligence - autonomous workflows that analyze, decide, and act">
+            <span style={{ 
+              padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+              background: '#7c3aed', color: 'white'
+            }}>
+              PREVIEW
+            </span>
+          </Tooltip>
+        </Flex>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+          {AGENTIC_WORKFLOWS.map(workflow => (
+            <AgenticWorkflowCard key={workflow.id} workflow={workflow} onDeploy={handleDeployWorkflow} />
+          ))}
+        </div>
+      </Flex>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', margin: '8px 0' }} />
+
+      {/* Quick Actions Header */}
       <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
-        One-Click Automation Actions
+        Quick Actions
       </Text>
 
       {/* Warning Banner - Compact */}

@@ -23,20 +23,20 @@
 
 ### 🏠 Application Structure
 
-| Page | Purpose | Key Features |
-|------|---------|--------------|
-| 🏠 **Home** | Executive Dashboard | Overall health status, key metrics summary, pillar navigation |
-| 💚 **Health** | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
-| 🔗 **Topology** | AI Service Visualization | Interactive Smartscape-style flow diagram, service detail modal, service→provider→model connections |
-| 🤖 **Agent Tools** | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
-| � **Drift** | Model Drift Detection | Behavior drift scoring, version change alerts, baseline comparison, anomaly detection |
-| �💰 **FinOps** | Cost Management & Optimization | Real-time spend tracking, cost forecasting, provider comparison |
-| 🛡️ **Governance** | Compliance & Risk Management | Policy enforcement, provider risk scoring, governance challenges |
-| 🔒 **Prompt Governance** | Prompt Security & Analysis | PII detection, injection risks, Davis AI scoring, cache candidates |
-| 📊 **Response Analytics** | ML Engineer Insights | Token efficiency, model ranking, output consistency metrics |
-| 🤖 **Intelligence** | AI-Powered Insights | Davis CoPilot integration, natural language queries, DQL generation |
-| ⚙️ **Operations** | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
-| 🚨 **Real-Time Alerts** | Live Problem Monitoring | Davis-detected problems affecting AI services |
+Navigation follows the **Observe → Analyze → Act** pattern:
+
+| # | Nav Item | Page | Purpose | Key Features |
+|---|----------|------|---------|--------------|
+| 1 | 🏠 **Home** | Home | Executive Dashboard | Overall health status, key metrics summary, trend charts |
+| 2 | 💰 **FinOps** | FinOps | Cost Management | Real-time spend tracking, cost forecasting, budget monitoring |
+| 3 | 📊 **Analytics** | Response Analytics | ML Engineer Insights | Token efficiency, model ranking, output consistency metrics |
+| 4 | 🔒 **Governance** | Prompt Governance | Prompt Security & Compliance | PII detection, injection risks, Davis AI scoring, cache candidates |
+| 5 | 🔗 **Topology** | AI Topology | Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
+| 6 | 🖥️ **Services** | Health Dashboard | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
+| 7 | 🤖 **Agents** | Agent Tools | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
+| 8 | 🔬 **Drift** | Model Drift | Behavior Monitoring | Drift scoring, version change alerts, baseline comparison, anomaly detection |
+| 9 | 🧠 **Intelligence** | Intelligence | AI-Powered Investigation | Davis CoPilot integration, natural language queries, DQL generation |
+| 10 | ⚙️ **Operations** | Operations | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
 
 ## 👥 Target Personas
 
