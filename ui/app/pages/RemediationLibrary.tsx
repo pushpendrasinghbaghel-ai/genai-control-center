@@ -8,7 +8,7 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon, RocketIcon, EmailIcon, ChartIcon } from '@dynatrace/strato-icons';
+import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon, MailIcon, BarChartIcon } from '@dynatrace/strato-icons';
 import { useRemediation, useRemediationActions, useAIServicesDiscovery } from '../hooks';
 import type { RemediationAction, WorkflowExecution } from '../types';
 
@@ -18,7 +18,7 @@ const AGENTIC_WORKFLOWS = [
     id: 'finops-digest',
     title: 'Weekly FinOps Digest',
     description: 'Davis Intelligence analyzes GenAI costs weekly and sends executive summary via email',
-    icon: <EmailIcon style={{ width: 20, height: 20 }} />,
+    icon: <MailIcon style={{ width: 20, height: 20 }} />,
     trigger: 'Every Monday 9 AM UTC',
     features: ['DQL cost aggregation', 'Davis AI analysis', 'Email digest'],
     deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
@@ -27,7 +27,7 @@ const AGENTIC_WORKFLOWS = [
     id: 'budget-alert',
     title: 'Token Budget Alert',
     description: 'Alert when token usage exceeds 80% of configured budget threshold',
-    icon: <ChartIcon style={{ width: 20, height: 20 }} />,
+    icon: <BarChartIcon style={{ width: 20, height: 20 }} />,
     trigger: 'Hourly check',
     features: ['Budget monitoring', 'Slack notification', 'Usage %'],
     deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
@@ -89,7 +89,7 @@ const AgenticWorkflowCard: React.FC<{
       
       <Flex justifyContent="flex-end">
         <Button variant="accent" onClick={() => onDeploy(workflow.id)}>
-          <RocketIcon style={{ width: 14, height: 14 }} /> Deploy to Workflows
+          <WorkflowsIcon style={{ width: 14, height: 14 }} /> Deploy to Workflows
         </Button>
       </Flex>
     </Flex>
@@ -256,7 +256,7 @@ export const RemediationLibrary: React.FC = () => {
       {/* Agentic Workflows Section */}
       <Flex flexDirection="column" gap={12}>
         <Flex alignItems="center" gap={8}>
-          <RocketIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
+          <WorkflowsIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
           <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
             Agentic Workflow Templates
           </Text>

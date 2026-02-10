@@ -11,8 +11,10 @@ import { Modal } from '@dynatrace/strato-components-preview/overlays';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { 
   ClockIcon, CriticalIcon, MoneyIcon, SecurityIcon, DocumentIcon, 
-  RefreshIcon, WarningIcon, CheckmarkIcon, StopIcon, SettingIcon, HelpIcon, WorkflowsIcon 
+  RefreshIcon, WarningIcon, CheckmarkIcon, StopIcon, SettingIcon, HelpIcon, WorkflowsIcon,
+  MailIcon, BarChartIcon
 } from '@dynatrace/strato-icons';
+import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { useAIServicesDiscovery } from '../hooks/useDQLQueries';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -125,9 +127,50 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'cache_enable', name: 'Enable Caching', type: 'cache_enable', description: 'Enable response caching for common queries', icon: <SettingIcon style={{ width: 16, height: 16 }} />, isDestructive: false },
 ];
 
+// Agentic Workflow Templates - Davis AI powered automation
+interface AgenticWorkflow {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  trigger: string;
+  features: string[];
+  deployUrl: string;
+}
+
+const AGENTIC_WORKFLOWS: AgenticWorkflow[] = [
+  {
+    id: 'finops-digest',
+    title: 'Weekly FinOps Digest',
+    description: 'Davis Intelligence analyzes GenAI costs weekly and sends executive summary via email',
+    icon: <MailIcon style={{ width: 20, height: 20 }} />,
+    trigger: 'Every Monday 9 AM UTC',
+    features: ['DQL cost aggregation', 'Davis AI analysis', 'Email digest'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  },
+  {
+    id: 'budget-alert',
+    title: 'Token Budget Alert',
+    description: 'Alert when token usage exceeds 80% of configured budget threshold',
+    icon: <BarChartIcon style={{ width: 20, height: 20 }} />,
+    trigger: 'Hourly check',
+    features: ['Budget monitoring', 'Slack notification', 'Usage %'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  },
+  {
+    id: 'error-monitor',
+    title: 'Model Error Rate Monitor',
+    description: 'Monitors error rates and creates ServiceNow incidents on spikes',
+    icon: <WarningIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-feedback-critical-default)' }} />,
+    trigger: 'Davis Problem',
+    features: ['Davis problem trigger', 'Root cause analysis', 'ServiceNow ticket'],
+    deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
+  }
+];
+
 export const Operations: React.FC = () => {
   const [filters] = useState<QueryFilters>({});
-  const [selectedTab, setSelectedTab] = useState<'runbooks' | 'incidents' | 'automation' | 'actions'>('runbooks');
+  const [selectedTab, setSelectedTab] = useState<'runbooks' | 'incidents' | 'automation' | 'actions' | 'agentic'>('runbooks');
   const [executingRunbook, setExecutingRunbook] = useState<string | null>(null);
   const [showActionModal, setShowActionModal] = useState(false);
   const [selectedAction, setSelectedAction] = useState<QuickAction | null>(null);
@@ -307,6 +350,12 @@ export const Operations: React.FC = () => {
           onClick={() => setSelectedTab('automation')}
         >
           Automation Rules
+        </Button>
+        <Button
+          variant={selectedTab === 'agentic' ? 'emphasized' : 'default'}
+          onClick={() => setSelectedTab('agentic')}
+        >
+          <WorkflowsIcon style={{ width: 14, height: 14 }} /> Agentic Workflows
         </Button>
       </Flex>
 
@@ -514,6 +563,91 @@ export const Operations: React.FC = () => {
                 <strong>Tip:</strong> Enable Dynatrace Workflows integration to connect runbooks 
                 with automated remediation actions like ServiceNow tickets or Slack notifications.
               </Text>
+            </Surface>
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Agentic Workflows Tab */}
+      {selectedTab === 'agentic' && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={16}>
+            <Flex alignItems="center" gap={8}>
+              <WorkflowsIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
+              <Heading level={6}>Agentic Workflow Templates</Heading>
+              <Tooltip text="Powered by Davis Intelligence - autonomous workflows that analyze, decide, and act">
+                <span style={{ 
+                  padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+                  background: '#7c3aed', color: 'white'
+                }}>
+                  PREVIEW
+                </span>
+              </Tooltip>
+            </Flex>
+            
+            <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+              Deploy pre-built agentic workflows powered by Davis AI for autonomous monitoring and remediation.
+            </Text>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+              {AGENTIC_WORKFLOWS.map((workflow) => (
+                <Surface key={workflow.id} style={{ padding: 16, borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                  <Flex flexDirection="column" gap={12}>
+                    <Flex alignItems="center" gap={8}>
+                      <span style={{ 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 36, height: 36, borderRadius: 8,
+                        background: 'var(--dt-colors-charts-categorical-default-6)',
+                        color: 'white'
+                      }}>
+                        {workflow.icon}
+                      </span>
+                      <Flex flexDirection="column" style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 600, fontSize: 14 }}>{workflow.title}</Text>
+                        <Text style={{ fontSize: 11, opacity: 0.7 }}>Trigger: {workflow.trigger}</Text>
+                      </Flex>
+                      <Tooltip text="Agentic Workflow powered by Davis Intelligence">
+                        <span style={{ 
+                          padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
+                          background: '#7c3aed', color: 'white'
+                        }}>
+                          AGENTIC
+                        </span>
+                      </Tooltip>
+                    </Flex>
+                    
+                    <Text style={{ fontSize: 12, opacity: 0.85 }}>{workflow.description}</Text>
+                    
+                    <Flex gap={4} flexWrap="wrap">
+                      {workflow.features.map((f, i) => (
+                        <span key={i} style={{ 
+                          padding: '2px 6px', borderRadius: 4, fontSize: 10,
+                          background: 'var(--dt-colors-surface-neutral-default)',
+                          border: '1px solid var(--dt-colors-border-neutral-default)'
+                        }}>
+                          {f}
+                        </span>
+                      ))}
+                    </Flex>
+                    
+                    <Flex justifyContent="flex-end">
+                      <Button variant="accent" onClick={() => window.open(workflow.deployUrl, '_blank')}>
+                        <WorkflowsIcon style={{ width: 14, height: 14 }} /> Deploy to Workflows
+                      </Button>
+                    </Flex>
+                  </Flex>
+                </Surface>
+              ))}
+            </div>
+
+            <Surface style={{ padding: 12, backgroundColor: 'rgba(124, 58, 237, 0.1)', marginTop: 8 }}>
+              <Flex alignItems="center" gap={8}>
+                <WorkflowsIcon style={{ width: 14, height: 14, color: '#7c3aed' }} />
+                <Text>
+                  <strong>Agentic AI:</strong> These workflows use Davis Intelligence to autonomously analyze data, 
+                  make decisions, and take actions without human intervention.
+                </Text>
+              </Flex>
             </Surface>
           </Flex>
         </Surface>
