@@ -159,6 +159,9 @@ gen_ai.usage.output_tokens = <number>
 | 🏗️ AI Architect | Optimization recommendations | Review, Apply, Track |
 | 🤖 Davis Assistant | Natural language Q&A | Ask questions, Get insights |
 | 📊 Providers | Provider & model comparison | Compare, Analyze, Optimize |
+| 🤖 Agents | Agent tool usage & retry/loop detection | Monitor, Investigate traces |
+| 📉 Drift | Model drift scoring & baseline comparison | Capture baseline, Track changes |
+| 🔍 RAG / Vector DB | Pinecone + embeddings + RAG pipeline | Query volume, Latency, Trace deep-link |
 | 📚 Remediation | Automated fix playbooks | Browse, Execute, Monitor |
 
 ---
@@ -190,7 +193,51 @@ gen_ai.request.model = "gpt-4"
 
 ---
 
-## 📈 Metrics & KPIs
+## � RAG & Vector DB Page
+
+### Overview
+Navigate to **RAG** in the header to access full observability for Retrieval-Augmented Generation pipelines.
+
+### Key Metrics
+| Metric | Description |
+|--------|-------------|
+| Pinecone Query Volume | Hourly span count for vector store queries (timeseries chart) |
+| Embedding Generation Volume | Hourly call count for embedding model spans (timeseries chart) |
+| Pinecone Latency Percentiles | avg / p50 / p95 / p99 vector store retrieval latency |
+| Vector Store Error Rate | % of vector DB spans with span.status_code = error |
+| Full RAG Pipelines | Traces containing all three stages: embed → retrieve → generate |
+| Response Latency by Model | Avg/p95 LLM call duration by model (TTFT proxy — uses span duration since gen_ai.server.time_to_first_token is not instrumented) |
+
+### Panels
+- **Pinecone Query Volume** — hourly timeseries using `makeTimeseries`
+- **Embedding Generation Volume** — hourly timeseries for embedding spans
+- **Pinecone Latency Percentiles** — four stat cards (avg / p50 / p95 / p99)
+- **Embedding Providers** — table by provider × model with call count, latency, error rate
+- **RAG Chain Step Performance** — latency bar chart per step type (Embedding / Vector Retrieve / LLM Call)
+- **Top Slowest RAG Pipeline Traces** — table with distributed tracing deep-link per trace
+- **Response Latency by Model** — table with color-coded rating (Excellent / Good / Fair / Slow)
+- **Semantic Cache Opportunities** — repeated Pinecone queries ranked by savings potential
+
+### Supported Vector Stores
+Broad filter catches: Pinecone, ChromaDB, Qdrant, Weaviate, Milvus, and any span with `db.vector.query.top_k` or span names containing `vectorstore`, `vector_store`, `retrieve`.
+
+### Technical Notes
+- **Timeframe** defaults to last 24 hours and auto-loads on page mount
+- **Chart timestamps** are computed correctly from `makeTimeseries` result: `rangeStart + i × intervalMs`
+- **Distributed Tracing link** uses `getIntentLink` intent navigation (same pattern as Governance / Agents pages)
+- **Agent Retry Detection** has been moved to the **Agents** page for better UX grouping
+
+---
+
+## 🤖 Agents Page — Retry / Loop Detection
+
+The **Agent Retry / Loop Detection** section appears at the bottom of the Agents page.
+- **Retry Rate** — % of agent traces where the same task was called more than once
+- **Affected Traces** — traces with at least one retry
+- **Extra Task Calls** — total redundant task invocations
+- Thresholds: < 5% = Ideal, < 15% = Warning, ≥ 15% = Critical
+
+---
 
 ### Health Dashboard Metrics
 | Metric | Description | Formula |

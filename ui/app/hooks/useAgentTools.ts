@@ -4,7 +4,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { QueryFilters } from './useDQLQueries';
-import { buildTimeRangeClauseFromTimeframe } from '../queries/dql-queries';
+import { buildTimeRangeClauseFromTimeframe, AGENT_RETRY_DETECTION_QUERY, AGENT_RETRY_SUMMARY_QUERY } from '../queries/dql-queries';
+import type { AgentRetryTrace, AgentRetrySummary } from '../types';
 
 // ============================================
 // Types
@@ -533,6 +534,8 @@ export function useAgentTools(filters?: QueryFilters) {
   const [agentServiceDeps, setAgentServiceDeps] = useState<AgentServiceDependency[]>([]);
   const [agentLLMProviders, setAgentLLMProviders] = useState<AgentLLMProvider[]>([]);
   const [agentEntityMappings, setAgentEntityMappings] = useState<AgentEntityMapping[]>([]);
+  const [retryTraces, setRetryTraces] = useState<AgentRetryTrace[]>([]);
+  const [retrySummary, setRetrySummary] = useState<AgentRetrySummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -552,7 +555,7 @@ export function useAgentTools(filters?: QueryFilters) {
 
     try {
       // Execute all queries in parallel
-      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse, serviceDepsResponse, llmProviderResponse, entityMappingResponse] = await Promise.all([
+      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse, serviceDepsResponse, llmProviderResponse, entityMappingResponse, agentRetryResponse, agentRetrySummaryResponse] = await Promise.all([
         queryExecutionClient.queryExecute({
           body: {
             query: TOOL_USAGE_QUERY(currentFilters),
@@ -671,6 +674,21 @@ export function useAgentTools(filters?: QueryFilters) {
         queryExecutionClient.queryExecute({
           body: {
             query: AGENT_ENTITY_MAPPING_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // Agent Retry Detection
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_RETRY_DETECTION_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_RETRY_SUMMARY_QUERY(currentFilters),
             requestTimeoutMilliseconds: 60000,
             fetchTimeoutSeconds: 60
           }
@@ -882,6 +900,32 @@ export function useAgentTools(filters?: QueryFilters) {
       }));
       setAgentEntityMappings(processedEntityMappings);
 
+      // Process agent retry traces
+      const retryRecs = agentRetryResponse.result?.records || [];
+      const processedRetries: AgentRetryTrace[] = retryRecs.map((record: any) => ({
+        traceId: String(record['trace.id'] ?? ''),
+        taskCount: Number(record['task_count'] ?? 0),
+        uniqueAgents: Number(record['unique_agents'] ?? 0),
+        retryCount: Number(record['retry_count'] ?? 0),
+        totalDurationMs: Number(record['total_duration_ms'] ?? 0),
+        agentsList: Array.isArray(record['agents_list']) ? record['agents_list'].map(String) : [],
+      }));
+      setRetryTraces(processedRetries);
+
+      // Process retry summary
+      const retrySummaryRecs = agentRetrySummaryResponse.result?.records || [];
+      if (retrySummaryRecs.length > 0) {
+        const r = retrySummaryRecs[0] as any;
+        const totalTraces = Number(r['total_traces'] ?? 0);
+        const tracesWithRetries = Number(r['traces_with_retries'] ?? 0);
+        setRetrySummary({
+          totalTraces,
+          tracesWithRetries,
+          retryRate: totalTraces > 0 ? (tracesWithRetries / totalTraces) * 100 : 0,
+          totalExtraTasks: Number(r['total_extra_tasks'] ?? 0),
+        });
+      }
+
     } catch (err) {
       console.error('[GCC] Agent tools query failed:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch agent tools data'));
@@ -920,6 +964,8 @@ export function useAgentTools(filters?: QueryFilters) {
     agentServiceDeps,
     agentLLMProviders,
     agentEntityMappings,
+    retryTraces,
+    retrySummary,
     loading,
     error,
     fetchAgentToolsData,

@@ -18,7 +18,8 @@ import {
   PromptGovernance,
   RealTimeAlerts,
   AgentTools,
-  ModelDrift
+  ModelDrift,
+  VectorDB
 } from "./pages";
 
 export const App = () => {
@@ -75,6 +76,9 @@ export const App = () => {
                 
                 {/* Model Drift Detection - Track behavior changes */}
                 <Route path="/drift" element={<ModelDrift />} />
+
+                {/* RAG / Vector DB Observability - Pinecone + Embeddings + TTFT + Retries */}
+                <Route path="/vector-db" element={<VectorDB />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

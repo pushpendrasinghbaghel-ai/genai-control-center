@@ -1,7 +1,7 @@
 ﻿# GenAI Control Center - Product Roadmap
 
-> **Last Updated:** February 24, 2026  
-> **Version:** v2.5.0  
+> **Last Updated:** February 25, 2026  
+> **Version:** v2.6.0  
 > **Status:** Active Development
 
 ---
@@ -58,6 +58,7 @@ Transform GCC from an AI observability tool into a **strategic AI control plane*
 | 🤖 Intelligence | ✅ Complete | Davis CoPilot integration |
 | ⚙️ Operations | ✅ Complete | Runbooks, remediation |
 | 🚨 Real-Time Alerts | ✅ Complete | Davis problems for AI services |
+| 🔍 RAG / Vector DB | ✅ Complete | Pinecone + embedding + RAG pipeline + response latency by model |
 
 ---
 

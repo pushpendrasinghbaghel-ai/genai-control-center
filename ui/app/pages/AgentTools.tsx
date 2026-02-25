@@ -26,6 +26,7 @@ import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
 import { getProviderIcon } from '../utils/providerIcons';
 import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
+import type { AgentRetryTrace, AgentRetrySummary } from '../types';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
 // ============================================
@@ -37,6 +38,12 @@ const STATUS_COLORS = {
   neutral: Colors.Charts.Status.Neutral.Default,
   warning: Colors.Charts.Status.Warning.Default,
   critical: Colors.Charts.Status.Critical.Default,
+};
+
+const retryColor = (rate: number): string => {
+  if (rate < 5)  return STATUS_COLORS.ideal;
+  if (rate < 15) return STATUS_COLORS.warning;
+  return STATUS_COLORS.critical;
 };
 
 // Tool Flow Node Colors - Explicit hex values for SVG compatibility
@@ -1035,6 +1042,8 @@ export const AgentTools: React.FC = () => {
     agentServiceDeps,
     agentLLMProviders,
     agentEntityMappings,
+    retryTraces,
+    retrySummary,
     loading, 
     error, 
     fetchAgentToolsData,
@@ -2904,6 +2913,133 @@ export const AgentTools: React.FC = () => {
                     <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
                       No LLM provider data available. Ensure gen_ai.request.model and gen_ai.provider.name attributes are captured.
                     </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+
+            {/* Agent Retry / Loop Detection */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <Heading level={5}>Agent Retry / Loop Detection</Heading>
+                  <Tooltip text="Traces where an agent repeatedly called the same task, indicating retry storms or infinite loops. High retry rates degrade performance and cost.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+
+                {/* Summary KPIs */}
+                {retrySummary && (
+                  <Flex gap={12} flexWrap="wrap">
+                    <Flex flexDirection="column" gap={2} padding={12} style={{
+                      background: 'var(--dt-colors-surface-default)',
+                      border: '1px solid var(--dt-colors-border-neutral-default)',
+                      borderRadius: 6, flex: '1 1 120px',
+                    }}>
+                      <Text style={{ fontSize: 22, fontWeight: 700, color: retryColor(retrySummary.retryRate) }}>
+                        {retrySummary.retryRate.toFixed(1)}%
+                      </Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Retry Rate</Text>
+                    </Flex>
+                    <Flex flexDirection="column" gap={2} padding={12} style={{
+                      background: 'var(--dt-colors-surface-default)',
+                      border: '1px solid var(--dt-colors-border-neutral-default)',
+                      borderRadius: 6, flex: '1 1 120px',
+                    }}>
+                      <Text style={{ fontSize: 22, fontWeight: 700 }}>{formatNumber(retrySummary.tracesWithRetries)}</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Affected Traces</Text>
+                    </Flex>
+                    <Flex flexDirection="column" gap={2} padding={12} style={{
+                      background: 'var(--dt-colors-surface-default)',
+                      border: '1px solid var(--dt-colors-border-neutral-default)',
+                      borderRadius: 6, flex: '1 1 120px',
+                    }}>
+                      <Text style={{ fontSize: 22, fontWeight: 700 }}>{formatNumber(retrySummary.totalExtraTasks)}</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Extra Task Calls</Text>
+                    </Flex>
+                    <Flex flexDirection="column" gap={2} padding={12} style={{
+                      background: 'var(--dt-colors-surface-default)',
+                      border: '1px solid var(--dt-colors-border-neutral-default)',
+                      borderRadius: 6, flex: '1 1 120px',
+                    }}>
+                      <Text style={{ fontSize: 22, fontWeight: 700 }}>{formatNumber(retrySummary.totalTraces)}</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Total Traces</Text>
+                    </Flex>
+                  </Flex>
+                )}
+
+                {/* Retry Traces Table */}
+                {retryTraces.length > 0 ? (
+                  <DataTable
+                    data={retryTraces.slice(0, 20)}
+                    columns={[
+                      {
+                        header: 'Trace ID',
+                        id: 'traceId',
+                        accessor: 'traceId',
+                        width: 160,
+                        cell: ({ value }) => (
+                          <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {String(value ?? '').slice(0, 16)}…
+                          </Text>
+                        ),
+                      },
+                      {
+                        header: 'Retries',
+                        id: 'retryCount',
+                        accessor: 'retryCount',
+                        width: 80,
+                        cell: ({ value }) => {
+                          const n = Number(value ?? 0);
+                          return (
+                            <Text style={{ fontWeight: 700, color: n > 3 ? STATUS_COLORS.critical : STATUS_COLORS.warning }}>
+                              +{n}
+                            </Text>
+                          );
+                        },
+                      },
+                      {
+                        header: 'Task Calls',
+                        id: 'taskCount',
+                        accessor: 'taskCount',
+                        width: 90,
+                        cell: ({ value }) => <Text>{formatNumber(Number(value ?? 0))}</Text>,
+                      },
+                      {
+                        header: 'Agents Involved',
+                        id: 'agentsList',
+                        accessor: 'agentsList',
+                        cell: ({ value }) => {
+                          const agents = Array.isArray(value) ? value : [];
+                          return (
+                            <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                              {agents.slice(0, 3).join(', ')}{agents.length > 3 ? ` +${agents.length - 3} more` : ''}
+                            </Text>
+                          );
+                        },
+                      },
+                      {
+                        header: 'Duration',
+                        id: 'totalDurationMs',
+                        accessor: 'totalDurationMs',
+                        width: 100,
+                        cell: ({ value }) => <Text>{formatDuration(Number(value ?? 0))}</Text>,
+                      },
+                    ]}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={10} />
+                  </DataTable>
+                ) : (
+                  <Flex alignItems="center" gap={8} padding={24} justifyContent="center" style={{
+                    background: 'var(--dt-colors-background-container-neutral-subdued)',
+                    borderRadius: 6,
+                  }}>
+                    {retrySummary
+                      ? <><CheckmarkIcon style={{ color: STATUS_COLORS.ideal }} /><Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>No retry patterns detected — agents are behaving efficiently</Text></>
+                      : <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No agent task data found'}</Text>
+                    }
                   </Flex>
                 )}
               </Flex>

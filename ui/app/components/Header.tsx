@@ -14,7 +14,8 @@ import {
   AiIcon,              // Intelligence
   WorkflowsIcon,       // Operations
   AgentIcon,           // Agent Tools (AI agents)
-  ResearchIcon         // Model Drift
+  ResearchIcon,        // Model Drift
+  DatabaseIcon         // RAG / Vector DB
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -88,7 +89,12 @@ export const Header = () => {
           <ResearchIcon aria-hidden="true" /> Drift
         </AppHeader.NavItem>
         
-        {/* 9. Intelligence: AI-powered investigation - Deep dive with Davis */}
+        {/* 9. RAG: Vector DB + Embeddings + TTFT - "How is our RAG pipeline performing?" */}
+        <AppHeader.NavItem as={Link} to="/vector-db" style={getNavItemStyle('/vector-db')} aria-label="RAG and Vector DB">
+          <DatabaseIcon aria-hidden="true" /> RAG
+        </AppHeader.NavItem>
+        
+        {/* 10. Intelligence: AI-powered investigation - Deep dive with Davis */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="AI Intelligence">
           <AiIcon aria-hidden="true" /> Intelligence
         </AppHeader.NavItem>

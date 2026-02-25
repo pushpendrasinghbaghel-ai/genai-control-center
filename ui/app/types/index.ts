@@ -231,3 +231,108 @@ export interface AlertInfo {
   timestamp: Date;
   dismissed: boolean;
 }
+
+// ============================================
+// RAG / Vector DB Types (Phase 5 — Viatris Gap)
+// ============================================
+
+export interface VectorDBLatency {
+  avgLatencyMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  queryCount: number;
+  errorCount: number;
+  errorRate: number;
+}
+
+export interface EmbeddingProvider {
+  provider: string;
+  model: string;
+  callCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorRate: number;
+}
+
+export interface RAGPipelineStep {
+  stepType: 'embed' | 'retrieve' | 'generate';
+  avgDurationMs: number;
+  p95DurationMs: number;
+  callCount: number;
+  errorRate: number;
+}
+
+export interface RAGPipelineTrace {
+  traceId: string;
+  totalDurationMs: number;
+  spanCount: number;
+  hasEmbed: boolean;
+  hasRetrieve: boolean;
+  hasGenerate: boolean;
+  isFullPipeline: boolean;
+}
+
+export interface VectorDBCacheCandidate {
+  queryPreview: string;
+  count: number;
+  avgLatencyMs: number;
+  savingsPotentialMs: number;
+}
+
+export interface VectorDBSummary {
+  totalPineconeQueries: number;
+  totalEmbeddings: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorRate: number;
+  fullPipelineTraces: number;
+  cacheablePct: number;
+}
+
+// ============================================
+// TTFT Types (Phase 5.2)
+// ============================================
+
+export interface TTFTByModel {
+  model: string;
+  provider: string;
+  avgTtftMs: number;
+  p50TtftMs: number;
+  p95TtftMs: number;
+  requestCount: number;
+}
+
+export interface TTFTSummary {
+  avgTtftMs: number;
+  p95TtftMs: number;
+  count: number;
+}
+
+// ============================================
+// Agent Retry Monitoring Types (Phase 5.3)
+// ============================================
+
+export interface AgentRetryTrace {
+  traceId: string;
+  taskCount: number;
+  uniqueAgents: number;
+  retryCount: number;
+  totalDurationMs: number;
+  agentsList: string[];
+}
+
+export interface AgentRetrySummary {
+  totalTraces: number;
+  tracesWithRetries: number;
+  retryRate: number;
+  totalExtraTasks: number;
+}
+
+export interface ChainPerformanceStep {
+  stepLabel: string;
+  avgDurationMs: number;
+  p95DurationMs: number;
+  callCount: number;
+  errorRate: number;
+}

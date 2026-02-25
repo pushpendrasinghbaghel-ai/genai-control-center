@@ -459,6 +459,342 @@ ${modelFilter}
 `;
 };
 
+// ============================================
+// RAG / Vector DB Queries (Phase 5 — Viatris Gap)
+// Data source: Pinecone spans (~115K/wk) + embedding spans (~113K/wk)
+// ============================================
+
+/**
+ * Vector DB query volume over time (timeseries)
+ * Broad filter to catch Pinecone, Chroma, Weaviate, Qdrant and any OTel vector DB spans
+ */
+export const VECTOR_DB_VOLUME_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+| makeTimeseries queries = count(), interval: 1h
+`;
+};
+
+/**
+ * Vector DB query latency percentiles (avg, p50, p95, p99)
+ * Broad filter — same vector store coverage as VECTOR_DB_VOLUME_QUERY
+ */
+export const VECTOR_DB_LATENCY_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+| summarize
+    avg_latency_ms = avg(duration) / 1000000,
+    p50_ms = percentile(duration, 50) / 1000000,
+    p95_ms = percentile(duration, 95) / 1000000,
+    p99_ms = percentile(duration, 99) / 1000000,
+    query_count = count(),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+`;
+};
+
+/**
+ * Embedding generation volume & latency by provider + model
+ */
+export const EMBEDDING_VOLUME_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter contains(lower(span.name), "embed")
+    OR gen_ai.operation.name == "embeddings"
+    OR gen_ai.operation.kind == "embedding"
+    OR contains(lower(gen_ai.operation.name), "embed")
+| summarize
+    call_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { provider = coalesce(gen_ai.provider.name, "unknown"), model = coalesce(gen_ai.request.model, "unknown") }
+| sort call_count desc
+`;
+};
+
+/**
+ * Embedding volume trend over time (timeseries)
+ * Catches OTel gen_ai embeddings, LangChain span name patterns, and LlamaIndex patterns
+ */
+export const EMBEDDING_TREND_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter contains(lower(span.name), "embed")
+    OR gen_ai.operation.name == "embeddings"
+    OR gen_ai.operation.kind == "embedding"
+    OR contains(lower(gen_ai.operation.name), "embed")
+| makeTimeseries embeddings = count(), interval: 1h
+`;
+};
+
+/**
+ * RAG pipeline E2E trace correlation: embed → vector retrieve → LLM generate
+ * Groups by trace.id to get full pipeline view
+ */
+export const RAG_PIPELINE_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "embed")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k)
+    OR gen_ai.operation.name == "embeddings"
+    OR (isNotNull(gen_ai.provider.name) AND (contains(lower(span.name), "chat") OR contains(lower(span.name), "completion")))
+| fieldsAdd step_type = if(isNotNull(db.system) OR isNotNull(db.vector.query.top_k) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve"), then: "retrieve",
+    else: if(contains(lower(span.name), "embed") OR gen_ai.operation.name == "embeddings", then: "embed", else: "generate"))
+| summarize
+    span_types = collectDistinct(step_type),
+    total_duration_ms = sum(duration) / 1000000,
+    span_count = count(),
+    has_embed = countIf(step_type == "embed") > 0,
+    has_retrieve = countIf(step_type == "retrieve") > 0,
+    has_generate = countIf(step_type == "generate") > 0,
+    sample_trace_id = takeLast(trace.id)
+  , by: { trace.id }
+| filter span_count >= 2
+| sort total_duration_ms desc
+| limit 100
+`;
+};
+
+/**
+ * RAG pipeline summary stats: avg E2E latency, full-pipeline traces, step breakdown
+ */
+export const RAG_PIPELINE_SUMMARY_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "embed")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k)
+    OR gen_ai.operation.name == "embeddings"
+    OR (isNotNull(gen_ai.provider.name) AND (contains(lower(span.name), "chat") OR contains(lower(span.name), "completion")))
+| fieldsAdd step_type = if(isNotNull(db.system) OR isNotNull(db.vector.query.top_k) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve"), then: "retrieve",
+    else: if(contains(lower(span.name), "embed") OR gen_ai.operation.name == "embeddings", then: "embed", else: "generate"))
+| summarize
+    call_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { step_type }
+| sort avg_latency_ms desc
+`;
+};
+
+/**
+ * Vector store health — error rate + availability (timeseries)
+ */
+export const VECTOR_DB_HEALTH_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+| makeTimeseries
+    total = count(),
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    interval: 1h
+`;
+};
+
+/**
+ * Top repeated vector queries — duplicate/cache-candidate detection
+ */
+export const VECTOR_DB_CACHE_CANDIDATES_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+| fieldsAdd query_preview = substring(coalesce(db.statement, db.query.text, span.name), from: 0, to: 120)
+| summarize
+    count = count(),
+    avg_latency_ms = avg(duration) / 1000000
+  , by: { query_preview }
+| filter count > 1
+| sort count desc
+| limit 20
+`;
+};
+
+// ============================================
+// TTFT — Time to First Token (Phase 5.2)
+// ============================================
+
+/**
+ * Time to first token (TTFT) by model — streaming responsiveness
+ */
+export const TTFT_BY_MODEL_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  const modelFilter = buildModelFilter(filters?.model);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+    AND (gen_ai.operation.name == "chat"
+      OR gen_ai.operation.name == "text_completion"
+      OR gen_ai.operation.name == "completion"
+      OR contains(lower(span.name), "chat")
+      OR contains(lower(span.name), "completion")
+      OR contains(lower(span.name), "invoke")
+      OR contains(lower(span.name), "generate"))
+${providerFilter}
+${modelFilter}
+| summarize
+    avg_ttft_ms = avg(duration) / 1000000,
+    p50_ttft_ms = percentile(duration, 50) / 1000000,
+    p95_ttft_ms = percentile(duration, 95) / 1000000,
+    request_count = count()
+  , by: { model = coalesce(gen_ai.request.model, gen_ai.response.model, "unknown"), provider = coalesce(gen_ai.provider.name, "unknown") }
+| sort avg_ttft_ms desc
+`;
+};
+
+/**
+ * TTFT aggregate — uses span duration as TTFT proxy (gen_ai.server.time_to_first_token
+ * is only set when streaming is explicitly instrumented; duration is the practical proxy)
+ */
+export const TTFT_SUMMARY_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+    AND (gen_ai.operation.name == "chat"
+      OR gen_ai.operation.name == "text_completion"
+      OR gen_ai.operation.name == "completion"
+      OR contains(lower(span.name), "chat")
+      OR contains(lower(span.name), "completion")
+      OR contains(lower(span.name), "invoke")
+      OR contains(lower(span.name), "generate"))
+| summarize
+    avg_ttft_ms = avg(duration) / 1000000,
+    p95_ttft_ms = percentile(duration, 95) / 1000000,
+    count = count()
+`;
+};
+
+// ============================================
+// Agent Retry Monitoring (Phase 5.3)
+// ============================================
+
+/**
+ * Detect retry patterns — traces where same agent task repeated more than expected
+ */
+export const AGENT_RETRY_DETECTION_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter traceloop.span.kind == "task"
+| summarize
+    task_count = count(),
+    unique_agents = countDistinct(traceloop.entity.name),
+    agents_list = collectDistinct(traceloop.entity.name),
+    total_duration_ms = sum(duration) / 1000000
+  , by: { trace.id }
+| fieldsAdd retry_count = task_count - unique_agents
+| filter retry_count > 0
+| sort retry_count desc
+| limit 50
+`;
+};
+
+/**
+ * Retry summary stats for agent monitoring
+ */
+export const AGENT_RETRY_SUMMARY_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter traceloop.span.kind == "task"
+| summarize
+    total_tasks = count(),
+    unique_tasks = countDistinct(traceloop.entity.name)
+  , by: { trace.id }
+| fieldsAdd has_retry = total_tasks > unique_tasks
+| summarize
+    total_traces = count(),
+    traces_with_retries = countIf(has_retry),
+    total_extra_tasks = sum(if(has_retry, then: total_tasks - unique_tasks, else: 0))
+`;
+};
+
+/**
+ * Chain performance — average latency per step type across all RAG/agent traces
+ */
+export const CHAIN_PERFORMANCE_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.span.kind) OR db.system == "pinecone" OR contains(lower(span.name), "embedding")
+| fieldsAdd step_label = if(db.system == "pinecone", then: "Vector Retrieve",
+    else: if(contains(lower(span.name), "embedding"), then: "Embedding",
+    else: if(traceloop.span.kind == "task", then: "Agent Task",
+    else: if(traceloop.span.kind == "tool", then: "Tool Call",
+    else: if(traceloop.span.kind == "workflow", then: "Workflow",
+    else: "LLM Call")))))
+| summarize
+    avg_duration_ms = avg(duration) / 1000000,
+    p95_duration_ms = percentile(duration, 95) / 1000000,
+    call_count = count(),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { step_label }
+| sort avg_duration_ms desc
+`;
+};
+
 /**
  * Query for Audit Trail - Recent GenAI invocations for compliance tracking
  */

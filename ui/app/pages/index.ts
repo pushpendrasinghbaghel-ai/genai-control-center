@@ -32,6 +32,9 @@ export { AgentTools } from './AgentTools';
 // NEW: Model Drift Detection
 export { ModelDrift } from './ModelDrift';
 
+// NEW: RAG / Vector DB Observability (Phase 5 — Viatris Gap)
+export { VectorDB } from './VectorDB';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';
