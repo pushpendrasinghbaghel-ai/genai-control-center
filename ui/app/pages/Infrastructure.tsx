@@ -5,7 +5,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { SelectV2 } from '@dynatrace/strato-components-preview/forms';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
 import {
@@ -125,14 +124,24 @@ export const Infrastructure: React.FC = () => {
         <Flex gap={8} alignItems="center">
           <Flex flexDirection="column" gap={2}>
             <Text textStyle="small">Time Range</Text>
-            <SelectV2 value={timeRange} onChange={(v) => setTimeRange(String(v ?? '24h'))}>
-              <SelectV2.Option value="1h">Last 1h</SelectV2.Option>
-              <SelectV2.Option value="3h">Last 3h</SelectV2.Option>
-              <SelectV2.Option value="6h">Last 6h</SelectV2.Option>
-              <SelectV2.Option value="24h">Last 24h</SelectV2.Option>
-              <SelectV2.Option value="2d">Last 2d</SelectV2.Option>
-              <SelectV2.Option value="7d">Last 7d</SelectV2.Option>
-            </SelectV2>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              style={{
+                padding: '6px 10px', borderRadius: 4, fontSize: 13,
+                border: '1px solid var(--dt-colors-border-neutral-default)',
+                background: 'var(--dt-colors-background-base-default)',
+                color: 'var(--dt-colors-text-primary-default)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="1h">Last 1h</option>
+              <option value="3h">Last 3h</option>
+              <option value="6h">Last 6h</option>
+              <option value="24h">Last 24h</option>
+              <option value="2d">Last 2d</option>
+              <option value="7d">Last 7d</option>
+            </select>
           </Flex>
           <Button variant="emphasized" onClick={() => refetch(timeRange)}>
             <RefreshIcon style={{ width: 14, height: 14 }} />
