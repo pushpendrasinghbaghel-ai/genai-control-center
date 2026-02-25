@@ -1,12 +1,13 @@
-// GenAI Control Center — Infrastructure Page (Phase 6)
-// AI infrastructure health: provider availability, service workloads, Davis problems, deployments.
+// GenAI Control Center — Infrastructure Page
+// Focus: what's NOT on other pages — deployment change tracking, service model config, model version history.
+// Provider availability → /providers | Service metrics → /services | Davis problems → /problems
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressBar } from '@dynatrace/strato-components/content';
+import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import { createDefaultTimeframe } from '../components/FilterBar';
@@ -15,55 +16,77 @@ import {
   RefreshIcon,
   ServicesIcon,
   WorkflowsIcon,
-  CheckmarkIcon,
-  WarningIcon,
-  CriticalIcon,
+  CodeIcon,
+  AiIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useInfrastructure } from '../hooks';
-import type { InfraProvider, InfraServiceWorkload, DavisProblem, DeploymentEvent } from '../types';
+import type { ServiceConfig, ModelHistoryEntry, DeploymentEvent } from '../types';
 
-// ─── Colors & helpers ──────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const STATUS_COLORS = {
-  healthy: Colors.Charts.Categorical.Color04.Default,  // green
-  warning: Colors.Charts.Categorical.Color06.Default,  // yellow/orange
-  critical: Colors.Charts.Categorical.Color10.Default, // red
-  neutral: Colors.Charts.Categorical.Color01.Default,  // blue
-};
-
-const availabilityColor = (pct: number): string => {
-  if (pct >= 99) return STATUS_COLORS.healthy;
-  if (pct >= 95) return STATUS_COLORS.warning;
-  return STATUS_COLORS.critical;
-};
-
-const errorRateColor = (rate: number): string => {
-  if (rate < 2) return STATUS_COLORS.healthy;
-  if (rate < 10) return STATUS_COLORS.warning;
-  return STATUS_COLORS.critical;
-};
-
-const severityColor = (sev: string): string => {
-  const s = sev.toUpperCase();
-  if (s.includes('AVAILABILITY') || s === 'ERROR') return STATUS_COLORS.critical;
-  if (s.includes('SLOW') || s === 'PERFORMANCE') return STATUS_COLORS.warning;
-  return STATUS_COLORS.neutral;
-};
-
-const fmtMs = (ms: number): string => {
-  if (!isFinite(ms) || ms === 0) return '—';
-  if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
-  return `${Math.round(ms)}ms`;
+  healthy: Colors.Charts.Categorical.Color04.Default,
+  warning: Colors.Charts.Categorical.Color06.Default,
+  critical: Colors.Charts.Categorical.Color10.Default,
+  neutral: Colors.Charts.Categorical.Color01.Default,
+  purple: Colors.Charts.Categorical.Color05.Default,
 };
 
 const fmt = (n: number): string => (isFinite(n) ? n.toLocaleString() : '—');
 
-const statusIcon = (status: string) => {
-  const s = status.toUpperCase();
-  if (s.includes('OPEN') || s.includes('ACTIVE')) return <CriticalIcon style={{ color: STATUS_COLORS.critical, width: 14, height: 14 }} />;
-  if (s.includes('RESOLVED') || s.includes('CLOSED')) return <CheckmarkIcon style={{ color: STATUS_COLORS.healthy, width: 14, height: 14 }} />;
-  return <WarningIcon style={{ color: STATUS_COLORS.warning, width: 14, height: 14 }} />;
+const relTime = (iso: string): string => {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    const diffMs = Date.now() - d.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+    return `${Math.floor(mins / 1440)}d ago`;
+  } catch { return iso; }
+};
+
+const shortDate = (iso: string): string => {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso; }
+};
+
+// ─── Provider Badge ──────────────────────────────────────────────────────────
+
+const ProviderBadge: React.FC<{ provider: string }> = ({ provider }) => {
+  const colorMap: Record<string, string> = {
+    openai: '#10a37f',
+    anthropic: '#c07f4c',
+    azure: '#0078d4',
+    google: '#4285f4',
+    bedrock: '#ff9900',
+    cohere: '#39594d',
+    mistral: '#ff7000',
+  };
+  const key = (provider ?? '').toLowerCase().split('.')[0];
+  const color = Object.entries(colorMap).find(([k]) => key.includes(k))?.[1] ?? '#6b7280';
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 600,
+      padding: '2px 7px',
+      borderRadius: 10,
+      background: `${color}20`,
+      color,
+      border: `1px solid ${color}40`,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+      whiteSpace: 'nowrap',
+    }}>
+      {provider || 'unknown'}
+    </span>
+  );
 };
 
 // ─── Metric Card ────────────────────────────────────────────────────────────
@@ -93,22 +116,22 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, sub, color 
 
 export const Infrastructure: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(() => createDefaultTimeframe());
-  const { providers, workloads, problems, deployments, loading, error, refetch } = useInfrastructure();
+  const { deployments, serviceConfigs, modelHistory, loading, error, refetch } = useInfrastructure();
 
   useEffect(() => {
     void refetch(timeframe);
   }, [timeframe, refetch]);
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const totalServices = workloads.length;
-    const openProblems = problems.filter(p => p.status.toUpperCase().includes('OPEN') || p.status.toUpperCase().includes('ACTIVE')).length;
-    const avgAvailability = providers.length > 0
-      ? providers.reduce((s, p) => s + p.availabilityPct, 0) / providers.length
-      : 100;
-    const totalSpans = workloads.reduce((s, w) => s + w.spanCount, 0);
-    return { totalServices, openProblems, avgAvailability, totalSpans };
-  }, [workloads, problems, providers]);
+    const uniqueModels = new Set(serviceConfigs.map(s => s.model).filter(Boolean)).size;
+    const multiModelServices = serviceConfigs.filter(s => s.modelVersions > 1).length;
+    return {
+      services: serviceConfigs.length,
+      uniqueModels,
+      deployments: deployments.length,
+      multiModelServices,
+    };
+  }, [serviceConfigs, deployments]);
 
   return (
     <Flex flexDirection="column" gap={24} style={{ padding: 24, maxWidth: 1400 }}>
@@ -118,17 +141,14 @@ export const Infrastructure: React.FC = () => {
         <Flex alignItems="center" gap={12}>
           <HostsIcon style={{ width: 28, height: 28, color: STATUS_COLORS.neutral }} />
           <Flex flexDirection="column" gap={0}>
-            <Heading level={2}>AI Infrastructure Health</Heading>
+            <Heading level={2}>AI Infrastructure</Heading>
             <Text textStyle="small" style={{ opacity: 0.6 }}>
-              Provider availability · Service workloads · Active problems · Deployments
+              Service model config · Model version history · Deployment change events
             </Text>
           </Flex>
         </Flex>
         <Flex gap={8} alignItems="center">
-          <TimeframeSelector
-            value={timeframe}
-            onChange={(tf) => tf && setTimeframe(tf)}
-          />
+          <TimeframeSelector value={timeframe} onChange={(tf) => tf && setTimeframe(tf)} />
           <Button variant="emphasized" onClick={() => refetch(timeframe)}>
             <RefreshIcon style={{ width: 14, height: 14 }} />
             {loading ? 'Loading…' : 'Refresh'}
@@ -138,7 +158,7 @@ export const Infrastructure: React.FC = () => {
 
       {error && (
         <Surface style={{ padding: 12, background: `${STATUS_COLORS.critical}15`, border: `1px solid ${STATUS_COLORS.critical}` }}>
-          <Text style={{ color: STATUS_COLORS.critical }}>⚠️ Query error: {error.message}</Text>
+          <Text style={{ color: STATUS_COLORS.critical }}>Query error: {error.message}</Text>
         </Surface>
       )}
 
@@ -147,91 +167,44 @@ export const Infrastructure: React.FC = () => {
         <MetricCard
           icon={<ServicesIcon style={{ color: STATUS_COLORS.neutral }} />}
           label="AI Services"
-          value={kpis.totalServices}
-          sub="instrumented workloads"
+          value={kpis.services}
+          sub="services using AI models"
         />
         <MetricCard
-          icon={<HostsIcon style={{ color: availabilityColor(kpis.avgAvailability) }} />}
-          label="Avg Provider Availability"
-          value={kpis.avgAvailability > 0 ? `${kpis.avgAvailability.toFixed(1)}%` : '—'}
-          sub={providers.length > 0 ? `across ${providers.length} providers` : 'no data'}
-          color={availabilityColor(kpis.avgAvailability)}
+          icon={<AiIcon style={{ color: STATUS_COLORS.purple }} />}
+          label="Unique Models"
+          value={kpis.uniqueModels}
+          sub="distinct models in use"
+          color={STATUS_COLORS.purple}
         />
         <MetricCard
-          icon={<CriticalIcon style={{ color: kpis.openProblems > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy }} />}
-          label="Open Problems"
-          value={kpis.openProblems}
-          sub="active Davis problems"
-          color={kpis.openProblems > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy}
+          icon={<CodeIcon style={{ color: kpis.multiModelServices > 0 ? STATUS_COLORS.warning : STATUS_COLORS.healthy }} />}
+          label="Multi-Model Services"
+          value={kpis.multiModelServices}
+          sub="using >1 model variant"
+          color={kpis.multiModelServices > 0 ? STATUS_COLORS.warning : STATUS_COLORS.healthy}
         />
         <MetricCard
           icon={<WorkflowsIcon style={{ color: STATUS_COLORS.neutral }} />}
-          label="AI Span Volume"
-          value={kpis.totalSpans}
-          sub="selected time range"
+          label="Deployments"
+          value={kpis.deployments}
+          sub="in selected time range"
         />
       </Flex>
 
-      {/* ─── Provider Availability ─── */}
-      <Surface style={{ padding: 16 }}>
-        <Flex alignItems="center" gap={8} style={{ marginBottom: 16 }}>
-          <HostsIcon />
-          <Heading level={4}>LLM Provider Availability</Heading>
-          <Text textStyle="small" style={{ opacity: 0.6 }}>calculated from span error rates</Text>
-        </Flex>
-        {providers.length > 0 ? (
-          <Flex flexDirection="column" gap={16}>
-            {providers.map((p) => (
-              <Flex key={p.provider} alignItems="center" gap={16} flexWrap="wrap">
-                <Text style={{ width: 160, fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>
-                  {p.provider || '(unknown)'}
-                </Text>
-                <Flex flex="1 1 300px" alignItems="center" gap={8}>
-                  <ProgressBar
-                    value={p.availabilityPct}
-                    max={100}
-                    style={{ flex: 1 }}
-                  />
-                  <Text style={{ width: 56, fontWeight: 700, color: availabilityColor(p.availabilityPct), textAlign: 'right' }}>
-                    {p.availabilityPct.toFixed(1)}%
-                  </Text>
-                </Flex>
-                <Flex gap={16}>
-                  <Flex flexDirection="column" alignItems="flex-end">
-                    <Text textStyle="small" style={{ opacity: 0.6 }}>Requests</Text>
-                    <Text style={{ fontWeight: 600 }}>{fmt(p.total)}</Text>
-                  </Flex>
-                  <Flex flexDirection="column" alignItems="flex-end">
-                    <Text textStyle="small" style={{ opacity: 0.6 }}>Errors</Text>
-                    <Text style={{ fontWeight: 600, color: p.errors > 0 ? STATUS_COLORS.critical : 'inherit' }}>
-                      {fmt(p.errors)}
-                    </Text>
-                  </Flex>
-                  <Flex flexDirection="column" alignItems="flex-end">
-                    <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Latency</Text>
-                    <Text style={{ fontWeight: 600 }}>{fmtMs(p.avgLatencyMs)}</Text>
-                  </Flex>
-                </Flex>
-              </Flex>
-            ))}
-          </Flex>
-        ) : (
-          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            {loading ? 'Loading provider data…' : 'No provider data found. Ensure gen_ai.provider.name is set on your spans.'}
-          </Text>
-        )}
-      </Surface>
-
-      {/* ─── Service Workloads ─── */}
+      {/* ─── Service Configuration Snapshot ─── */}
       <Surface style={{ padding: 16 }}>
         <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
           <ServicesIcon />
-          <Heading level={4}>AI Service Workloads</Heading>
-          <Text textStyle="small" style={{ opacity: 0.6 }}>services instrumented with gen_ai.* spans</Text>
+          <Heading level={4}>AI Service Configuration</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>which model + provider each service is currently calling</Text>
         </Flex>
-        {workloads.length > 0 ? (
+
+        {loading && serviceConfigs.length === 0 ? (
+          <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>
+        ) : serviceConfigs.length > 0 ? (
           <DataTable
-            data={workloads}
+            data={serviceConfigs}
             columns={[
               {
                 header: 'Service',
@@ -244,57 +217,51 @@ export const Infrastructure: React.FC = () => {
                 ),
               },
               {
-                header: 'Provider',
-                id: 'provider',
-                accessor: 'provider',
-                width: 130,
+                header: 'Current Model',
+                id: 'model',
+                accessor: 'model',
                 cell: ({ value }) => (
-                  <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'monospace', color: STATUS_COLORS.purple }}>
+                    {String(value ?? '—')}
+                  </Text>
                 ),
               },
               {
-                header: 'Span Volume',
-                id: 'spanCount',
-                accessor: 'spanCount',
-                width: 110,
-                cell: ({ value }) => <Text style={{ fontWeight: 600 }}>{fmt(Number(value))}</Text>,
+                header: 'Provider',
+                id: 'provider',
+                accessor: 'provider',
+                width: 150,
+                cell: ({ value }) => <ProviderBadge provider={String(value ?? '')} />,
               },
               {
-                header: 'Error Rate',
-                id: 'errorRate',
-                accessor: 'errorRate',
-                width: 100,
+                header: 'Model Variants',
+                id: 'modelVersions',
+                accessor: 'modelVersions',
+                width: 130,
                 cell: ({ value }) => {
-                  const r = Number(value);
+                  const n = Number(value);
                   return (
-                    <Text style={{ color: errorRateColor(r), fontWeight: 600 }}>
-                      {r.toFixed(1)}%
+                    <Text style={{ fontWeight: 600, color: n > 1 ? STATUS_COLORS.warning : 'inherit' }}>
+                      {n > 1 ? `⚠ ${n} versions` : String(n)}
                     </Text>
                   );
                 },
               },
               {
-                header: 'Avg Latency',
-                id: 'avgLatencyMs',
-                accessor: 'avgLatencyMs',
-                width: 110,
-                cell: ({ value }) => <Text>{fmtMs(Number(value))}</Text>,
-              },
-              {
-                header: 'Models Used',
-                id: 'modelCount',
-                accessor: 'modelCount',
+                header: 'Requests',
+                id: 'requestCount',
+                accessor: 'requestCount',
                 width: 100,
-                cell: ({ value }) => <Text>{String(value ?? '—')}</Text>,
+                cell: ({ value }) => <Text style={{ fontWeight: 600 }}>{fmt(Number(value))}</Text>,
               },
               {
-                header: 'Last Seen',
+                header: 'Last Active',
                 id: 'lastSeen',
                 accessor: 'lastSeen',
-                width: 150,
+                width: 130,
                 cell: ({ value }) => (
                   <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                    {value ? new Date(String(value)).toLocaleTimeString() : '—'}
+                    {relTime(String(value ?? ''))}
                   </Text>
                 ),
               },
@@ -304,91 +271,106 @@ export const Infrastructure: React.FC = () => {
           </DataTable>
         ) : (
           <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-            {loading ? 'Loading…' : 'No AI service workloads detected.'}
+            No AI service configuration data found. Ensure services emit gen_ai.request.model or gen_ai.provider.name span attributes.
           </Text>
         )}
       </Surface>
 
-      {/* ─── Problems + Deployments side-by-side ─── */}
+      {/* ─── Model Version History + Deployments side by side ─── */}
       <Flex gap={16} flexWrap="wrap">
-        {/* Davis Problems */}
-        <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 300 }}>
+
+        {/* Model Usage History — 7d fixed window to capture full change history */}
+        <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 340 }}>
           <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <CriticalIcon />
-            <Heading level={4}>Davis Problems</Heading>
-            <Text textStyle="small" style={{ opacity: 0.6 }}>recent active or resolved problems</Text>
+            <AiIcon />
+            <Heading level={4}>Model Usage History</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>last 7 days — detect model switches per service</Text>
           </Flex>
-          {problems.length > 0 ? (
+
+          {loading && modelHistory.length === 0 ? (
+            <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>
+          ) : modelHistory.length > 0 ? (
             <DataTable
-              data={problems}
+              data={modelHistory}
               columns={[
                 {
-                  header: 'Problem',
-                  id: 'title',
-                  accessor: 'title',
+                  header: 'Service',
+                  id: 'serviceName',
+                  accessor: 'serviceName',
                   cell: ({ value }) => (
-                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>
+                      {String(value ?? '—')}
+                    </Text>
                   ),
                 },
                 {
-                  header: 'Severity',
-                  id: 'severity',
-                  accessor: 'severity',
-                  width: 110,
-                  cell: ({ value }) => {
-                    const s = String(value ?? '');
-                    const c = severityColor(s);
-                    return (
-                      <Text style={{ fontSize: 11, fontWeight: 600, color: c, background: `${c}20`, padding: '2px 6px', borderRadius: 4, display: 'inline-block' }}>
-                        {s || 'UNKNOWN'}
-                      </Text>
-                    );
-                  },
+                  header: 'Model',
+                  id: 'model',
+                  accessor: 'model',
+                  cell: ({ value }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', color: STATUS_COLORS.purple }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
                 },
                 {
-                  header: 'Status',
-                  id: 'status',
-                  accessor: 'status',
+                  header: 'Provider',
+                  id: 'provider',
+                  accessor: 'provider',
+                  width: 130,
+                  cell: ({ value }) => <ProviderBadge provider={String(value ?? '')} />,
+                },
+                {
+                  header: 'Requests',
+                  id: 'requestCount',
+                  accessor: 'requestCount',
                   width: 90,
+                  cell: ({ value }) => <Text style={{ fontSize: 11, fontWeight: 600 }}>{fmt(Number(value))}</Text>,
+                },
+                {
+                  header: 'First Seen',
+                  id: 'firstSeen',
+                  accessor: 'firstSeen',
+                  width: 120,
                   cell: ({ value }) => (
-                    <Flex gap={4} alignItems="center">
-                      {statusIcon(String(value ?? ''))}
-                      <Text style={{ fontSize: 11 }}>{String(value ?? '—')}</Text>
-                    </Flex>
+                    <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      {shortDate(String(value ?? ''))}
+                    </Text>
                   ),
                 },
                 {
-                  header: 'Duration',
-                  id: 'durationMin',
-                  accessor: 'durationMin',
-                  width: 80,
-                  cell: ({ value }) => {
-                    const m = Number(value ?? 0);
-                    return <Text style={{ fontSize: 11 }}>{m > 60 ? `${(m / 60).toFixed(1)}h` : `${Math.round(m)}m`}</Text>;
-                  },
+                  header: 'Last Seen',
+                  id: 'lastSeen',
+                  accessor: 'lastSeen',
+                  width: 120,
+                  cell: ({ value }) => (
+                    <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      {relTime(String(value ?? ''))}
+                    </Text>
+                  ),
                 },
               ]}
             >
-              <DataTable.Pagination defaultPageSize={5} />
+              <DataTable.Pagination defaultPageSize={8} />
             </DataTable>
           ) : (
-            <Flex alignItems="center" gap={8} style={{ padding: 16 }}>
-              <CheckmarkIcon style={{ color: STATUS_COLORS.healthy, width: 20, height: 20 }} />
-              <Text style={{ color: STATUS_COLORS.healthy }}>
-                {loading ? 'Loading…' : 'No Davis problems found in this time range — all clear!'}
-              </Text>
-            </Flex>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              No model history data found for the last 7 days.
+            </Text>
           )}
         </Surface>
 
-        {/* Deployment Events */}
-        <Surface style={{ flex: '1 1 40%', padding: 16, minWidth: 280 }}>
+        {/* Recent Deployments */}
+        <Surface style={{ flex: '1 1 40%', padding: 16, minWidth: 300 }}>
           <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
             <WorkflowsIcon />
             <Heading level={4}>Recent Deployments</Heading>
-            <Text textStyle="small" style={{ opacity: 0.6 }}>deployment events for AI services</Text>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>changes that may affect AI behavior</Text>
           </Flex>
-          {deployments.length > 0 ? (
+
+          {loading && deployments.length === 0 ? (
+            <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>
+          ) : deployments.length > 0 ? (
             <DataTable
               data={deployments}
               columns={[
@@ -404,7 +386,7 @@ export const Infrastructure: React.FC = () => {
                   header: 'Version',
                   id: 'version',
                   accessor: 'version',
-                  width: 120,
+                  width: 130,
                   cell: ({ value }) => (
                     <Text style={{ fontSize: 11, fontFamily: 'monospace', color: STATUS_COLORS.neutral }}>
                       {String(value ?? '—')}
@@ -412,24 +394,29 @@ export const Infrastructure: React.FC = () => {
                   ),
                 },
                 {
-                  header: 'Time',
+                  header: 'When',
                   id: 'timestamp',
                   accessor: 'timestamp',
-                  width: 130,
+                  width: 120,
                   cell: ({ value }) => (
                     <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                      {value ? new Date(String(value)).toLocaleTimeString() : '—'}
+                      {relTime(String(value ?? ''))}
                     </Text>
                   ),
                 },
               ]}
             >
-              <DataTable.Pagination defaultPageSize={5} />
+              <DataTable.Pagination defaultPageSize={8} />
             </DataTable>
           ) : (
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 16 }}>
-              {loading ? 'Loading…' : 'No deployment events found.'}
-            </Text>
+            <Flex flexDirection="column" gap={8} style={{ padding: 16 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                {loading ? 'Loading…' : 'No deployment events found in this time range.'}
+              </Text>
+              <Text textStyle="small" style={{ opacity: 0.6 }}>
+                Deployment events are captured by the Dynatrace OneAgent when new service versions are deployed.
+              </Text>
+            </Flex>
           )}
         </Surface>
       </Flex>

@@ -380,3 +380,23 @@ export interface DeploymentEvent {
   version: string;
   artifact: string;
 }
+
+/** Current model + provider a service is configured to call */
+export interface ServiceConfig {
+  serviceName: string;
+  model: string;
+  provider: string;
+  modelVersions: number;
+  requestCount: number;
+  lastSeen: string;
+}
+
+/** Historical record: when a service used a specific model/provider combination */
+export interface ModelHistoryEntry {
+  serviceName: string;
+  model: string;
+  provider: string;
+  requestCount: number;
+  firstSeen: string;
+  lastSeen: string;
+}

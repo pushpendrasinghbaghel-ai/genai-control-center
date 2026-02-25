@@ -871,34 +871,59 @@ fetch spans, ${timeClause}
 };
 
 /**
- * Davis problems for AI workloads — last N hours, any severity.
- */
-export const INFRA_DAVIS_PROBLEMS_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
-  return `
-fetch dt.davis.problems, ${timeClause}
-| fieldsAdd problem_id = id, title = display_id, severity = event.severity, status = event.status,
-    start_time = start_time, duration_min = toLong(duration) / 60000000000,
-    affected_entities = event.entity.names
-| sort start_time desc
-| limit 25
-`.trim();
-};
-
-/**
- * Recent deployment events for AI services.
+ * Recent deployment events (pushed or observed by Dynatrace OneAgent).
  */
 export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
   return `
 fetch events, ${timeClause}
-| filter event.type == "DEPLOYMENT" OR event.kind == "DEPLOYMENT_EVENT" OR event.category == "DEPLOYMENT"
-| fields 
+| filter event.kind == "DEPLOYMENT_EVENT"
+| fields
     event_id = id,
     title = event.name,
-    entity = event.entity.name,
+    entity = dt.entity.name,
     timestamp = timestamp,
     version = dt.event.deployment.version,
     artifact = dt.event.deployment.artifact_version
 | sort timestamp desc
-| limit 20
+| limit 30
+`.trim();
+};
+
+/**
+ * Current model + provider configuration per service (config snapshot).
+ * Shows which service is calling which LLM model/provider right now.
+ */
+export const INFRA_SERVICE_CONFIG_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model) OR isNotNull(gen_ai.provider.name)
+| summarize
+    model = takeFirst(gen_ai.request.model),
+    provider = takeFirst(gen_ai.provider.name),
+    model_versions = countDistinct(gen_ai.request.model),
+    request_count = count(),
+    last_seen = max(start_time),
+    by: { service_name = service.name }
+| sort last_seen desc
+| limit 40
+`.trim();
+};
+
+/**
+ * Model version history — when each service used which model/provider.
+ * Useful for detecting model switches and deployment-related config changes.
+ * Uses a wider 7-day window to capture full change history.
+ */
+export const INFRA_MODEL_HISTORY_QUERY = (): string => {
+  return `
+fetch spans, from: now()-7d, to: now()
+| filter isNotNull(gen_ai.request.model)
+| summarize
+    request_count = count(),
+    first_seen = min(start_time),
+    last_seen = max(start_time),
+    by: { service_name = service.name, model = gen_ai.request.model, provider = gen_ai.provider.name }
+| sort last_seen desc
+| limit 60
 `.trim();
 };

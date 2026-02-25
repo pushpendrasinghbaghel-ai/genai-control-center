@@ -1,32 +1,27 @@
-// GenAI Control Center — Infrastructure Hook (Phase 6)
-// Surfaces provider availability, AI service workloads, Davis problems, and deployment events.
+// GenAI Control Center — Infrastructure Hook
+// Surfaces deployment events, service config snapshots, and model version history.
+// Provider availability → /providers page. Service workloads → /services page.
+// Davis problems → /problems page.
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import {
-  INFRA_PROVIDER_AVAILABILITY_QUERY,
-  INFRA_SERVICE_WORKLOAD_QUERY,
-  INFRA_DAVIS_PROBLEMS_QUERY,
   INFRA_DEPLOYMENT_EVENTS_QUERY,
+  INFRA_SERVICE_CONFIG_QUERY,
+  INFRA_MODEL_HISTORY_QUERY,
   buildTimeRangeClauseFromTimeframe,
 } from '../queries/dql-queries';
-import type {
-  InfraProvider,
-  InfraServiceWorkload,
-  DavisProblem,
-  DeploymentEvent,
-} from '../types';
+import type { DeploymentEvent, ServiceConfig, ModelHistoryEntry } from '../types';
 
 // ============================================
 // Return Shape
 // ============================================
 
 export interface UseInfrastructureReturn {
-  providers: InfraProvider[];
-  workloads: InfraServiceWorkload[];
-  problems: DavisProblem[];
   deployments: DeploymentEvent[];
+  serviceConfigs: ServiceConfig[];
+  modelHistory: ModelHistoryEntry[];
   loading: boolean;
   error: Error | null;
   refetch: (timeframe?: Timeframe | null) => Promise<void>;
@@ -60,10 +55,9 @@ const num = (v: unknown): number => (v == null ? 0 : Number(v));
 // ============================================
 
 export function useInfrastructure(): UseInfrastructureReturn {
-  const [providers, setProviders] = useState<InfraProvider[]>([]);
-  const [workloads, setWorkloads] = useState<InfraServiceWorkload[]>([]);
-  const [problems, setProblems] = useState<DavisProblem[]>([]);
   const [deployments, setDeployments] = useState<DeploymentEvent[]>([]);
+  const [serviceConfigs, setServiceConfigs] = useState<ServiceConfig[]>([]);
+  const [modelHistory, setModelHistory] = useState<ModelHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -72,47 +66,11 @@ export function useInfrastructure(): UseInfrastructureReturn {
     setError(null);
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
     try {
-      const [provRows, workRows, probRows, deployRows] = await Promise.all([
-        runQuery(INFRA_PROVIDER_AVAILABILITY_QUERY(timeClause)),
-        runQuery(INFRA_SERVICE_WORKLOAD_QUERY(timeClause)),
-        runQuery(INFRA_DAVIS_PROBLEMS_QUERY(timeClause)),
+      const [deployRows, configRows, historyRows] = await Promise.all([
         runQuery(INFRA_DEPLOYMENT_EVENTS_QUERY(timeClause)),
+        runQuery(INFRA_SERVICE_CONFIG_QUERY(timeClause)),
+        runQuery(INFRA_MODEL_HISTORY_QUERY()),
       ]);
-
-      setProviders(
-        provRows.map((r: any) => ({
-          provider: str(r['provider']),
-          total: num(r['total']),
-          errors: num(r['errors']),
-          availabilityPct: num(r['availability_pct']),
-          avgLatencyMs: num(r['avg_latency_ms']),
-        }))
-      );
-
-      setWorkloads(
-        workRows.map((r: any) => ({
-          serviceName: str(r['service_name']),
-          spanCount: num(r['span_count']),
-          errorCount: num(r['error_count']),
-          errorRate: num(r['error_rate']),
-          modelCount: num(r['model_count']),
-          avgLatencyMs: num(r['avg_latency_ms']),
-          provider: str(r['provider']),
-          lastSeen: str(r['last_seen']),
-        }))
-      );
-
-      setProblems(
-        probRows.map((r: any) => ({
-          problemId: str(r['problem_id']),
-          title: str(r['title']),
-          severity: str(r['severity']),
-          status: str(r['status']),
-          startTime: str(r['start_time']),
-          durationMin: num(r['duration_min']),
-          affectedEntities: str(r['affected_entities']),
-        }))
-      );
 
       setDeployments(
         deployRows.map((r: any) => ({
@@ -124,6 +82,28 @@ export function useInfrastructure(): UseInfrastructureReturn {
           artifact: str(r['artifact']),
         }))
       );
+
+      setServiceConfigs(
+        configRows.map((r: any) => ({
+          serviceName: str(r['service_name']),
+          model: str(r['model']),
+          provider: str(r['provider']),
+          modelVersions: num(r['model_versions']),
+          requestCount: num(r['request_count']),
+          lastSeen: str(r['last_seen']),
+        }))
+      );
+
+      setModelHistory(
+        historyRows.map((r: any) => ({
+          serviceName: str(r['service_name']),
+          model: str(r['model']),
+          provider: str(r['provider']),
+          requestCount: num(r['request_count']),
+          firstSeen: str(r['first_seen']),
+          lastSeen: str(r['last_seen']),
+        }))
+      );
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
@@ -131,5 +111,5 @@ export function useInfrastructure(): UseInfrastructureReturn {
     }
   }, []);
 
-  return { providers, workloads, problems, deployments, loading, error, refetch };
+  return { deployments, serviceConfigs, modelHistory, loading, error, refetch };
 }
