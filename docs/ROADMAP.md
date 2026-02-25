@@ -1,18 +1,19 @@
 ﻿# GenAI Control Center - Product Roadmap
 
-> **Last Updated:** June 2026  
-> **Version:** v2.9.0  
+> **Last Updated:** February 25, 2026  
+> **Version:** v3.0.0  
 > **Status:** Active Development
 
 ---
 
 ## 📋 Executive Summary
 
-This roadmap is based on comprehensive research from **McKinsey State of AI 2025**, **Deloitte State of AI 2026**, **Viatris Enterprise AI Metrics Assessment** (Feb 2026), and validation against **Dynatrace Grail** data availability. Features are prioritized by:
+This roadmap is based on comprehensive research from **McKinsey State of AI 2025**, **Deloitte State of AI 2026**, **Viatris Enterprise AI Metrics Assessment** (Feb 2026), **Competitive Landscape Analysis** of Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, and Datadog LLM Observability (Feb 2026), and validation against **Dynatrace Grail** data availability. Features are prioritized by:
 1. **Data Availability** - Does the data exist in Dynatrace Grail?
 2. **Business Value** - Does it address real customer pain points?
 3. **Differentiation** - Does it set GCC apart from competitors?
 4. **Enterprise Coverage** - Does it close gaps identified in the Viatris 134-metric assessment?
+5. **Competitive Parity** - Does it close gaps vs. Arize, Opik, Langfuse, LangSmith, and Datadog LLM Obs?
 
 ---
 
@@ -39,6 +40,84 @@ Transform GCC from an AI observability tool into a **strategic AI control plane*
 - 67% view sovereign AI as strategically important
 - Only 34% truly reimagining business with AI
 - AI skills gap is #1 barrier to integration
+
+---
+
+## 🏆 Competitive Landscape Analysis (Feb 25, 2026)
+
+> **Scope:** Deep research into 7 leading AI observability platforms — Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, and Datadog LLM Observability. Research conducted via official documentation, GitHub repositories, and product pages. All platforms evaluated against GCC's current feature set.
+
+### Competitor Overview
+
+| Tool | Type | Stars | Key Strengths | Target Users |
+|------|------|-------|--------------|--------------|
+| **Arize AX / Phoenix** | OSS + Cloud | ~12k | Tracing, evals, hallucination detection, AI copilot (Alyx) | AI Engineers, PM |
+| **Opik by Comet** | OSS + Cloud | 17.8k | LLM-as-judge, eval datasets, agent optimizer, guardrails, 50+ integrations | ML Engineers |
+| **Langfuse** | OSS + Cloud | 22k | Prompt management, sessions, annotation queues, RBAC, CI/CD integration | Full LLM stack teams |
+| **LangSmith** | Cloud | N/A | Agent tracing, conversation clustering, insights AI agent, dataset experiments | LangChain ecosystem |
+| **Helicone** | OSS + Cloud | ~8k | AI gateway/proxy, cost tracking, caching, 100+ model routing | Developers, startups |
+| **W&B Weave** | OSS + Cloud | N/A | Evaluation leaderboards, online evals, multi-modal, agent graphs, inference | ML researchers, teams |
+| **Datadog LLM Obs** | Enterprise | N/A | Full-stack infra+LLM, cluster maps, prompt injection detection, APM correlation | Enterprise |
+
+### Feature Coverage Matrix
+
+| Feature Category | Arize | Opik | Langfuse | LangSmith | Helicone | W&B Weave | Datadog | **GCC** |
+|-----------------|:-----:|:----:|:--------:|:---------:|:--------:|:---------:|:-------:|:-------:|
+| **Tracing & Observability** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Cost / Token Monitoring** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Multi-Provider Comparison** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Agentic AI Tracing** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **Infra + LLM Correlation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Auto Anomaly Detection (AI)** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ✅ |
+| **Workflow Automation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ✅ |
+| **RAG / Vector DB Observability** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ⚠️ | 📋 |
+| **LLM-as-a-Judge Evaluations** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Evaluation Datasets** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Experiment / A-B Model Testing** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Online Evaluation Rules** | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **Annotation Queues (Human Review)** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Evaluation Leaderboards** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Conversation / Session Tracking** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Conversation Clustering / Topics** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Prompt Version Control + A/B** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Interactive Prompt Playground** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Hallucination Score (eval metric)** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Toxicity / Safety Scoring** | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **CI/CD LLM Testing (PyTest/hooks)** | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **MCP Protocol Tracing** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **AI Gateway / LLM Proxy** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Agent Optimizer (auto prompt opt.)** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Spend Alerts / Cost Budgets** | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **RBAC / SSO / SCIM** | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| **Audit Logs** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Multi-modal (image/audio/code)** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Agent Visual Graph View** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Data Export (blob / S3 / GCS)** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+> ✅ = Available | ⚠️ = Partial | ❌ = Not Available | 📋 = On GCC Roadmap
+
+### GCC Competitive Gaps — Grouped by Priority
+
+| Group | Description | Competitors that have it | GCC Priority |
+|-------|-------------|--------------------------|-------------|
+| **A — Evaluation Engine** | LLM-as-judge scoring, hallucination/toxicity/relevance evals, eval datasets, experiments, online rules, annotation queues | All 7 | 🔴 Critical |
+| **B — Conversation Intelligence** | Session/multi-turn tracking, conversation clustering, topic analysis, failure-to-answer | Arize, Opik, Langfuse, LangSmith, W&B, Datadog | 🔴 High |
+| **C — Prompt Engineering Tooling** | Prompt playground (interactive), version control, A/B testing | All 7 | 🟡 High |
+| **D — Modern Protocols** | MCP server tracing, CI/CD eval hooks | Langfuse, W&B, Datadog | 🟡 Medium |
+| **E — Spend Management** | Cost budget alerts, threshold notifications, per-team cost budgets | Langfuse, LangSmith, Helicone, Datadog | 🟡 Medium |
+| **F — Enterprise Governance** | RBAC, audit logs, data export, tenant isolation | Langfuse, LangSmith, W&B, Datadog | 🟠 Enterprise |
+
+### GCC Unique Differentiators (vs ALL competitors)
+
+These are capabilities that GCC has by virtue of being built on Dynatrace — **no competitor matches this**:
+
+1. **Full-stack infra+LLM correlation** — GPU → K8s pod → service → LLM span chain in a single trace. No standalone AI observability tool can do this without a separate APM.
+2. **Davis AI causal analysis** — Automatic root cause analysis using Dynatrace's Davis AI engine (not just pattern matching). Competitors use simple alerting.
+3. **Zero-config ingest via OpenTelemetry** — No SDK changes required; Dynatrace auto-instruments LLM calls through existing OneAgent + OTel pipeline.
+4. **Workflow Automation (built-in remediation)** — One-click Dynatrace Workflows to auto-remediate AI incidents. No competitor has native workflow automation.
+5. **Grail-scale data** — 572K+ GenAI spans/week already flowing with zero configuration. Competitors require explicit SDK setup per framework.
+6. **Davis CoPilot chat integration** — Native AI assistant for DQL queries and root cause analysis, built into the same platform.
+7. **Unified observability across ALL services** — AI services correlated with non-AI backend services, databases, and infrastructure in one console.
 
 ---
 
@@ -1325,19 +1404,19 @@ ai-travel-advisor-pro/
 
 ---
 
-## 📅 Visual Timeline (AI-Accelerated - 6 Weeks)
+## 📅 Visual Timeline (AI-Accelerated - 10 Weeks)
 
 ```
-FEBRUARY 2026                           MARCH 2026                           APRIL 2026
-Week 1      Week 2      Week 3      Week 4      Week 5      Week 6      Week 7      Week 8
-  |           |           |           |           |           |           |           |
-[P0]------->[P1]------->[P2]------->[P3]------->[P5]------->[P6+P7]--->[P4]------->[DONE]
-Demo App    Agentic     Quality     Maturity    RAG/VecDB   Platform    Advanced    Release
-5 days      5 days      5 days      3 days      5 days      5 days      5 days      v3.0
+FEBRUARY 2026                MARCH 2026                          APRIL 2026                  MAY 2026
+Wk1   Wk2   Wk3   Wk4   Wk5   Wk6   Wk7   Wk8   Wk9   Wk10
+ |     |     |     |     |     |     |     |     |     |
+[P0]->[P1]->[P2]->[P3]->[P5]->[P6+P7]->[P4]->[P8]->[P8]->[DONE]
+Demo  Agent Qual  Mat   RAG   Plat    Adv   Eval  Conv  Release
+5d    5d    5d    3d    5d    5d      5d    5d    5d    v3.0
 
 AI-ASSISTED DEVELOPMENT (GitHub Copilot) = 70% faster
 
-8-WEEK SPRINT PLAN (Updated for Viatris Coverage):
+10-WEEK SPRINT PLAN (Updated for Viatris Coverage + Competitive Parity):
 
 WEEK 1: Demo App Foundation
   - Day 1-2: FastAPI + React skeleton
@@ -1378,25 +1457,423 @@ WEEK 6: GCC Phase 6 + 7 - Platform Health + Governance  [NEW-VIATRIS]
   Milestone: Full-stack AI observability + security posture
   Viatris Impact: Domain 6 coverage 39% → 74%, Domain 5 coverage 26% → 47%
 
-WEEK 7: GCC Phase 4 - Advanced Features (Requires Demo App)
+WEEK 8: GCC Phase 4 - Advanced Features (Requires Demo App)
   - Day 1-2: Business ROI Dashboard
   - Day 3: User Feedback Analytics (RLHF)
   - Day 4: Sovereign AI Compliance
   - Day 5: Source Code Linking
   Milestone: All enterprise features complete
 
-WEEK 8: Polish + Documentation
+WEEK 9: GCC Phase 8 - Competitive Parity [NEW-COMPETITOR GAP]
+  - Day 1: LLM Evaluation Engine (heuristic tier) + Evaluations page
+  - Day 2: Conversation Intelligence + Sessions page
+  - Day 3: Prompt Playground + Version History (enhance PromptGovernance)
+  - Day 4: MCP Protocol tracing (enhance AgentTools) + Spend Alerts (enhance FinOps)
+  - Day 5: Enterprise Access Controls (enhance Governance) + polish
+  Milestone: Competitive parity with Arize, Opik, Langfuse on evaluation + conversation layers
+  Competitive Impact: Closes 16 of top competitor feature gaps
+
+WEEK 10: Polish + Documentation
   - Day 1-2: Bug fixes, UI polish
   - Day 3-4: Demo scripts, documentation
   - Day 5: Release v3.0.0
 
-TOTAL: 8 weeks -> Full Enterprise AI Control Center
+TOTAL: 10 weeks -> Full Enterprise AI Control Center + Competitive Parity
 VIATRIS COVERAGE: 40% → 72% (97 of 134 metrics addressed)
+COMPETITIVE GAPS CLOSED: 16 of 22 identified gaps (73%)
 ```
 
 ---
 
+---
+
+## Phase 8: Competitive Parity — Evaluation, Conversation Intelligence & Prompt Tooling (NEW — Competitor Gap)
+
+> **DRIVER:** Competitive Analysis (Feb 25, 2026) — Deep research into Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, and Datadog LLM Observability revealed that GCC's biggest gap vs. all 7 competitors is the **evaluation & experimentation layer** and **conversation intelligence**. These are the #1 features customers from the AI observability space ask for when evaluating tools.
+>
+> **DATA STATUS:** 🟢 HIGH for Groups B, E — conversation IDs, token costs already in Grail. 🟡 PARTIAL for Group A — basic heuristic evals now; true LLM-as-judge requires Phase 0. Phase 0 unlocks the full layer.
+
+### 8.1 LLM Evaluation Engine
+**Priority:** P1 | **Feasibility:** 🟡 PARTIAL (heuristics now; full LLM-judge after Phase 0) | **Status:** 📋 Planned
+
+**Why:** This is the single most-repeated feature across all 7 competitors. Arize, Opik, Langfuse, LangSmith, W&B, and Datadog all have robust LLM-as-a-judge scoring. Customers evaluating GCC for AI observability ask: *"Can I automatically score my production traces for hallucinations, relevance, and toxicity?"*
+
+**New Page:** `/evaluations` | **New Hook:** `useEvaluations.ts`
+
+#### Features
+| Feature | Data Source | Feasibility | Status | Notes |
+|---------|-------------|------------|--------|-------|
+| Heuristic eval metrics | Span attributes (response length, latency, error rate) | 🟢 HIGH | 📋 | Buildable today from Grail spans |
+| Hallucination scoring (pattern-based) | Response content patterns + DQL | 🟢 HIGH | 📋 | Flag responses with known hallucination indicators |
+| Response quality score (latency × error-rate × token-efficiency) | `gen_ai.usage.*`, `duration`, error spans | 🟢 HIGH | 📋 | Composite score per trace |
+| Online evaluation rules (auto-flag low-quality traces) | DQL threshold rules + Davis events | 🟢 HIGH | 📋 | If response quality score < threshold → flag |
+| Annotation queue (human review of flagged traces) | Dynatrace notebook + workflow trigger | 🟡 PARTIAL | 📋 | Review via Dynatrace; not native GCC UI |
+| LLM-as-a-judge scoring (true semantic eval) | `gen_ai.eval.*` attributes OR Phase 0 bizevent | 🔴 Blocked | 📋 | Requires Phase 0 or external eval API |
+| Evaluation datasets (curate production traces) | `gen_ai.prompt`, `gen_ai.completion` in Grail | 🟡 PARTIAL | 📋 | Export curated trace subsets to JSON |
+| Experiment comparison (prompt A vs B vs C) | DQL group by `gen_ai.request.model` × time window | 🟢 HIGH | 📋 | Compare quality/latency/cost across versions |
+
+#### Heuristic Eval Metrics (DQL — Buildable Today)
+```dql
+-- Response quality composite score (heuristic, no LLM judge needed)
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.provider.name)
+| summarize
+    avg_latency_ms = avg(duration) / 1000000,
+    error_rate = countIf(otel.status_code == "ERROR") / count() * 100,
+    avg_output_tokens = avg(gen_ai.usage.output_tokens),
+    avg_input_tokens = avg(gen_ai.usage.input_tokens),
+    total_calls = count(),
+    by: { service = dt.entity.service, gen_ai.request.model }
+| fieldsAdd
+    token_efficiency = avg_output_tokens / avg_input_tokens,
+    quality_score = (100 - error_rate) * 0.5 + (if(avg_latency_ms < 2000, 30, if(avg_latency_ms < 5000, 15, 0))) + (if(token_efficiency > 0.3, 20, 10))
+| sort quality_score asc
+| limit 50
+
+-- Flag low-quality responses (long latency + high token use + error)
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.provider.name)
+| filter otel.status_code == "ERROR" OR duration > 10000000000  -- > 10s
+| summarize count = count(), by: { gen_ai.request.model, dt.entity.service, otel.status_code }
+| sort count desc
+
+-- Trace-level quality view with inputs/outputs
+fetch spans, from:now()-1h
+| filter isNotNull(gen_ai.prompt)
+| filter otel.status_code == "ERROR" OR duration > 8000000000
+| fields timestamp, trace.id, gen_ai.request.model, gen_ai.provider.name,
+    gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, duration, otel.status_code,
+    gen_ai.prompt, gen_ai.completion.0.content
+| sort duration desc
+| limit 100
+```
+
+#### What's Blocked (Requires Phase 0 LLM-judge instrumentation)
+- ❌ True hallucination score (needs `gen_ai.eval.hallucination_score` on spans)
+- ❌ Answer relevance / context precision (needs external eval call)
+- ❌ Grounding / faithfulness scoring (needs RAG context + eval pipeline)
+- ❌ Toxicity/bias detection (needs NLP classifier or LLM judge call)
+
+#### Implementation Checklist
+| Component | Effort | Status |
+|-----------|--------|--------|
+| DQL queries — heuristic evals | 2h | 📋 |
+| Types: `EvalScore`, `EvalResult`, `AnnotationFlag` | 1h | 📋 |
+| `useEvaluations.ts` hook | 3h | 📋 |
+| `Evaluations.tsx` page (quality scores, flagged traces table) | 5h | 📋 |
+| Route + navigation | 0.5h | 📋 |
+| **Total (heuristic tier)** | **~11.5h** | |
+
+---
+
+### 8.2 Conversation Intelligence & Session Tracking
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+
+**Why:** Arize, Opik, Langfuse, LangSmith, W&B, and Datadog all offer session/conversation tracking — grouping individual LLM calls into multi-turn conversation views. GCC currently shows individual spans but has no concept of a conversation. The data is **already available in Grail**: `traceloop.association.properties.conversation_id` is populated on agent spans.
+
+**Enhancement target:** Add `/conversations` page OR conversation tab on HealthDashboard.
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Conversation list (grouped by conversation_id) | `traceloop.association.properties.conversation_id` | 📋 | Already in Grail data |
+| Conversation turn count | Span count per conversation_id | 📋 | Simple groupby |
+| Conversation duration (start → end) | min/max timestamp per conversation_id | 📋 | Session length |
+| Multi-turn token usage | Sum tokens per conversation_id | 📋 | Total cost per session |
+| Agent involved per conversation | Distinct `traceloop.entity.name` per conversation_id | 📋 | Which agents participated |
+| Error rate per conversation | Error spans / total spans per conversation_id | 📋 | Session-level SLA |
+| Conversation topic clustering (heuristic) | Group by `gen_ai.prompt` keyword patterns | 📋 | Auto-tag: question, booking, complaint |
+| Failure-to-answer rate | Flag responses < 50 tokens or containing "I cannot" patterns | 📋 | Quality signal |
+| Long conversation detection (agent loops) | conversation turn count > threshold | 📋 | Agentic loop warning |
+
+#### DQL Queries (Validated — Data Exists in Grail)
+```dql
+-- Conversation summary (multi-turn session view)
+fetch spans, from:now()-24h
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize
+    turns = count(),
+    total_input_tokens = sum(toLong(gen_ai.usage.input_tokens)),
+    total_output_tokens = sum(toLong(gen_ai.usage.output_tokens)),
+    session_start = min(timestamp),
+    session_end = max(timestamp),
+    agents = collectDistinct(traceloop.entity.name),
+    error_turns = countIf(otel.status_code == "ERROR"),
+    models_used = collectDistinct(gen_ai.request.model),
+    by: { conversation_id = traceloop.association.properties.conversation_id }
+| fieldsAdd
+    duration_secs = toLong(session_end - session_start) / 1000000000,
+    total_tokens = total_input_tokens + total_output_tokens
+| sort turns desc
+| limit 200
+
+-- Failure-to-answer detection (short or evasive responses)
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.completion.0.content)
+| filter toLong(gen_ai.usage.output_tokens) < 30
+    OR contains(toString(gen_ai.completion.0.content), "I cannot")
+    OR contains(toString(gen_ai.completion.0.content), "I don't know")
+    OR contains(toString(gen_ai.completion.0.content), "I'm not able")
+| summarize
+    failure_count = count(),
+    by: { gen_ai.request.model, gen_ai.provider.name }
+| sort failure_count desc
+
+-- Topic clustering (heuristic keyword grouping)
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.prompt)
+| fieldsAdd
+    topic = if(contains(toString(gen_ai.prompt), "book") OR contains(toString(gen_ai.prompt), "reservation"), "Booking",
+            if(contains(toString(gen_ai.prompt), "cancel") OR contains(toString(gen_ai.prompt), "refund"), "Cancellation",
+            if(contains(toString(gen_ai.prompt), "error") OR contains(toString(gen_ai.prompt), "problem"), "Issue-Resolution",
+            if(contains(toString(gen_ai.prompt), "price") OR contains(toString(gen_ai.prompt), "cost"), "Pricing",
+            "General"))))
+| summarize call_count = count(), by: { topic, gen_ai.request.model }
+| sort call_count desc
+
+-- Long conversation / agent loop warning
+fetch spans, from:now()-24h
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize turns = count(), by: { conversation_id = traceloop.association.properties.conversation_id }
+| filter turns > 20
+| sort turns desc
+```
+
+#### Implementation Checklist
+| Component | Effort | Status |
+|-----------|--------|--------|
+| DQL queries for sessions | 2h | 📋 |
+| Types: `ConversationSession`, `ConversationTopic` | 1h | 📋 |
+| `useConversations.ts` hook | 3h | 📋 |
+| `Conversations.tsx` page (session list, topic chart, failure rate) | 5h | 📋 |
+| Route + navigation | 0.5h | 📋 |
+| **Total** | **~11.5h** | |
+
+---
+
+### 8.3 Prompt Playground & Version Control
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+
+**Why:** Langfuse, LangSmith, Arize, Opik, and W&B Weave all offer interactive prompt playgrounds — letting users run prompts against live models and compare results. GCC has a PromptGovernance page that shows prompt data but offers no interactive testing or version-diff capability.
+
+**Enhancement target:** Enhance existing PromptGovernance page + add playground tab.
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Prompt version history (per service) | `gen_ai.prompt` grouped by service × time bucket | 📋 | Track prompt drift over time |
+| Prompt hash deduplication | SHA fingerprint of prompt content | 📋 | Detect when prompt template changed |
+| Prompt diff view | Latest vs 24h-ago prompt template | 📋 | Visual highlight of changes |
+| Most common prompts (ranked by frequency) | `gen_ai.prompt` sorted by count | 📋 | Top prompt templates in production |
+| Prompt cost breakdown | Prompt × token cost | 📋 | Which prompt is most expensive |
+| Interactive playground (call live model via Davis CoPilot) | Davis AI SDK | 📋 | Requires Davis Copilot integration |
+| A/B prompt comparison (same input, different prompt versions) | DQL: group by time window × prompt hash | 📋 | Compare quality across versions |
+
+#### DQL Queries
+```dql
+-- Prompt version history per service (detect template changes)
+fetch spans, from:now()-7d
+| filter isNotNull(gen_ai.prompt)
+| summarize
+    call_count = count(),
+    avg_tokens = avg(gen_ai.usage.input_tokens),
+    by: { dt.entity.service, prompt_day = bin(timestamp, 1d),
+          gen_ai.request.model }
+| sort prompt_day asc
+
+-- Most common prompts (ranked by frequency)
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.prompt)
+| summarize count = count(), avg_latency = avg(duration), by: { gen_ai.prompt }
+| sort count desc
+| limit 50
+
+-- Prompt cost breakdown
+fetch spans, from:now()-24h
+| filter isNotNull(gen_ai.prompt) AND isNotNull(gen_ai.usage.input_tokens)
+| summarize
+    calls = count(),
+    total_input_tokens = sum(toLong(gen_ai.usage.input_tokens)),
+    avg_cost_per_call = avg(toLong(gen_ai.usage.input_tokens)) * 0.000003,
+    by: { gen_ai.request.model, gen_ai.provider.name }
+| sort total_input_tokens desc
+```
+
+---
+
+### 8.4 MCP Protocol Observability
+**Priority:** P2 | **Feasibility:** 🟡 PARTIAL (depends on instrumentation) | **Status:** 📋 Planned
+
+**Why:** Model Context Protocol (MCP) is rapidly becoming the standard for tool-calling in AI agents. Langfuse, W&B Weave, and Datadog already have MCP tracing. As customers adopt MCP-based agent architectures, GCC needs to detect and surface MCP tool calls.
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| MCP server detection | `mcp.*` span attributes or `span.name` pattern | 📋 | Detect MCP calls in traces |
+| MCP tool invocation count & latency | `span.name` contains "mcp" | 📋 | Which MCP tools called most |
+| MCP tool error rate | Error spans on MCP calls | 📋 | MCP server health |
+| MCP call chain in agent traces | Parent-child span correlation with MCP | 📋 | Full agent→MCP→tool trace |
+
+#### DQL Queries
+```dql
+-- Detect MCP tool calls
+fetch spans, from:now()-24h
+| filter contains(span.name, "mcp") OR contains(span.name, "MCP")
+    OR contains(toString(span.attributes), "mcp")
+| summarize
+    invocations = count(),
+    error_rate = countIf(otel.status_code == "ERROR") / count() * 100,
+    avg_latency_ms = avg(duration) / 1000000,
+    by: { span.name, otel.status_code }
+| sort invocations desc
+
+-- MCP server health per tool
+fetch spans, from:now()-24h
+| filter contains(span.name, "mcp")
+| makeTimeseries calls = count(), errors = countIf(otel.status_code == "ERROR"),
+    interval: 1h, by: { span.name }
+```
+
+---
+
+### 8.5 Spend Alerts & Cost Budget Management
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+
+**Why:** Langfuse, LangSmith, Helicone, and Datadog all have cost threshold alerting. GCC shows cost analytics (FinOps page) but has no alerting capability when spend exceeds a budget. Using Dynatrace Workflow automation, this is fully buildable now.
+
+**Enhancement target:** Enhance FinOps page + add workflow-based alerting.
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| Daily cost budget tracking | Token count × model pricing | 📋 | Existing FinOps data + threshold |
+| Cost spike detection | Davis anomaly on cost timeseries | 📋 | Automatic anomaly via DQL Davis analyzer |
+| Budget alert workflow | Dynatrace Workflow → Slack/Email | 📋 | One-click workflow from Remediation Library |
+| Per-service cost breakdown alerts | Token cost grouped by service | 📋 | Alert if service spend > X |
+| Weekly cost forecast vs. budget | Davis forecasting analyzer | 📋 | Project monthly spend from current rate |
+| Cost comparison (this week vs last week) | DQL makeTimeseries + shift | 📋 | Detect unusual week-over-week increase |
+
+#### DQL Queries
+```dql
+-- Daily cost tracker with trend
+fetch spans, from:now()-7d
+| filter isNotNull(gen_ai.provider.name) AND isNotNull(gen_ai.usage.input_tokens)
+| summarize
+    input_tokens = sum(toLong(gen_ai.usage.input_tokens)),
+    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),
+    by: { day = bin(timestamp, 1d), gen_ai.request.model, gen_ai.provider.name }
+| fieldsAdd
+    estimated_cost_usd = input_tokens * 0.000003 + output_tokens * 0.000015
+| sort day asc
+
+-- Cost spike: today vs 7-day average
+fetch spans, from:now()-7d
+| filter isNotNull(gen_ai.usage.input_tokens)
+| summarize
+    total_tokens = sum(toLong(gen_ai.usage.input_tokens) + toLong(gen_ai.usage.output_tokens)),
+    by: { day = bin(timestamp, 1d) }
+| fieldsAdd estimated_cost = total_tokens * 0.000009
+| sort day asc
+
+-- Week-over-week cost comparison
+fetch spans, from:now()-14d
+| filter isNotNull(gen_ai.usage.input_tokens)
+| summarize tokens = sum(toLong(gen_ai.usage.input_tokens) + toLong(gen_ai.usage.output_tokens)),
+    by: { week = bin(timestamp, 7d) }
+| sort week asc
+```
+
+#### Workflow Template (Spend Alert)
+```json
+{
+  "name": "AI Spend Budget Alert",
+  "trigger": { "type": "schedule", "cron": "0 9 * * *" },
+  "actions": [
+    {
+      "name": "Check daily spend",
+      "type": "run_dql",
+      "query": "fetch spans, from:now()-24h | filter isNotNull(gen_ai.usage.input_tokens) | summarize total = sum(toLong(gen_ai.usage.input_tokens) + toLong(gen_ai.usage.output_tokens)) | fieldsAdd cost_usd = total * 0.000009"
+    },
+    {
+      "name": "Alert if over budget",
+      "type": "send_notification",
+      "condition": "cost_usd > 500",
+      "channels": ["slack", "email"]
+    }
+  ]
+}
+```
+
+---
+
+### 8.6 Enterprise Access & Data Controls
+**Priority:** P3 | **Feasibility:** 🟡 PARTIAL | **Status:** 📋 Planned
+
+**Why:** Langfuse, LangSmith, W&B, and Datadog all offer RBAC, audit logs, and data export. Enterprise customers need to know who accessed AI observability data and be able to export raw traces. Dynatrace has RBAC and audit logs natively — GCC just needs to surface this guidance.
+
+#### Features
+| Feature | Data Source | Status | Notes |
+|---------|-------------|--------|-------|
+| RBAC documentation for GCC | Dynatrace permission groups | 📋 | Document viewer/editor/admin roles |
+| Audit log viewer (who triggered workflows) | Dynatrace audit logs | 📋 | Surface in Governance page |
+| Data export (raw trace data to CSV/JSON) | Grail export API | 📋 | "Export last 7d traces" button |
+| Data retention visibility | Grail bucket configuration | 📋 | Show retention period per bucket |
+| Tenant/environment isolation | Dynatrace environment boundaries | 📋 | Document multi-env strategy |
+
+#### DQL Queries
+```dql
+-- Audit: workflow execution history
+fetch events, from:now()-7d
+| filter event.kind == "WORKFLOW_EXECUTION"
+| fields timestamp, event.name, user.name, workflow.status
+| sort timestamp desc
+| limit 100
+
+-- Data retention check (what's oldest span in Grail)
+fetch spans, from:now()-90d
+| summarize oldest = min(timestamp), newest = max(timestamp), total = count()
+```
+
+---
+
+### Phase 8 Implementation Summary
+
+| Sub-Phase | Feature Group | Effort | Feasibility | New Page/Hook |
+|-----------|--------------|--------|------------|--------------|
+| 8.1 | LLM Evaluation Engine | ~11.5h | 🟡 PARTIAL | `/evaluations`, `useEvaluations.ts` |
+| 8.2 | Conversation Intelligence | ~11.5h | 🟢 HIGH | `/conversations`, `useConversations.ts` |
+| 8.3 | Prompt Playground + Version History | ~6h | 🟢 HIGH | Enhance PromptGovernance |
+| 8.4 | MCP Protocol Observability | ~4h | 🟡 PARTIAL | Enhance AgentTools |
+| 8.5 | Spend Alerts + Cost Budgets | ~5h | 🟢 HIGH | Enhance FinOps + Remediation |
+| 8.6 | Enterprise Access Controls | ~4h | 🟡 PARTIAL | Enhance Governance |
+| **Total** | | **~42h** | | **2 new pages, 4 enhancements** |
+
+**Competitive Impact After Phase 8:**
+
+| Feature Gap | Arize | Opik | Langfuse | LangSmith | W&B | Datadog | GCC (after Phase 8) |
+|------------|:-----:|:----:|:--------:|:---------:|:---:|:-------:|:------------------:|
+| Heuristic Evals | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Conversation Tracking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Topic Clustering | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Spend Alerts | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Prompt History | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| MCP Tracing | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ⚠️ |
+| LLM-as-judge (true) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ (Phase 0 needed) |
+| **Infra+LLM Correlation** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | **✅ (Unique!)** |
+| **Davis AI Causation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ (Unique!)** |
+| **Workflow Automation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ (Unique!)** |
+
+---
+
 ## 🔄 Changelog
+
+### v3.0.0 (Feb 25, 2026)
+- **Competitive Landscape Analysis**: Comprehensive research across 7 AI observability competitors — Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, Datadog LLM Observability
+- **NEW Phase 8**: Competitive Parity — LLM Evaluation Engine, Conversation Intelligence, Prompt Playground, MCP Observability, Spend Alerts, Enterprise Access Controls
+- **Competitive Feature Matrix** added: 28 features mapped across 7 competitors + GCC
+- **GCC Differentiators** documented: 7 unique capabilities no competitor matches
+- **Infrastructure Page**: Redesigned to remove duplicates; unique Service Config + Model History sections added
+- Updated timeline: 9 weeks total; Phase 8 closes ~16 competitive gaps
 
 ### v2.5.0 (Feb 24, 2026)
 - **Viatris Metrics Gap Analysis**: Full assessment of 134 enterprise AI metrics across 6 domains
