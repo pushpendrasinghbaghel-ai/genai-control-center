@@ -249,6 +249,8 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
           hasRetrieve,
           hasGenerate,
           isFullPipeline: hasEmbed && hasRetrieve && hasGenerate,
+          serviceName: r['service_name'] ? String(r['service_name']) : undefined,
+          traceStart: r['trace_start'] ? String(r['trace_start']) : undefined,
         };
       });
       setPipelineTraces(traces);

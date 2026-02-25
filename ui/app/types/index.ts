@@ -271,6 +271,8 @@ export interface RAGPipelineTrace {
   hasRetrieve: boolean;
   hasGenerate: boolean;
   isFullPipeline: boolean;
+  serviceName?: string;
+  traceStart?: string;
 }
 
 export interface VectorDBCacheCandidate {

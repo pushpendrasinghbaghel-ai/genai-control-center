@@ -580,7 +580,9 @@ fetch spans, ${timeClause}
     has_embed = countIf(step_type == "embed") > 0,
     has_retrieve = countIf(step_type == "retrieve") > 0,
     has_generate = countIf(step_type == "generate") > 0,
-    sample_trace_id = takeLast(trace.id)
+    sample_trace_id = takeLast(trace.id),
+    service_name = takeFirst(service.name),
+    trace_start = min(timestamp)
   , by: { trace.id }
 | filter span_count >= 2
 | sort total_duration_ms desc
