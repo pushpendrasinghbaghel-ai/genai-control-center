@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.5.0
+# GenAI Control Center (GCC) v2.6.0
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -35,8 +35,9 @@ Navigation follows the **Observe → Analyze → Act** pattern, implemented in t
 | 6 | 🖥️ **Services** | `/services` | HealthDashboard | Auto-discovered AI services, quality metrics, deep linking |
 | 7 | 🤖 **Agents** | `/agents` | AgentTools | Tool usage tracking, agent flows, loop detection, efficiency metrics |
 | 8 | 🔬 **Drift** | `/drift` | ModelDrift | Drift scoring, version change alerts, baseline comparison, anomaly detection |
-| 9 | 🧠 **Intelligence** | `/intelligence` | Intelligence | Davis CoPilot integration, natural language queries, DQL generation |
-| 10 | ⚙️ **Operations** | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
+| 9 | 🔍 **RAG** | `/vector-db` | VectorDB | Pinecone query volume, embedding trends, RAG pipeline E2E, response latency by model |
+| 10 | 🧠 **Intelligence** | `/intelligence` | Intelligence | Davis CoPilot integration, natural language queries, DQL generation |
+| 11 | ⚙️ **Operations** | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
 
 ### Additional Routes (not in nav bar)
 
@@ -157,7 +158,29 @@ overallDrift = (latencyDrift × 0.25) + (outputDrift × 0.15) + (errorDrift × 0
 - **Auto-Baseline**: Compares last 7-14 days (baseline) vs last 7 days (current)
 - **Manual Baseline**: User can capture baseline via "Set as Baseline" button, persisted in localStorage
 
-### 🛡️ Governance - Compliance & Risk
+### � RAG / Vector DB — Pipeline Observability
+End-to-end visibility into Retrieval-Augmented Generation pipelines and vector store operations.
+
+- **Query Volume Timeseries** — Hourly Pinecone / vector store query counts with `makeTimeseries` bucketing
+- **Embedding Volume Timeseries** — Hourly embedding generation call counts per provider
+- **Latency Percentiles** — avg / p50 / p95 / p99 for vector store retrieval operations
+- **Embedding Providers** — Volume and latency breakdown by provider × model
+- **RAG Chain Step Performance** — Avg latency per pipeline stage with progress bar visualization
+- **Top Slowest RAG Pipeline Traces** — E2E trace table with direct Distributed Tracing deep-link (intent navigation)
+- **Response Latency by Model** — TTFT proxy using span duration; rated Excellent / Good / Fair / Slow (thresholds: <2s / <5s / <10s)
+- **Semantic Cache Opportunities** — Repeated Pinecone queries ranked by estimated savings potential
+- **Broad OTel Coverage** — Catches Pinecone, ChromaDB, Qdrant, Weaviate, Milvus + OTel standard attributes
+- **Default 24h + Auto-load** — Page loads data immediately on mount; `gen_ai.server.time_to_first_token` not required
+
+| Metric | OTel Source |
+|--------|-------------|
+| Query volume | `db.system` = pinecone/chromadb/qdrant/weaviate/milvus |
+| Embedding volume | `gen_ai.operation.name` = embeddings or span name contains "embed" |
+| Retrieval latency | Span duration for vector DB calls |
+| RAG chain steps | Span name patterns (retrieve, embed, generate, augment) |
+| Response latency proxy | Span duration for chat/completion/invoke spans with `gen_ai.request.model` |
+
+### �🛡️ Governance - Compliance & Risk
 - **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
   - 🔐 **PII Detection** - SSN, emails, phone numbers, credit cards
   - ⚠️ **Prompt Injection** - Malicious pattern detection
@@ -251,7 +274,7 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    GenAI Control Center v2.5.0                   │
+│                     GenAI Control Center v2.6.0                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  Observe          │  Analyze           │  Act                   │
 │  ───────          │  ───────           │  ───                   │
@@ -260,6 +283,7 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 │  Services         │  Drift             │  Agentic Workflows     │
 │  Agents           │  AI Architect      │                        │
 │  Topology         │  Provider Compare  │                        │
+│  RAG / VectorDB   │                    │                        │
 │  Problems         │                    │                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                     Shared Components                            │
@@ -272,8 +296,8 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 ├─────────────────────────────────────────────────────────────────┤
 │                      Custom Hooks                                │
 │  useDQLQueries │ useDavisAI │ useAgentTools │ useModelDrift     │
-│  useAIArchitect │ useResponseAnalytics │ useAIQuality           │
-│  useRemediation │ useWorkflows                                   │
+│  useAIArchitect │ useResponseAnalytics │ useAIQuality       │
+│  useRemediation │ useWorkflows │ useVectorDB                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                    Dynatrace SDKs                                │
 │  @dynatrace-sdk/client-query │ client-davis-copilot             │
@@ -300,13 +324,13 @@ gcc/
 │   ├── tsconfig.json             # TypeScript config
 │   ├── assets/                   # Static assets (logo SVG)
 │   └── app/
-│       ├── App.tsx               # Main app with routing (15 routes)
+│       ├── App.tsx               # Main app with routing (16 routes)
 │       ├── components/           # Reusable UI components
 │       │   ├── Card.tsx              # Generic metric card
 │       │   ├── DavisResponse.tsx     # AI response renderer
 │       │   ├── ErrorBoundary.tsx     # React error boundary
 │       │   ├── FilterBar.tsx         # Time range & dimension filters
-│       │   ├── Header.tsx            # Navigation header (10 nav items)
+│       │   ├── Header.tsx            # Navigation header (11 nav items)
 │       │   ├── LoadingSkeleton.tsx   # Loading state placeholder
 │       │   ├── SampleDataBadge.tsx   # Sample data indicator
 │       │   └── index.ts             # Barrel export
@@ -321,6 +345,7 @@ gcc/
 │       │   ├── useDavisAI.ts        # Davis CoPilot integration
 │       │   ├── useAgentTools.ts     # Agent monitoring (17 parallel queries)
 │       │   ├── useModelDrift.ts     # Drift detection & baseline management
+│       │   ├── useVectorDB.ts       # RAG / vector store telemetry (makeTimeseries)
 │       │   ├── useAIArchitect.ts    # Architecture pattern detection
 │       │   ├── useAIQuality.ts      # Quality scoring & Davis analysis
 │       │   ├── useResponseAnalytics.ts  # Token efficiency metrics
@@ -337,6 +362,7 @@ gcc/
 │       │   ├── HealthDashboard.tsx  # Service health monitoring
 │       │   ├── AgentTools.tsx       # AI agent tool monitoring
 │       │   ├── ModelDrift.tsx       # Drift detection & baseline
+│       │   ├── VectorDB.tsx         # RAG & vector store pipeline observability
 │       │   ├── Intelligence.tsx     # Davis CoPilot AI
 │       │   ├── Operations.tsx       # Runbooks & quick actions
 │       │   ├── ProviderComparison.tsx # Provider analysis
@@ -438,6 +464,17 @@ gcc/
 
 ## 📋 Changelog
 
+### v2.6.0 (February 2026)
+- 🔍 **RAG / Vector DB Page**: End-to-end pipeline observability for Retrieval-Augmented Generation
+  - Query volume & embedding volume timeseries (correct `makeTimeseries` bucket parsing)
+  - Latency percentiles (avg/p50/p95/p99) for vector store operations
+  - RAG chain step performance with progress bar visualization
+  - Top slowest pipeline traces with Distributed Tracing deep-link
+  - Response Latency by Model (TTFT proxy via span duration — `gen_ai.server.time_to_first_token` not required)
+  - Semantic cache opportunity detection
+  - Broad OTel coverage: Pinecone, ChromaDB, Qdrant, Weaviate, Milvus
+- 📦 **Documentation**: ROADMAP, USER_GUIDE, and README updated to v2.6.0
+
 ### v2.5.0 (February 2026)
 - 📋 **Viatris Metrics Gap Analysis**: 134 enterprise metrics assessed across 6 domains
 - 🗺️ **Roadmap Phases 5-7**: RAG/Vector DB monitoring, Infrastructure Health, Enhanced Governance & Security
@@ -503,7 +540,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.5.0 | © 2026*
+*Version 2.6.0 | © 2026*
 
 ---
 
