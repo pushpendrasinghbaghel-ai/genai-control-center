@@ -647,6 +647,36 @@ export function PromptGovernance() {
     setDavisScored(true);
   };
 
+  // ─── Prompt Pattern Analysis (Phase 1.3) ───
+  // Top repeated patterns ranked by count × avg cost, with token efficiency score
+  const patternInsights = useMemo(() => {
+    return [...prompts]
+      .filter(p => p.count > 1 || (p.totalInputTokens + p.totalOutputTokens) > 100)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12)
+      .map(p => {
+        const totalTokens = p.totalInputTokens + p.totalOutputTokens;
+        const efficiency = totalTokens > 0 ? Math.round((p.totalOutputTokens / totalTokens) * 100) : 0;
+        const costPerCall = p.count > 0 ? p.totalCost / p.count : 0;
+        const cacheSaving = (p.count - 1) * costPerCall;
+        return {
+          id: p.id,
+          preview: p.promptPreview.slice(0, 90) + (p.promptPreview.length > 90 ? '…' : ''),
+          serviceName: p.serviceName,
+          model: p.model,
+          count: p.count,
+          inputTokens: p.totalInputTokens,
+          outputTokens: p.totalOutputTokens,
+          efficiency,
+          avgLatencyMs: p.avgLatencyMs,
+          totalCost: p.totalCost,
+          cacheSaving,
+          hasPii: p.flags.some(f => f.type === 'pii'),
+          hasInjection: p.flags.some(f => f.type === 'injection'),
+        };
+      });
+  }, [prompts]);
+
   const handleRefresh = useCallback(() => {
     refetchPrompts();
     refetchErrors();
@@ -971,6 +1001,71 @@ export function PromptGovernance() {
           )}
         </Flex>
       </Surface>
+
+      {/* ─── Prompt Pattern Analysis (Phase 1.3) ─── */}
+      {patternInsights.length > 0 && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <ResearchIcon style={{ color: STATUS_COLORS.good }} />
+              <Heading level={4}>Prompt Pattern Analysis</Heading>
+              <Text textStyle="small" style={{ opacity: 0.6 }}>top repeated patterns · efficiency · cache savings</Text>
+            </Flex>
+            {patternInsights.map((p, i) => (
+              <Surface key={p.id} style={{
+                padding: 14, borderRadius: 6,
+                borderLeft: `3px solid ${
+                  p.hasPii ? Colors.Charts.Status.Critical.Default
+                  : p.hasInjection ? Colors.Charts.Status.Warning.Default
+                  : Colors.Charts.Status.Good.Default}`,
+              }}>
+                <Flex gap={12} flexWrap="wrap" alignItems="flex-start">
+                  {/* Rank + prompt preview */}
+                  <Flex flexDirection="column" gap={4} style={{ flex: '1 1 360px', minWidth: 240 }}>
+                    <Flex gap={6} alignItems="center">
+                      <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                        background: 'var(--dt-colors-background-base-default)',
+                        color: 'var(--dt-colors-text-secondary-default)' }}>#{i + 1}
+                      </Text>
+                      {p.hasPii && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: Colors.Charts.Status.Critical.Default + '25', color: Colors.Charts.Status.Critical.Default }}>PII</Text>}
+                      {p.hasInjection && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: Colors.Charts.Status.Warning.Default + '25', color: Colors.Charts.Status.Warning.Default }}>Injection</Text>}
+                      <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.serviceName}</Text>
+                    </Flex>
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', fontFamily: 'monospace', lineHeight: 1.4 }}>{p.preview}</Text>
+                  </Flex>
+                  {/* Stats */}
+                  <Flex gap={16} flexWrap="wrap" alignItems="center">
+                    <Flex flexDirection="column" alignItems="flex-end">
+                      <Text textStyle="small" style={{ opacity: 0.6 }}>Calls</Text>
+                      <Text style={{ fontWeight: 700, fontSize: 14 }}>{p.count.toLocaleString()}</Text>
+                    </Flex>
+                    <Flex flexDirection="column" alignItems="flex-end">
+                      <Text textStyle="small" style={{ opacity: 0.6 }}>Efficiency</Text>
+                      <Text style={{ fontWeight: 700, color: p.efficiency > 50 ? Colors.Charts.Status.Ideal.Default : Colors.Charts.Status.Warning.Default }}>
+                        {p.efficiency}%
+                      </Text>
+                    </Flex>
+                    <Flex flexDirection="column" alignItems="flex-end">
+                      <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Latency</Text>
+                      <Text style={{ fontWeight: 600 }}>
+                        {p.avgLatencyMs >= 1000 ? `${(p.avgLatencyMs / 1000).toFixed(1)}s` : `${Math.round(p.avgLatencyMs)}ms`}
+                      </Text>
+                    </Flex>
+                    {p.cacheSaving > 0.001 && (
+                      <Flex flexDirection="column" alignItems="flex-end">
+                        <Text textStyle="small" style={{ opacity: 0.6 }}>Cache Saving</Text>
+                        <Text style={{ fontWeight: 700, color: Colors.Charts.Status.Ideal.Default }}>
+                          ${p.cacheSaving.toFixed(3)}
+                        </Text>
+                      </Flex>
+                    )}
+                  </Flex>
+                </Flex>
+              </Surface>
+            ))}
+          </Flex>
+        </Surface>
+      )}
     </Flex>
   );
 }
