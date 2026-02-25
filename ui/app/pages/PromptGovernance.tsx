@@ -651,24 +651,24 @@ export function PromptGovernance() {
   // Top repeated patterns ranked by count × avg cost, with token efficiency score
   const patternInsights = useMemo(() => {
     return [...prompts]
-      .filter(p => p.count > 1 || (p.totalInputTokens + p.totalOutputTokens) > 100)
-      .sort((a, b) => b.count - a.count)
+      .filter(p => (p.requestCount ?? 1) > 1 || (p.inputTokens + p.outputTokens) > 100)
+      .sort((a, b) => (b.requestCount ?? 1) - (a.requestCount ?? 1))
       .slice(0, 12)
       .map(p => {
-        const totalTokens = p.totalInputTokens + p.totalOutputTokens;
-        const efficiency = totalTokens > 0 ? Math.round((p.totalOutputTokens / totalTokens) * 100) : 0;
-        const costPerCall = p.count > 0 ? p.totalCost / p.count : 0;
-        const cacheSaving = (p.count - 1) * costPerCall;
+        const totalTokens = p.inputTokens + p.outputTokens;
+        const efficiency = totalTokens > 0 ? Math.round((p.outputTokens / totalTokens) * 100) : 0;
+        const costPerCall = (p.requestCount ?? 1) > 0 ? p.totalCost / (p.requestCount ?? 1) : 0;
+        const cacheSaving = ((p.requestCount ?? 1) - 1) * costPerCall;
         return {
           id: p.id,
           preview: p.promptPreview.slice(0, 90) + (p.promptPreview.length > 90 ? '…' : ''),
           serviceName: p.serviceName,
           model: p.model,
-          count: p.count,
-          inputTokens: p.totalInputTokens,
-          outputTokens: p.totalOutputTokens,
+          count: p.requestCount ?? 1,
+          inputTokens: p.inputTokens,
+          outputTokens: p.outputTokens,
           efficiency,
-          avgLatencyMs: p.avgLatencyMs,
+          avgLatencyMs: p.latencyMs,
           totalCost: p.totalCost,
           cacheSaving,
           hasPii: p.flags.some(f => f.type === 'pii'),

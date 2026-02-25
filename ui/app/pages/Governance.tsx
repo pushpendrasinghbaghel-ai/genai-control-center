@@ -1306,7 +1306,7 @@ export const Governance: React.FC = () => {
       {selectedTab === 'appsec' && (
         <Surface style={{ padding: 16 }}>
           <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}">
+            <Flex alignItems="center" gap={8}>
               <SecurityIcon />
               <Heading level={4}>Application Security for AI Workloads</Heading>
             </Flex>
@@ -1338,7 +1338,7 @@ export const Governance: React.FC = () => {
                   : Colors.Text.Success.Default}`,
                 backgroundColor: finding.status === 'RESOLVED' ? 'rgba(50,200,100,0.05)' : 'transparent',
               }}>
-                <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={8}">
+                <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={8}>
                   <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                     <Flex gap={8} alignItems="center">
                       <Text style={{ fontWeight: 700, fontSize: 13 }}>{finding.title}</Text>
@@ -1359,7 +1359,7 @@ export const Governance: React.FC = () => {
                       }}>{finding.status}</Text>
                     </Flex>
                     <Text textStyle="small">{finding.desc}</Text>
-                    <Flex gap={16}">
+                    <Flex gap={16}>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Reference: <strong>{finding.cve}</strong></Text>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Affected: {finding.affected}</Text>
                     </Flex>
@@ -1374,8 +1374,8 @@ export const Governance: React.FC = () => {
       {/* ─── Compliance Frameworks Tab ─── */}
       {selectedTab === 'compliance' && (
         <Surface style={{ padding: 16 }}>
-          <Flex flexDirection="column" gap={20}">
-            <Flex alignItems="center" gap={8}">
+          <Flex flexDirection="column" gap={20}>
+            <Flex alignItems="center" gap={8}>
               <DocumentIcon />
               <Heading level={4}>AI Compliance Framework Templates</Heading>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>EU AI Act · NIST AI RMF · ISO 42001</Text>
@@ -1423,12 +1423,12 @@ export const Governance: React.FC = () => {
               const pct = Math.round((done / fw.items.length) * 100);
               return (
                 <Surface key={fw.framework} style={{ padding: 16, borderTop: `3px solid ${fw.color}` }}>
-                  <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: 12 }}">
-                    <Flex flexDirection="column" gap={2}">
+                  <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: 12 }}>
+                    <Flex flexDirection="column" gap={2}>
                       <Text style={{ fontWeight: 700, fontSize: 15 }}>{fw.framework}</Text>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{fw.tag}</Text>
                     </Flex>
-                    <Flex alignItems="center" gap={12}">
+                    <Flex alignItems="center" gap={12}>
                       <Text style={{ fontWeight: 700, color: pct >= 80 ? Colors.Text.Success.Default : pct >= 50 ? Colors.Text.Warning.Default : Colors.Text.Critical.Default, fontSize: 20 }}>
                         {pct}%
                       </Text>
@@ -1436,13 +1436,13 @@ export const Governance: React.FC = () => {
                     </Flex>
                   </Flex>
                   <ProgressBar value={pct} />
-                  <Flex flexDirection="column" gap={8} style={{ marginTop: 12 }}">
+                  <Flex flexDirection="column" gap={8} style={{ marginTop: 12 }}>
                     {fw.items.map((item, idx) => (
-                      <Flex key={idx} gap={10} alignItems="flex-start"">
+                      <Flex key={idx} gap={8} alignItems="flex-start">
                         <Text style={{ width: 16, flexShrink: 0, marginTop: 1 }}>
                           {item.status === 'done' ? '✅' : item.status === 'review' ? '🔄' : '⬜'}
                         </Text>
-                        <Flex flexDirection="column" gap={2}">
+                        <Flex flexDirection="column" gap={2}>
                           <Text style={{ fontSize: 12, fontWeight: 600 }}>{item.req}</Text>
                           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{item.note}</Text>
                         </Flex>

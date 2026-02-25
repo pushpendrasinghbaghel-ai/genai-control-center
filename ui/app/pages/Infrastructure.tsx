@@ -2,19 +2,17 @@
 // AI infrastructure health: provider availability, service workloads, Davis problems, deployments.
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Flex } from '@dynatrace/strato-components-preview/layouts';
-import { Surface } from '@dynatrace/strato-components-preview/containers';
-import { Heading, Text } from '@dynatrace/strato-components-preview/typography';
+import { Flex, Surface } from '@dynatrace/strato-components/layouts';
+import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { SelectV2, FormField } from '@dynatrace/strato-components-preview/forms';
-import { Button } from '@dynatrace/strato-components-preview/buttons';
-import { ProgressBar } from '@dynatrace/strato-components-preview/indicators';
+import { SelectV2 } from '@dynatrace/strato-components-preview/forms';
+import { Button } from '@dynatrace/strato-components/buttons';
+import { ProgressBar } from '@dynatrace/strato-components/content';
 import {
   HostsIcon,
   RefreshIcon,
   ServicesIcon,
-  AlertIcon,
-  DeploymentIcon,
+  WorkflowsIcon,
   CheckmarkIcon,
   WarningIcon,
   CriticalIcon,
@@ -61,7 +59,7 @@ const fmt = (n: number): string => (isFinite(n) ? n.toLocaleString() : '—');
 
 const statusIcon = (status: string) => {
   const s = status.toUpperCase();
-  if (s.includes('OPEN') || s.includes('ACTIVE')) return <AlertIcon style={{ color: STATUS_COLORS.critical, width: 14, height: 14 }} />;
+  if (s.includes('OPEN') || s.includes('ACTIVE')) return <CriticalIcon style={{ color: STATUS_COLORS.critical, width: 14, height: 14 }} />;
   if (s.includes('RESOLVED') || s.includes('CLOSED')) return <CheckmarkIcon style={{ color: STATUS_COLORS.healthy, width: 14, height: 14 }} />;
   return <WarningIcon style={{ color: STATUS_COLORS.warning, width: 14, height: 14 }} />;
 };
@@ -125,7 +123,8 @@ export const Infrastructure: React.FC = () => {
           </Flex>
         </Flex>
         <Flex gap={8} alignItems="center">
-          <FormField label="Time Range">
+          <Flex flexDirection="column" gap={2}>
+            <Text textStyle="small">Time Range</Text>
             <SelectV2 value={timeRange} onChange={(v) => setTimeRange(String(v ?? '24h'))}>
               <SelectV2.Option value="1h">Last 1h</SelectV2.Option>
               <SelectV2.Option value="3h">Last 3h</SelectV2.Option>
@@ -134,7 +133,7 @@ export const Infrastructure: React.FC = () => {
               <SelectV2.Option value="2d">Last 2d</SelectV2.Option>
               <SelectV2.Option value="7d">Last 7d</SelectV2.Option>
             </SelectV2>
-          </FormField>
+          </Flex>
           <Button variant="emphasized" onClick={() => refetch(timeRange)}>
             <RefreshIcon style={{ width: 14, height: 14 }} />
             {loading ? 'Loading…' : 'Refresh'}
@@ -164,14 +163,14 @@ export const Infrastructure: React.FC = () => {
           color={availabilityColor(kpis.avgAvailability)}
         />
         <MetricCard
-          icon={<AlertIcon style={{ color: kpis.openProblems > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy }} />}
+          icon={<CriticalIcon style={{ color: kpis.openProblems > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy }} />}
           label="Open Problems"
           value={kpis.openProblems}
           sub="active Davis problems"
           color={kpis.openProblems > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy}
         />
         <MetricCard
-          icon={<DeploymentIcon style={{ color: STATUS_COLORS.neutral }} />}
+          icon={<WorkflowsIcon style={{ color: STATUS_COLORS.neutral }} />}
           label="AI Span Volume"
           value={kpis.totalSpans}
           sub={`in last ${timeRange}`}
@@ -320,7 +319,7 @@ export const Infrastructure: React.FC = () => {
         {/* Davis Problems */}
         <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 300 }}>
           <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <AlertIcon />
+            <CriticalIcon />
             <Heading level={4}>Davis Problems</Heading>
             <Text textStyle="small" style={{ opacity: 0.6 }}>recent active or resolved problems</Text>
           </Flex>
@@ -390,7 +389,7 @@ export const Infrastructure: React.FC = () => {
         {/* Deployment Events */}
         <Surface style={{ flex: '1 1 40%', padding: 16, minWidth: 280 }}>
           <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <DeploymentIcon />
+            <WorkflowsIcon />
             <Heading level={4}>Recent Deployments</Heading>
             <Text textStyle="small" style={{ opacity: 0.6 }}>deployment events for AI services</Text>
           </Flex>

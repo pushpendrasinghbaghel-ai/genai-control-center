@@ -279,8 +279,8 @@ export const Home = () => {
   // Evaluates 5 dimensions from live observability data, weighted 0-100.
   const maturityScore = useMemo(() => {
     const svcCount = services?.length ?? 0;
-    const errRate = healthMetrics?.avgErrorRate ?? healthMetrics?.errorRate ?? 0;
-    const hasAgentData = (agentSummary?.uniqueAgents ?? 0) > 0;
+    const errRate = healthMetrics?.avgErrorRate ?? 0;
+    const hasAgentData = (agentSummary?.totalAgents ?? 0) > 0;
     const hasTokenData = chartTotals.tokens > 0;
     const hasRequests = chartTotals.requests > 0;
 
@@ -865,9 +865,9 @@ export const Home = () => {
             </span>
           </Flex>
           {/* Right: Dimension bars */}
-          <Flex flexDirection="column" gap={10} style={{ flex: '1 1 56%', minWidth: 280 }}>
+          <Flex flexDirection="column" gap={8} style={{ flex: '1 1 56%', minWidth: 280 }}>
             {maturityScore.dimensions.map((dim) => (
-              <Flex key={dim.label} alignItems="center" gap={10}>
+              <Flex key={dim.label} alignItems="center" gap={8}>
                 <span style={{ width: 100, fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{dim.label}</span>
                 <Flex style={{ flex: 1 }} alignItems="center" gap={6}>
                   <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--dt-colors-background-base-default)', overflow: 'hidden' }}>
