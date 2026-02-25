@@ -397,7 +397,9 @@ export const VectorDB: React.FC = () => {
                     return <Text style={{ color: healthColor(rate) }}>{rate.toFixed(1)}%</Text>;
                   }},
               ]}
-            />
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
           ) : (
             <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No embedding data'}</Text>
           )}
@@ -458,7 +460,9 @@ export const VectorDB: React.FC = () => {
                 },
               },
             ]}
-          />
+          >
+            <DataTable.Pagination defaultPageSize={5} />
+          </DataTable>
         ) : (
           <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
             {loading ? 'Loading…' : 'No pipeline step data'}
@@ -477,7 +481,7 @@ export const VectorDB: React.FC = () => {
           </Flex>
           {pipelineTraces.length > 0 ? (
             <DataTable
-              data={pipelineTraces.slice(0, 20)}
+              data={pipelineTraces}
               columns={[
                 {
                   header: 'Trace ID',
@@ -561,7 +565,9 @@ export const VectorDB: React.FC = () => {
                   },
                 },
               ]}
-            />
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
           ) : (
             <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No RAG pipeline traces found'}</Text>
           )}
@@ -626,7 +632,9 @@ export const VectorDB: React.FC = () => {
                   },
                 },
               ]}
-            />
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
           ) : (
             <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 120 }}>
               <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>No LLM call data detected</Text>
@@ -691,7 +699,9 @@ export const VectorDB: React.FC = () => {
                   ),
                 },
               ]}
-            />
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
           ) : (
             <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
               {loading ? 'Loading…' : 'No repeated queries detected'}
