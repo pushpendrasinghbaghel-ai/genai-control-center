@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.10
+# GenAI Control Center (GCC) v2.5.0
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -19,24 +19,36 @@
 
 ## 🎯 Overview
 
-**GenAI Control Center** is a Dynatrace AppEngine application that provides **enterprise AI observability and governance** for organizations running GenAI workloads. It auto-discovers AI services instrumented with OpenTelemetry GenAI semantic conventions and provides comprehensive management across four key domains:
+**GenAI Control Center** is a Dynatrace AppEngine application that provides **enterprise AI observability and governance** for organizations running GenAI workloads. It auto-discovers AI services instrumented with OpenTelemetry GenAI semantic conventions and provides comprehensive management across cost, quality, security, and operations.
 
-### 🏠 Application Structure
+## 🏠 Application Structure
 
-Navigation follows the **Observe → Analyze → Act** pattern:
+Navigation follows the **Observe → Analyze → Act** pattern, implemented in the app header:
 
-| # | Nav Item | Page | Purpose | Key Features |
-|---|----------|------|---------|--------------|
-| 1 | 🏠 **Home** | Home | Executive Dashboard | Overall health status, key metrics summary, trend charts |
-| 2 | 💰 **FinOps** | FinOps | Cost Management | Real-time spend tracking, cost forecasting, budget monitoring |
-| 3 | 📊 **Analytics** | Response Analytics | ML Engineer Insights | Token efficiency, model ranking, output consistency metrics |
-| 4 | 🔒 **Governance** | Prompt Governance | Prompt Security & Compliance | PII detection, injection risks, Davis AI scoring, cache candidates |
-| 5 | 🔗 **Topology** | AI Topology | Service Visualization | Interactive Smartscape-style flow diagram, service→provider→model connections |
-| 6 | 🖥️ **Services** | Health Dashboard | Service Health Monitoring | Auto-discovered AI services, quality metrics, deep linking |
-| 7 | 🤖 **Agents** | Agent Tools | AI Agent Monitoring | Tool usage tracking, agent flows, loop detection, efficiency metrics |
-| 8 | 🔬 **Drift** | Model Drift | Behavior Monitoring | Drift scoring, version change alerts, baseline comparison, anomaly detection |
-| 9 | 🧠 **Intelligence** | Intelligence | AI-Powered Investigation | Davis CoPilot integration, natural language queries, DQL generation |
-| 10 | ⚙️ **Operations** | Operations | Automation & Remediation | Runbooks, analytics, quick actions for common issues |
+| # | Nav Item | Route | Page Component | Purpose |
+|---|----------|-------|----------------|---------|
+| 1 | 🏠 **Home** | `/` | Home | Executive dashboard with key metrics, trends, and pillar navigation |
+| 2 | 💰 **FinOps** | `/finops` | FinOps | Real-time spend tracking, cost forecasting, budget monitoring, chargeback |
+| 3 | 📊 **Analytics** | `/analytics` | ResponseAnalytics | Token efficiency, model ranking, output consistency for ML Engineers |
+| 4 | 🔒 **Governance** | `/prompt-governance` | PromptGovernance | PII detection, injection risks, Davis AI scoring, cache candidates |
+| 5 | 🔗 **Topology** | `/topology` | AITopology | Interactive Smartscape-style flow diagram, service→provider→model |
+| 6 | 🖥️ **Services** | `/services` | HealthDashboard | Auto-discovered AI services, quality metrics, deep linking |
+| 7 | 🤖 **Agents** | `/agents` | AgentTools | Tool usage tracking, agent flows, loop detection, efficiency metrics |
+| 8 | 🔬 **Drift** | `/drift` | ModelDrift | Drift scoring, version change alerts, baseline comparison, anomaly detection |
+| 9 | 🧠 **Intelligence** | `/intelligence` | Intelligence | Davis CoPilot integration, natural language queries, DQL generation |
+| 10 | ⚙️ **Operations** | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
+
+### Additional Routes (not in nav bar)
+
+| Route | Page Component | Purpose |
+|-------|----------------|---------|
+| `/governance` | Governance | Enterprise governance challenges overview |
+| `/providers` | ProviderComparison | Cross-provider analysis and comparison |
+| `/ai-architect` | AIArchitect | Pattern detection and architecture recommendations |
+| `/problems` | RealTimeAlerts | Live Davis problem monitoring for AI services |
+| `/health` | → redirect to `/services` | Legacy route |
+| `/davis` | → redirect to `/intelligence` | Legacy route |
+| `/remediation` | → redirect to `/operations` | Legacy route |
 
 ## 👥 Target Personas
 
@@ -73,7 +85,7 @@ Navigation follows the **Observe → Analyze → Act** pattern:
   - Source → Target agent visualization
   - Self-transfer detection (agents restarting their own flow)
   - Handoff counts and average durations
-- **� Tool Reliability** - Per-agent tool usage patterns and reliability metrics:
+- **Tool Reliability** - Per-agent tool usage patterns and reliability metrics:
   - Call counts and traces per agent-tool combination
   - **Calls/Trace** - Ratio indicating potential retry behavior (>1 = retries)
   - **Avg/P95 Duration** - Performance metrics per tool
@@ -88,9 +100,8 @@ Navigation follows the **Observe → Analyze → Act** pattern:
 - **Loop Detection** - Identify suspicious patterns (>10 calls to same tool) indicating infinite loops
 - **View Sample Trace** - Direct deep-link to Distributed Traces for any agent or flow
 - **Case-Normalized Names** - Agent names normalized to prevent duplicates from case differences
-- **Pagination & Filtering** - Standard Dynatrace DataTable with sorting, filtering, pagination
 
-### � Model Drift Detection - AI Behavior Monitoring
+### 🔬 Model Drift Detection - AI Behavior Monitoring
 Track AI model behavior changes, semantic drift, and version updates across your GenAI workloads.
 
 #### Drift Score Calculation
@@ -137,7 +148,6 @@ overallDrift = (latencyDrift × 0.25) + (outputDrift × 0.15) + (errorDrift × 0
 | ⚠️ **Version Change** | `gen_ai.response.model` ≠ `gen_ai.request.model` |
 
 #### Operation Type Segmentation
-Models are categorized by operation type for focused analysis:
 - **Chat** - Conversational AI (detected via `span.name` containing "chat")
 - **Embeddings** - Vector operations (detected via "embed" in span name)
 - **Completion** - Text generation (detected via "complet" or "generate")
@@ -147,32 +157,7 @@ Models are categorized by operation type for focused analysis:
 - **Auto-Baseline**: Compares last 7-14 days (baseline) vs last 7 days (current)
 - **Manual Baseline**: User can capture baseline via "Set as Baseline" button, persisted in localStorage
 
-#### Trend Classification
-```
-if |change| < 5%  → stable
-if change < 0 AND metric is "lower is better" → improving
-else → degrading
-```
-
-| Metric | Lower is Better? |
-|--------|------------------|
-| Latency | ✅ Yes |
-| Error Rate | ✅ Yes |
-| Input Tokens | ✅ Yes (cost indicator) |
-| Output Tokens | ❌ No (more = richer response) |
-| Token Efficiency | ❌ No (higher = more value per token) |
-
-#### Key Features
-- **Version Drift Detection** - Alert when OpenAI/Azure silently redirects GPT-4o to GPT-3.5
-- **Performance Regression Tracking** - Monitor latency trends over baseline periods
-- **Quality Degradation Alerts** - Detect when embedding models change under the hood
-- **Operation Type Filtering** - Focus on chat, embeddings, or completion operations
-- **Token Efficiency Tracking** - Monitor output/input ratio for cost optimization
-- **Interactive Drift Gauge** - Visual 0-100 score with severity coloring
-- **Baseline Management** - Capture and compare against custom baselines
-- **Anomaly Timeline** - Track when drift events occurred
-
-### �🛡️ Governance - Compliance & Risk
+### 🛡️ Governance - Compliance & Risk
 - **Prompt Governance** (Dedicated Page) - Detect security and optimization issues:
   - 🔐 **PII Detection** - SSN, emails, phone numbers, credit cards
   - ⚠️ **Prompt Injection** - Malicious pattern detection
@@ -203,6 +188,7 @@ else → degrading
 
 ### 🔧 Operations - Automation & Remediation
 - **Runbooks** - Pre-built automation scripts for common issues
+- **Agentic Workflow Templates** - Davis Intelligence-powered workflow generation
 - **Analytics** - Operational insights and trends
 - **Quick Actions** - One-click remediation for:
   - 🔄 Restart overloaded services
@@ -213,7 +199,7 @@ else → degrading
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 22+ (recommended) or 18+
+- Node.js 16+ (22+ recommended)
 - Dynatrace environment with Apps enabled
 - AI services instrumented with OpenTelemetry GenAI spans
 
@@ -228,82 +214,153 @@ cd genai-control-center/gcc
 npm install
 
 # Start development server
-npx dt-app dev --port 3001
+npm start
+# or: npx dt-app dev --port 3001
+```
+
+### Deploy to Dynatrace
+
+```bash
+# Build and deploy
+npm run deploy
+
+# Uninstall from environment
+npm run uninstall
 ```
 
 ### Required Scopes
-The app requires these Dynatrace scopes:
-- `storage:logs:read` - Read logs for AI service analysis
-- `storage:spans:read` - Read GenAI spans for service discovery
-- `storage:metrics:read` - Read metrics for dashboards
-- `storage:entities:read` - Read entities for filtering
-- `storage:filter-segments:read/write` - Segment filtering
-- `automation:workflows:read/run` - Remediation workflows
-- `davis:copilot:*` - Davis CoPilot AI integration
+The app requires these Dynatrace scopes (configured in `app.config.json`):
+
+| Scope | Purpose |
+|-------|---------|
+| `storage:logs:read` | Read logs for AI service analysis |
+| `storage:buckets:read` | Read data buckets |
+| `storage:spans:read` | Read gen_ai spans for service discovery |
+| `storage:metrics:read` | Read metrics for SegmentSelector |
+| `storage:events:read` | Read events and Davis problems |
+| `storage:filter-segments:read` | Read filter segments |
+| `storage:filter-segments:write` | Write filter segments |
+| `storage:entities:read` | Read entities for filtering |
+| `automation:workflows:read` | Read workflow definitions |
+| `automation:workflows:run` | Execute remediation workflows |
+| `davis-copilot:nl2dql:execute` | Convert natural language to DQL queries |
+| `davis-copilot:dql2nl:execute` | Explain DQL queries in natural language |
+| `davis-copilot:conversations:execute` | Davis CoPilot conversation recommender |
 
 ## 📊 Architecture
 
-### Page Structure
-
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    GenAI Control Center                      │
-├─────────────┬─────────────┬──────────────┬─────────────────┤
-│   FinOps    │ Governance  │ Intelligence │   Operations    │
-│   💰        │    🛡️      │     🧠       │      🔧         │
-├─────────────┴─────────────┴──────────────┴─────────────────┤
-│                     Shared Components                        │
-│  FilterBar │ MetricCard │ ServiceRow │ RecommendationCard  │
-├─────────────────────────────────────────────────────────────┤
-│                      Custom Hooks                            │
-│  useAIServicesDiscovery │ useProviderComparison │ useDavisAI│
-├─────────────────────────────────────────────────────────────┤
-│                    Dynatrace SDKs                            │
-│    @dynatrace-sdk/client-query │ client-davis-copilot       │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    GenAI Control Center v2.5.0                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Observe          │  Analyze           │  Act                   │
+│  ───────          │  ───────           │  ───                   │
+│  Home             │  Analytics         │  Intelligence          │
+│  FinOps           │  Governance        │  Operations            │
+│  Services         │  Drift             │  Agentic Workflows     │
+│  Agents           │  AI Architect      │                        │
+│  Topology         │  Provider Compare  │                        │
+│  Problems         │                    │                        │
+├─────────────────────────────────────────────────────────────────┤
+│                     Shared Components                            │
+│  Header │ Card │ FilterBar │ DavisResponse │ ErrorBoundary      │
+│  LoadingSkeleton │ SampleDataBadge                               │
+├─────────────────────────────────────────────────────────────────┤
+│                     Context & Config                             │
+│  FilterContext (time range, provider, model, service filters)    │
+│  ProviderProfiles (cost models, icons, capabilities)             │
+├─────────────────────────────────────────────────────────────────┤
+│                      Custom Hooks                                │
+│  useDQLQueries │ useDavisAI │ useAgentTools │ useModelDrift     │
+│  useAIArchitect │ useResponseAnalytics │ useAIQuality           │
+│  useRemediation │ useWorkflows                                   │
+├─────────────────────────────────────────────────────────────────┤
+│                    Dynatrace SDKs                                │
+│  @dynatrace-sdk/client-query │ client-davis-copilot             │
+│  @dynatrace-sdk/navigation │ react-hooks │ app-environment      │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Project Structure
 
 ```
 gcc/
-├── app.config.json           # App configuration & scopes
+├── app.config.json               # App configuration, scopes & environment URL
+├── package.json                  # Dependencies & scripts
+├── eslint.config.mjs             # ESLint flat config with security plugins
+├── tsconfig.eslint.json          # TypeScript config for linting
+├── docs/
+│   ├── ROADMAP.md                # Product roadmap (Phases 0-7)
+│   ├── USER_GUIDE.md             # End-user documentation
+│   ├── DEMO_SCRIPT.md            # Demo walkthrough script
+│   ├── SE_DEMO_SCRIPT.md         # Sales Engineer demo guide
+│   └── DEMO_CHEATSHEET.md        # Quick demo reference card
 ├── ui/
+│   ├── main.tsx                  # App entry point
+│   ├── tsconfig.json             # TypeScript config
+│   ├── assets/                   # Static assets (logo SVG)
 │   └── app/
-│       ├── components/       # Reusable UI components
-│       │   ├── Card.tsx          # Generic card component
-│       │   ├── FilterBar.tsx     # Time range & filters
-│       │   ├── Header.tsx        # Navigation header
-│       │   └── DavisResponse.tsx # AI response display
-│       ├── pages/            # Main application pages
-│       │   ├── Home.tsx          # Executive dashboard
-│       │   ├── HealthDashboard.tsx # Service health
-│       │   ├── AITopology.tsx    # Interactive flow visualization
-│       │   ├── AgentTools.tsx    # AI agent tool monitoring
-│       │   ├── ModelDrift.tsx    # Model drift detection & baseline comparison
-│       │   ├── FinOps.tsx        # Cost management
-│       │   ├── Governance.tsx    # Compliance & risk
-│       │   ├── PromptGovernance.tsx # PII/injection detection, Davis AI scoring
-│       │   ├── ResponseAnalytics.tsx # Token efficiency for ML Engineers
-│       │   ├── Intelligence.tsx  # Davis CoPilot AI
-│       │   ├── Operations.tsx    # Runbooks & quick actions
-│       │   ├── RealTimeAlerts.tsx # Live problem monitoring
-│       │   ├── Data.tsx          # GenAI data explorer
+│       ├── App.tsx               # Main app with routing (15 routes)
+│       ├── components/           # Reusable UI components
+│       │   ├── Card.tsx              # Generic metric card
+│       │   ├── DavisResponse.tsx     # AI response renderer
+│       │   ├── ErrorBoundary.tsx     # React error boundary
+│       │   ├── FilterBar.tsx         # Time range & dimension filters
+│       │   ├── Header.tsx            # Navigation header (10 nav items)
+│       │   ├── LoadingSkeleton.tsx   # Loading state placeholder
+│       │   ├── SampleDataBadge.tsx   # Sample data indicator
+│       │   └── index.ts             # Barrel export
+│       ├── config/               # Configuration
+│       │   ├── provider-profiles.ts  # Provider cost models & capabilities
+│       │   └── index.ts             # Barrel export
+│       ├── context/              # React context providers
+│       │   ├── FilterContext.tsx     # Global filter state
+│       │   └── index.ts             # Barrel export
+│       ├── hooks/                # Data fetching & state hooks
+│       │   ├── useDQLQueries.ts     # Core DQL query execution (2200+ lines)
+│       │   ├── useDavisAI.ts        # Davis CoPilot integration
+│       │   ├── useAgentTools.ts     # Agent monitoring (17 parallel queries)
+│       │   ├── useModelDrift.ts     # Drift detection & baseline management
+│       │   ├── useAIArchitect.ts    # Architecture pattern detection
+│       │   ├── useAIQuality.ts      # Quality scoring & Davis analysis
+│       │   ├── useResponseAnalytics.ts  # Token efficiency metrics
+│       │   ├── useRemediation.ts    # Workflow execution
+│       │   ├── useWorkflows.ts      # Workflow management
+│       │   └── index.ts            # Barrel export
+│       ├── pages/                # Application pages
+│       │   ├── Home.tsx             # Executive dashboard
+│       │   ├── FinOps.tsx           # Cost management
+│       │   ├── ResponseAnalytics.tsx # ML engineer insights
+│       │   ├── PromptGovernance.tsx  # PII/injection/Davis AI scoring
+│       │   ├── Governance.tsx       # Enterprise governance challenges
+│       │   ├── AITopology.tsx       # Interactive flow visualization
+│       │   ├── HealthDashboard.tsx  # Service health monitoring
+│       │   ├── AgentTools.tsx       # AI agent tool monitoring
+│       │   ├── ModelDrift.tsx       # Drift detection & baseline
+│       │   ├── Intelligence.tsx     # Davis CoPilot AI
+│       │   ├── Operations.tsx       # Runbooks & quick actions
 │       │   ├── ProviderComparison.tsx # Provider analysis
-│       │   └── AIArchitect.tsx   # Architecture insights
-│       ├── hooks/            # Data fetching hooks
-│       │   ├── useDQLQueries.ts
-│       │   ├── useDavisAI.ts
-│       │   ├── useAgentTools.ts  # Agent tool monitoring
-│       │   ├── useModelDrift.ts  # Drift detection & baseline management
-│       │   ├── useAIArchitect.ts
-│       │   ├── useResponseAnalytics.ts # Token efficiency metrics
-│       │   └── useRemediation.ts
-│       ├── queries/          # DQL query definitions
-│       ├── utils/            # Helper functions
-│       └── types/            # TypeScript type definitions
-└── docs/
-    └── USER_GUIDE.md
+│       │   ├── AIArchitect.tsx      # Architecture recommendations
+│       │   ├── RealTimeAlerts.tsx   # Live problem monitoring
+│       │   ├── AIQualityDashboard.tsx # Quality metrics
+│       │   ├── Data.tsx             # GenAI data explorer
+│       │   ├── DavisAssistant.tsx   # Direct Davis chat
+│       │   ├── RemediationLibrary.tsx # Workflow library
+│       │   └── index.ts            # Barrel export
+│       ├── queries/              # DQL query definitions
+│       │   └── dql-queries.ts       # All DQL queries (~490 lines)
+│       ├── types/                # TypeScript type definitions
+│       │   └── index.ts
+│       ├── utils/                # Helper functions
+│       │   ├── helpers.ts           # Formatting, calculations
+│       │   ├── providerIcons.tsx    # Provider icon mappings
+│       │   └── index.ts
+│       ├── workflows/            # Automation templates
+│       │   ├── agentic-templates.ts # Davis Intelligence workflow templates
+│       │   ├── finops-digest-workflow.json # FinOps email digest workflow
+│       │   └── index.ts
+│       └── tests/
+│           └── dql-queries.test.ts  # DQL query tests
 ```
 
 ## 🛠️ Development
@@ -312,23 +369,43 @@ gcc/
 
 | Command | Description |
 |---------|-------------|
-| `npx dt-app dev` | Start development server with hot reload |
-| `npm run build` | Build TypeScript for production |
-| `npx dt-app build` | Build Dynatrace app package |
-| `npx dt-app deploy` | Deploy to Dynatrace environment |
-| `npx dt-app uninstall` | Remove app from environment |
+| `npm start` | Start development server with hot reload (`dt-app dev`) |
+| `npm run build` | Build Dynatrace app package (`dt-app build`) |
+| `npm run deploy` | Deploy to Dynatrace environment (`dt-app deploy`) |
+| `npm run uninstall` | Remove app from environment (`dt-app uninstall`) |
+| `npm run lint` | Run ESLint with security plugins |
+| `npm run info` | Show dt-app CLI information |
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | React 18 + TypeScript 5 |
+| **UI Kit** | @dynatrace/strato-components-preview (Strato Design System) |
+| **Icons** | @dynatrace/strato-icons |
+| **Design Tokens** | @dynatrace/strato-design-tokens |
+| **Data Layer** | DQL via @dynatrace-sdk/client-query |
+| **AI Integration** | Davis CoPilot via @dynatrace-sdk/client-davis-copilot |
+| **Navigation** | @dynatrace-sdk/navigation (deep links to Services, Traces) |
+| **Routing** | react-router-dom v6 |
+| **Build Tool** | dt-app CLI v1.5.1 |
 
 ## 📈 Metrics Tracked
 
 | Metric | Source | Description |
 |--------|--------|-------------|
 | `gen_ai.system` | Span attribute | AI provider (openai, anthropic, etc.) |
+| `gen_ai.provider.name` | Span attribute | Provider name |
 | `gen_ai.request.model` | Span attribute | Requested model name (gpt-4, claude-3, etc.) |
 | `gen_ai.response.model` | Span attribute | Actual model used (for version drift detection) |
 | `gen_ai.usage.input_tokens` | Span attribute | Input token count |
 | `gen_ai.usage.output_tokens` | Span attribute | Output token count |
 | `gen_ai.usage.cost` | Calculated | Cost based on token pricing |
+| `gen_ai.agent.name` | Span attribute | Agent identifier |
+| `gen_ai.tool.name` | Span attribute | Tool identifier |
+| `traceloop.span.kind` | Span attribute | Span classification (agent, tool, workflow) |
 | `service.name` | Span attribute | Service identifier |
+| `db.system` | Span attribute | Database system (pinecone, etc.) |
 | Latency | Span duration | Response time |
 | Error Rate | Span status | Failure percentage |
 
@@ -337,6 +414,7 @@ gcc/
 - **Davis CoPilot** - Natural language to DQL, conversational AI
 - **Dynatrace Grail** - DQL queries for AI telemetry
 - **Dynatrace Services App** - Deep linking for detailed analysis
+- **Dynatrace Distributed Traces** - Trace linking from agent flows
 - **Dynatrace Workflows** - Automated remediation
 - **OpenTelemetry** - GenAI semantic conventions
 
@@ -358,6 +436,59 @@ gcc/
 - Audit trail completeness
 - Cost attribution
 
+## 📋 Changelog
+
+### v2.5.0 (February 2026)
+- 📋 **Viatris Metrics Gap Analysis**: 134 enterprise metrics assessed across 6 domains
+- 🗺️ **Roadmap Phases 5-7**: RAG/Vector DB monitoring, Infrastructure Health, Enhanced Governance & Security
+- 📄 **Documentation**: Updated README, ROADMAP with full implementation plan and timeline
+
+### v2.8.0 (January 2026)
+- 🆕 **Service Detail Modal**: Click any Service node in Topology for full-screen detail view
+  - Summary stats, interactive SVG topology, provider cards, "View in Smartscape" link
+- 🆕 **Home Page Agents Stat**: New StatCard showing active AI agents count
+- ✨ **Simplified Topology Edges**: Cleaner, thinner dashed lines with smaller arrowheads
+- 🔄 **Agent Activity Chart**: Replaced Tool Error Rate with Agent Activity Over Time
+- 🔄 **Tool Calls Chart**: Replaced Loop Incidents with Tool Calls Over Time
+
+### v2.7.0 (January 2026)
+- 🆕 **AI Topology Page**: Interactive Smartscape-style visualization of GenAI service flows
+  - Card-based nodes for Services, Providers, and Models
+  - Connection-aware filtering, provider/model icons, hover tooltips
+  - Edge labels showing token/request counts, deep-link to Services app
+- ✨ **Model Icons**: Model nodes show provider-inferred icons
+- 🐛 **Edge Fix**: Edges now show for connections with only request data
+- 🐛 **Filter Fix**: Topology filtering respects actual connections
+
+### v2.4.0 (January 2026)
+- 🆕 **Enhanced Home Dashboard**: 8 trend charts in 2x2 CSS Grid sections
+- 🆕 **Improved FinOps Dashboard**: Hero card layout, budget progress, chargeback table
+- 🆕 **Contextual Tooltips**: Help icons on all cards explaining metrics
+- 🐛 **DonutChart Fix**: Replaced with ProgressBar-based visualization
+- 🐛 **DQL String Handling**: Fixed number parsing from DQL
+
+### v2.3.0 (January 2026)
+- 🆕 **Prompt Governance Page**: PII detection, injection risk, Davis AI scoring, cache candidates
+- 🆕 **Response Analytics Page**: Token efficiency dashboard for ML Engineers
+- 🆕 **TitleBar Component**: Consistent page headers across all pages
+- ✨ **Real-Time Alerts Page**: Live Davis problem monitoring for AI services
+- ✨ **Strato Design Tokens**: Official color tokens for status indicators
+
+### v2.1.0 (January 2026)
+- 🆕 **Executive Dashboard**: Home page with health overview and pillar navigation
+- 🆕 **Health Dashboard**: AI service health with quality metrics
+- 🆕 **Quick Actions**: One-click remediation actions in Operations
+- 🆕 **GenAI Data Explorer**: Preset DQL queries for GenAI analysis
+
+### v2.0.0 (January 2026)
+- 🆕 **Four-pillar architecture**: FinOps, Governance, Intelligence, Operations
+- 🆕 **Prompt Analysis**: PII detection, hallucination risk, injection detection
+- 🆕 **Cost Forecasting**: 7/14/30-day projections with budget breach ETA
+- 🆕 **Davis CoPilot Integration**: Real NL-to-DQL conversion
+
+### v1.0.0 (December 2025)
+- Initial release with Health Dashboard, Provider Comparison, Davis Assistant, Remediation Library
+
 ## 📝 License
 
 MIT License - see [LICENSE](LICENSE) for details.
@@ -372,109 +503,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.4.0 | © 2026*
-
----
-
-## 📋 Changelog
-
-### v2.4.0 (January 2026)
-- 🆕 **Enhanced Home Dashboard**: 
-  - 8 trend charts organized in 2x2 CSS Grid sections
-  - Token Usage, Cost, Request Volume, Provider Distribution
-  - Error Rate, P95 Latency, Token Efficiency, Model Usage trends
-  - Section headers for "Usage & Cost Trends" and "Performance & Quality"
-- 🆕 **Improved FinOps Dashboard**:
-  - Hero card layout with Total Spend as primary metric (2x width)
-  - Color-coded budget progress indicator (green/orange/red)
-  - Section headers for logical grouping (Budget Overview, Cost Trends, Analysis, Optimization)
-  - Embedding vs Completion split visualization
-  - Cost by Service (chargeback) table
-  - Token Efficiency Analysis with waste detection
-- 🆕 **Contextual Tooltips**: Help icons (ℹ️) on all cards and sections explaining:
-  - How metrics are calculated
-  - What values mean
-  - Actionable guidance
-- ✨ **Better Layout Organization**:
-  - CSS Grid for consistent 2-column layouts
-  - Section dividers with icons and uppercase headers
-  - Improved card sizing and visual hierarchy
-- 🐛 **DonutChart Fix**: Replaced problematic DonutChart with ProgressBar-based visualization
-- 🐛 **DQL String Handling**: Fixed number parsing from DQL (values returned as strings)
-
-### v2.3.0 (January 2026)
-- 🆕 **Prompt Governance Page**: Dedicated page for prompt security analysis
-  - PII detection (SSN, email, phone, credit cards)
-  - Injection risk detection
-  - Davis AI scoring with semantic analysis
-  - Cache candidate identification (repetitive prompts)
-  - Detailed prompt modal with trace linking
-- 🆕 **Response Analytics Page**: Token efficiency dashboard for ML Engineers
-  - Token ratio analysis (output/input)
-  - Model efficiency rankings with composite scores
-  - Output consistency and variance metrics
-  - Inefficient/inconsistent service detection
-  - Cost estimation per model and provider
-- 🆕 **TitleBar Component**: Consistent page headers across all pages
-  - Page icon, title, and subtitle
-  - Strato TitleBar component integration
-  - Accessibility improvements (aria-labels, aria-hidden)
-- ✨ **New App Icon**: 3D isometric Dynatrace-style logo with AI sparkle
-- ✨ **Strato Design Tokens**: Using official color tokens for status indicators
-- ✨ **Real-Time Alerts Page**: Live Davis problem monitoring for AI services
-- 🛠️ **useResponseAnalytics Hook**: New hook for token efficiency metrics
-- 🐛 **Accessibility**: Added aria-labels and aria-hidden throughout
-
-### v2.8.0 (January 2026)
-- 🆕 **Service Detail Modal**: Click any Service node in Topology to open a full-screen modal with:
-  - Summary stats: Total requests, tokens, latency, error rate, provider count
-  - Interactive SVG topology showing all connected providers and models
-  - Provider cards with model badges and detailed metrics
-  - Direct "View in Smartscape" link for deep diving
-- 🆕 **Home Page Agents Stat**: New StatCard showing active AI agents count
-- ✨ **Simplified Topology Edges**: Cleaner, thinner dashed lines with smaller arrowheads
-- ✨ **Click to Explore Hint**: Service nodes show "Click to explore →" on hover
-- 🔄 **Agent Activity Chart**: Replaced Tool Error Rate chart with Agent Activity Over Time
-- 🔄 **Tool Calls Chart**: Replaced Loop Incidents chart with Tool Calls Over Time
-
-### v2.7.0 (January 2026)
-- 🆕 **AI Topology Page**: Interactive Smartscape-style visualization of GenAI service flows
-  - Card-based nodes for Services (blue), Providers (purple), and Models (teal)
-  - Connection-aware filtering - shows only related entities
-  - Provider and model icons (OpenAI, Anthropic, Google, Meta, Mistral, etc.)
-  - Hover tooltips with detailed metrics
-  - Edge labels showing token/request counts
-  - Deep-link to Dynatrace Services app
-- ✨ **Compact UI**: Reduced card sizes, tighter spacing, responsive SVG layout
-- ✨ **Model Icons**: Model nodes now show provider-inferred icons (GPT→OpenAI, Claude→Anthropic, etc.)
-- 🐛 **Edge Fix**: Edges now show for connections with only request data (no tokens)
-- 🐛 **Filter Fix**: Topology filtering now respects actual service→provider→model connections
-
-### v2.1.0 (January 2026)
-- 🆕 **Executive Dashboard**: New Home page with health overview and pillar navigation
-- 🆕 **Health Dashboard**: Dedicated page for AI service health with quality metrics
-- 🆕 **Quick Actions**: One-click remediation actions in Operations
-- 🆕 **GenAI Data Explorer**: Preset DQL queries for GenAI-specific analysis
-- ✨ **Quality Metrics**: Slow request rate (>5s), low output rate (<10 tokens), token efficiency
-- ✨ **Disclaimers**: Clear labeling of estimated/reference data in FinOps & Governance
-- 🗑️ **Removed Duplicates**: Consolidated duplicate pages and metrics
-- 🔗 **Improved Navigation**: Direct routes to all pages with redirects for legacy URLs
-
-### v2.0.0 (January 2026)
-- 🆕 **Four-pillar architecture**: FinOps, Governance, Intelligence, Operations
-- 🆕 **Prompt Analysis**: PII detection, hallucination risk, injection detection
-- 🆕 **Cost Forecasting**: 7/14/30-day projections with budget breach ETA
-- 🆕 **Davis CoPilot Integration**: Real NL-to-DQL conversion
-- 🆕 **Enterprise Governance Challenges**: 10 common enterprise AI risks
-- 🆕 **Collapsible Responses**: Clean UI with expandable details
-- ✨ **Tab Highlighting**: Active tab visual indicators
-- ✨ **Compact Layout**: Optimized screen space utilization
-
-### v1.0.0 (December 2025)
-- Initial release with Health Dashboard
-- Provider Comparison
-- Basic Davis Assistant
-- Remediation Library
+*Version 2.5.0 | © 2026*
 
 ---
 
