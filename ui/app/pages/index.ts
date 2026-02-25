@@ -35,6 +35,9 @@ export { ModelDrift } from './ModelDrift';
 // NEW: RAG / Vector DB Observability (Phase 5 — Viatris Gap)
 export { VectorDB } from './VectorDB';
 
+// NEW: Infrastructure Health (Phase 6 — Provider availability + Davis problems)
+export { Infrastructure } from './Infrastructure';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

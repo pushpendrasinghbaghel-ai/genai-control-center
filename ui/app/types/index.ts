@@ -338,3 +338,45 @@ export interface ChainPerformanceStep {
   callCount: number;
   errorRate: number;
 }
+
+// ============================================
+// Phase 6 — Infrastructure Types
+// ============================================
+
+export interface InfraProvider {
+  provider: string;
+  total: number;
+  errors: number;
+  availabilityPct: number;
+  avgLatencyMs: number;
+}
+
+export interface InfraServiceWorkload {
+  serviceName: string;
+  spanCount: number;
+  errorCount: number;
+  errorRate: number;
+  modelCount: number;
+  avgLatencyMs: number;
+  provider: string;
+  lastSeen: string;
+}
+
+export interface DavisProblem {
+  problemId: string;
+  title: string;
+  severity: string;
+  status: string;
+  startTime: string;
+  durationMin: number;
+  affectedEntities: string;
+}
+
+export interface DeploymentEvent {
+  eventId: string;
+  title: string;
+  entity: string;
+  timestamp: string;
+  version: string;
+  artifact: string;
+}

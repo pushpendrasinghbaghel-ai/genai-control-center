@@ -826,3 +826,83 @@ ${modelFilter}
 | limit 100
 `;
 };
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 6 — INFRASTRUCTURE QUERIES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Provider availability: error rate per provider from AI spans.
+ * Availability = 1 - (errors / total).
+ */
+export const INFRA_PROVIDER_AVAILABILITY_QUERY = (timeRange = '24h'): string => {
+  const timeClause = buildTimeRangeClause(timeRange);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+| summarize 
+    total = count(),
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    avg_latency_ms = avg(toLong(duration)) / 1000000,
+    by: { provider = gen_ai.provider.name }
+| fieldsAdd availability_pct = round(100.0 * (1.0 - toDouble(errors) / toDouble(total)), 2)
+| sort availability_pct asc
+`.trim();
+};
+
+/**
+ * K8s-style workload summary for AI services: group by service name, count spans, errors, models used.
+ */
+export const INFRA_SERVICE_WORKLOAD_QUERY = (timeRange = '24h'): string => {
+  const timeClause = buildTimeRangeClause(timeRange);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize
+    span_count = count(),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    model_count = countDistinct(gen_ai.request.model),
+    avg_latency_ms = avg(toLong(duration)) / 1000000,
+    last_seen = max(start_time),
+    provider = takeFirst(gen_ai.provider.name),
+    by: { service_name = service.name }
+| fieldsAdd error_rate = round(100.0 * toDouble(error_count) / toDouble(span_count), 2)
+| sort span_count desc
+| limit 30
+`.trim();
+};
+
+/**
+ * Davis problems for AI workloads — last N hours, any severity.
+ */
+export const INFRA_DAVIS_PROBLEMS_QUERY = (timeRange = '24h'): string => {
+  const timeClause = buildTimeRangeClause(timeRange);
+  return `
+fetch dt.davis.problems, ${timeClause}
+| fieldsAdd problem_id = id, title = display_id, severity = event.severity, status = event.status,
+    start_time = start_time, duration_min = toLong(duration) / 60000000000,
+    affected_entities = event.entity.names
+| sort start_time desc
+| limit 25
+`.trim();
+};
+
+/**
+ * Recent deployment events for AI services.
+ */
+export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeRange = '24h'): string => {
+  const timeClause = buildTimeRangeClause(timeRange);
+  return `
+fetch events, ${timeClause}
+| filter event.type == "DEPLOYMENT" OR event.kind == "DEPLOYMENT_EVENT" OR event.category == "DEPLOYMENT"
+| fields 
+    event_id = id,
+    title = event.name,
+    entity = event.entity.name,
+    timestamp = timestamp,
+    version = dt.event.deployment.version,
+    artifact = dt.event.deployment.artifact_version
+| sort timestamp desc
+| limit 20
+`.trim();
+};

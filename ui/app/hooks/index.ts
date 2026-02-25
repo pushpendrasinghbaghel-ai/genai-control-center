@@ -8,3 +8,4 @@ export * from './useResponseAnalytics';
 export * from './useAgentTools';
 export * from './useModelDrift';
 export * from './useVectorDB';
+export * from './useInfrastructure';

@@ -19,7 +19,8 @@ import {
   RealTimeAlerts,
   AgentTools,
   ModelDrift,
-  VectorDB
+  VectorDB,
+  Infrastructure
 } from "./pages";
 
 export const App = () => {
@@ -79,6 +80,9 @@ export const App = () => {
 
                 {/* RAG / Vector DB Observability - Pinecone + Embeddings + TTFT + Retries */}
                 <Route path="/vector-db" element={<VectorDB />} />
+
+                {/* Infrastructure Health - Provider availability, Davis problems, deployments */}
+                <Route path="/infrastructure" element={<Infrastructure />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />
