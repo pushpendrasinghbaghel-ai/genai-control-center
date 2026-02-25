@@ -1,7 +1,7 @@
 ﻿# GenAI Control Center - Product Roadmap
 
-> **Last Updated:** February 25, 2026  
-> **Version:** v2.6.0  
+> **Last Updated:** June 2026  
+> **Version:** v2.9.0  
 > **Status:** Active Development
 
 ---
@@ -114,7 +114,9 @@ fetch spans | filter traceloop.span.kind == "task"
 ---
 
 ### 1.2 Cost Forecasting with Davis Analyzers
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+
+> Implemented: AI-Powered Cost Forecast section with 7/14/30-day projections, budget breach ETA, and AI cost optimization insights (top provider concentration, cheapest-per-request, caching opportunity).
 
 #### Features
 | Feature | Data Source | Status | Notes |
@@ -134,7 +136,9 @@ fetch spans | filter traceloop.span.kind == "task"
 ---
 
 ### 1.3 Prompt Engineering Insights
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+
+> Implemented: Prompt Pattern Analysis section in PromptGovernance page showing top repeated patterns ranked by call count, token efficiency %, avg latency, and estimated cache savings per pattern.
 
 #### Features
 | Feature | Data Source | Status | Notes |
@@ -214,7 +218,9 @@ fetch dt.davis.problems, from: now()-7d
 ## Phase 3: Maturity & Developer Experience (Week 4)
 
 ### 3.1 AI Maturity Score (Proxy Metrics)
-**Priority:** P3 | **Feasibility:** 🟡 PARTIAL | **Status:** 📋 Planned
+**Priority:** P3 | **Feasibility:** 🟡 PARTIAL | **Status:** ✅ Completed (v2.9.0)
+
+> Implemented: Live maturity score on Home dashboard scoring 5 dimensions (Coverage, Reliability, Efficiency, Governance, Observability) from live telemetry. Shows numeric score + maturity level (Initial/Developing/Established/Advanced) with per-dimension progress bars.
 
 #### Proposed Scoring Model
 | Dimension | Weight | Metrics |
@@ -441,7 +447,9 @@ fetch spans, from:now()-24h
 > **DATA STATUS:** 🟢 HIGH — Standard Dynatrace metrics, just not surfaced in GCC
 
 ### 6.1 AI Infrastructure Dashboard
-**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+
+> Implemented: New `/infrastructure` page with provider availability progress bars, AI service workload table (span volume, error rate, latency, models used), Davis problems table, and deployment events.
 
 **New Page:** `/infrastructure` or section in existing Health page
 
@@ -518,7 +526,9 @@ fetch events, from:now()-24h
 > **DATA STATUS:** 🟡 PARTIAL — Some Dynatrace platform data available
 
 ### 7.1 AppSec Integration for AI Services
-**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+
+> Implemented: AppSec tab in Governance page showing OWASP LLM Top-10 findings (prompt injection, PII leakage, unvalidated outputs, excessive agent permissions, outdated SDKs) with severity/status badges.
 
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
