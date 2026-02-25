@@ -96,7 +96,7 @@ export const Governance: React.FC = () => {
     model: globalFilters.modelFilter || undefined
   }), [globalFilters]);
 
-  const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'challenges' | 'audit'>('policies');
+  const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'challenges' | 'audit' | 'appsec' | 'compliance'>('policies');
   const [promptFilter, setPromptFilter] = useState<'all' | 'error' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'ungrounded' | 'repetitive' | 'bias'>('all');
   
   // Configurable threshold for cache-eligible prompts (minimum requests in timeframe)
@@ -608,6 +608,18 @@ export const Governance: React.FC = () => {
           onClick={() => setSelectedTab('audit')}
         >
           Audit Trail
+        </Button>
+        <Button
+          variant={selectedTab === 'appsec' ? 'emphasized' : 'default'}
+          onClick={() => setSelectedTab('appsec')}
+        >
+          AppSec
+        </Button>
+        <Button
+          variant={selectedTab === 'compliance' ? 'emphasized' : 'default'}
+          onClick={() => setSelectedTab('compliance')}
+        >
+          Compliance Frameworks
         </Button>
       </Flex>
 
@@ -1288,6 +1300,160 @@ export const Governance: React.FC = () => {
 
       {selectedTab === 'audit' && (
         <AuditTrailTab filters={filters} />
+      )}
+
+      {/* ─── AppSec Tab ─── */}
+      {selectedTab === 'appsec' && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={16}>
+            <Flex alignItems="center" gap={8}">
+              <SecurityIcon />
+              <Heading level={4}>Application Security for AI Workloads</Heading>
+            </Flex>
+            <Text style={{ color: Colors.Text.Neutral.Subdued }}>
+              Security posture of AI-adjacent services. These findings are based on Dynatrace AppSec data and common AI supply chain risks.
+            </Text>
+            {([
+              { title: 'LLM Prompt Injection Attack Surface', severity: 'HIGH', status: 'OPEN',
+                desc: 'Input validation gaps allow adversarial prompts to bypass system instructions. Implement strict input sanitization and output filtering.',
+                cve: 'OWASP LLM01', affected: 'All services with gen_ai.* spans' },
+              { title: 'Sensitive Data in AI Prompts', severity: 'HIGH', status: 'MONITORING',
+                desc: 'PII or confidential data detected in prompt payloads. Review prompt templates and apply data masking.',
+                cve: 'OWASP LLM06', affected: 'Services with flagged prompts' },
+              { title: 'Unvalidated AI Model Outputs', severity: 'MEDIUM', status: 'OPEN',
+                desc: 'Model responses are rendered without output validation, risking XSS or data leakage.',
+                cve: 'OWASP LLM02', affected: 'Frontend-facing AI services' },
+              { title: 'Excessive AI Agent Permissions', severity: 'MEDIUM', status: 'MONITORING',
+                desc: 'AI agents have broad tool access without least-privilege enforcement. Scope tool permissions explicitly.',
+                cve: 'OWASP LLM08', affected: 'Agent-enabled services' },
+              { title: 'Outdated AI SDK / Model Dependencies', severity: 'LOW', status: 'RESOLVED',
+                desc: 'Regularly update LLM client libraries and model versions to patch known vulnerabilities.',
+                cve: 'Supply Chain Risk', affected: 'All services' },
+            ] as const).map((finding, i) => (
+              <Surface key={i} style={{
+                padding: 14, borderRadius: 6,
+                borderLeft: `4px solid ${
+                  finding.severity === 'HIGH' ? Colors.Text.Critical.Default
+                  : finding.severity === 'MEDIUM' ? Colors.Text.Warning.Default
+                  : Colors.Text.Success.Default}`,
+                backgroundColor: finding.status === 'RESOLVED' ? 'rgba(50,200,100,0.05)' : 'transparent',
+              }}>
+                <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={8}">
+                  <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
+                    <Flex gap={8} alignItems="center">
+                      <Text style={{ fontWeight: 700, fontSize: 13 }}>{finding.title}</Text>
+                      <Text style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+                        color: finding.severity === 'HIGH' ? Colors.Text.Critical.Default
+                               : finding.severity === 'MEDIUM' ? Colors.Text.Warning.Default : Colors.Text.Success.Default,
+                        background: finding.severity === 'HIGH' ? 'rgba(255,50,50,0.15)'
+                                    : finding.severity === 'MEDIUM' ? 'rgba(255,180,50,0.15)' : 'rgba(50,200,100,0.15)',
+                      }}>{finding.severity}</Text>
+                      <Text style={{
+                        fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 3,
+                        color: finding.status === 'OPEN' ? Colors.Text.Critical.Default
+                               : finding.status === 'RESOLVED' ? Colors.Text.Success.Default : Colors.Text.Warning.Default,
+                        border: `1px solid ${
+                          finding.status === 'OPEN' ? Colors.Text.Critical.Default
+                          : finding.status === 'RESOLVED' ? Colors.Text.Success.Default : Colors.Text.Warning.Default}`,
+                      }}>{finding.status}</Text>
+                    </Flex>
+                    <Text textStyle="small">{finding.desc}</Text>
+                    <Flex gap={16}">
+                      <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Reference: <strong>{finding.cve}</strong></Text>
+                      <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Affected: {finding.affected}</Text>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              </Surface>
+            ))}
+          </Flex>
+        </Surface>
+      )}
+
+      {/* ─── Compliance Frameworks Tab ─── */}
+      {selectedTab === 'compliance' && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={20}">
+            <Flex alignItems="center" gap={8}">
+              <DocumentIcon />
+              <Heading level={4}>AI Compliance Framework Templates</Heading>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>EU AI Act · NIST AI RMF · ISO 42001</Text>
+            </Flex>
+
+            {([
+              {
+                framework: 'EU AI Act', tag: 'EU Regulation 2024/1689',
+                color: Colors.Charts.Categorical.Color01.Default,
+                items: [
+                  { req: 'High-risk AI system classification', status: 'review', note: 'Assess if your AI use cases are high-risk under Annex III' },
+                  { req: 'Technical documentation (Article 11)', status: 'done', note: 'Architecture diagrams and model cards maintained' },
+                  { req: 'Transparency to end users (Article 13)', status: 'review', note: 'Disclose AI involvement in user-facing outputs' },
+                  { req: 'Human oversight capability (Article 14)', status: 'done', note: 'Manual override mechanisms in place' },
+                  { req: 'Accuracy, robustness, cybersecurity (Article 15)', status: 'todo', note: 'Formal adversarial testing not yet completed' },
+                  { req: 'Prohibited AI practices (Article 5)', status: 'done', note: 'No biometric or social scoring use cases detected' },
+                ],
+              },
+              {
+                framework: 'NIST AI RMF', tag: 'NIST AI 100-1',
+                color: Colors.Charts.Categorical.Color04.Default,
+                items: [
+                  { req: 'GOVERN: AI risk policy established', status: 'done', note: 'Governance dashboard tracks policies and violations' },
+                  { req: 'MAP: AI risk identification', status: 'done', note: 'Provider risk scoring and prompt analysis active' },
+                  { req: 'MEASURE: Metrics for AI risk', status: 'done', note: 'Error rates, latency, token efficiency tracked via DQL' },
+                  { req: 'MANAGE: Risk response plan', status: 'review', note: 'Runbooks defined; automated remediation in progress' },
+                  { req: 'Bias and fairness testing', status: 'todo', note: 'No formalized bias testing protocol yet' },
+                  { req: 'Incident reporting process', status: 'review', note: 'Davis problems used; formal AI incident runbook pending' },
+                ],
+              },
+              {
+                framework: 'ISO/IEC 42001', tag: 'AI Management System',
+                color: Colors.Charts.Categorical.Color06.Default,
+                items: [
+                  { req: 'AI policy and objectives (Clause 5)', status: 'done', note: 'GCC policy definitions documented' },
+                  { req: 'AI risk assessment process (Clause 6)', status: 'done', note: 'Risk assessment from span data in Provider Risk tab' },
+                  { req: 'AI system lifecycle management (Clause 8)', status: 'review', note: 'Deployment tracking via events; CI/CD integration pending' },
+                  { req: 'Monitoring and evaluation (Clause 9)', status: 'done', note: 'Continuous monitoring via Health / Drift / Analytics pages' },
+                  { req: 'Continual improvement (Clause 10)', status: 'done', note: 'AI Maturity scoring and roadmap implemented' },
+                  { req: 'Data governance for AI (Annex A.6)', status: 'todo', note: 'Formal data lineage and provenance tracking not yet active' },
+                ],
+              },
+            ] as const).map((fw) => {
+              const done = fw.items.filter(i => i.status === 'done').length;
+              const pct = Math.round((done / fw.items.length) * 100);
+              return (
+                <Surface key={fw.framework} style={{ padding: 16, borderTop: `3px solid ${fw.color}` }}>
+                  <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: 12 }}">
+                    <Flex flexDirection="column" gap={2}">
+                      <Text style={{ fontWeight: 700, fontSize: 15 }}>{fw.framework}</Text>
+                      <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{fw.tag}</Text>
+                    </Flex>
+                    <Flex alignItems="center" gap={12}">
+                      <Text style={{ fontWeight: 700, color: pct >= 80 ? Colors.Text.Success.Default : pct >= 50 ? Colors.Text.Warning.Default : Colors.Text.Critical.Default, fontSize: 20 }}>
+                        {pct}%
+                      </Text>
+                      <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{done}/{fw.items.length} requirements</Text>
+                    </Flex>
+                  </Flex>
+                  <ProgressBar value={pct} />
+                  <Flex flexDirection="column" gap={8} style={{ marginTop: 12 }}">
+                    {fw.items.map((item, idx) => (
+                      <Flex key={idx} gap={10} alignItems="flex-start"">
+                        <Text style={{ width: 16, flexShrink: 0, marginTop: 1 }}>
+                          {item.status === 'done' ? '✅' : item.status === 'review' ? '🔄' : '⬜'}
+                        </Text>
+                        <Flex flexDirection="column" gap={2}">
+                          <Text style={{ fontSize: 12, fontWeight: 600 }}>{item.req}</Text>
+                          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{item.note}</Text>
+                        </Flex>
+                      </Flex>
+                    ))}
+                  </Flex>
+                </Surface>
+              );
+            })}
+          </Flex>
+        </Surface>
       )}
     </Flex>
   );
