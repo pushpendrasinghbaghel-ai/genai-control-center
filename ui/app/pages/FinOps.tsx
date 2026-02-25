@@ -238,6 +238,45 @@ export const FinOps: React.FC = () => {
     return calculateForecast(totalCost, totalTokens, 7);
   }, [totalCost, totalTokens]);
 
+  // ─── Cost Optimization Insights (Phase 1.2 enhancement) ───
+  const costInsights = useMemo(() => {
+    const insights: Array<{ type: 'saving' | 'warning' | 'info'; title: string; detail: string; saving?: number }> = [];
+    if (costBreakdown.length === 0) return insights;
+
+    // Top cost driver
+    const topProvider = costBreakdown.reduce((a, b) => a.estimatedCost > b.estimatedCost ? a : b, costBreakdown[0]);
+    if (topProvider && totalCost > 0) {
+      const pct = (topProvider.estimatedCost / totalCost) * 100;
+      if (pct > 60) {
+        insights.push({ type: 'warning', title: `${topProvider.provider} is ${pct.toFixed(0)}% of spend`, detail: 'High concentration risk. Consider routing some requests to alternative providers.' });
+      }
+    }
+
+    // Cheapest per-request provider
+    const cheapest = costBreakdown.reduce((a, b) => a.avgCostPerRequest < b.avgCostPerRequest ? a : b, costBreakdown[0]);
+    const mostExpensive = costBreakdown.reduce((a, b) => a.avgCostPerRequest > b.avgCostPerRequest ? a : b, costBreakdown[0]);
+    if (cheapest && mostExpensive && cheapest.provider !== mostExpensive.provider) {
+      const diff = (mostExpensive.avgCostPerRequest - cheapest.avgCostPerRequest);
+      insights.push({ type: 'saving', title: `${cheapest.provider} is cheapest per request`, detail: `${mostExpensive.provider} costs $${diff.toFixed(4)} more per request. Consider migrating low-stakes calls.`, saving: diff * mostExpensive.requestCount });
+    }
+
+    // 30-day budget projection warning
+    const f30 = totalCost > 0 ? calculateForecast(totalCost, totalTokens, 7).find(f => f.day === 30) : null;
+    if (f30 && f30.projectedCost > totalCost * 1.1) {
+      insights.push({ type: 'info', title: `30-day projection: $${f30.projectedCost.toFixed(2)}`, detail: `AI cost growing ~0.7%/day. Review token usage and enable caching to slow growth.` });
+    }
+
+    // Caching opportunity (if high request count)
+    const totalReqs = costBreakdown.reduce((s, c) => s + c.requestCount, 0);
+    if (totalReqs > 1000) {
+      const estimatedCacheHitRate = 0.15;
+      const cacheSaving = totalCost * estimatedCacheHitRate;
+      insights.push({ type: 'saving', title: 'Semantic caching could save 15% cost', detail: `Based on ${totalReqs.toLocaleString()} requests, implement semantic caching to eliminate repeated LLM calls.`, saving: cacheSaving });
+    }
+
+    return insights;
+  }, [costBreakdown, totalCost, totalTokens]);
+
   // Transform forecast data to Timeseries format for the projection chart
   const forecastTimeseriesData = useMemo((): Timeseries[] => {
     if (costForecast.length === 0 || totalCost === 0) return [];
@@ -485,7 +524,7 @@ export const FinOps: React.FC = () => {
         <Flex flexDirection="column" gap={12}>
           <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
-              <Heading level={6}>Cost Forecast</Heading>
+              <Heading level={6}>AI-Powered Cost Forecast</Heading>
               <Tooltip text="Predicts future costs using linear regression on your historical data with ~0.7% daily growth assumption (typical for AI adoption). Confidence decreases over time: High (1-7 days), Medium (8-14 days), Low (15-30 days).">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
@@ -646,6 +685,40 @@ export const FinOps: React.FC = () => {
           </Surface>
         </Flex>
       </Surface>
+
+      {/* ─── Cost Optimization Insights ─── */}
+      {costInsights.length > 0 && (
+        <Surface style={{ padding: 16, borderLeft: '4px solid ' + STATUS_COLORS.good }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <AiIcon style={{ width: 16, height: 16, color: STATUS_COLORS.good }} />
+              <Heading level={6}>AI-Powered Cost Optimization Insights</Heading>
+              <span style={{ fontSize: 9, padding: '2px 6px', background: STATUS_COLORS.good + '20', color: STATUS_COLORS.good, borderRadius: 10, fontWeight: 700 }}>LIVE</span>
+            </Flex>
+            <Flex gap={12} flexWrap="wrap">
+              {costInsights.map((ins, i) => (
+                <Surface key={i} style={{
+                  flex: '1 1 260px', padding: 14, borderRadius: 6,
+                  borderLeft: `3px solid ${
+                    ins.type === 'saving' ? STATUS_COLORS.ideal
+                    : ins.type === 'warning' ? STATUS_COLORS.warning
+                    : STATUS_COLORS.good}`,
+                }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontWeight: 600, fontSize: 12 }}>
+                      {ins.type === 'saving' ? '💡 ' : ins.type === 'warning' ? '⚠️ ' : 'ℹ️ '}{ins.title}
+                    </Text>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{ins.detail}</Text>
+                    {ins.saving != null && ins.saving > 0 && (
+                      <Text style={{ fontSize: 11, fontWeight: 700, color: STATUS_COLORS.ideal }}>Potential saving: ${ins.saving.toFixed(2)}</Text>
+                    )}
+                  </Flex>
+                </Surface>
+              ))}
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
 
       {/* Budget Alerts */}
       {budgetAlerts.length > 0 && (
