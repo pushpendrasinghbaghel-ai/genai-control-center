@@ -7,6 +7,9 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
+import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
+import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { createDefaultTimeframe } from '../components/FilterBar';
 import {
   HostsIcon,
   RefreshIcon,
@@ -89,12 +92,12 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, sub, color 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export const Infrastructure: React.FC = () => {
-  const [timeRange, setTimeRange] = useState('24h');
+  const [timeframe, setTimeframe] = useState<Timeframe>(() => createDefaultTimeframe());
   const { providers, workloads, problems, deployments, loading, error, refetch } = useInfrastructure();
 
   useEffect(() => {
-    void refetch(timeRange);
-  }, [timeRange, refetch]);
+    void refetch(timeframe);
+  }, [timeframe, refetch]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -122,28 +125,11 @@ export const Infrastructure: React.FC = () => {
           </Flex>
         </Flex>
         <Flex gap={8} alignItems="center">
-          <Flex flexDirection="column" gap={2}>
-            <Text textStyle="small">Time Range</Text>
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              style={{
-                padding: '6px 10px', borderRadius: 4, fontSize: 13,
-                border: '1px solid var(--dt-colors-border-neutral-default)',
-                background: 'var(--dt-colors-background-base-default)',
-                color: 'var(--dt-colors-text-primary-default)',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="1h">Last 1h</option>
-              <option value="3h">Last 3h</option>
-              <option value="6h">Last 6h</option>
-              <option value="24h">Last 24h</option>
-              <option value="2d">Last 2d</option>
-              <option value="7d">Last 7d</option>
-            </select>
-          </Flex>
-          <Button variant="emphasized" onClick={() => refetch(timeRange)}>
+          <TimeframeSelector
+            value={timeframe}
+            onChange={(tf) => tf && setTimeframe(tf)}
+          />
+          <Button variant="emphasized" onClick={() => refetch(timeframe)}>
             <RefreshIcon style={{ width: 14, height: 14 }} />
             {loading ? 'Loading…' : 'Refresh'}
           </Button>
@@ -182,7 +168,7 @@ export const Infrastructure: React.FC = () => {
           icon={<WorkflowsIcon style={{ color: STATUS_COLORS.neutral }} />}
           label="AI Span Volume"
           value={kpis.totalSpans}
-          sub={`in last ${timeRange}`}
+          sub="selected time range"
         />
       </Flex>
 

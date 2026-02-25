@@ -835,8 +835,7 @@ ${modelFilter}
  * Provider availability: error rate per provider from AI spans.
  * Availability = 1 - (errors / total).
  */
-export const INFRA_PROVIDER_AVAILABILITY_QUERY = (timeRange = '24h'): string => {
-  const timeClause = buildTimeRangeClause(timeRange);
+export const INFRA_PROVIDER_AVAILABILITY_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name)
@@ -853,8 +852,7 @@ fetch spans, ${timeClause}
 /**
  * K8s-style workload summary for AI services: group by service name, count spans, errors, models used.
  */
-export const INFRA_SERVICE_WORKLOAD_QUERY = (timeRange = '24h'): string => {
-  const timeClause = buildTimeRangeClause(timeRange);
+export const INFRA_SERVICE_WORKLOAD_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
@@ -875,8 +873,7 @@ fetch spans, ${timeClause}
 /**
  * Davis problems for AI workloads — last N hours, any severity.
  */
-export const INFRA_DAVIS_PROBLEMS_QUERY = (timeRange = '24h'): string => {
-  const timeClause = buildTimeRangeClause(timeRange);
+export const INFRA_DAVIS_PROBLEMS_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
   return `
 fetch dt.davis.problems, ${timeClause}
 | fieldsAdd problem_id = id, title = display_id, severity = event.severity, status = event.status,
@@ -890,8 +887,7 @@ fetch dt.davis.problems, ${timeClause}
 /**
  * Recent deployment events for AI services.
  */
-export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeRange = '24h'): string => {
-  const timeClause = buildTimeRangeClause(timeRange);
+export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
   return `
 fetch events, ${timeClause}
 | filter event.type == "DEPLOYMENT" OR event.kind == "DEPLOYMENT_EVENT" OR event.category == "DEPLOYMENT"

@@ -3,11 +3,13 @@
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import {
   INFRA_PROVIDER_AVAILABILITY_QUERY,
   INFRA_SERVICE_WORKLOAD_QUERY,
   INFRA_DAVIS_PROBLEMS_QUERY,
   INFRA_DEPLOYMENT_EVENTS_QUERY,
+  buildTimeRangeClauseFromTimeframe,
 } from '../queries/dql-queries';
 import type {
   InfraProvider,
@@ -27,7 +29,7 @@ export interface UseInfrastructureReturn {
   deployments: DeploymentEvent[];
   loading: boolean;
   error: Error | null;
-  refetch: (timeRange?: string) => Promise<void>;
+  refetch: (timeframe?: Timeframe | null) => Promise<void>;
 }
 
 // ============================================
@@ -65,15 +67,16 @@ export function useInfrastructure(): UseInfrastructureReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const refetch = useCallback(async (timeRange = '24h') => {
+  const refetch = useCallback(async (timeframe: Timeframe | null = null) => {
     setLoading(true);
     setError(null);
+    const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
     try {
       const [provRows, workRows, probRows, deployRows] = await Promise.all([
-        runQuery(INFRA_PROVIDER_AVAILABILITY_QUERY(timeRange)),
-        runQuery(INFRA_SERVICE_WORKLOAD_QUERY(timeRange)),
-        runQuery(INFRA_DAVIS_PROBLEMS_QUERY(timeRange)),
-        runQuery(INFRA_DEPLOYMENT_EVENTS_QUERY(timeRange)),
+        runQuery(INFRA_PROVIDER_AVAILABILITY_QUERY(timeClause)),
+        runQuery(INFRA_SERVICE_WORKLOAD_QUERY(timeClause)),
+        runQuery(INFRA_DAVIS_PROBLEMS_QUERY(timeClause)),
+        runQuery(INFRA_DEPLOYMENT_EVENTS_QUERY(timeClause)),
       ]);
 
       setProviders(
