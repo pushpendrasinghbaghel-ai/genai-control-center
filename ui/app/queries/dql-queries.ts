@@ -568,10 +568,9 @@ fetch spans, ${timeClause}
     OR contains(lower(span.name), "embed")
     OR contains(lower(span.name), "vectorstore")
     OR contains(lower(span.name), "vector_store")
-    OR isNotNull(db.vector.query.top_k)
     OR gen_ai.operation.name == "embeddings"
     OR (isNotNull(gen_ai.provider.name) AND (contains(lower(span.name), "chat") OR contains(lower(span.name), "completion")))
-| fieldsAdd step_type = if(isNotNull(db.system) OR isNotNull(db.vector.query.top_k) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve"), then: "retrieve",
+| fieldsAdd step_type = if(isNotNull(db.system) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve") OR contains(lower(span.name), "pinecone.query"), then: "retrieve",
     else: if(contains(lower(span.name), "embed") OR gen_ai.operation.name == "embeddings", then: "embed", else: "generate"))
 | summarize
     span_types = collectDistinct(step_type),
@@ -582,7 +581,7 @@ fetch spans, ${timeClause}
     has_generate = countIf(step_type == "generate") > 0,
     sample_trace_id = takeLast(trace.id),
     service_name = takeFirst(service.name),
-    trace_start = min(timestamp)
+    trace_start = min(start_time)
   , by: { trace.id }
 | filter span_count >= 2
 | sort total_duration_ms desc
@@ -605,10 +604,9 @@ fetch spans, ${timeClause}
     OR contains(lower(span.name), "embed")
     OR contains(lower(span.name), "vectorstore")
     OR contains(lower(span.name), "vector_store")
-    OR isNotNull(db.vector.query.top_k)
     OR gen_ai.operation.name == "embeddings"
     OR (isNotNull(gen_ai.provider.name) AND (contains(lower(span.name), "chat") OR contains(lower(span.name), "completion")))
-| fieldsAdd step_type = if(isNotNull(db.system) OR isNotNull(db.vector.query.top_k) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve"), then: "retrieve",
+| fieldsAdd step_type = if(isNotNull(db.system) OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "vector_store") OR contains(lower(span.name), "retrieve") OR contains(lower(span.name), "pinecone.query"), then: "retrieve",
     else: if(contains(lower(span.name), "embed") OR gen_ai.operation.name == "embeddings", then: "embed", else: "generate"))
 | summarize
     call_count = count(),
@@ -636,7 +634,6 @@ fetch spans, ${timeClause}
     OR contains(lower(span.name), "vectorstore")
     OR contains(lower(span.name), "vector_store")
     OR contains(lower(span.name), "retrieve")
-    OR isNotNull(db.vector.query.top_k)
 | makeTimeseries
     total = count(),
     errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
@@ -661,7 +658,7 @@ fetch spans, ${timeClause}
     OR contains(lower(span.name), "vector_store")
     OR contains(lower(span.name), "retrieve")
     OR isNotNull(db.vector.query.top_k)
-| fieldsAdd query_preview = substring(coalesce(db.statement, db.query.text, span.name), from: 0, to: 120)
+| fieldsAdd query_preview = substring(coalesce(db.statement, db.query.text, if(span.name != "pinecone.query", then: span.name, else: null), span.name), from: 0, to: 120)
 | summarize
     count = count(),
     avg_latency_ms = avg(duration) / 1000000
@@ -794,6 +791,231 @@ fetch spans, ${timeClause}
     error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
   , by: { step_label }
 | sort avg_duration_ms desc
+`;
+};
+
+// ============================================
+// Vector DB Extended Observability (Phase 5.4)
+// Index performance, ingestion, drift, anomaly detection
+// ============================================
+
+/**
+ * Index performance — latency breakdown by operation type (query vs upsert vs delete).
+ * Split reveals write amplification, read/write contention and ingestion cost.
+ * OTel semantic convention: db.operation for standard ops; span name heuristic for Pinecone SDK.
+ */
+export const VECTOR_INDEX_PERFORMANCE_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k)
+    OR contains(lower(span.name), "upsert")
+    OR contains(lower(span.name), "index")
+| fieldsAdd op_type = coalesce(
+    db.operation,
+    if(contains(lower(span.name), "upsert"),  then: "upsert",
+    else: if(contains(lower(span.name), "delete") OR contains(lower(span.name), "remove"), then: "delete",
+    else: if(contains(lower(span.name), "fetch") OR contains(lower(span.name), "query") OR contains(lower(span.name), "retrieve"), then: "query",
+    else: "query"))))
+| summarize
+    avg_latency_ms = avg(duration) / 1000000,
+    p50_latency_ms = percentile(duration, 50) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000,
+    call_count = count(),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { op_type }
+| sort call_count desc
+`;
+};
+
+/**
+ * Data ingestion metrics — upsert/write throughput timeseries.
+ * Tracks index build velocity; a sudden drop indicates ingestion pipeline failures.
+ */
+export const VECTOR_INGESTION_METRICS_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter (db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store"))
+  AND (contains(lower(span.name), "upsert")
+    OR contains(lower(span.name), "insert")
+    OR contains(lower(span.name), "index")
+    OR contains(lower(span.name), "ingest")
+    OR db.operation == "upsert"
+    OR db.operation == "insert"
+    OR db.operation == "index")
+| makeTimeseries
+    upserts = count(),
+    avg_upsert_latency_ms = avg(duration) / 1000000,
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    interval: 1h
+`;
+};
+
+/**
+ * Result set sizes & top-K configuration by namespace/index.
+ * Reveals retrieval breadth — oversized top_k causes LLM context bloat;
+ * undersized top_k causes context starvation.
+ */
+export const VECTOR_RESULT_SET_SIZES_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter (db.system == "pinecone" AND (contains(lower(span.name), "query") OR contains(lower(span.name), "retrieve")))
+    OR (db.system == "chromadb" OR db.system == "qdrant" OR db.system == "weaviate" OR db.system == "milvus")
+| summarize
+    query_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { namespace = coalesce(db.namespace, "default"), index_name = coalesce(db.name, coalesce(db.system, "unknown")) }
+| sort query_count desc
+| limit 20
+`;
+};
+
+/**
+ * Source document metadata — namespace, index/collection, filter breakdown.
+ * Maps which indexes are queried most, latency per namespace, enabling
+ * namespace-level cost attribution and hot-spot identification.
+ */
+export const SOURCE_DOCUMENT_METADATA_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k)
+| summarize
+    query_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: {
+      namespace = coalesce(db.namespace, "default"),
+      index_name = coalesce(db.name, "unknown"),
+      db_system = coalesce(db.system, "unknown")
+    }
+| sort query_count desc
+| limit 25
+`;
+};
+
+/**
+ * Tokenization drift — prompt token count trend over time.
+ * Rising averages signal prompt bloat (larger retrieved chunks, growing context windows).
+ * Falling averages may indicate context truncation or retrieval degradation.
+ * Uses gen_ai.usage.prompt_tokens (OTel) or gen_ai.usage.input_tokens (Anthropic/AWS).
+ */
+export const TOKENIZATION_DRIFT_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.prompt_tokens)
+    OR isNotNull(gen_ai.usage.input_tokens)
+    OR isNotNull(gen_ai.usage.completion_tokens)
+    OR isNotNull(gen_ai.usage.output_tokens)
+| fieldsAdd
+    prompt_tokens = toLong(coalesce(gen_ai.usage.prompt_tokens, gen_ai.usage.input_tokens, 0)),
+    completion_tokens = toLong(coalesce(gen_ai.usage.completion_tokens, gen_ai.usage.output_tokens, 0))
+| filter prompt_tokens > 0
+| makeTimeseries
+    avg_prompt_tokens = avg(prompt_tokens),
+    p95_prompt_tokens = percentile(prompt_tokens, 95),
+    avg_completion_tokens = avg(completion_tokens),
+    total_tokens = sum(prompt_tokens + completion_tokens),
+    interval: 1h
+`;
+};
+
+/**
+ * Retrieval anomalies — per-hour vector store latency outlier detection.
+ * Computes p99/avg ratio: ratio > 3x signals heavy-tail latency spikes
+ * (large result sets, index fragmentation, cold cache, or network blips).
+ */
+export const RETRIEVAL_ANOMALIES_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k)
+| summarize
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000,
+    query_count = count(),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    hour_bucket = bin(start_time, 1h)
+  , by: { hour_bucket = bin(start_time, 1h) }
+| fieldsAdd
+    anomaly_ratio = if(avg_latency_ms > 0, then: p99_latency_ms / avg_latency_ms, else: 0.0),
+    is_anomalous = p99_latency_ms / avg_latency_ms > 3.0
+| sort hour_bucket desc
+| limit 48
+`;
+};
+
+/**
+ * Context retrieval effectiveness — retrieve success rate and top_k utilization by namespace.
+ * Proxies retrieval quality: high error rate = retrieval failures;
+ * avg_top_k << max_top_k = under-utilization (index too sparse or filters too restrictive).
+ */
+export const CONTEXT_RETRIEVAL_EFFECTIVENESS_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter (db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR isNotNull(db.vector.query.top_k))
+  AND NOT (contains(lower(span.name), "upsert")
+    OR contains(lower(span.name), "insert")
+    OR db.operation == "upsert")
+| summarize
+    total_queries = count(),
+    successful_queries = countIf(NOT (span.status_code == "error" OR isNotNull(error.type))),
+    failed_queries = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    success_rate = toDouble(countIf(NOT (span.status_code == "error" OR isNotNull(error.type)))) / toDouble(count()) * 100.0,
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000
+  , by: { namespace = coalesce(db.namespace, coalesce(db.system, "all")) }
+| sort total_queries desc
+| limit 20
 `;
 };
 

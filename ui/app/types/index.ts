@@ -340,6 +340,83 @@ export interface ChainPerformanceStep {
 }
 
 // ============================================
+// Phase 5.4 — Vector DB Extended Observability Types
+// ============================================
+
+/** Per-operation latency split: query vs upsert vs delete */
+export interface VectorIndexPerformance {
+  opType: string;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  callCount: number;
+  errorCount: number;
+  errorRate: number;
+}
+
+/** Hourly ingestion throughput timeseries */
+export interface VectorIngestionPoint {
+  timestamp: number;
+  upserts: number;
+  avgUpsertLatencyMs: number;
+  errors: number;
+}
+
+/** Query volume and latency by namespace / index */
+export interface VectorResultSetSize {
+  namespace: string;
+  indexName: string;
+  queryCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorRate: number;
+}
+
+/** Namespace / index metadata with latency and error attribution */
+export interface SourceDocumentMetadata {
+  namespace: string;
+  indexName: string;
+  dbSystem: string;
+  queryCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorRate: number;
+}
+
+/** Hourly prompt/completion token trend — tokenization drift */
+export interface TokenizationDriftPoint {
+  timestamp: number;
+  avgPromptTokens: number;
+  p95PromptTokens: number;
+  avgCompletionTokens: number;
+  totalTokens: number;
+}
+
+/** Per-hour retrieval anomaly indicator */
+export interface RetrievalAnomalyPoint {
+  timestamp: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  queryCount: number;
+  errorCount: number;
+  anomalyRatio: number;
+  isAnomalous: boolean;
+}
+
+/** Retrieve success/failure rate + latency by namespace */
+export interface ContextRetrievalEffectiveness {
+  namespace: string;
+  totalQueries: number;
+  successfulQueries: number;
+  failedQueries: number;
+  successRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+}
+
+// ============================================
 // Phase 6 — Infrastructure Types
 // ============================================
 

@@ -337,6 +337,9 @@ export const VectorDB: React.FC = () => {
     pipelineTraces,
     ttftByModel, ttftSummary,
     chainSteps,
+    indexPerformance, ingestionTimeseries,
+    resultSetSizes, sourceDocMetadata,
+    tokenizationDrift, retrievalAnomalies, contextEffectiveness,
     loading, error, refetch,
   } = useVectorDB(filters);
 
@@ -373,6 +376,51 @@ export const VectorDB: React.FC = () => {
   const maxStepMs = useMemo(
     () => Math.max(...chainSteps.map((s) => s.avgDurationMs), 1),
     [chainSteps]);
+
+  // Phase 5.4 computed series
+  const ingestionSeries: Timeseries[] = useMemo(() =>
+    ingestionTimeseries.length > 0
+      ? [{
+          name: 'Upserts / hour',
+          color: Colors.Charts.Categorical.Color04.Default,
+          datapoints: ingestionTimeseries
+            .filter((d) => d.timestamp > 0)
+            .map((d) => ({ start: new Date(d.timestamp), end: new Date(d.timestamp + 3_600_000), value: d.upserts })),
+        }]
+      : [],
+    [ingestionTimeseries]);
+
+  const tokenDriftSeries: Timeseries[] = useMemo(() => {
+    if (tokenizationDrift.length === 0) return [];
+    return [
+      {
+        name: 'Avg Prompt Tokens',
+        color: Colors.Charts.Categorical.Color01.Default,
+        datapoints: tokenizationDrift
+          .filter((d) => d.timestamp > 0)
+          .map((d) => ({ start: new Date(d.timestamp), end: new Date(d.timestamp + 3_600_000), value: d.avgPromptTokens })),
+      },
+      {
+        name: 'p95 Prompt Tokens',
+        color: Colors.Charts.Categorical.Color03.Default,
+        datapoints: tokenizationDrift
+          .filter((d) => d.timestamp > 0)
+          .map((d) => ({ start: new Date(d.timestamp), end: new Date(d.timestamp + 3_600_000), value: d.p95PromptTokens })),
+      },
+      {
+        name: 'Avg Completion Tokens',
+        color: Colors.Charts.Categorical.Color06.Default,
+        datapoints: tokenizationDrift
+          .filter((d) => d.timestamp > 0)
+          .map((d) => ({ start: new Date(d.timestamp), end: new Date(d.timestamp + 3_600_000), value: d.avgCompletionTokens })),
+      },
+    ];
+  }, [tokenizationDrift]);
+
+  const anomalyCount = useMemo(
+    () => retrievalAnomalies.filter((a) => a.isAnomalous).length,
+    [retrievalAnomalies]);
+
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -905,6 +953,402 @@ export const VectorDB: React.FC = () => {
       {selectedTrace && (
         <RAGTraceDetailModal trace={selectedTrace} onClose={() => setSelectedTrace(null)} />
       )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          Phase 5.4 — Extended Vector DB Observability
+          Row A: Index Performance + Data Ingestion Metrics
+      ══════════════════════════════════════════════════════════════ */}
+      <Flex gap={16} flexWrap="wrap">
+        {/* Index Performance — operation type latency split */}
+        <Surface style={{ flex: '1 1 50%', padding: 16, minWidth: 280 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <BarChartIcon />
+            <Heading level={4}>Index Performance by Operation</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>query · upsert · delete latency split</Text>
+          </Flex>
+          {indexPerformance.length > 0 ? (
+            <DataTable
+              data={indexPerformance}
+              columns={[
+                {
+                  header: 'Operation', id: 'opType', accessor: 'opType',
+                  cell: ({ value }) => {
+                    const op = String(value ?? '');
+                    const color = op === 'upsert'
+                      ? Colors.Charts.Categorical.Color04.Default
+                      : op === 'delete'
+                        ? STATUS_COLORS.critical
+                        : Colors.Charts.Categorical.Color01.Default;
+                    return (
+                      <Flex alignItems="center" gap={6}>
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color }} />
+                        <Text style={{ fontWeight: 600, textTransform: 'capitalize' }}>{op}</Text>
+                      </Flex>
+                    );
+                  },
+                },
+                {
+                  header: 'Avg', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)), fontWeight: 600 }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'p95', id: 'p95LatencyMs', accessor: 'p95LatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'p99', id: 'p99LatencyMs', accessor: 'p99LatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Calls', id: 'callCount', accessor: 'callCount', width: 70,
+                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Err%', id: 'errorRate', accessor: 'errorRate', width: 60,
+                  cell: ({ value }) => {
+                    const r = Number(value ?? 0);
+                    return <Text style={{ color: r > 1 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{r.toFixed(1)}%</Text>;
+                  },
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
+          ) : (
+            <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 100 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                {loading ? 'Loading…' : 'No index operation data — requires vector store spans with db.operation attribute'}
+              </Text>
+            </Flex>
+          )}
+        </Surface>
+
+        {/* Data Ingestion Metrics — upsert throughput timeseries */}
+        <Surface style={{ flex: '1 1 45%', padding: 16, minWidth: 280 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 4 }}>
+            <DatabaseIcon />
+            <Heading level={4}>Data Ingestion Metrics</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>upsert throughput over time</Text>
+          </Flex>
+          {ingestionSeries.length > 0 ? (
+            <TimeseriesChart data={ingestionSeries} style={{ height: 160 }} />
+          ) : (
+            <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 120 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                {loading ? 'Loading…' : 'No upsert/ingestion spans detected'}
+              </Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                Requires spans with db.operation == "upsert" or span name containing "upsert"/"ingest"
+              </Text>
+            </Flex>
+          )}
+          {/* Ingestion KPIs */}
+          {ingestionTimeseries.length > 0 && (() => {
+            const totalUpserts = ingestionTimeseries.reduce((s, d) => s + d.upserts, 0);
+            const totalErrors = ingestionTimeseries.reduce((s, d) => s + d.errors, 0);
+            const avgLat = ingestionTimeseries.reduce((s, d) => s + d.avgUpsertLatencyMs, 0) / ingestionTimeseries.length;
+            return (
+              <Flex gap={12} flexWrap="wrap" style={{ marginTop: 12 }}>
+                <MetricCard value={fmt(totalUpserts)} label="Total Upserts" icon={<DatabaseIcon style={{ width: 16, height: 16 }} />} color={Colors.Charts.Categorical.Color04.Default} />
+                <MetricCard value={fmtMs(avgLat)} label="Avg Upsert Latency" icon={<ClockIcon style={{ width: 16, height: 16 }} />} color={latencyColor(avgLat)} />
+                <MetricCard value={fmt(totalErrors)} label="Ingest Errors" icon={<WarningIcon style={{ width: 16, height: 16 }} />} color={totalErrors > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal} />
+              </Flex>
+            );
+          })()}
+        </Surface>
+      </Flex>
+
+      {/* ══════════════════════════════════════════════════════════════
+          Row B: Result Set Sizes + Source Document Metadata
+      ══════════════════════════════════════════════════════════════ */}
+      <Flex gap={16} flexWrap="wrap">
+        {/* Result Set Sizes */}
+        <Surface style={{ flex: '1 1 48%', padding: 16, minWidth: 280 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <BarChartIcon />
+            <Heading level={4}>Query Volume by Index/Namespace</Heading>
+            <Tooltip text="Query distribution across namespaces and indexes. High concentration in one namespace may indicate load-balancing opportunities. Error rates reveal per-namespace reliability.">
+              <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+            </Tooltip>
+          </Flex>
+          {resultSetSizes.length > 0 ? (
+            <DataTable
+              data={resultSetSizes}
+              columns={[
+                {
+                  header: 'Namespace', id: 'namespace', accessor: 'namespace',
+                  cell: ({ value }) => <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>{String(value ?? 'default')}</Text>,
+                },
+                {
+                  header: 'Index', id: 'indexName', accessor: 'indexName', width: 120,
+                  cell: ({ value }) => <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>,
+                },
+                {
+                  header: 'Queries', id: 'queryCount', accessor: 'queryCount', width: 80,
+                  cell: ({ value }) => <Text style={{ fontWeight: 600 }}>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Avg Lat', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 90,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)), fontWeight: 600 }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'p95 Lat', id: 'p95LatencyMs', accessor: 'p95LatencyMs', width: 90,
+                  cell: ({ value }) => <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Err%', id: 'errorRate', accessor: 'errorRate', width: 60,
+                  cell: ({ value }) => {
+                    const r = Number(value ?? 0);
+                    return <Text style={{ color: r > 1 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{r.toFixed(1)}%</Text>;
+                  },
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              {loading ? 'Loading…' : 'No index/namespace data — requires db.system attribute on vector store spans'}
+            </Text>
+          )}
+        </Surface>
+
+        {/* Source Document Metadata */}
+        <Surface style={{ flex: '1 1 48%', padding: 16, minWidth: 280 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <DatabaseIcon />
+            <Heading level={4}>Source Document Metadata</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>namespace · index · latency attribution</Text>
+          </Flex>
+          {sourceDocMetadata.length > 0 ? (
+            <DataTable
+              data={sourceDocMetadata}
+              columns={[
+                {
+                  header: 'Namespace', id: 'namespace', accessor: 'namespace',
+                  cell: ({ value }) => <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>{String(value ?? 'default')}</Text>,
+                },
+                {
+                  header: 'Store', id: 'dbSystem', accessor: 'dbSystem', width: 100,
+                  cell: ({ value }) => (
+                    <Text style={{
+                      fontSize: 11, padding: '2px 6px', borderRadius: 4, fontWeight: 600,
+                      background: 'var(--dt-colors-background-base-default)',
+                      border: '1px solid var(--dt-colors-border-neutral-default)',
+                      fontFamily: 'monospace',
+                    }}>{String(value ?? '—')}</Text>
+                  ),
+                },
+                {
+                  header: 'Queries', id: 'queryCount', accessor: 'queryCount', width: 80,
+                  cell: ({ value }) => <Text style={{ fontWeight: 600 }}>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Avg Lat', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Err%', id: 'errorRate', accessor: 'errorRate', width: 60,
+                  cell: ({ value }) => {
+                    const r = Number(value ?? 0);
+                    return <Text style={{ color: r > 1 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{r.toFixed(1)}%</Text>;
+                  },
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              {loading ? 'Loading…' : 'No namespace/index data — requires db.namespace or db.name attributes on vector store spans'}
+            </Text>
+          )}
+        </Surface>
+      </Flex>
+
+      {/* ══════════════════════════════════════════════════════════════
+          Row C: Tokenization Drift + Retrieval Anomalies
+      ══════════════════════════════════════════════════════════════ */}
+      <Flex gap={16} flexWrap="wrap">
+        {/* Tokenization Drift */}
+        <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 300 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 4 }}>
+            <ResearchIcon />
+            <Heading level={4}>Tokenization Drift</Heading>
+            <Tooltip text="Rising prompt token averages signal context bloat (larger retrieved chunks). Falling averages may indicate context truncation or retrieval degradation.">
+              <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+            </Tooltip>
+          </Flex>
+          {tokenDriftSeries.length > 0 ? (
+            <TimeseriesChart data={tokenDriftSeries} style={{ height: 180 }} />
+          ) : (
+            <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 140 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                {loading ? 'Loading…' : 'No token usage data detected'}
+              </Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                Requires spans with gen_ai.usage.prompt_tokens or gen_ai.usage.input_tokens
+              </Text>
+            </Flex>
+          )}
+          {tokenizationDrift.length > 0 && (() => {
+            const latest = tokenizationDrift[tokenizationDrift.length - 1];
+            const prev = tokenizationDrift.length > 1 ? tokenizationDrift[tokenizationDrift.length - 2] : null;
+            const drift = prev && prev.avgPromptTokens > 0
+              ? ((latest.avgPromptTokens - prev.avgPromptTokens) / prev.avgPromptTokens) * 100
+              : 0;
+            return (
+              <Flex gap={12} flexWrap="wrap" style={{ marginTop: 12 }}>
+                <MetricCard value={fmt(latest.avgPromptTokens, 0)} label="Latest Avg Prompt Tokens" icon={<AiIcon style={{ width: 16, height: 16 }} />} />
+                <MetricCard value={fmt(latest.p95PromptTokens, 0)} label="p95 Prompt Tokens" icon={<BarChartIcon style={{ width: 16, height: 16 }} />} color={latest.p95PromptTokens > 4000 ? STATUS_COLORS.warning : undefined} />
+                <MetricCard
+                  value={`${drift >= 0 ? '+' : ''}${drift.toFixed(1)}%`}
+                  label="Hour-over-hour drift"
+                  icon={<ResearchIcon style={{ width: 16, height: 16 }} />}
+                  color={Math.abs(drift) > 20 ? STATUS_COLORS.warning : STATUS_COLORS.ideal}
+                />
+              </Flex>
+            );
+          })()}
+        </Surface>
+
+        {/* Retrieval Anomalies */}
+        <Surface style={{ flex: '1 1 40%', padding: 16, minWidth: 260 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <WarningIcon style={{ color: anomalyCount > 0 ? STATUS_COLORS.warning : 'inherit' }} />
+            <Heading level={4}>Retrieval Anomalies</Heading>
+            <Tooltip text="Hours where p99 latency is ≥3× the average. Indicates heavy-tail spikes from index fragmentation, large result sets, cold cache, or network blips.">
+              <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+            </Tooltip>
+            {anomalyCount > 0 && (
+              <Text style={{
+                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                background: `${STATUS_COLORS.warning}25`, color: STATUS_COLORS.warning,
+              }}>
+                {anomalyCount} anomalous hour{anomalyCount > 1 ? 's' : ''}
+              </Text>
+            )}
+          </Flex>
+          {retrievalAnomalies.length > 0 ? (
+            <DataTable
+              data={retrievalAnomalies.filter((a) => a.isAnomalous).slice(0, 10).concat(
+                retrievalAnomalies.filter((a) => !a.isAnomalous).slice(0, Math.max(0, 8 - retrievalAnomalies.filter((a) => a.isAnomalous).length))
+              )}
+              columns={[
+                {
+                  header: 'Hour', id: 'timestamp', accessor: 'timestamp', width: 90,
+                  cell: ({ value, rowData }) => {
+                    const a = rowData as any;
+                    return (
+                      <Flex alignItems="center" gap={4}>
+                        {a.isAnomalous && <CriticalIcon style={{ width: 12, height: 12, color: STATUS_COLORS.warning }} />}
+                        <Text style={{ fontSize: 11 }}>
+                          {value ? new Date(Number(value)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </Text>
+                      </Flex>
+                    );
+                  },
+                },
+                {
+                  header: 'Avg Lat', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'p99 Lat', id: 'p99LatencyMs', accessor: 'p99LatencyMs', width: 80,
+                  cell: ({ value }) => <Text style={{ fontWeight: 600, color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'p99/avg', id: 'anomalyRatio', accessor: 'anomalyRatio', width: 70,
+                  cell: ({ value, rowData }) => {
+                    const ratio = Number(value ?? 0);
+                    const a = rowData as any;
+                    return (
+                      <Text style={{ fontWeight: 600, color: a.isAnomalous ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>
+                        {ratio.toFixed(1)}×
+                      </Text>
+                    );
+                  },
+                },
+                {
+                  header: 'Queries', id: 'queryCount', accessor: 'queryCount', width: 70,
+                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={8} />
+            </DataTable>
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              {loading ? 'Loading…' : 'No retrieval data in the selected timeframe'}
+            </Text>
+          )}
+        </Surface>
+      </Flex>
+
+      {/* ══════════════════════════════════════════════════════════════
+          Row D: Context Retrieval Effectiveness
+      ══════════════════════════════════════════════════════════════ */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <CheckmarkIcon />
+          <Heading level={4}>Context Retrieval Effectiveness</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>success rate · latency by namespace</Text>
+          <Tooltip text="Success rate = retrieval calls without error status. Low success rates surface per-namespace reliability gaps. Fallback namespace 'all' = db.system used when db.namespace is not set.">
+            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        </Flex>
+        {contextEffectiveness.length > 0 ? (
+          <DataTable
+            data={contextEffectiveness}
+            columns={[
+              {
+                header: 'Namespace', id: 'namespace', accessor: 'namespace',
+                cell: ({ value }) => <Text style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 500 }}>{String(value ?? 'default')}</Text>,
+              },
+              {
+                header: 'Success Rate', id: 'successRate', accessor: 'successRate', width: 280,
+                cell: ({ value }) => {
+                  const rate = Number(value ?? 0);
+                  const color = rate >= 99 ? STATUS_COLORS.ideal : rate >= 95 ? STATUS_COLORS.good : rate >= 90 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                  return (
+                    <Flex alignItems="center" gap={8}>
+                      <ProgressBar value={rate} max={100} style={{ flex: 1, minWidth: 100 }} />
+                      <Text style={{ minWidth: 50, textAlign: 'right', fontWeight: 700, color }}>
+                        {rate.toFixed(1)}%
+                      </Text>
+                    </Flex>
+                  );
+                },
+              },
+              {
+                header: 'Success', id: 'successfulQueries', accessor: 'successfulQueries', width: 80,
+                cell: ({ value }) => <Text style={{ color: STATUS_COLORS.ideal }}>{fmt(Number(value ?? 0))}</Text>,
+              },
+              {
+                header: 'Failed', id: 'failedQueries', accessor: 'failedQueries', width: 70,
+                cell: ({ value }) => {
+                  const v = Number(value ?? 0);
+                  return <Text style={{ color: v > 0 ? STATUS_COLORS.critical : 'inherit' }}>{fmt(v)}</Text>;
+                },
+              },
+              {
+                header: 'Avg Latency', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 100,
+                cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+              },
+              {
+                header: 'p95 Latency', id: 'p95LatencyMs', accessor: 'p95LatencyMs', width: 100,
+                cell: ({ value }) => <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>,
+              },
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        ) : (
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+            {loading ? 'Loading…' : 'No context retrieval data — requires vector store spans without upsert operations'}
+          </Text>
+        )}
+      </Surface>
     </Flex>
   );
 };

@@ -16,6 +16,13 @@ import {
   TTFT_BY_MODEL_QUERY,
   TTFT_SUMMARY_QUERY,
   CHAIN_PERFORMANCE_QUERY,
+  VECTOR_INDEX_PERFORMANCE_QUERY,
+  VECTOR_INGESTION_METRICS_QUERY,
+  VECTOR_RESULT_SET_SIZES_QUERY,
+  SOURCE_DOCUMENT_METADATA_QUERY,
+  TOKENIZATION_DRIFT_QUERY,
+  RETRIEVAL_ANOMALIES_QUERY,
+  CONTEXT_RETRIEVAL_EFFECTIVENESS_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from './useDQLQueries';
 import type {
@@ -28,6 +35,13 @@ import type {
   TTFTByModel,
   TTFTSummary,
   ChainPerformanceStep,
+  VectorIndexPerformance,
+  VectorIngestionPoint,
+  VectorResultSetSize,
+  SourceDocumentMetadata,
+  TokenizationDriftPoint,
+  RetrievalAnomalyPoint,
+  ContextRetrievalEffectiveness,
 } from '../types';
 
 // ============================================
@@ -56,6 +70,15 @@ export interface UseVectorDBReturn {
 
   // Chain
   chainSteps: ChainPerformanceStep[];
+
+  // Phase 5.4 — Extended Vector DB Observability
+  indexPerformance: VectorIndexPerformance[];
+  ingestionTimeseries: VectorIngestionPoint[];
+  resultSetSizes: VectorResultSetSize[];
+  sourceDocMetadata: SourceDocumentMetadata[];
+  tokenizationDrift: TokenizationDriftPoint[];
+  retrievalAnomalies: RetrievalAnomalyPoint[];
+  contextEffectiveness: ContextRetrievalEffectiveness[];
 
   loading: boolean;
   error: Error | null;
@@ -99,6 +122,14 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
   const [ttftByModel, setTtftByModel] = useState<TTFTByModel[]>([]);
   const [ttftSummary, setTtftSummary] = useState<TTFTSummary | null>(null);
   const [chainSteps, setChainSteps] = useState<ChainPerformanceStep[]>([]);
+  // Phase 5.4 extended state
+  const [indexPerformance, setIndexPerformance] = useState<VectorIndexPerformance[]>([]);
+  const [ingestionTimeseries, setIngestionTimeseries] = useState<VectorIngestionPoint[]>([]);
+  const [resultSetSizes, setResultSetSizes] = useState<VectorResultSetSize[]>([]);
+  const [sourceDocMetadata, setSourceDocMetadata] = useState<SourceDocumentMetadata[]>([]);
+  const [tokenizationDrift, setTokenizationDrift] = useState<TokenizationDriftPoint[]>([]);
+  const [retrievalAnomalies, setRetrievalAnomalies] = useState<RetrievalAnomalyPoint[]>([]);
+  const [contextEffectiveness, setContextEffectiveness] = useState<ContextRetrievalEffectiveness[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -122,6 +153,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         ttftModelRecs,
         ttftSummaryRecs,
         chainRecs,
+        indexPerfRecs,
+        ingestionRecs,
+        resultSetRecs,
+        sourceDocRecs,
+        tokenDriftRecs,
+        anomalyRecs,
+        contextEffRecs,
       ] = await Promise.all([
         runQuery(VECTOR_DB_LATENCY_QUERY(filters)),
         runQuery(VECTOR_DB_VOLUME_QUERY(filters)),
@@ -134,6 +172,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         runQuery(TTFT_BY_MODEL_QUERY(filters)),
         runQuery(TTFT_SUMMARY_QUERY(filters)),
         runQuery(CHAIN_PERFORMANCE_QUERY(filters)),
+        runQuery(VECTOR_INDEX_PERFORMANCE_QUERY(filters)),
+        runQuery(VECTOR_INGESTION_METRICS_QUERY(filters)),
+        runQuery(VECTOR_RESULT_SET_SIZES_QUERY(filters)),
+        runQuery(SOURCE_DOCUMENT_METADATA_QUERY(filters)),
+        runQuery(TOKENIZATION_DRIFT_QUERY(filters)),
+        runQuery(RETRIEVAL_ANOMALIES_QUERY(filters)),
+        runQuery(CONTEXT_RETRIEVAL_EFFECTIVENESS_QUERY(filters)),
       ]);
 
       // ---- Vector DB Latency ----
@@ -305,6 +350,111 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         cacheablePct,
       });
 
+      // ---- Index Performance ----
+      const indexPerf: VectorIndexPerformance[] = (indexPerfRecs as any[]).map((r) => ({
+        opType: String(r['op_type'] ?? 'query'),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p50LatencyMs: Number(r['p50_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        p99LatencyMs: Number(r['p99_latency_ms'] ?? 0),
+        callCount: Number(r['call_count'] ?? 0),
+        errorCount: Number(r['error_count'] ?? 0),
+        errorRate: Number(r['error_rate'] ?? 0),
+      }));
+      setIndexPerformance(indexPerf);
+
+      // ---- Ingestion Timeseries ----
+      const ingestion: VectorIngestionPoint[] = [];
+      (ingestionRecs as any[]).forEach((r) => {
+        const tf = r['timeframe'] as any;
+        const rangeStart = new Date(tf?.start ?? 0).getTime();
+        const intervalMs = Number(r['interval'] ?? 0) / 1_000_000;
+        const upsertsArr: any[] = Array.isArray(r['upserts']) ? r['upserts'] : [];
+        const latArr: any[] = Array.isArray(r['avg_upsert_latency_ms']) ? r['avg_upsert_latency_ms'] : [];
+        const errArr: any[] = Array.isArray(r['errors']) ? r['errors'] : [];
+        upsertsArr.forEach((val: any, i: number) => {
+          const ts = rangeStart + i * intervalMs;
+          if (ts > 0) ingestion.push({
+            timestamp: ts,
+            upserts: Number(val ?? 0),
+            avgUpsertLatencyMs: Number(latArr[i] ?? 0),
+            errors: Number(errArr[i] ?? 0),
+          });
+        });
+      });
+      setIngestionTimeseries(ingestion);
+
+      // ---- Result Set Sizes ----
+      const resultSets: VectorResultSetSize[] = (resultSetRecs as any[]).map((r) => ({
+        namespace: String(r['namespace'] ?? 'default'),
+        indexName: String(r['index_name'] ?? 'unknown'),
+        queryCount: Number(r['query_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        errorRate: Number(r['error_rate'] ?? 0),
+      }));
+      setResultSetSizes(resultSets);
+
+      // ---- Source Document Metadata ----
+      const srcDocs: SourceDocumentMetadata[] = (sourceDocRecs as any[]).map((r) => ({
+        namespace: String(r['namespace'] ?? 'default'),
+        indexName: String(r['index_name'] ?? 'unknown'),
+        dbSystem: String(r['db_system'] ?? 'unknown'),
+        queryCount: Number(r['query_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        errorRate: Number(r['error_rate'] ?? 0),
+      }));
+      setSourceDocMetadata(srcDocs);
+
+      // ---- Tokenization Drift ----
+      const tokenDrift: TokenizationDriftPoint[] = [];
+      (tokenDriftRecs as any[]).forEach((r) => {
+        const tf = r['timeframe'] as any;
+        const rangeStart = new Date(tf?.start ?? 0).getTime();
+        const intervalMs = Number(r['interval'] ?? 0) / 1_000_000;
+        const avgPArr: any[] = Array.isArray(r['avg_prompt_tokens']) ? r['avg_prompt_tokens'] : [];
+        const p95PArr: any[] = Array.isArray(r['p95_prompt_tokens']) ? r['p95_prompt_tokens'] : [];
+        const avgCArr: any[] = Array.isArray(r['avg_completion_tokens']) ? r['avg_completion_tokens'] : [];
+        const totalArr2: any[] = Array.isArray(r['total_tokens']) ? r['total_tokens'] : [];
+        avgPArr.forEach((val: any, i: number) => {
+          const ts = rangeStart + i * intervalMs;
+          if (ts > 0) tokenDrift.push({
+            timestamp: ts,
+            avgPromptTokens: Number(val ?? 0),
+            p95PromptTokens: Number(p95PArr[i] ?? 0),
+            avgCompletionTokens: Number(avgCArr[i] ?? 0),
+            totalTokens: Number(totalArr2[i] ?? 0),
+          });
+        });
+      });
+      setTokenizationDrift(tokenDrift);
+
+      // ---- Retrieval Anomalies ----
+      const anomalies: RetrievalAnomalyPoint[] = (anomalyRecs as any[]).map((r) => ({
+        timestamp: new Date(String(r['hour_bucket'] ?? 0)).getTime(),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        p99LatencyMs: Number(r['p99_latency_ms'] ?? 0),
+        queryCount: Number(r['query_count'] ?? 0),
+        errorCount: Number(r['error_count'] ?? 0),
+        anomalyRatio: Number(r['anomaly_ratio'] ?? 0),
+        isAnomalous: Boolean(r['is_anomalous']),
+      }));
+      setRetrievalAnomalies(anomalies);
+
+      // ---- Context Retrieval Effectiveness ----
+      const ctxEff: ContextRetrievalEffectiveness[] = (contextEffRecs as any[]).map((r) => ({
+        namespace: String(r['namespace'] ?? 'default'),
+        totalQueries: Number(r['total_queries'] ?? 0),
+        successfulQueries: Number(r['successful_queries'] ?? 0),
+        failedQueries: Number(r['failed_queries'] ?? 0),
+        successRate: Number(r['success_rate'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+      }));
+      setContextEffectiveness(ctxEff);
+
       console.log('[GCC:VectorDB] Done. Pinecone queries:', totalPinecone, '| Embeddings:', totalEmbeddings);
     } catch (err) {
       console.error('[GCC:VectorDB] Error:', err);
@@ -327,6 +477,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
     ttftByModel,
     ttftSummary,
     chainSteps,
+    indexPerformance,
+    ingestionTimeseries,
+    resultSetSizes,
+    sourceDocMetadata,
+    tokenizationDrift,
+    retrievalAnomalies,
+    contextEffectiveness,
     loading,
     error,
     refetch,
