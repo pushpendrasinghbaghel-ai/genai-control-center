@@ -20,7 +20,10 @@ import {
   AgentTools,
   ModelDrift,
   VectorDB,
-  Infrastructure
+  Infrastructure,
+  AIQualityDashboard,
+  ConversationIntelligence,
+  DeveloperExperience,
 } from "./pages";
 
 export const App = () => {
@@ -83,6 +86,15 @@ export const App = () => {
 
                 {/* Infrastructure Health - Provider availability, Davis problems, deployments */}
                 <Route path="/infrastructure" element={<Infrastructure />} />
+
+                {/* AI Quality Dashboard - Hallucination scoring, quality dimensions */}
+                <Route path="/quality" element={<AIQualityDashboard />} />
+
+                {/* Conversation Intelligence - Session-level AI observability */}
+                <Route path="/conversation" element={<ConversationIntelligence />} />
+
+                {/* Developer Experience - Instrumentation coverage, shadow AI, code attribution */}
+                <Route path="/devex" element={<DeveloperExperience />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

@@ -1,5 +1,5 @@
 // Davis AI Integration Hook for GenAI Control Center
-// Using real Davis CoPilot SDK for natural language processing
+// Using real Dynatrace Intelligence SDK for natural language processing
 
 import { useState, useCallback, useRef } from 'react';
 import { publicClient } from '@dynatrace-sdk/client-davis-copilot';
@@ -77,7 +77,7 @@ export const INVESTIGATION_PROMPTS = {
 };
 
 /**
- * Analyze query using Davis CoPilot NL2DQL to generate DQL from natural language
+ * Analyze query using Dynatrace Intelligence NL2DQL to generate DQL from natural language
  * Then execute the DQL and explain results using DQL2NL
  */
 async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Promise<string> {
@@ -87,7 +87,7 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
       ? `For GenAI service "${serviceName}": ${query}. Focus on gen_ai spans with OpenTelemetry semantic conventions (gen_ai.provider.name, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, gen_ai.request.model).`
       : `For GenAI/AI observability: ${query}. Query gen_ai spans using OpenTelemetry semantic conventions (gen_ai.provider.name, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, gen_ai.request.model).`;
 
-    // Step 1: Use Davis CoPilot NL2DQL to convert natural language to DQL
+    // Step 1: Use Dynatrace Intelligence NL2DQL to convert natural language to DQL
     const nl2dqlResponse = await publicClient.nl2dql({
       body: {
         text: enhancedQuery
@@ -113,7 +113,7 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
       });
     } catch (queryError) {
       // If query fails, provide the DQL and explain what was attempted
-      return `## Davis CoPilot Analysis\n\n` +
+      return `## Dynatrace Intelligence Analysis\n\n` +
         `I generated the following DQL query based on your request:\n\n` +
         `\`\`\`\n${generatedDQL}\n\`\`\`\n\n` +
         `However, the query couldn't be executed. This might be because:\n` +
@@ -124,7 +124,7 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
 
     const records = queryResult.result?.records || [];
 
-    // Step 3: Use Davis CoPilot DQL2NL to explain the query
+    // Step 3: Use Dynatrace Intelligence DQL2NL to explain the query
     let explanation = '';
     try {
       const dql2nlResponse = await publicClient.dql2nl({
@@ -138,7 +138,7 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
     }
 
     // Step 4: Format the results
-    let analysis = `## Davis CoPilot Analysis\n\n`;
+    let analysis = `## Dynatrace Intelligence Analysis\n\n`;
     
     if (explanation) {
       analysis += `**Query Explanation**: ${explanation}\n\n`;
@@ -188,14 +188,14 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
     return analysis;
 
   } catch (err) {
-    // If Davis CoPilot SDK fails, try fallback to conversation
-    console.error('Davis CoPilot NL2DQL failed, trying conversation mode:', err);
+    // If Dynatrace Intelligence SDK fails, try fallback to conversation
+    console.error('Dynatrace Intelligence NL2DQL failed, trying conversation mode:', err);
     return await askDavisCoPilotConversation(query, serviceName);
   }
 }
 
 /**
- * Use Davis CoPilot Conversation Recommender for general questions
+ * Use Dynatrace Intelligence Conversation Recommender for general questions
  */
 async function askDavisCoPilotConversation(query: string, serviceName?: string): Promise<string> {
   try {
@@ -224,22 +224,22 @@ async function askDavisCoPilotConversation(query: string, serviceName?: string):
           if ('tokens' in (event.data || {})) {
             tokens.push(...((event.data as { tokens?: string[] }).tokens || []));
           } else if ('answer' in (event.data || {})) {
-            return `## Davis CoPilot Response\n\n${(event.data as { answer?: string }).answer}`;
+            return `## Dynatrace Intelligence Response\n\n${(event.data as { answer?: string }).answer}`;
           }
         }
       }
       if (tokens.length > 0) {
-        return `## Davis CoPilot Response\n\n${tokens.join('')}`;
+        return `## Dynatrace Intelligence Response\n\n${tokens.join('')}`;
       }
     } else {
       // Non-streaming response
-      return `## Davis CoPilot Response\n\n${response.text}`;
+      return `## Dynatrace Intelligence Response\n\n${response.text}`;
     }
 
-    return `Davis CoPilot couldn't generate a response for this query. Try rephrasing your question.`;
+    return `Dynatrace Intelligence couldn't generate a response for this query. Try rephrasing your question.`;
 
   } catch (err) {
-    throw new Error(`Davis CoPilot conversation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    throw new Error(`Dynatrace Intelligence conversation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
 }
 
@@ -370,7 +370,7 @@ export function useDavisInvestigation() {
   };
 }
 /**
- * Use Davis CoPilot to analyze ALL prompts in a SINGLE API call
+ * Use Dynatrace Intelligence to analyze ALL prompts in a SINGLE API call
  * This avoids rate limiting by sending one comprehensive request
  */
 async function scorePromptsBatchWithDavis(
@@ -502,7 +502,7 @@ Response format (JSON only, no markdown):
 // ============================================
 // NOTE: LLM-AS-JUDGE HALLUCINATION DETECTION REMOVED
 // ============================================
-// The Davis CoPilot LLM-as-Judge approach was removed because:
+// The Dynatrace Intelligence LLM-as-Judge approach was removed because:
 // 1. Davis isn't designed for fact-checking - it's for NL2DQL/DQL2NL
 // 2. Using AI to judge AI hallucinations is circular and unreliable
 // 3. Without external knowledge bases, no LLM can verify facts
@@ -515,7 +515,7 @@ Response format (JSON only, no markdown):
 // ============================================
 
 /**
- * Use Davis CoPilot to analyze and score a single prompt for risk
+ * Use Dynatrace Intelligence to analyze and score a single prompt for risk
  * This provides AI-powered analysis beyond simple regex patterns
  */
 async function scorePromptWithDavis(
@@ -539,7 +539,7 @@ async function scorePromptWithDavis(
   }
 
   try {
-    // Build analysis request for Davis CoPilot
+    // Build analysis request for Dynatrace Intelligence
     const analysisPrompt = `Analyze this GenAI prompt for security and governance risks.
 
 PROMPT TO ANALYZE:
@@ -626,7 +626,7 @@ Respond in this exact JSON format:
 
 /**
  * Fallback prompt analysis using enhanced regex patterns
- * Used when Davis CoPilot is unavailable
+ * Used when Dynatrace Intelligence is unavailable
  */
 function analyzePromptFallback(promptId: string, promptContent: string): DavisPromptScore {
   const content = promptContent.toLowerCase();
@@ -877,7 +877,7 @@ export function useDavisPromptScoring() {
 }
 
 /**
- * Davis AI Risk Analysis Prompts for Governance
+ * Dynatrace Intelligence Risk Analysis Prompts for Governance
  */
 export const GOVERNANCE_ANALYSIS_PROMPTS = {
   analyzePromptRisk: (promptSample: string) =>

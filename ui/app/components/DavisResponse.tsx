@@ -1,4 +1,4 @@
-// Davis CoPilot Response Renderer with Collapsible Sections
+// Dynatrace Intelligence Response Renderer with Collapsible Sections
 // Shows results prominently while making analysis details collapsible
 
 import React, { useState } from 'react';
@@ -18,7 +18,7 @@ interface ParsedSection {
 }
 
 /**
- * Parse the Davis CoPilot markdown response into structured sections
+ * Parse the Dynatrace Intelligence markdown response into structured sections
  */
 function parseResponse(content: string): ParsedSection[] {
   const sections: ParsedSection[] = [];
@@ -55,7 +55,7 @@ function parseResponse(content: string): ParsedSection[] {
       continue;
     }
     
-    // Handle main title (## Davis CoPilot Analysis)
+    // Handle main title (## Dynatrace Intelligence Analysis)
     if (line.startsWith('## ')) {
       if (currentSection && currentSection.content.trim()) {
         sections.push(currentSection);
@@ -177,7 +177,7 @@ const CollapsibleSection: React.FC<{
 export const DavisResponse: React.FC<DavisResponseProps> = ({ content }) => {
   const sections = parseResponse(content);
   
-  // Check if this is a Davis CoPilot response (has explanation/DQL sections)
+  // Check if this is a Dynatrace Intelligence response (has explanation/DQL sections)
   const hasDavisStructure = sections.some(s => s.type === 'explanation' || s.type === 'dql');
   
   // If not a structured Davis response, render as plain text

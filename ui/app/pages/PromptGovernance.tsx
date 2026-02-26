@@ -44,7 +44,7 @@ const GOVERNANCE_TOOLTIPS = {
   repetitive: 'Identical prompts sent 15+ times - cache candidates',
   hallucination: 'Responses flagged for potential factual inaccuracies',
   error: 'Prompts that resulted in API errors',
-  davisAI: 'Use Davis AI to perform advanced semantic analysis on prompts for nuanced risk detection'
+  davisAI: 'Use Dynatrace Intelligence to perform advanced semantic analysis on prompts for nuanced risk detection'
 };
 
 /**
@@ -97,13 +97,13 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
           )}
         </Flex>
 
-        {/* Davis AI Analysis */}
+        {/* Dynatrace Intelligence Analysis */}
         {davisScore && (
           <Surface style={{ padding: '16px', backgroundColor: 'rgba(0,0,0,0.02)' }}>
             <Flex flexDirection="column" gap={12}>
               <Flex alignItems="center" gap={8}>
                 <InformationIcon />
-                <Text textStyle="base-emphasized">Davis AI Analysis</Text>
+                <Text textStyle="base-emphasized">Dynatrace Intelligence Analysis</Text>
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
@@ -420,7 +420,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
             
             {/* Davis Score */}
             {davisScore && (
-              <Tooltip text={`Davis AI Risk: ${davisScore.explanation}`}>
+              <Tooltip text={`Dynatrace Intelligence Risk: ${davisScore.explanation}`}>
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
@@ -820,7 +820,7 @@ export function PromptGovernance() {
                   </>
                 ) : (
                   <>
-                    <InformationIcon /> {davisScored ? 'Re-score with Davis AI' : 'Score with Davis AI'}
+                    <InformationIcon /> {davisScored ? 'Re-Score with Dynatrace Intelligence' : 'Score with Dynatrace Intelligence'}
                   </>
                 )}
               </Button>
@@ -854,7 +854,7 @@ export function PromptGovernance() {
             </Text>
           </Flex>
           <Text textStyle="small" style={{ opacity: 0.7, marginTop: '4px' }}>
-            💡 <strong>Davis AI</strong> adds semantic analysis for nuanced risk detection.
+            💡 <strong>Dynatrace Intelligence</strong> adds semantic analysis for nuanced risk detection.
           </Text>
         </Flex>
       </Surface>

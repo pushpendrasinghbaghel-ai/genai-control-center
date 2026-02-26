@@ -927,3 +927,267 @@ fetch spans, from: now()-7d, to: now()
 | limit 60
 `.trim();
 };
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 8.2 — CONVERSATION INTELLIGENCE
+// Data source: traceloop.association.properties.conversation_id (confirmed in Grail)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * List all conversations with session-level aggregates.
+ * conversation_id lives in traceloop.association.properties.conversation_id.
+ * Filters to spans that belong to a named conversation only.
+ */
+export const CONVERSATION_LIST_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize
+    turns = count(),
+    agents = collectDistinct(coalesce(traceloop.entity.name, gen_ai.agent.name)),
+    models_used = collectDistinct(gen_ai.request.model),
+    total_input_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), toLong(gen_ai.usage.prompt_tokens), 0)),
+    total_output_tokens = sum(coalesce(toLong(gen_ai.usage.output_tokens), toLong(gen_ai.usage.completion_tokens), 0)),
+    session_start = min(start_time),
+    session_end = max(start_time),
+    error_turns = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    handoff_count = countIf(contains(lower(span.name), "transfer_to")),
+    task_count = countIf(traceloop.span.kind == "task"),
+    tool_count = countIf(traceloop.span.kind == "tool")
+  , by: { conversation_id = traceloop.association.properties.conversation_id }
+| fieldsAdd
+    duration_secs = toLong(session_end - session_start) / 1000000000,
+    total_tokens = total_input_tokens + total_output_tokens,
+    has_errors = error_turns > 0,
+    is_long = turns > 20
+| sort session_end desc
+| limit 200
+`.trim();
+};
+
+/**
+ * Conversation trends over time — sessions per hour, avg turns per session.
+ */
+export const CONVERSATION_TREND_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| makeTimeseries
+    sessions = countDistinct(traceloop.association.properties.conversation_id),
+    spans = count(),
+    interval: 1h
+`.trim();
+};
+
+/**
+ * Detect long conversations (>20 turns) that may indicate runaway agent loops.
+ */
+export const LONG_CONVERSATION_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize turns = count(), by: { conversation_id = traceloop.association.properties.conversation_id }
+| filter turns > 20
+| sort turns desc
+| limit 50
+`.trim();
+};
+
+/**
+ * Conversation summary statistics — aggregate-level KPIs.
+ */
+export const CONVERSATION_STATS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize
+    total_spans = count(),
+    total_turns = countIf(traceloop.span.kind == "task" OR traceloop.span.kind == "workflow"),
+    unique_conversations = countDistinct(traceloop.association.properties.conversation_id),
+    error_spans = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    handoffs = countIf(contains(lower(span.name), "transfer_to")),
+    total_input_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), toLong(gen_ai.usage.prompt_tokens), 0)),
+    total_output_tokens = sum(coalesce(toLong(gen_ai.usage.output_tokens), toLong(gen_ai.usage.completion_tokens), 0))
+`.trim();
+};
+
+/**
+ * Multi-agent handoff patterns across conversations.
+ */
+export const CONVERSATION_HANDOFF_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter traceloop.span.kind == "tool"
+| filter contains(span.name, "transfer_to")
+| summarize
+    count = count(),
+    avg_ms = avg(duration) / 1000000
+  , by: { span.name }
+| sort count desc
+| limit 20
+`.trim();
+};
+
+/**
+ * Average session depth distribution bucket.
+ */
+export const CONVERSATION_DEPTH_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(traceloop.association.properties.conversation_id)
+| summarize turns = count(), by: { conversation_id = traceloop.association.properties.conversation_id }
+| fieldsAdd depth_bucket = if(turns <= 3, then: "1-3 turns",
+    else: if(turns <= 10, then: "4-10 turns",
+    else: if(turns <= 20, then: "11-20 turns",
+    else: ">20 turns (runaway)")))
+| summarize session_count = count(), by: { depth_bucket }
+| sort session_count desc
+`.trim();
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 3.2 — DEVELOPER EXPERIENCE
+// Data source: code.function, code.namespace, code.filepath, instrumentation coverage
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Instrumentation coverage — what % of spans have gen_ai attributes.
+ */
+export const INSTRUMENTATION_COVERAGE_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| summarize
+    total = count(),
+    with_provider = countIf(isNotNull(gen_ai.provider.name)),
+    with_tokens = countIf(isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.prompt_tokens)),
+    with_agent_name = countIf(isNotNull(gen_ai.agent.name)),
+    with_conversation = countIf(isNotNull(traceloop.association.properties.conversation_id)),
+    with_code = countIf(isNotNull(code.function)),
+    with_response_model = countIf(isNotNull(gen_ai.response.model))
+`.trim();
+};
+
+/**
+ * Error spans with source code attribution — helps devs find the exact code location.
+ */
+export const SOURCE_CODE_ERRORS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) AND span.status_code == "error"
+${serviceFilter}
+| fields
+    trace_id = trace.id,
+    span_id = span.id,
+    service = dt.entity.service,
+    provider = gen_ai.provider.name,
+    model = gen_ai.request.model,
+    error_type = error.type,
+    status_message = status.message,
+    code_function = code.function,
+    code_namespace = code.namespace,
+    code_filepath = code.filepath,
+    duration_ms = duration / 1000000,
+    timestamp = start_time
+| sort timestamp desc
+| limit 100
+`.trim();
+};
+
+/**
+ * Top error locations by code function — which functions throw the most AI errors.
+ */
+export const TOP_ERROR_FUNCTIONS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) AND span.status_code == "error"
+| filter isNotNull(code.function)
+| summarize
+    error_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    models = collectDistinct(gen_ai.request.model),
+    providers = collectDistinct(gen_ai.provider.name),
+    sample_trace_id = takeLast(trace.id)
+  , by: { code.function, code.namespace, code.filepath }
+| sort error_count desc
+| limit 30
+`.trim();
+};
+
+/**
+ * Model version mismatch tracker — request model ≠ response model (confirmed: 66K mismatches).
+ */
+export const MODEL_VERSION_MISMATCH_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model) AND isNotNull(gen_ai.response.model)
+| filter gen_ai.request.model != gen_ai.response.model
+| summarize
+    mismatch_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    services = collectDistinct(dt.entity.service)
+  , by: { request_model = gen_ai.request.model, response_model = gen_ai.response.model }
+| sort mismatch_count desc
+| limit 20
+`.trim();
+};
+
+/**
+ * Shadow AI detection — services calling LLMs without going through approved catalogue.
+ * Groups by service + provider + model to surface unexpected AI usage.
+ */
+export const SHADOW_AI_DETECTION_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+| summarize
+    span_count = count(),
+    error_rate = toDouble(countIf(span.status_code == "error")) / toDouble(count()) * 100,
+    total_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), 0) + coalesce(toLong(gen_ai.usage.output_tokens), 0)),
+    first_seen = min(start_time),
+    last_seen = max(start_time),
+    sample_trace = takeLast(trace.id)
+  , by: { service = dt.entity.service, gen_ai.provider.name, gen_ai.request.model }
+| sort span_count desc
+| limit 50
+`.trim();
+};
+
+/**
+ * K8s events for AI workloads — pod restarts, container issues.
+ * Phase 6.2 — Kubernetes & Container Visibility
+ */
+export const K8S_AI_EVENTS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch events, ${timeClause}
+| filter event.kind == "K8S_EVENT" OR event.kind == "ERROR_EVENT" OR event.type == "PROCESS_RESTART"
+| sort timestamp desc
+| limit 50
+`.trim();
+};
+
+/**
+ * Pod restart count for AI services.
+ */
+export const PROCESS_RESTARTS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch events, ${timeClause}
+| filter event.type == "PROCESS_RESTART"
+| summarize restarts = count(), by: { dt.entity.process_group, dt.entity.host }
+| sort restarts desc
+| limit 20
+`.trim();
+};

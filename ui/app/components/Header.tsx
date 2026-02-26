@@ -11,8 +11,6 @@ import {
   BarChartIcon,        // Response Analytics
   LockIcon,            // Prompt Governance
   MoneyIcon,           // FinOps
-  AiIcon,              // Intelligence
-  WorkflowsIcon,       // Operations
   AgentIcon,           // Agent Tools (AI agents)
   ResearchIcon,        // Model Drift
   DatabaseIcon,        // RAG / Vector DB
@@ -94,21 +92,13 @@ export const Header = () => {
         <AppHeader.NavItem as={Link} to="/vector-db" style={getNavItemStyle('/vector-db')} aria-label="RAG and Vector DB">
           <DatabaseIcon aria-hidden="true" /> RAG
         </AppHeader.NavItem>
-        
+
         {/* 10. Infrastructure: Provider availability + Davis problems */}
         <AppHeader.NavItem as={Link} to="/infrastructure" style={getNavItemStyle('/infrastructure')} aria-label="AI Infrastructure Health">
           <HostsIcon aria-hidden="true" /> Infra
         </AppHeader.NavItem>
         
-        {/* 10. Intelligence: AI-powered investigation - Deep dive with Davis */}
-        <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="AI Intelligence">
-          <AiIcon aria-hidden="true" /> Intelligence
-        </AppHeader.NavItem>
-        
-        {/* 10. Operations: Runbooks & remediation - Take action */}
-        <AppHeader.NavItem as={Link} to="/operations" style={getNavItemStyle('/operations')} aria-label="Operations and Automation">
-          <WorkflowsIcon aria-hidden="true" /> Operations
-        </AppHeader.NavItem>
+
       </AppHeader.NavItems>
     </AppHeader>
   );

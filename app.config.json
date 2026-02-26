@@ -18,9 +18,12 @@
       { "name": "storage:entities:read", "comment": "Read entities for filtering" },
       { "name": "automation:workflows:read", "comment": "Read workflow definitions" },
       { "name": "automation:workflows:run", "comment": "Execute remediation workflows" },
-      { "name": "davis-copilot:nl2dql:execute", "comment": "Convert natural language to DQL queries" },
-      { "name": "davis-copilot:dql2nl:execute", "comment": "Explain DQL queries in natural language" },
-      { "name": "davis-copilot:conversations:execute", "comment": "Davis CoPilot conversation recommender" }
+      { "name": "automation:workflows:write", "comment": "Create and update workflows for spend alerts and remediation" },
+      { "name": "davis-copilot:nl2dql:execute", "comment": "Convert natural language to DQL queries (Dynatrace Intelligence NL2DQL)" },
+      { "name": "davis-copilot:dql2nl:execute", "comment": "Explain DQL queries in natural language (Dynatrace Intelligence DQL2NL)" },
+      { "name": "davis-copilot:conversations:execute", "comment": "Dynatrace Assist conversational analysis (recommenderConversation)" },
+      { "name": "davis:analyzers:execute", "comment": "Execute Dynatrace Intelligence analyzers: GenericForecast, AutoAdaptiveAnomaly, NoveltyScore" },
+      { "name": "davis:analyzers:read", "comment": "List and inspect available Dynatrace Intelligence analyzers" }
     ]
   }
 }

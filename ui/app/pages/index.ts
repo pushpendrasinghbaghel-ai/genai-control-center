@@ -32,11 +32,20 @@ export { AgentTools } from './AgentTools';
 // NEW: Model Drift Detection
 export { ModelDrift } from './ModelDrift';
 
-// NEW: RAG / Vector DB Observability (Phase 5 — Viatris Gap)
+// NEW: RAG / Vector DB Observability (Phase 5 - Viatris Gap)
 export { VectorDB } from './VectorDB';
 
-// NEW: Infrastructure Health (Phase 6 — Provider availability + Davis problems)
+// NEW: Infrastructure Health (Phase 6 - Provider availability + Davis problems)
 export { Infrastructure } from './Infrastructure';
+
+// NEW: AI Quality Dashboard (Phase 2.2 - hallucination scoring)
+export { AIQualityDashboard } from './AIQualityDashboard';
+
+// NEW: Conversation Intelligence (Phase 8.2 - session-level AI observability)
+export { ConversationIntelligence } from './ConversationIntelligence';
+
+// NEW: Developer Experience (Phase 3.2 - instrumentation coverage + shadow AI)
+export { DeveloperExperience } from './DeveloperExperience';
 
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';

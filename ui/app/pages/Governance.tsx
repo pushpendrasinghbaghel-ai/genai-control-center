@@ -743,7 +743,7 @@ export const Governance: React.FC = () => {
                 )}
                 {davisScoringEnabled && davisSummary.totalAnalyzed > 0 && !davisScoringLoading && (
                   <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
-                    ✓ Davis AI: {davisSummary.totalAnalyzed} scored (Avg Risk: {davisSummary.avgRiskScore})
+                    ✓ Dynatrace Intelligence: {davisSummary.totalAnalyzed} scored (Avg Risk: {davisSummary.avgRiskScore})
                   </Text>
                 )}
                 <Button
@@ -751,7 +751,7 @@ export const Governance: React.FC = () => {
                   onClick={davisScoringLoading ? cancelScoring : handleDavisScoring}
                   disabled={!groupedPrompts.length || promptsLoading}
                 >
-                  {davisScoringLoading ? 'Cancel' : 'Score with Davis AI'}
+                  {davisScoringLoading ? 'Cancel' : 'Score with Dynatrace Intelligence'}
                 </Button>
               </Flex>
             </Flex>
@@ -974,7 +974,7 @@ export const Governance: React.FC = () => {
                         }}>
                           {prompt.count}x
                         </Text>
-                        {/* Davis AI Risk Score Badge */}
+                        {/* Dynatrace Intelligence Risk Score Badge */}
                         {davisScore && (
                           <Text textStyle="small" style={{ 
                             padding: '1px 6px', 
@@ -988,7 +988,7 @@ export const Governance: React.FC = () => {
                             fontWeight: 600,
                             fontSize: 10
                           }}
-                          title={`Davis AI: ${davisScore.explanation}\nConfidence: ${(davisScore.confidence * 100).toFixed(0)}%`}
+                          title={`Dynatrace Intelligence: ${davisScore.explanation}\nConfidence: ${(davisScore.confidence * 100).toFixed(0)}%`}
                           >
                             AI: {davisScore.riskScore}
                           </Text>
@@ -1160,7 +1160,7 @@ export const Governance: React.FC = () => {
                       </Flex>
                     )}
                     
-                    {/* Davis AI Recommendations */}
+                    {/* Dynatrace Intelligence Recommendations */}
                     {davisScore && davisScore.recommendations.length > 0 && (
                       <Flex flexDirection="column" gap={2} style={{ 
                         marginTop: 4, 
@@ -1169,7 +1169,7 @@ export const Governance: React.FC = () => {
                         borderRadius: 4
                       }}>
                         <Text textStyle="small" style={{ fontWeight: 600, fontSize: 10 }}>
-                          Davis AI Recommendations:
+                          Dynatrace Intelligence Recommendations:
                         </Text>
                         {davisScore.recommendations.slice(0, 2).map((rec, idx) => (
                           <Text key={idx} textStyle="small" style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>

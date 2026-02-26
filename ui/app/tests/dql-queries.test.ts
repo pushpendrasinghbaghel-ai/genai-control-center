@@ -35,6 +35,10 @@ const SPAN_WITH_LEGACY_TOKENS = {
   'duration': 3000000000, // 3 seconds in nanoseconds
 };
 
+// Aliases for environment-specific test spans
+const DEMO_ENVIRONMENT_SPAN = STANDARD_SPAN;
+const PRODUCTION_ENVIRONMENT_SPAN = SPAN_WITH_LEGACY_TOKENS;
+
 // Utility to simulate coalesce behavior
 function coalesce(...values: any[]): any {
   for (const v of values) {

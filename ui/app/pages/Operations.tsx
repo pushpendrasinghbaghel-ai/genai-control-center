@@ -127,7 +127,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'cache_enable', name: 'Enable Caching', type: 'cache_enable', description: 'Enable response caching for common queries', icon: <SettingIcon style={{ width: 16, height: 16 }} />, isDestructive: false },
 ];
 
-// Agentic Workflow Templates - Davis AI powered automation
+// Agentic Workflow Templates - Dynatrace Intelligence powered automation
 interface AgenticWorkflow {
   id: string;
   title: string;
@@ -142,10 +142,10 @@ const AGENTIC_WORKFLOWS: AgenticWorkflow[] = [
   {
     id: 'finops-digest',
     title: 'Weekly FinOps Digest',
-    description: 'Davis Intelligence analyzes GenAI costs weekly and sends executive summary via email',
+    description: 'Dynatrace Intelligence analyzes GenAI costs weekly and sends executive summary via email',
     icon: <MailIcon style={{ width: 20, height: 20 }} />,
     trigger: 'Every Monday 9 AM UTC',
-    features: ['DQL cost aggregation', 'Davis AI analysis', 'Email digest'],
+    features: ['DQL cost aggregation', 'Dynatrace Intelligence Analysis', 'Email digest'],
     deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
   },
   {
@@ -575,7 +575,7 @@ export const Operations: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <WorkflowsIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
               <Heading level={6}>Agentic Workflow Templates</Heading>
-              <Tooltip text="Powered by Davis Intelligence - autonomous workflows that analyze, decide, and act">
+              <Tooltip text="Powered by Dynatrace Intelligence - autonomous workflows that analyze, decide, and act">
                 <span style={{ 
                   padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
                   background: '#7c3aed', color: 'white'
@@ -586,7 +586,7 @@ export const Operations: React.FC = () => {
             </Flex>
             
             <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-              Deploy pre-built agentic workflows powered by Davis AI for autonomous monitoring and remediation.
+              Deploy pre-built agentic workflows Powered by Dynatrace Intelligence for autonomous monitoring and remediation.
             </Text>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -606,7 +606,7 @@ export const Operations: React.FC = () => {
                         <Text style={{ fontWeight: 600, fontSize: 14 }}>{workflow.title}</Text>
                         <Text style={{ fontSize: 11, opacity: 0.7 }}>Trigger: {workflow.trigger}</Text>
                       </Flex>
-                      <Tooltip text="Agentic Workflow powered by Davis Intelligence">
+                      <Tooltip text="Agentic Workflow powered by Dynatrace Intelligence">
                         <span style={{ 
                           padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
                           background: '#7c3aed', color: 'white'
@@ -644,7 +644,7 @@ export const Operations: React.FC = () => {
               <Flex alignItems="center" gap={8}>
                 <WorkflowsIcon style={{ width: 14, height: 14, color: '#7c3aed' }} />
                 <Text>
-                  <strong>Agentic AI:</strong> These workflows use Davis Intelligence to autonomously analyze data, 
+                  <strong>Agentic AI:</strong> These workflows use Dynatrace Intelligence to autonomously analyze data, 
                   make decisions, and take actions without human intervention.
                 </Text>
               </Flex>

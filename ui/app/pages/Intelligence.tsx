@@ -372,7 +372,7 @@ export const Intelligence: React.FC = () => {
                       }}>
                         {msg.type === 'user' 
                           ? <><HelpIcon style={{ width: 14, height: 14 }} /> You</>
-                          : <><AiIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-accent-default)' }} /> Davis AI</>
+                          : <><AiIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-accent-default)' }} /> Dynatrace Intelligence</>
                         }
                       </Text>
                       {msg.isLoading ? (

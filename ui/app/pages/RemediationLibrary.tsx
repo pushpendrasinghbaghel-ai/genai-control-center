@@ -17,10 +17,10 @@ const AGENTIC_WORKFLOWS = [
   {
     id: 'finops-digest',
     title: 'Weekly FinOps Digest',
-    description: 'Davis Intelligence analyzes GenAI costs weekly and sends executive summary via email',
+    description: 'Dynatrace Intelligence analyzes GenAI costs weekly and sends executive summary via email',
     icon: <MailIcon style={{ width: 20, height: 20 }} />,
     trigger: 'Every Monday 9 AM UTC',
-    features: ['DQL cost aggregation', 'Davis AI analysis', 'Email digest'],
+    features: ['DQL cost aggregation', 'Dynatrace Intelligence Analysis', 'Email digest'],
     deployUrl: 'https://demo.apps.dynatrace.com/ui/apps/dynatrace.workflows/builder'
   },
   {
@@ -63,7 +63,7 @@ const AgenticWorkflowCard: React.FC<{
           <Text style={{ fontWeight: 600, fontSize: 14 }}>{workflow.title}</Text>
           <Text style={{ fontSize: 11, opacity: 0.7 }}>Trigger: {workflow.trigger}</Text>
         </Flex>
-        <Tooltip text="Agentic Workflow powered by Davis Intelligence">
+        <Tooltip text="Agentic Workflow powered by Dynatrace Intelligence">
           <span style={{ 
             padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
             background: '#7c3aed', color: 'white'
@@ -260,7 +260,7 @@ export const RemediationLibrary: React.FC = () => {
           <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
             Agentic Workflow Templates
           </Text>
-          <Tooltip text="Powered by Davis Intelligence - autonomous workflows that analyze, decide, and act">
+          <Tooltip text="Powered by Dynatrace Intelligence - autonomous workflows that analyze, decide, and act">
             <span style={{ 
               padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
               background: '#7c3aed', color: 'white'

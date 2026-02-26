@@ -1,4 +1,4 @@
-// Davis Assistant - Pillar C: Deep-Dive AI Analysis
+// Dynatrace Assist - Pillar C: Deep-Dive AI Analysis
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -39,7 +39,7 @@ const ChatMessage: React.FC<{ message: ConversationMessage }> = ({ message }) =>
             }
           </span>
           <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
-            {isUser ? 'You' : 'Davis AI'}
+            {isUser ? 'You' : 'Dynatrace Intelligence'}
           </span>
           <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
             {message.timestamp.toLocaleTimeString()}
@@ -120,7 +120,7 @@ export const DavisAssistant: React.FC = () => {
         <TitleBar.Prefix aria-hidden="true">
           <DavisAiIcon />
         </TitleBar.Prefix>
-        <TitleBar.Title>Davis Assistant</TitleBar.Title>
+        <TitleBar.Title>Dynatrace Assist</TitleBar.Title>
         <TitleBar.Subtitle>Natural language AI investigation</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Button onClick={clearConversation} aria-label="Clear conversation">Clear</Button>
@@ -145,7 +145,7 @@ export const DavisAssistant: React.FC = () => {
             {messages.length === 0 ? (
               <Flex flexDirection="column" alignItems="center" justifyContent="center" style={{ height: '100%' }} gap={12}>
                 <AiIcon style={{ width: 48, height: 48, color: 'var(--dt-colors-text-accent-default)' }} />
-                <Heading level={5}>Welcome to Davis AI</Heading>
+                <Heading level={5}>Welcome to Dynatrace Assist</Heading>
                 <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', maxWidth: 360, fontSize: 13 }}>
                   Ask me about your AI services - errors, performance, costs, and recommendations.
                 </span>
@@ -180,7 +180,7 @@ export const DavisAssistant: React.FC = () => {
           <TextInput
             value={inputValue}
             onChange={(value) => setInputValue(value)}
-            placeholder="Ask Davis about your AI services..."
+            placeholder="Ask Dynatrace Intelligence about your AI services..."
             onKeyDown={handleKeyPress}
           />
         </div>

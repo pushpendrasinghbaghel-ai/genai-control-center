@@ -320,7 +320,7 @@ export const AIQualityDashboard: React.FC = () => {
           <CheckmarkIcon />
         </TitleBar.Prefix>
         <TitleBar.Title>AI Quality Dashboard</TitleBar.Title>
-        <TitleBar.Subtitle>Quality scoring & Davis AI forecasting</TitleBar.Subtitle>
+        <TitleBar.Subtitle>Quality scoring & Dynatrace Intelligence Forecasting</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8}>
             <Button variant="default" onClick={() => analyzeQuality('24h')} disabled={loading} aria-label="Refresh quality analysis">
@@ -545,7 +545,7 @@ export const AIQualityDashboard: React.FC = () => {
       {/* Forecasts Section */}
       {(tokenForecast || costForecast || requestForecast) && (
         <Flex flexDirection="column" gap={12}>
-          <Heading level={5}>Davis AI Forecasts (7-day projection)</Heading>
+          <Heading level={5}>Dynatrace Intelligence Forecasts (7-day projection)</Heading>
           <Flex gap={12} style={{ flexWrap: 'wrap' }}>
             {tokenForecast && <ForecastChart forecast={tokenForecast} />}
             {costForecast && <ForecastChart forecast={costForecast} budget={budget} />}

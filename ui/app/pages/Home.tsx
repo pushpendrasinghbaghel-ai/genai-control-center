@@ -768,7 +768,7 @@ export const Home = () => {
           </Paragraph>
 
           {/* Dimension Breakdown */}
-          <Flex flexDirection="column" gap={10}>
+          <Flex flexDirection="column" gap={8}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>Score Breakdown</span>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
@@ -793,7 +793,7 @@ export const Home = () => {
           </Flex>
 
           {/* Maturity Levels */}
-          <Flex flexDirection="column" gap={10}>
+          <Flex flexDirection="column" gap={8}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>Maturity Levels — Industry Context</span>
             <Paragraph style={{ fontSize: 12, marginBottom: 8 }}>
               Levels align with frameworks from <Strong>Gartner AI Maturity Model</Strong>, <Strong>McKinsey AI Adoption Report 2024</Strong>,
@@ -806,7 +806,7 @@ export const Home = () => {
                 { level: 'Established  (60 – 79)', color: STATUS_COLORS.good, desc: 'Consistent monitoring across all AI services with proactive alerting, cost controls, and governance. Reflects the top 30% of AI ops practices globally.' },
                 { level: 'Advanced  (80 – 100)', color: STATUS_COLORS.ideal, desc: 'Full-stack AI observability with automated remediation, multi-provider optimization, and predictive capacity planning. Achieved by only the top 10% of enterprises (McKinsey AI Maturity Index 2024).' },
               ].map(l => (
-                <Surface key={l.level} padding={14} style={{ borderRadius: 8, borderLeft: `4px solid ${l.color}` }}>
+                <Surface key={l.level} padding={12} style={{ borderRadius: 8, borderLeft: `4px solid ${l.color}` }}>
                   <Flex flexDirection="column" gap={6}>
                     <span style={{ fontWeight: 700, fontSize: 13, color: l.color }}>{l.level}</span>
                     <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>{l.desc}</span>
@@ -817,7 +817,7 @@ export const Home = () => {
           </Flex>
 
           {/* How to Improve */}
-          <Flex flexDirection="column" gap={10}>
+          <Flex flexDirection="column" gap={8}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>How to Improve Your Score</span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               {[
@@ -843,15 +843,15 @@ export const Home = () => {
               <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                 <Flex alignItems="center" gap={8}>
                   <AiIcon style={{ color: STATUS_COLORS.good, width: 18, height: 18 }} />
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>Get Personalized Insights from Davis AI</span>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Get Personalized Insights from Dynatrace Intelligence</span>
                 </Flex>
                 <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
-                  Ask Davis to analyze your specific maturity gaps and recommend prioritized improvement actions based on your live environment data.
+                  Ask Dynatrace Intelligence to analyze your specific maturity gaps and recommend prioritized improvement actions based on your live environment data.
                 </span>
               </Flex>
               <Link to="/intelligence" onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>
                 <Button variant="emphasized">
-                  Ask Davis AI
+                  Ask Dynatrace Intelligence
                 </Button>
               </Link>
             </Flex>
