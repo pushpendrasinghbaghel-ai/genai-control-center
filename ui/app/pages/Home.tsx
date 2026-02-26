@@ -7,7 +7,7 @@ import { Button } from "@dynatrace/strato-components/buttons";
 import { TitleBar } from "@dynatrace/strato-components-preview/layouts";
 import { TimeframeSelector } from "@dynatrace/strato-components-preview/filters";
 import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components-preview/charts";
-import { Tooltip } from "@dynatrace/strato-components-preview/overlays";
+import { Tooltip, Modal } from "@dynatrace/strato-components-preview/overlays";
 import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
 import type { Timeframe } from "@dynatrace/strato-components-preview/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
@@ -16,10 +16,7 @@ import {
   AgentIcon,
   BarChartIcon,
   MoneyIcon,
-  SmartscapeIcon,
   ServiceLevelObjectivesIcon,
-  SecurityIcon,
-  WorkflowsIcon,
   WarningIcon,
   ClockIcon,
   HostsIcon,
@@ -114,50 +111,10 @@ const StatCard: React.FC<{
   </Flex>
 );
 
-// Pillar card with description explaining its purpose
-const PillarCard: React.FC<{
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  path: string;
-  color: string;
-  metrics?: string;
-}> = ({ title, description, icon, path, color, metrics }) => (
-  <Link to={path} style={{ textDecoration: 'none', flex: 1, minWidth: 200 }}>
-    <Surface style={{ 
-      borderRadius: 8, 
-      height: '100%',
-      borderTop: `3px solid ${color}`,
-      cursor: 'pointer',
-      transition: 'box-shadow 0.2s',
-    }}>
-      <Flex padding={16} flexDirection="column" gap={12}>
-        <Flex alignItems="center" gap={8}>
-          <div style={{ 
-            width: 36, height: 36, borderRadius: 8, 
-            background: `${color}18`, display: 'flex', 
-            alignItems: 'center', justifyContent: 'center'
-          }}>
-            {icon}
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
-        </Flex>
-        <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
-          {description}
-        </span>
-        {metrics && (
-          <span style={{ fontSize: 11, fontWeight: 500, color }}>
-            {metrics}
-          </span>
-        )}
-      </Flex>
-    </Surface>
-  </Link>
-);
 
 export const Home = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
-  const [showDocs, setShowDocs] = useState(false); // Core Capabilities hidden by default
+  const [showMaturityModal, setShowMaturityModal] = useState(false);
   
   // Core data hooks
   const { data: services, loading } = useAIServicesDiscovery();
@@ -736,112 +693,6 @@ export const Home = () => {
         </>
       )}
 
-      {/* Core Capabilities - On-demand documentation panel */}
-      <Surface style={{ borderRadius: 8 }}>
-        <Flex 
-          justifyContent="space-between" 
-          alignItems="center" 
-          padding={12}
-          style={{ cursor: 'pointer' }}
-          onClick={() => setShowDocs(!showDocs)}
-        >
-          <Flex alignItems="center" gap={8}>
-            <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
-            <span style={{ fontSize: 13, fontWeight: 600 }}>What can GenAI Control Center do?</span>
-            <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
-              {showDocs ? '(click to hide)' : '(click to explore capabilities)'}
-            </span>
-          </Flex>
-          <Button variant="default">
-            {showDocs ? 'Hide' : 'Show Documentation'}
-          </Button>
-        </Flex>
-        
-        {showDocs && (
-          <Flex flexDirection="column" gap={16} padding={16} style={{ paddingTop: 0 }}>
-            {/* Primary Pillars Row */}
-            <Flex gap={12} flexWrap="wrap">
-              <PillarCard
-                icon={<BarChartIcon style={{ width: 20, height: 20, color: CHART_COLORS.success }} />}
-                title="Health Dashboard"
-                description="Auto-discover all GenAI services in your environment. Monitor latency, error rates, and request volumes in real-time."
-                path="/health"
-                color={CHART_COLORS.success}
-                metrics={healthMetrics ? `${healthMetrics.totalServices} services monitored` : undefined}
-              />
-              <PillarCard
-                icon={<AgentIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color07.Default }} />}
-                title="Agent Analytics"
-                description="Monitor AI agent tool usage, detect infinite loops, and analyze agent workflows. Track tool calls, latency, and error rates."
-                path="/agents"
-                color={Colors.Charts.Categorical.Color07.Default}
-              />
-              <PillarCard
-                icon={<SmartscapeIcon style={{ width: 20, height: 20, color: CHART_COLORS.secondary }} />}
-                title="AI Topology"
-                description="Visualize the relationship between your services, AI providers, and models. Understand dependencies at a glance."
-                path="/topology"
-                color={CHART_COLORS.secondary}
-              />
-              <PillarCard
-                icon={<ServiceLevelObjectivesIcon style={{ width: 20, height: 20, color: CHART_COLORS.tertiary }} />}
-                title="Response Analytics"
-                description="Analyze token efficiency, model performance rankings, and output consistency. Identify optimization opportunities."
-                path="/analytics"
-                color={CHART_COLORS.tertiary}
-              />
-              <PillarCard
-                icon={<WarningIcon style={{ width: 20, height: 20, color: CHART_COLORS.critical }} />}
-                title="Real-Time Problems"
-                description="View active Dynatrace problems filtered to GenAI context. Get instant visibility into issues affecting AI services."
-                path="/problems"
-                color={CHART_COLORS.critical}
-              />
-              <PillarCard
-                icon={<ResearchIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color08.Default }} />}
-                title="Model Drift"
-                description="Track AI model behavior changes over time. Detect semantic drift, version updates, and quality degradation."
-                path="/drift"
-                color={Colors.Charts.Categorical.Color08.Default}
-              />
-            </Flex>
-
-            {/* Secondary Pillars Row */}
-            <Flex gap={12} flexWrap="wrap">
-              <PillarCard
-                icon={<MoneyIcon style={{ width: 20, height: 20, color: CHART_COLORS.warning }} />}
-                title="FinOps"
-                description="Track token consumption, estimate costs by provider and model. Set budgets and get alerts on overspending."
-                path="/finops"
-                color={CHART_COLORS.warning}
-                metrics={chartTotals.cost > 0 ? formatCurrency(chartTotals.cost) + ' today' : undefined}
-              />
-              <PillarCard
-                icon={<SecurityIcon style={{ width: 20, height: 20, color: CHART_COLORS.quaternary }} />}
-                title="Governance"
-                description="Ensure compliance with AI policies. Monitor prompt content, track data handling, and enforce security standards."
-                path="/governance"
-                color={CHART_COLORS.quaternary}
-              />
-              <PillarCard
-                icon={<AiIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color05.Default }} />}
-                title="Davis Intelligence"
-                description="Ask Davis CoPilot about your AI infrastructure. Get root cause analysis and intelligent recommendations."
-                path="/intelligence"
-                color={Colors.Charts.Categorical.Color05.Default}
-              />
-              <PillarCard
-                icon={<WorkflowsIcon style={{ width: 20, height: 20, color: Colors.Charts.Categorical.Color06.Default }} />}
-                title="Operations"
-                description="Access runbooks and remediation workflows. Automate responses to common AI service issues."
-                path="/operations"
-                color={Colors.Charts.Categorical.Color06.Default}
-              />
-            </Flex>
-          </Flex>
-        )}
-      </Surface>
-
       {/* ─── AI Maturity Score (Phase 3.1) ─── */}
       <Surface style={{ padding: 20 }}>
         <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={16}>
@@ -850,6 +701,15 @@ export const Home = () => {
             <Flex alignItems="center" gap={8}>
               <ResearchIcon style={{ color: maturityScore.color }} />
               <span style={{ fontWeight: 700, fontSize: 16 }}>AI Maturity Score</span>
+              <Tooltip text="Click to learn how this score is calculated and how to improve it">
+                <span
+                  onClick={() => setShowMaturityModal(true)}
+                  style={{ display: 'flex', cursor: 'pointer', color: 'var(--dt-colors-text-secondary-default)' }}
+                  aria-label="AI Maturity Score details"
+                >
+                  <HelpIcon style={{ width: 16, height: 16 }} />
+                </span>
+              </Tooltip>
             </Flex>
             <Flex alignItems="center" gap={16}>
               <span style={{ fontSize: 52, fontWeight: 800, color: maturityScore.color, lineHeight: 1 }}>
@@ -881,6 +741,124 @@ export const Home = () => {
           </Flex>
         </Flex>
       </Surface>
+
+      {/* ─── AI Maturity Score Help Modal ─── */}
+      <Modal
+        title="AI Maturity Score — How It's Calculated"
+        show={showMaturityModal}
+        onDismiss={() => setShowMaturityModal(false)}
+        size="large"
+      >
+        <Flex flexDirection="column" gap={20}>
+
+          {/* Score overview */}
+          <Flex alignItems="center" gap={16}>
+            <span style={{ fontSize: 56, fontWeight: 800, color: maturityScore.color, lineHeight: 1 }}>
+              {maturityScore.total}
+            </span>
+            <Flex flexDirection="column" gap={2}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: maturityScore.color }}>{maturityScore.level}</span>
+              <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>out of 100 — based on live telemetry</span>
+            </Flex>
+          </Flex>
+          <Paragraph>
+            The AI Maturity Score evaluates your organization's GenAI observability posture across five weighted dimensions.
+            Scores are derived <Strong>entirely from live Dynatrace telemetry</Strong> — no manual configuration required.
+            The score updates automatically as your environment changes.
+          </Paragraph>
+
+          {/* Dimension Breakdown */}
+          <Flex flexDirection="column" gap={10}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Score Breakdown</span>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--dt-colors-background-base-default)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Dimension</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Max Pts</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Your Score</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Live Signal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {maturityScore.dimensions.map((dim, i) => (
+                  <tr key={dim.label} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--dt-colors-background-base-default)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{dim.label}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--dt-colors-text-secondary-default)' }}>{dim.max}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: maturityScore.color }}>{dim.score}/{dim.max}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--dt-colors-text-secondary-default)' }}>{dim.desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Flex>
+
+          {/* Maturity Levels */}
+          <Flex flexDirection="column" gap={10}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Maturity Levels — Industry Context</span>
+            <Paragraph style={{ fontSize: 12, marginBottom: 8 }}>
+              Levels align with frameworks from <Strong>Gartner AI Maturity Model</Strong>, <Strong>McKinsey AI Adoption Report 2024</Strong>,
+              and <Strong>DORA DevOps metrics</Strong> adapted for AI operations.
+            </Paragraph>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              {[
+                { level: 'Initial  (0 – 39)', color: STATUS_COLORS.critical, desc: 'Ad-hoc AI usage with no systematic monitoring. Typical of POC or early-stage projects. Fewer than 25% of teams have baseline visibility into their AI spend and errors.' },
+                { level: 'Developing  (40 – 59)', color: STATUS_COLORS.warning, desc: 'Some instrumentation in place. Teams are aware of AI costs but lack full observability. Represents the industry average for AI-first enterprises today.' },
+                { level: 'Established  (60 – 79)', color: STATUS_COLORS.good, desc: 'Consistent monitoring across all AI services with proactive alerting, cost controls, and governance. Reflects the top 30% of AI ops practices globally.' },
+                { level: 'Advanced  (80 – 100)', color: STATUS_COLORS.ideal, desc: 'Full-stack AI observability with automated remediation, multi-provider optimization, and predictive capacity planning. Achieved by only the top 10% of enterprises (McKinsey AI Maturity Index 2024).' },
+              ].map(l => (
+                <Surface key={l.level} padding={14} style={{ borderRadius: 8, borderLeft: `4px solid ${l.color}` }}>
+                  <Flex flexDirection="column" gap={6}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: l.color }}>{l.level}</span>
+                    <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>{l.desc}</span>
+                  </Flex>
+                </Surface>
+              ))}
+            </div>
+          </Flex>
+
+          {/* How to Improve */}
+          <Flex flexDirection="column" gap={10}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>How to Improve Your Score</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              {[
+                { dim: 'Coverage (+20 pts)', tip: 'Instrument all AI services using OpenTelemetry gen_ai.* semantic conventions. Each newly traced service increases your coverage score.' },
+                { dim: 'Reliability (+25 pts)', tip: 'Add retry logic, circuit breakers, and fallback providers. Target <1% error rate for a full score. Monitor with the Health Dashboard.' },
+                { dim: 'Efficiency (+20 pts)', tip: 'Enable token-level tracing to capture input/output ratios. Optimize prompts to reduce input token waste by 20–40%.' },
+                { dim: 'Governance (+20 pts)', tip: 'Configure prompt content policies in the Governance page. Detect PII leakage, injection attempts, and model misuse patterns.' },
+                { dim: 'Observability (+15 pts)', tip: 'Enable agent tracing for autonomous AI workflows. Use Agent Analytics to monitor tool calls, detect loops, and trace multi-step reasoning.' },
+              ].map(item => (
+                <Surface key={item.dim} padding={12} style={{ borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <span style={{ fontWeight: 700, fontSize: 12 }}>{item.dim}</span>
+                    <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>{item.tip}</span>
+                  </Flex>
+                </Surface>
+              ))}
+            </div>
+          </Flex>
+
+          {/* Davis AI CTA */}
+          <Surface padding={16} style={{ borderRadius: 8, background: `${STATUS_COLORS.good}18`, border: `1px solid ${STATUS_COLORS.good}40` }}>
+            <Flex alignItems="center" gap={12} justifyContent="space-between" flexWrap="wrap">
+              <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
+                <Flex alignItems="center" gap={8}>
+                  <AiIcon style={{ color: STATUS_COLORS.good, width: 18, height: 18 }} />
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Get Personalized Insights from Davis AI</span>
+                </Flex>
+                <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
+                  Ask Davis to analyze your specific maturity gaps and recommend prioritized improvement actions based on your live environment data.
+                </span>
+              </Flex>
+              <Link to="/intelligence" onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>
+                <Button variant="emphasized">
+                  Ask Davis AI
+                </Button>
+              </Link>
+            </Flex>
+          </Surface>
+
+        </Flex>
+      </Modal>
     </Flex>
   );
 };
