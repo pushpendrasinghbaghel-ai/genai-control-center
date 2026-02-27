@@ -1279,12 +1279,15 @@ fetch spans, ${timeClause}
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Instrumentation coverage — what % of spans have gen_ai attributes.
+ * Instrumentation coverage — what % of AI spans have proper gen_ai attributes.
+ * Scoped to AI-related spans only (those with gen_ai.provider.name, gen_ai.request.model, or gen_ai.system)
+ * so the denominator is meaningful and the score isn't diluted by millions of non-AI spans.
  */
 export const INSTRUMENTATION_COVERAGE_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
   return `
 fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model) OR isNotNull(gen_ai.system)
 | summarize
     total = count(),
     with_provider = countIf(isNotNull(gen_ai.provider.name)),
