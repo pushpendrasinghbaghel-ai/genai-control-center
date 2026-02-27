@@ -1300,6 +1300,32 @@ fetch spans, ${timeClause}
 };
 
 /**
+ * Per-model×provider integration report — shows telemetry completeness for each model.
+ * This is the core of the "AI Integration Health" view: which models report tokens,
+ * response model, agent identity? Where are the telemetry blind spots?
+ */
+export const INTEGRATION_REPORT_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize
+    calls = count(),
+    errors = countIf(span.status_code == "error"),
+    has_tokens = countIf(isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.prompt_tokens)),
+    has_response_model = countIf(isNotNull(gen_ai.response.model)),
+    has_agent = countIf(isNotNull(gen_ai.agent.name)),
+    has_conversation = countIf(isNotNull(traceloop.association.properties.conversation_id)),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    total_input = sum(gen_ai.usage.input_tokens),
+    total_output = sum(gen_ai.usage.output_tokens),
+    by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
+| sort calls, direction: "descending"
+`.trim();
+};
+
+/**
  * Error spans with source code attribution — helps devs find the exact code location.
  */
 export const SOURCE_CODE_ERRORS_QUERY = (filters?: QueryFilters): string => {
@@ -1591,7 +1617,9 @@ fetch spans, ${timeClause}
 };
 
 /**
- * Model version mismatch tracker — request model ≠ response model (confirmed: 66K mismatches).
+ * Model routing map — tracks where requested model ≠ served model.
+ * Reveals API gateways, load balancers, proxy patterns, and model aliasing.
+ * E.g. "genai-demo" → "gpt-4o-mini-2024-07-18", embedding aliases → "ada".
  */
 export const MODEL_VERSION_MISMATCH_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
@@ -1600,12 +1628,13 @@ fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.request.model) AND isNotNull(gen_ai.response.model)
 | filter gen_ai.request.model != gen_ai.response.model
 | summarize
-    mismatch_count = count(),
+    occurrences = count(),
     avg_latency_ms = avg(duration) / 1000000,
-    services = collectDistinct(dt.entity.service)
-  , by: { request_model = gen_ai.request.model, response_model = gen_ai.response.model }
-| sort mismatch_count desc
-| limit 20
+    total_input = sum(gen_ai.usage.input_tokens),
+    total_output = sum(gen_ai.usage.output_tokens)
+  , by: { requested = gen_ai.request.model, actual = gen_ai.response.model, provider = gen_ai.provider.name }
+| sort occurrences, direction: "descending"
+| limit 30
 `.trim();
 };
 

@@ -1,5 +1,7 @@
-﻿// DeveloperExperience.tsx — Phase 3.2: AI Developer Experience & Instrumentation Quality
-// Surfaces instrumentation coverage, model version mismatches, shadow AI, and source code error attribution
+﻿// DeveloperExperience.tsx — AI Integration Health
+// A Lighthouse-style diagnostic for AI observability quality.
+// Shows per-model telemetry completeness, model routing patterns, and actionable recommendations.
+// Unique value: no competitor surfaces per-model instrumentation gaps or gateway routing visibility.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
@@ -9,63 +11,64 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components-preview/tables';
-import { AiIcon, CodeIcon, WarningIcon, CheckmarkIcon, CriticalIcon } from '@dynatrace/strato-icons';
+import { CodeIcon, WarningIcon, CheckmarkIcon, CriticalIcon, AiIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import {
   INSTRUMENTATION_COVERAGE_QUERY,
-  SOURCE_CODE_ERRORS_QUERY,
-  TOP_ERROR_FUNCTIONS_QUERY,
+  INTEGRATION_REPORT_QUERY,
   MODEL_VERSION_MISMATCH_QUERY,
-  SHADOW_AI_DETECTION_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from '../queries/dql-queries';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
 
-
 // ============================================
 // Types
 // ============================================
 
-interface InstrumentationCoverage {
+interface IntegrationRow {
+  model: string;
+  provider: string;
+  calls: number;
+  errors: number;
+  errorRate: number;
+  tokensPct: number;
+  responseModelPct: number;
+  agentPct: number;
+  conversationPct: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  totalInput: number;
+  totalOutput: number;
+  completeness: number;
+}
+
+interface ModelRoute {
+  requested: string;
+  actual: string;
+  provider: string;
+  occurrences: number;
+  avgLatencyMs: number;
+  totalInput: number;
+  totalOutput: number;
+}
+
+interface Recommendation {
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  detail: string;
+  attribute: string;
+}
+
+interface CoverageSummary {
   total: number;
   withProvider: number;
   withTokens: number;
-  withAgentName: number;
+  withAgent: number;
   withConversation: number;
-  withCode: number;
-  coverageScore: number;
+  withResponseModel: number;
 }
-
-interface SourceCodeError {
-  functionName: string;
-  fileName: string;
-  lineNumber: number;
-  errorCount: number;
-  errorMessage: string;
-  lastSeen: string;
-  model: string;
-}
-
-interface ModelVersionMismatch {
-  service: string;
-  requestedModel: string;
-  actualModel: string;
-  count: number;
-  deltaTokens: number;
-}
-
-interface ShadowAiService {
-  host: string;
-  provider: string;
-  callCount: number;
-  firstSeen: string;
-  lastSeen: string;
-  isUnknown: boolean;
-}
-
-
 
 // ============================================
 // Helpers
@@ -93,19 +96,41 @@ function StatusPill({ label, color }: { label: string | number; color: string })
   );
 }
 
-function CoverageRow({ label, value, total, color }: {
-  label: string; value: number; total: number; color?: string;
-}) {
-  const p = pct(value, total);
+function CompletionBadge({ value }: { value: number }) {
+  const color = value >= 80 ? Colors.Text.Success.Default
+    : value >= 50 ? Colors.Text.Warning.Default
+    : Colors.Text.Critical.Default;
   return (
-    <Flex flexDirection="column" gap={4}>
-      <Flex alignItems="center" justifyContent="space-between">
-        <Text textStyle="small">{label}</Text>
-        <Text textStyle="small" style={{ color: p >= 80 ? Colors.Text.Success.Default : p >= 50 ? Colors.Text.Warning.Default : Colors.Text.Critical.Default }}>
-          {p}% ({formatNum(value)}/{formatNum(total)})
-        </Text>
+    <Flex alignItems="center" gap={6}>
+      <div style={{ width: 48, height: 6, borderRadius: 3, background: color + '30', overflow: 'hidden' }}>
+        <div style={{ width: `${value}%`, height: '100%', borderRadius: 3, background: color }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 32 }}>{value}%</span>
+    </Flex>
+  );
+}
+
+function AttributeCheck({ pctValue }: { pctValue: number }) {
+  if (pctValue >= 80) {
+    return (
+      <Flex alignItems="center" gap={4}>
+        <CheckmarkIcon style={{ width: 13, height: 13, color: Colors.Text.Success.Default }} />
+        <span style={{ fontSize: 11, color: Colors.Text.Success.Default }}>{pctValue}%</span>
       </Flex>
-      <ProgressBar value={p} />
+    );
+  }
+  if (pctValue > 0) {
+    return (
+      <Flex alignItems="center" gap={4}>
+        <WarningIcon style={{ width: 13, height: 13, color: Colors.Text.Warning.Default }} />
+        <span style={{ fontSize: 11, color: Colors.Text.Warning.Default }}>{pctValue}%</span>
+      </Flex>
+    );
+  }
+  return (
+    <Flex alignItems="center" gap={4}>
+      <CriticalIcon style={{ width: 13, height: 13, color: Colors.Text.Critical.Default }} />
+      <span style={{ fontSize: 11, color: Colors.Text.Critical.Default }}>None</span>
     </Flex>
   );
 }
@@ -116,18 +141,17 @@ function CoverageRow({ label, value, total, color }: {
 
 export function DeveloperExperience() {
   const { filters: globalFilters, setFilters } = useGlobalFilters();
-  const [coverage, setCoverage] = useState<InstrumentationCoverage | null>(null);
-  const [sourceErrors, setSourceErrors] = useState<SourceCodeError[]>([]);
-  const [versionMismatches, setVersionMismatches] = useState<ModelVersionMismatch[]>([]);
-  const [shadowAi, setShadowAi] = useState<ShadowAiService[]>([]);
+  const [report, setReport] = useState<IntegrationRow[]>([]);
+  const [routes, setRoutes] = useState<ModelRoute[]>([]);
+  const [coverage, setCoverage] = useState<CoverageSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'coverage' | 'errors' | 'mismatches' | 'shadow'>('coverage');
+  const [activeTab, setActiveTab] = useState<'report' | 'routing' | 'recommendations'>('report');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const filters: QueryFilters = {
+    const qf: QueryFilters = {
       timeframe: globalFilters.timeframe,
       serviceName: globalFilters.serviceFilter || undefined,
       provider: globalFilters.providerFilter || undefined,
@@ -135,72 +159,70 @@ export function DeveloperExperience() {
     };
 
     try {
-      const [covRes, errRes, funcRes, verRes, shadowRes] = await Promise.all([
+      const [reportRes, routeRes, covRes] = await Promise.all([
         queryExecutionClient.queryExecute({
-          body: { query: INSTRUMENTATION_COVERAGE_QUERY(filters), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
+          body: { query: INTEGRATION_REPORT_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
         queryExecutionClient.queryExecute({
-          body: { query: SOURCE_CODE_ERRORS_QUERY(filters), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
+          body: { query: MODEL_VERSION_MISMATCH_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
         queryExecutionClient.queryExecute({
-          body: { query: TOP_ERROR_FUNCTIONS_QUERY(filters), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
-        }),
-        queryExecutionClient.queryExecute({
-          body: { query: MODEL_VERSION_MISMATCH_QUERY(filters), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
-        }),
-        queryExecutionClient.queryExecute({
-          body: { query: SHADOW_AI_DETECTION_QUERY(filters), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
+          body: { query: INSTRUMENTATION_COVERAGE_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
       ]);
 
-      // Coverage
+      // Integration report — per model×provider
+      const rows = (reportRes.result?.records || []).map((r: any) => {
+        const calls = Number(r['calls'] || 0);
+        const tokPct = pct(Number(r['has_tokens'] || 0), calls);
+        const resPct = pct(Number(r['has_response_model'] || 0), calls);
+        const agtPct = pct(Number(r['has_agent'] || 0), calls);
+        const convPct = pct(Number(r['has_conversation'] || 0), calls);
+        const errors = Number(r['errors'] || 0);
+        return {
+          model: String(r['model'] || '(no model)'),
+          provider: String(r['provider'] || '(no provider)'),
+          calls,
+          errors,
+          errorRate: pct(errors, calls),
+          tokensPct: tokPct,
+          responseModelPct: resPct,
+          agentPct: agtPct,
+          conversationPct: convPct,
+          avgLatencyMs: Math.round(Number(r['avg_latency_ms'] || 0)),
+          p95LatencyMs: Math.round(Number(r['p95_latency_ms'] || 0)),
+          totalInput: Number(r['total_input'] || 0),
+          totalOutput: Number(r['total_output'] || 0),
+          completeness: Math.round((tokPct + resPct + agtPct + convPct) / 4),
+        } as IntegrationRow;
+      });
+      setReport(rows);
+
+      // Model routing — requested ≠ served
+      setRoutes((routeRes.result?.records || []).map((r: any) => ({
+        requested: String(r['requested'] || ''),
+        actual: String(r['actual'] || ''),
+        provider: String(r['provider'] || ''),
+        occurrences: Number(r['occurrences'] || 0),
+        avgLatencyMs: Math.round(Number(r['avg_latency_ms'] || 0)),
+        totalInput: Number(r['total_input'] || 0),
+        totalOutput: Number(r['total_output'] || 0),
+      })));
+
+      // Coverage summary
       const cr = (covRes.result?.records || [])[0];
       if (cr) {
-        const total = Number(cr['total_spans'] || 0);
-        const wProvider = Number(cr['with_provider'] || 0);
-        const wTokens = Number(cr['with_tokens'] || 0);
-        const wAgent = Number(cr['with_agent_name'] || 0);
-        const wConv = Number(cr['with_conversation_id'] || 0);
-        const wCode = Number(cr['with_code_location'] || 0);
-        const score = total > 0
-          ? Math.round((wProvider + wTokens + wAgent + wConv + wCode) / (total * 5) * 100)
-          : 0;
-        setCoverage({ total, withProvider: wProvider, withTokens: wTokens, withAgentName: wAgent, withConversation: wConv, withCode: wCode, coverageScore: score });
+        setCoverage({
+          total: Number(cr['total'] || 0),
+          withProvider: Number(cr['with_provider'] || 0),
+          withTokens: Number(cr['with_tokens'] || 0),
+          withAgent: Number(cr['with_agent_name'] || 0),
+          withConversation: Number(cr['with_conversation'] || 0),
+          withResponseModel: Number(cr['with_response_model'] || 0),
+        });
       }
-
-      // Source errors (prefer funcRes if it returns function-level data, else errRes)
-      const errRows = [...(funcRes.result?.records || []), ...(errRes.result?.records || [])];
-      setSourceErrors(errRows.slice(0, 50).map((r: any) => ({
-        functionName: String(r['function_name'] || r['code.function'] || r['exception.type'] || 'unknown'),
-        fileName: String(r['file_name'] || r['code.filepath'] || r['code.namespace'] || ''),
-        lineNumber: Number(r['line_number'] || r['code.lineno'] || 0),
-        errorCount: Number(r['error_count'] || r['count'] || 0),
-        errorMessage: String(r['error_message'] || r['exception.message'] || r['status_message'] || ''),
-        lastSeen: String(r['last_seen'] || r['max_timestamp'] || ''),
-        model: String(r['model'] || r['gen_ai.request.model'] || ''),
-      })));
-
-      // Version mismatches
-      setVersionMismatches((verRes.result?.records || []).map((r: any) => ({
-        service: String(r['service'] || r['service.name'] || 'unknown'),
-        requestedModel: String(r['requested_model'] || r['gen_ai.request.model'] || ''),
-        actualModel: String(r['actual_model'] || r['gen_ai.response.model'] || ''),
-        count: Number(r['count'] || 0),
-        deltaTokens: Number(r['delta_tokens'] || 0),
-      })));
-
-      // Shadow AI
-      setShadowAi((shadowRes.result?.records || []).map((r: any) => ({
-        host: String(r['host'] || r['server.address'] || r['net.peer.name'] || 'unknown'),
-        provider: String(r['provider'] || r['gen_ai.provider.name'] || 'unknown'),
-        callCount: Number(r['call_count'] || r['count'] || 0),
-        firstSeen: String(r['first_seen'] || ''),
-        lastSeen: String(r['last_seen'] || ''),
-        isUnknown: true,
-      })));
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load developer experience data');
+      setError(err instanceof Error ? err.message : 'Failed to load integration health data');
     } finally {
       setLoading(false);
     }
@@ -208,107 +230,202 @@ export function DeveloperExperience() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Table columns for source errors
-  const errorColumns = useMemo<DataTableColumnDef<SourceCodeError>[]>(() => [
+  // ============================================
+  // Computed KPIs
+  // ============================================
+
+  const kpis = useMemo(() => {
+    const modelsTracked = report.filter(r => r.model !== '(no model)').length;
+    const blindSpots = report.filter(r => r.tokensPct < 50 && r.calls > 10).length;
+    const routeCount = routes.reduce((s, r) => s + r.occurrences, 0);
+    const avgCompleteness = report.length > 0
+      ? Math.round(report.reduce((s, r) => s + r.completeness, 0) / report.length)
+      : 0;
+    return { modelsTracked, blindSpots, routeCount, avgCompleteness };
+  }, [report, routes]);
+
+  // ============================================
+  // Auto-generated Recommendations
+  // ============================================
+
+  const recommendations = useMemo<Recommendation[]>(() => {
+    const recs: Recommendation[] = [];
+
+    // Models with no token data
+    const noTokenModels = report.filter(r => r.tokensPct === 0 && r.calls > 10);
+    if (noTokenModels.length > 0) {
+      const names = noTokenModels.slice(0, 3).map(r => `${r.provider}/${r.model}`).join(', ');
+      const extra = noTokenModels.length > 3 ? ` +${noTokenModels.length - 3} more` : '';
+      recs.push({
+        severity: 'critical',
+        title: `${noTokenModels.length} model${noTokenModels.length > 1 ? 's' : ''} report zero token data`,
+        detail: `${names}${extra} — ${formatNum(noTokenModels.reduce((s, r) => s + r.calls, 0))} calls with no cost visibility. Add gen_ai.usage.input_tokens and gen_ai.usage.output_tokens to these spans.`,
+        attribute: 'gen_ai.usage.input_tokens',
+      });
+    }
+
+    // Models with no response model (can't detect routing/aliasing)
+    const noResponseModel = report.filter(r => r.responseModelPct === 0 && r.calls > 10);
+    if (noResponseModel.length > 0) {
+      const names = noResponseModel.slice(0, 3).map(r => `${r.provider}/${r.model}`).join(', ');
+      recs.push({
+        severity: 'warning',
+        title: `${noResponseModel.length} model${noResponseModel.length > 1 ? 's' : ''} don't report response model`,
+        detail: `${names} — without gen_ai.response.model you can't detect model aliasing, version pinning, or gateway routing.`,
+        attribute: 'gen_ai.response.model',
+      });
+    }
+
+    // No conversation IDs at all
+    if (coverage && coverage.withConversation === 0) {
+      recs.push({
+        severity: 'warning',
+        title: 'No session grouping — 0 conversation IDs found',
+        detail: `${formatNum(coverage.total)} AI spans have no traceloop.association.properties.conversation_id. Session tracking, multi-turn analysis, and conversation-level cost attribution are impossible without this.`,
+        attribute: 'traceloop.association.properties.conversation_id',
+      });
+    }
+
+    // Significant model routing detected
+    if (routes.length > 0) {
+      const totalRouted = routes.reduce((s, r) => s + r.occurrences, 0);
+      const topRoute = routes[0];
+      recs.push({
+        severity: 'info',
+        title: `${formatNum(totalRouted)} calls routed through ${routes.length} model aliases`,
+        detail: `Top route: "${topRoute.requested}" → "${topRoute.actual}" (${formatNum(topRoute.occurrences)} calls). Verify these routes are intentional — this typically indicates an API gateway, proxy, or deployment alias.`,
+        attribute: 'gen_ai.request.model / gen_ai.response.model',
+      });
+    }
+
+    // Low agent identity coverage
+    const lowAgentModels = report.filter(r => r.agentPct === 0 && r.calls > 50);
+    if (lowAgentModels.length > 3) {
+      recs.push({
+        severity: 'info',
+        title: `${lowAgentModels.length} models have no agent identity`,
+        detail: 'Set gen_ai.agent.name to attribute AI calls to specific agents, workflows, or application modules. This enables per-agent cost and performance analysis.',
+        attribute: 'gen_ai.agent.name',
+      });
+    }
+
+    // Framework-only spans (provider set but no model)
+    const frameworkSpans = report.filter(r => r.model === '(no model)');
+    if (frameworkSpans.length > 0) {
+      const total = frameworkSpans.reduce((s, r) => s + r.calls, 0);
+      const providers = frameworkSpans.map(r => r.provider).join(', ');
+      recs.push({
+        severity: 'info',
+        title: `${formatNum(total)} framework/orchestration spans detected`,
+        detail: `Providers: ${providers}. These spans have gen_ai.provider.name but no model — likely from LangChain, Traceloop, or similar orchestration layers. Consider enriching with gen_ai.request.model for complete attribution.`,
+        attribute: 'gen_ai.request.model',
+      });
+    }
+
+    return recs;
+  }, [report, routes, coverage]);
+
+  // ============================================
+  // Table Columns
+  // ============================================
+
+  const reportColumns = useMemo<DataTableColumnDef<IntegrationRow>[]>(() => [
     {
-      id: 'functionName', header: 'Function', accessor: 'functionName',
+      id: 'provider', header: 'Provider', accessor: 'provider', width: 110,
+      cell: ({ value }: { value: unknown }) => (
+        <span style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</span>
+      ),
+    },
+    {
+      id: 'model', header: 'Model', accessor: 'model',
       cell: ({ value }: { value: unknown }) => (
         <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as string}</span>
       ),
     },
     {
-      id: 'fileName', header: 'File', accessor: 'fileName',
+      id: 'calls', header: 'Calls', accessor: 'calls', width: 80,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 11, color: Colors.Text.Neutral.Subdued }}>
-          {value as string}
-        </span>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{formatNum(value as number)}</span>
       ),
     },
     {
-      id: 'lineNumber', header: 'Line', accessor: 'lineNumber', width: 70,
-      cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as number || '—'}</span>
-      ),
+      id: 'tokensPct', header: 'Tokens', accessor: 'tokensPct', width: 90,
+      cell: ({ value }: { value: unknown }) => <AttributeCheck pctValue={value as number} />,
     },
     {
-      id: 'errorCount', header: 'Errors', accessor: 'errorCount', width: 80,
-      cell: ({ value }: { value: unknown }) => (
-        <StatusPill label={value as number} color={Colors.Text.Critical.Default} />
-      ),
+      id: 'responseModelPct', header: 'Resp Model', accessor: 'responseModelPct', width: 100,
+      cell: ({ value }: { value: unknown }) => <AttributeCheck pctValue={value as number} />,
     },
     {
-      id: 'errorMessage', header: 'Message', accessor: 'errorMessage',
+      id: 'agentPct', header: 'Agent ID', accessor: 'agentPct', width: 90,
+      cell: ({ value }: { value: unknown }) => <AttributeCheck pctValue={value as number} />,
+    },
+    {
+      id: 'errorRate', header: 'Errors', accessor: 'errorRate', width: 75,
       cell: ({ value }: { value: unknown }) => {
-        const msg = (value as string) || '';
-        return (
-          <Tooltip text={msg}>
-            <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: 280 }}>
-              {msg.substring(0, 60) + (msg.length > 60 ? '' : '')}
-            </span>
-          </Tooltip>
-        );
+        const v = value as number;
+        return v > 0
+          ? <StatusPill label={`${v}%`} color={Colors.Text.Critical.Default} />
+          : <span style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>0%</span>;
       },
     },
     {
-      id: 'model', header: 'Model', accessor: 'model', width: 160,
-      cell: ({ value }: { value: unknown }) => <span style={{ fontSize: 12 }}>{value as string}</span>,
-    },
-  ], []);
-
-  // Table columns for version mismatches
-  const mismatchColumns = useMemo<DataTableColumnDef<ModelVersionMismatch>[]>(() => [
-    {
-      id: 'service', header: 'Service', accessor: 'service',
-      cell: ({ value }: { value: unknown }) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{value as string}</span>,
-    },
-    {
-      id: 'requestedModel', header: 'Requested Model', accessor: 'requestedModel',
-      cell: ({ value }: { value: unknown }) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{value as string}</span>,
-    },
-    {
-      id: 'actualModel', header: 'Actual Model', accessor: 'actualModel',
+      id: 'avgLatencyMs', header: 'Avg Latency', accessor: 'avgLatencyMs', width: 100,
       cell: ({ value }: { value: unknown }) => (
-        <Flex alignItems="center" gap={4}>
-          <WarningIcon style={{ width: 12, height: 12, color: Colors.Text.Warning.Default }} />
-          <span style={{ fontFamily: 'monospace', fontSize: 12, color: Colors.Text.Warning.Default }}>{value as string}</span>
-        </Flex>
+        <span style={{ fontSize: 12 }}>{formatNum(value as number)} ms</span>
       ),
     },
     {
-      id: 'count', header: 'Occurrences', accessor: 'count', width: 110,
-      cell: ({ value }: { value: unknown }) => <StatusPill label={value as number} color={Colors.Text.Warning.Default} />,
+      id: 'completeness', header: 'Completeness', accessor: 'completeness', width: 130,
+      cell: ({ value }: { value: unknown }) => <CompletionBadge value={value as number} />,
     },
   ], []);
 
-  // Table columns for shadow AI
-  const shadowColumns = useMemo<DataTableColumnDef<ShadowAiService>[]>(() => [
+  const routeColumns = useMemo<DataTableColumnDef<ModelRoute>[]>(() => [
     {
-      id: 'host', header: 'Host / Endpoint', accessor: 'host',
+      id: 'provider', header: 'Provider', accessor: 'provider', width: 110,
+      cell: ({ value }: { value: unknown }) => (
+        <span style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</span>
+      ),
+    },
+    {
+      id: 'requested', header: 'Requested Model', accessor: 'requested',
       cell: ({ value }: { value: unknown }) => (
         <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{value as string}</span>
       ),
     },
     {
-      id: 'provider', header: 'Provider', accessor: 'provider',
-      cell: ({ value }: { value: unknown }) => <span>{value as string}</span>,
+      id: 'arrow', header: '', accessor: 'requested', width: 30,
+      cell: () => <span style={{ fontSize: 14, color: Colors.Text.Neutral.Subdued }}>→</span>,
     },
     {
-      id: 'callCount', header: 'Calls', accessor: 'callCount', width: 90,
+      id: 'actual', header: 'Served Model', accessor: 'actual',
       cell: ({ value }: { value: unknown }) => (
-        <StatusPill label={value as number} color={Colors.Text.Critical.Default} />
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: Colors.Text.Warning.Default, fontWeight: 600 }}>
+          {value as string}
+        </span>
       ),
     },
     {
-      id: 'lastSeen', header: 'Last Seen', accessor: 'lastSeen', width: 160,
+      id: 'occurrences', header: 'Calls', accessor: 'occurrences', width: 90,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>{value as string}</span>
+        <StatusPill label={formatNum(value as number)} color={Colors.Text.Warning.Default} />
+      ),
+    },
+    {
+      id: 'avgLatencyMs', header: 'Avg Latency', accessor: 'avgLatencyMs', width: 100,
+      cell: ({ value }: { value: unknown }) => (
+        <span style={{ fontSize: 12 }}>{formatNum(value as number)} ms</span>
       ),
     },
   ], []);
 
-  const overallScore = coverage?.coverageScore ?? 0;
-  const scoreColor = overallScore >= 80 ? Colors.Text.Success.Default
-    : overallScore >= 50 ? Colors.Text.Warning.Default
+  // ============================================
+  // Render
+  // ============================================
+
+  const completenessColor = kpis.avgCompleteness >= 80 ? Colors.Text.Success.Default
+    : kpis.avgCompleteness >= 50 ? Colors.Text.Warning.Default
     : Colors.Text.Critical.Default;
 
   return (
@@ -316,11 +433,11 @@ export function DeveloperExperience() {
       {/* Header */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true"><CodeIcon /></TitleBar.Prefix>
-        <TitleBar.Title>Developer Experience</TitleBar.Title>
-        <TitleBar.Subtitle>AI instrumentation quality, source code error attribution, model version governance &amp; shadow AI detection</TitleBar.Subtitle>
+        <TitleBar.Title>AI Integration Health</TitleBar.Title>
+        <TitleBar.Subtitle>Per-model telemetry completeness, model routing visibility, and actionable instrumentation recommendations</TitleBar.Subtitle>
       </TitleBar>
 
-      {/* Standard FilterBar - consistent with other pages */}
+      {/* Standard FilterBar */}
       <FilterBar
         filters={globalFilters}
         onFiltersChange={setFilters}
@@ -341,210 +458,194 @@ export function DeveloperExperience() {
       <Flex gap={12} flexWrap="wrap">
         <Surface style={{ padding: 16, flex: 1, minWidth: 180 }}>
           <Flex flexDirection="column" gap={8}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Instrumentation Score</Text>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Integration Completeness</Text>
             <Flex alignItems="center" gap={12}>
-              <Heading level={2} style={{ margin: 0, color: scoreColor }}>{overallScore}%</Heading>
+              <Heading level={2} style={{ margin: 0, color: completenessColor }}>
+                {loading ? '—' : `${kpis.avgCompleteness}%`}
+              </Heading>
               <Flex flexDirection="column" gap={2}>
-                <Text textStyle="small" style={{ color: overallScore >= 80 ? Colors.Text.Success.Default : Colors.Text.Warning.Default }}>
-                  {overallScore >= 80 ? 'Excellent' : overallScore >= 60 ? 'Good' : overallScore >= 40 ? 'Needs Work' : 'Poor'}
+                <Text textStyle="small" style={{ color: completenessColor }}>
+                  {kpis.avgCompleteness >= 80 ? 'Excellent' : kpis.avgCompleteness >= 60 ? 'Good' : kpis.avgCompleteness >= 40 ? 'Needs Work' : 'Poor'}
                 </Text>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{formatNum(coverage?.total ?? 0)} total spans</Text>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  avg across {kpis.modelsTracked} models
+                </Text>
               </Flex>
             </Flex>
-            <ProgressBar value={overallScore} />
+            <ProgressBar value={kpis.avgCompleteness} />
           </Flex>
         </Surface>
 
         <Surface style={{ padding: 16, flex: 1, minWidth: 150 }}>
           <Flex flexDirection="column" gap={6}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Source Code Errors</Text>
-            <Heading level={3} style={{ margin: 0, color: sourceErrors.length > 0 ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
-              {loading ? '' : formatNum(sourceErrors.reduce((s, e) => s + e.errorCount, 0))}
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Models Tracked</Text>
+            <Heading level={3} style={{ margin: 0 }}>
+              {loading ? '—' : kpis.modelsTracked}
             </Heading>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>across {sourceErrors.length} functions</Text>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              {coverage ? `${formatNum(coverage.total)} total AI spans` : ''}
+            </Text>
           </Flex>
         </Surface>
 
         <Surface style={{ padding: 16, flex: 1, minWidth: 150 }}>
           <Flex flexDirection="column" gap={6}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Model Mismatches</Text>
-            <Heading level={3} style={{ margin: 0, color: versionMismatches.length > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default }}>
-              {loading ? '' : versionMismatches.length}
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Telemetry Blind Spots</Text>
+            <Heading level={3} style={{ margin: 0, color: kpis.blindSpots > 0 ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
+              {loading ? '—' : kpis.blindSpots}
             </Heading>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>requested  served version</Text>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              models with &lt;50% token coverage
+            </Text>
           </Flex>
         </Surface>
 
         <Surface style={{ padding: 16, flex: 1, minWidth: 150 }}>
           <Flex flexDirection="column" gap={6}>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Shadow AI Services</Text>
-            <Heading level={3} style={{ margin: 0, color: shadowAi.length > 0 ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
-              {loading ? '' : shadowAi.length}
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Model Routes</Text>
+            <Heading level={3} style={{ margin: 0, color: routes.length > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default }}>
+              {loading ? '—' : routes.length}
             </Heading>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>ungoverned AI endpoints</Text>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              {routes.length > 0 ? `${formatNum(kpis.routeCount)} routed calls` : 'all models served as requested'}
+            </Text>
           </Flex>
         </Surface>
       </Flex>
 
-      {/* Alerts */}
-      {shadowAi.length > 0 && (
-        <Surface style={{ padding: 12, borderRadius: 6, background: Colors.Text.Critical.Default + '12', border: `1px solid ${Colors.Text.Critical.Default}50` }}>
-          <Flex alignItems="center" gap={8}>
-            <CriticalIcon style={{ color: Colors.Text.Critical.Default, width: 16, height: 16 }} />
-            <Flex flexDirection="column" gap={2}>
-              <Text textStyle="base-emphasized" style={{ color: Colors.Text.Critical.Default }}>
-                {shadowAi.length} Ungoverned AI Endpoint{shadowAi.length > 1 ? 's' : ''} Detected
-              </Text>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                AI calls observed to endpoints outside approved provider list. Review shadow AI tab for details.
-              </Text>
-            </Flex>
-          </Flex>
-        </Surface>
-      )}
-
       {/* Tabs */}
       <Flex gap={8}>
         {([
-          ['coverage', 'Instrumentation Coverage'],
-          ['errors', `Source Code Errors (${sourceErrors.length})`],
-          ['mismatches', `Model Mismatches (${versionMismatches.length})`],
-          ['shadow', `Shadow AI (${shadowAi.length})`],
+          ['report', `Integration Report (${report.length})`],
+          ['routing', `Model Routing (${routes.length})`],
+          ['recommendations', `Recommendations (${recommendations.length})`],
         ] as [string, string][]).map(([id, label]) => (
           <Button key={id} variant={activeTab === id ? 'emphasized' : 'default'}
             onClick={() => setActiveTab(id as typeof activeTab)}>{label}</Button>
         ))}
       </Flex>
 
-      {/* Tab Panels */}
-      {activeTab === 'coverage' && (
-        <Surface style={{ padding: 24, flex: 1, overflow: 'auto' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <AiIcon style={{ width: 16, height: 16 }} />
-              <Heading level={5} style={{ margin: 0 }}>Span Attribute Coverage</Heading>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                ({formatNum(coverage?.total ?? 0)} total spans in selected timeframe)
-              </Text>
-            </Flex>
-            {loading ? (
-              <Flex alignItems="center" gap={12}><ProgressCircle /><Text>Analyzing instrumentation...</Text></Flex>
-            ) : coverage ? (
-              <Flex flexDirection="column" gap={12} style={{ maxWidth: 640 }}>
-                <CoverageRow label="Provider Attribution (gen_ai.provider.name)" value={coverage.withProvider} total={coverage.total} />
-                <CoverageRow label="Token Reporting (gen_ai.usage.*)" value={coverage.withTokens} total={coverage.total} />
-                <CoverageRow label="Agent Identity (traceloop.entity.name)" value={coverage.withAgentName} total={coverage.total} />
-                <CoverageRow label="Session Grouping (conversation_id)" value={coverage.withConversation} total={coverage.total} />
-                <CoverageRow label="Code Location (code.function / code.filepath)" value={coverage.withCode} total={coverage.total} />
-              </Flex>
-            ) : (
-              <Flex alignItems="center" justifyContent="center" style={{ padding: 48 }} gap={12}>
-                <CheckmarkIcon style={{ color: Colors.Text.Success.Default, width: 24, height: 24 }} />
-                <Text style={{ color: Colors.Text.Neutral.Subdued }}>No span data found for this timeframe.</Text>
-              </Flex>
-            )}
-
-            {coverage && (
-              <Surface style={{ padding: 16, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6, maxWidth: 640, marginTop: 8 }}>
-                <Flex flexDirection="column" gap={8}>
-                  <Heading level={6} style={{ margin: 0 }}>How to Improve Your Score</Heading>
-                  {pct(coverage.withProvider, coverage.total) < 80 && (
-                    <Text textStyle="small"> Add <code>gen_ai.provider.name</code> attribute to all LLM spans (e.g. <code>"azure_openai"</code>)</Text>
-                  )}
-                  {pct(coverage.withTokens, coverage.total) < 80 && (
-                    <Text textStyle="small"> Enable token counting in your SDK — set <code>gen_ai.usage.input_tokens</code> and <code>gen_ai.usage.output_tokens</code></Text>
-                  )}
-                  {pct(coverage.withAgentName, coverage.total) < 80 && (
-                    <Text textStyle="small"> Set <code>traceloop.entity.name</code> to identify which agent generated each span</Text>
-                  )}
-                  {pct(coverage.withConversation, coverage.total) < 80 && (
-                    <Text textStyle="small"> Pass <code>traceloop.association.properties.conversation_id</code> to enable session grouping</Text>
-                  )}
-                  {pct(coverage.withCode, coverage.total) < 80 && (
-                    <Text textStyle="small"> Ensure <code>code.function</code> and <code>code.filepath</code> are captured in exception spans</Text>
-                  )}
-                </Flex>
-              </Surface>
-            )}
-          </Flex>
-        </Surface>
-      )}
-
-      {activeTab === 'errors' && (
+      {/* Tab: Integration Report */}
+      {activeTab === 'report' && (
         <Surface style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Flex alignItems="center" gap={8} style={{ padding: '12px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
-            <CodeIcon style={{ width: 15, height: 15 }} />
-            <Heading level={5} style={{ margin: 0 }}>Source Code Error Attribution</Heading>
-            <StatusPill label={sourceErrors.length} color={Colors.Text.Critical.Default} />
+            <AiIcon style={{ width: 15, height: 15 }} />
+            <Heading level={5} style={{ margin: 0 }}>Per-Model Telemetry Completeness</Heading>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              Green = ≥80% · Yellow = partial · Red = none
+            </Text>
           </Flex>
           {loading ? (
             <Flex alignItems="center" justifyContent="center" style={{ flex: 1 }} gap={12}>
-              <ProgressCircle /><Text>Loading error data...</Text>
+              <ProgressCircle /><Text>Analyzing per-model instrumentation...</Text>
             </Flex>
-          ) : sourceErrors.length === 0 ? (
+          ) : report.length === 0 ? (
             <Flex alignItems="center" justifyContent="center" flexDirection="column" style={{ flex: 1, padding: 32 }} gap={12}>
-              <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
-              <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No source code errors detected</Heading>
+              <AiIcon style={{ width: 32, height: 32, color: Colors.Text.Neutral.Subdued }} />
+              <Heading level={5}>No AI spans found</Heading>
               <Text style={{ color: Colors.Text.Neutral.Subdued, textAlign: 'center', maxWidth: 400 }}>
-                No exception spans with code location found. Ensure exception tracking is enabled.
+                No gen_ai.* spans detected in this timeframe. Ensure your AI services are instrumented with OpenTelemetry gen_ai semantic conventions.
               </Text>
             </Flex>
           ) : (
-            <DataTable data={sourceErrors} columns={errorColumns} fullWidth />
+            <DataTable data={report} columns={reportColumns} fullWidth />
           )}
         </Surface>
       )}
 
-      {activeTab === 'mismatches' && (
+      {/* Tab: Model Routing */}
+      {activeTab === 'routing' && (
         <Surface style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Flex alignItems="center" gap={8} style={{ padding: '12px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
             <WarningIcon style={{ width: 15, height: 15, color: Colors.Text.Warning.Default }} />
-            <Heading level={5} style={{ margin: 0 }}>Model Version Governance</Heading>
-            <StatusPill label={versionMismatches.length} color={Colors.Text.Warning.Default} />
+            <Heading level={5} style={{ margin: 0 }}>Model Routing Map</Heading>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              Where requested model ≠ served model — reveals gateways, proxies, and aliasing
+            </Text>
           </Flex>
           {loading ? (
             <Flex alignItems="center" justifyContent="center" style={{ flex: 1 }} gap={12}>
-              <ProgressCircle /><Text>Checking model versions...</Text>
+              <ProgressCircle /><Text>Scanning model routing patterns...</Text>
             </Flex>
-          ) : versionMismatches.length === 0 ? (
+          ) : routes.length === 0 ? (
             <Flex alignItems="center" justifyContent="center" flexDirection="column" style={{ flex: 1, padding: 32 }} gap={12}>
               <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
-              <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No model version mismatches</Heading>
-              <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-                All observed model versions match expected configurations.
+              <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No model routing detected</Heading>
+              <Text style={{ color: Colors.Text.Neutral.Subdued, textAlign: 'center', maxWidth: 400 }}>
+                All gen_ai.response.model values match gen_ai.request.model — no gateway aliasing or proxy routing detected.
               </Text>
             </Flex>
           ) : (
-            <DataTable data={versionMismatches} columns={mismatchColumns} fullWidth />
+            <DataTable data={routes} columns={routeColumns} fullWidth />
           )}
         </Surface>
       )}
 
-      {activeTab === 'shadow' && (
-        <Surface style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <Flex alignItems="center" gap={8} style={{ padding: '12px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
-            <CriticalIcon style={{ width: 15, height: 15, color: Colors.Text.Critical.Default }} />
-            <Heading level={5} style={{ margin: 0 }}>Shadow AI Detection</Heading>
-            <StatusPill label={shadowAi.length} color={Colors.Text.Critical.Default} />
-          </Flex>
-          <Text textStyle="small" style={{ padding: '8px 16px', color: Colors.Text.Neutral.Subdued, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
-            AI service endpoints detected outside of your approved provider list. Ensure all AI usage is governed and compliant.
-          </Text>
-          {loading ? (
-            <Flex alignItems="center" justifyContent="center" style={{ flex: 1 }} gap={12}>
-              <ProgressCircle /><Text>Scanning for shadow AI...</Text>
-            </Flex>
-          ) : shadowAi.length === 0 ? (
-            <Flex alignItems="center" justifyContent="center" flexDirection="column" style={{ flex: 1, padding: 32 }} gap={12}>
-              <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
-              <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No shadow AI detected</Heading>
-              <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-                All observed AI endpoints are within approved providers.
+      {/* Tab: Recommendations */}
+      {activeTab === 'recommendations' && (
+        <Surface style={{ padding: 24, flex: 1, overflow: 'auto' }}>
+          <Flex flexDirection="column" gap={16}>
+            <Flex alignItems="center" gap={8}>
+              <CodeIcon style={{ width: 16, height: 16 }} />
+              <Heading level={5} style={{ margin: 0 }}>Actionable Recommendations</Heading>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                Auto-generated from your telemetry — prioritized by impact
               </Text>
             </Flex>
-          ) : (
-            <DataTable data={shadowAi} columns={shadowColumns} fullWidth />
-          )}
+
+            {loading ? (
+              <Flex alignItems="center" gap={12}><ProgressCircle /><Text>Generating recommendations...</Text></Flex>
+            ) : recommendations.length === 0 ? (
+              <Flex alignItems="center" justifyContent="center" flexDirection="column" style={{ padding: 48 }} gap={12}>
+                <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
+                <Heading level={5} style={{ color: Colors.Text.Success.Default }}>All clear</Heading>
+                <Text style={{ color: Colors.Text.Neutral.Subdued }}>No instrumentation gaps detected. Your AI telemetry is comprehensive.</Text>
+              </Flex>
+            ) : (
+              <Flex flexDirection="column" gap={12}>
+                {recommendations.map((rec, i) => {
+                  const severityColors: Record<string, string> = {
+                    critical: Colors.Text.Critical.Default,
+                    warning: Colors.Text.Warning.Default,
+                    info: 'var(--dt-colors-text-primary-default)',
+                  };
+                  const color = severityColors[rec.severity] || severityColors.info;
+                  const severityIcons: Record<string, React.ReactNode> = {
+                    critical: <CriticalIcon style={{ width: 16, height: 16, color, flexShrink: 0 }} />,
+                    warning: <WarningIcon style={{ width: 16, height: 16, color, flexShrink: 0 }} />,
+                    info: <AiIcon style={{ width: 16, height: 16, color, flexShrink: 0 }} />,
+                  };
+                  return (
+                    <Surface key={i} style={{
+                      padding: 16, borderRadius: 6,
+                      borderLeft: `4px solid ${color}`,
+                    }}>
+                      <Flex flexDirection="column" gap={6}>
+                        <Flex alignItems="center" gap={8}>
+                          {severityIcons[rec.severity]}
+                          <Text textStyle="base-emphasized" style={{ color }}>{rec.title}</Text>
+                          <StatusPill label={rec.severity} color={color} />
+                        </Flex>
+                        <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, lineHeight: '1.5' }}>
+                          {rec.detail}
+                        </Text>
+                        <Tooltip text="OpenTelemetry semantic convention attribute">
+                          <span style={{
+                            display: 'inline-block', fontFamily: 'monospace', fontSize: 11,
+                            padding: '2px 8px', borderRadius: 4,
+                            background: 'var(--dt-colors-surface-neutral-subdued)',
+                            color: Colors.Text.Neutral.Subdued, alignSelf: 'flex-start',
+                          }}>
+                            {rec.attribute}
+                          </span>
+                        </Tooltip>
+                      </Flex>
+                    </Surface>
+                  );
+                })}
+              </Flex>
+            )}
+          </Flex>
         </Surface>
       )}
     </Flex>
