@@ -293,9 +293,10 @@ export const RemediationLibrary: React.FC = () => {
       }}>
         <WarningIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-feedback-warning-default)' }} />
         <div>
-          <span style={{ fontWeight: 600, fontSize: 12 }}>Safety Notice</span>
+          <span style={{ fontWeight: 600, fontSize: 12 }}>Automation SDK Required</span>
           <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, marginLeft: 6 }}>
-            Destructive actions (red) can impact production. Verify target before executing.
+            Quick actions require @dynatrace-sdk/client-automation. Configure matching workflows in the Dynatrace Workflows app first. 
+            Destructive actions (red) can impact production.
           </span>
         </div>
       </Flex>

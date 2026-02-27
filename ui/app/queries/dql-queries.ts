@@ -1345,6 +1345,248 @@ fetch spans, ${timeClause}
 `.trim();
 };
 
+// ============================================
+// Phase 7 — Cross-Provider Deep Observability
+// Only queries backed by confirmed live Grail data
+// ============================================
+
+// ---- 7.1 Prompt Caching Metrics ----
+
+/**
+ * Prompt caching summary — cache hit rate, tokens saved, estimated $ saved.
+ */
+export const PROMPT_CACHE_SUMMARY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+timeseries cache_read = sum(gen_ai.prompt.caching), ${timeClause},
+  filter: { gen_ai.cache.type == "read" }
+| fieldsAdd total_cached_tokens = arraySum(cache_read)
+| append [
+  timeseries cache_write = sum(gen_ai.prompt.caching), ${timeClause},
+    filter: { gen_ai.cache.type == "write" }
+  | fieldsAdd total_write_tokens = arraySum(cache_write)
+]
+| summarize {
+  cached_tokens = takeMax(total_cached_tokens),
+  write_tokens = takeMax(total_write_tokens)
+}
+| fieldsAdd estimated_savings_usd = (toDouble(cached_tokens) / 1000000.0) * 15.0 * 0.50
+`.trim();
+};
+
+/**
+ * Prompt cache hit rate — % of requests served from cache.
+ */
+export const PROMPT_CACHE_HIT_RATE_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) AND gen_ai.prompt_caching == "read"
+| summarize cache_hits = count()
+| append [
+  fetch spans, ${timeClause}
+  | filter isNotNull(gen_ai.provider.name)
+  | summarize total_requests = count()
+]
+| summarize {
+  hits = takeMax(cache_hits),
+  total = takeMax(total_requests)
+}
+| fieldsAdd cache_hit_pct = if(total > 0, 100.0 * toDouble(hits) / toDouble(total), else: 0.0)
+`.trim();
+};
+
+/**
+ * Prompt cache trend timeseries — cached tokens over time.
+ */
+export const PROMPT_CACHE_TREND_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+timeseries {
+  cache_read = sum(gen_ai.prompt.caching),
+  cache_write = sum(gen_ai.prompt.caching)
+}, ${timeClause},
+  filter: { gen_ai.cache.type == "read" }
+`.trim();
+};
+
+/**
+ * Cache time saved — avg response time difference between cached and non-cached requests.
+ */
+export const PROMPT_CACHE_TIME_SAVED_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) AND gen_ai.prompt_caching == "read"
+| summarize cached_count = count(), cached_avg_duration = avg(duration)
+| append [
+  fetch spans, ${timeClause}
+  | filter isNotNull(gen_ai.provider.name) AND isTrueOrNull(gen_ai.prompt_caching != "read")
+  | summarize normal_count = count(), normal_avg_duration = avg(duration)
+]
+| summarize {
+  cached_duration_ns = takeMax(cached_avg_duration),
+  normal_duration_ns = takeMax(normal_avg_duration)
+}
+| fieldsAdd time_saved_ms = (normal_duration_ns - cached_duration_ns) / 1000000.0
+`.trim();
+};
+
+// ---- 7.3 OTel Metric-Based Token Consumption ----
+
+/**
+ * Token consumption from OTel gen_ai.client.token.usage metric — aggregated across all providers.
+ * This gives the "metric" view vs the span-attribute view.
+ */
+export const OTEL_TOKEN_CONSUMPTION_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+timeseries input_tokens = sum(gen_ai.client.token.usage), ${timeClause},
+  filter: { gen_ai.token.type == "input" }
+| fieldsAdd total_input = arraySum(input_tokens)
+| append [
+  timeseries output_tokens = sum(gen_ai.client.token.usage), ${timeClause},
+    filter: { gen_ai.token.type == "output" }
+  | fieldsAdd total_output = arraySum(output_tokens)
+]
+| summarize {
+  total_input_tokens = takeMax(total_input),
+  total_output_tokens = takeMax(total_output)
+}
+| fieldsAdd total_tokens = total_input_tokens + total_output_tokens,
+  estimated_cost_usd = (toDouble(total_input_tokens) * 0.02 + toDouble(total_output_tokens) * 0.01)
+`.trim();
+};
+
+/**
+ * Token consumption trend timeseries — input + output tokens over time from metrics.
+ */
+export const OTEL_TOKEN_TREND_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+timeseries {
+  input = sum(gen_ai.client.token.usage),
+  output = sum(gen_ai.client.token.usage)
+}, ${timeClause},
+  filter: { gen_ai.token.type == "input" }
+`.trim();
+};
+
+// ---- 7.5 Cross-Provider Top Prompts ----
+
+/**
+ * Top 10 most expensive prompts across ALL providers — ranked by total tokens.
+ */
+export const TOP_EXPENSIVE_PROMPTS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.providerName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+${providerFilter}
+| fieldsAdd inputToken = coalesce(asLong(gen_ai.usage.input_tokens), 0)
+| fieldsAdd oldInput = coalesce(asLong(gen_ai.usage.prompt_tokens), 0)
+| fieldsAdd outputToken = coalesce(asLong(gen_ai.usage.output_tokens), 0)
+| fieldsAdd oldOutput = coalesce(asLong(gen_ai.usage.completion_tokens), 0)
+| fieldsAdd input_total = inputToken + oldInput
+| fieldsAdd output_total = outputToken + oldOutput
+| fieldsAdd tokens = input_total + output_total
+| fieldsAdd prompt = gen_ai.prompt.0.content
+| fieldsAdd response = gen_ai.completion.0.content
+| filter isNotNull(response) AND response != ""
+| summarize {
+    total_tokens = sum(tokens),
+    trace = takeAny(record(trace.id, end_time, start_time, gen_ai.provider.name, gen_ai.response.model, duration))
+  }, by: { prompt, response }
+| sort total_tokens desc
+| fields prompt, response,
+    trace_id = trace[trace.id],
+    provider = trace[gen_ai.provider.name],
+    model = trace[gen_ai.response.model],
+    total_tokens,
+    duration_ms = trace[duration] / 1000000
+| limit 10
+`.trim();
+};
+
+/**
+ * Top 10 slowest prompts across ALL providers — ranked by response time.
+ */
+export const TOP_SLOWEST_PROMPTS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.providerName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+${providerFilter}
+| fieldsAdd inputToken = coalesce(asLong(gen_ai.usage.input_tokens), 0)
+| fieldsAdd oldInput = coalesce(asLong(gen_ai.usage.prompt_tokens), 0)
+| fieldsAdd outputToken = coalesce(asLong(gen_ai.usage.output_tokens), 0)
+| fieldsAdd oldOutput = coalesce(asLong(gen_ai.usage.completion_tokens), 0)
+| fieldsAdd input_total = inputToken + oldInput
+| fieldsAdd output_total = outputToken + oldOutput
+| fieldsAdd tokens = input_total + output_total
+| fieldsAdd prompt = gen_ai.prompt.0.content
+| fieldsAdd response = gen_ai.completion.0.content
+| filter isNotNull(response) AND response != ""
+| summarize {
+    trace = takeAny(record(trace.id, end_time, start_time, gen_ai.provider.name, gen_ai.response.model, duration, tokens))
+  }, by: { prompt, response }
+| sort trace[duration] desc
+| fields prompt, response,
+    trace_id = trace[trace.id],
+    provider = trace[gen_ai.provider.name],
+    model = trace[gen_ai.response.model],
+    tokens = trace[tokens],
+    response_time_ms = trace[duration] / 1000000
+| limit 10
+`.trim();
+};
+
+// ---- 7.6 Cross-Provider Service Health ----
+
+/**
+ * Service health pie — success vs failed requests across all providers.
+ */
+export const SERVICE_HEALTH_PIE_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.providerName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+${providerFilter}
+| fieldsAdd status = if(span.status_code == "error", "Failed", else: "Successful")
+| summarize requests = count(), by: { status }
+`.trim();
+};
+
+/**
+ * Per-provider request count, cost, latency — the universal provider comparison tile.
+ */
+export const CROSS_PROVIDER_SUMMARY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+| fieldsAdd inputToken = coalesce(asLong(gen_ai.usage.input_tokens), 0)
+| fieldsAdd oldInput = coalesce(asLong(gen_ai.usage.prompt_tokens), 0)
+| fieldsAdd outputToken = coalesce(asLong(gen_ai.usage.output_tokens), 0)
+| fieldsAdd oldOutput = coalesce(asLong(gen_ai.usage.completion_tokens), 0)
+| fieldsAdd input_total = inputToken + oldInput
+| fieldsAdd output_total = outputToken + oldOutput
+| summarize
+    requests = count(),
+    total_input = sum(input_total),
+    total_output = sum(output_total),
+    avg_latency_ms = avg(duration) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000,
+    errors = countIf(span.status_code == "error")
+  , by: { gen_ai.provider.name }
+| fieldsAdd error_rate = if(requests > 0, 100.0 * toDouble(errors) / toDouble(requests), else: 0.0)
+| sort requests desc
+`.trim();
+};
+
 /**
  * Model version mismatch tracker — request model ≠ response model (confirmed: 66K mismatches).
  */

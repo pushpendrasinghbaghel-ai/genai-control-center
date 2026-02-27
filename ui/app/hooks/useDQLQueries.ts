@@ -200,6 +200,8 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
           serviceName: serviceName,
           modelName: models.length > 1 ? `${models.length} models` : primaryModel,
           provider: providers.length > 1 ? `${providers.length} providers` : primaryProvider,
+          providers: providers.filter(Boolean),
+          models: models.filter(Boolean),
           totalTokens: tokens,
           avgLatency: latencyMs,
           errorRate: errorRate,

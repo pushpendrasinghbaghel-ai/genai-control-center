@@ -28,6 +28,7 @@ import {
   useSemanticCacheSavings
 } from '../hooks/useDQLQueries';
 import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
+import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 
 // Strato Design Tokens for status colors
 const STATUS_COLORS = {
@@ -150,10 +151,18 @@ export const FinOps: React.FC = () => {
   // const { data: cacheSavings, loading: cacheSavingsLoading } = useSemanticCacheSavings(queryFilters);
   const cacheSavings: any = null;  // typed as any to avoid TS errors in hidden code
   const cacheSavingsLoading = false;
+
+  // Cross-provider deep observability — prompt caching + OTel token metrics
+  const {
+    cacheSummary, cacheHitRate, cacheTrend, cacheTimeSaved,
+    otelTokens, topExpensivePrompts,
+    loading: deepDiveLoading, refetch: deepDiveRefetch,
+  } = useProviderDeepDive(queryFilters);
   
   const handleRefresh = useCallback(() => {
     void refetch();
-  }, [refetch]);
+    void deepDiveRefetch();
+  }, [refetch, deepDiveRefetch]);
 
   // Transform cost trend data to Timeseries format for chart
   const costTimeseriesData = useMemo((): Timeseries[] => {
@@ -263,7 +272,7 @@ export const FinOps: React.FC = () => {
     // 30-day budget projection warning
     const f30 = totalCost > 0 ? calculateForecast(totalCost, totalTokens, 7).find(f => f.day === 30) : null;
     if (f30 && f30.projectedCost > totalCost * 1.1) {
-      insights.push({ type: 'info', title: `30-day projection: $${f30.projectedCost.toFixed(2)}`, detail: `AI cost growing ~0.7%/day. Review token usage and enable caching to slow growth.` });
+      insights.push({ type: 'info', title: `30-day projection: $${f30.projectedCost.toFixed(2)}`, detail: `Projected assuming ~0.7%/day growth. Review token usage and enable caching to manage costs.` });
     }
 
     // Caching opportunity (if high request count)
@@ -1246,6 +1255,127 @@ export const FinOps: React.FC = () => {
           )}
         </Flex>
       </Surface>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Prompt Caching (from AI Observability data) */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+        <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
+        <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Prompt Caching</Text>
+        <span style={{
+          fontSize: 9, padding: '2px 6px',
+          backgroundColor: 'rgba(99,102,241,0.15)', color: '#6366f1',
+          borderRadius: 10, fontWeight: 600,
+        }}>LIVE DATA</span>
+      </Flex>
+
+      <Flex gap={16} flexWrap="wrap">
+        <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Cached Tokens</Text>
+          <Heading level={2} style={{ color: STATUS_COLORS.ideal }}>
+            {cacheSummary ? (cacheSummary.cachedTokens / 1000).toFixed(0) + 'K' : '—'}
+          </Heading>
+          <Text textStyle="small">{cacheSummary ? `${(cacheSummary.writeTokens / 1000).toFixed(0)}K write tokens` : 'prompt cache read tokens'}</Text>
+        </Surface>
+        <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Cache Hit Rate</Text>
+          <Heading level={2} style={{ color: cacheHitRate && cacheHitRate.cacheHitPct > 50 ? STATUS_COLORS.ideal : STATUS_COLORS.warning }}>
+            {cacheHitRate ? `${cacheHitRate.cacheHitPct.toFixed(1)}%` : '—'}
+          </Heading>
+          <Text textStyle="small">{cacheHitRate ? `${cacheHitRate.hits} hits / ${cacheHitRate.total} total` : 'no data'}</Text>
+        </Surface>
+        <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Est. $ Saved</Text>
+          <Heading level={2} style={{ color: STATUS_COLORS.ideal }}>
+            {cacheSummary ? `$${cacheSummary.estimatedSavingsUsd.toFixed(2)}` : '—'}
+          </Heading>
+          <Text textStyle="small">from prompt cache reuse</Text>
+        </Surface>
+        <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Time Saved</Text>
+          <Heading level={2} style={{ color: STATUS_COLORS.good }}>
+            {cacheTimeSaved ? `${cacheTimeSaved.timeSavedMs.toFixed(0)}ms` : '—'}
+          </Heading>
+          <Text textStyle="small">{cacheTimeSaved ? `cached: ${cacheTimeSaved.cachedDurationMs.toFixed(0)}ms vs normal: ${cacheTimeSaved.normalDurationMs.toFixed(0)}ms` : 'latency reduction'}</Text>
+        </Surface>
+      </Flex>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: OTel Token Consumption Metrics */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {otelTokens && otelTokens.totalTokens > 0 && (
+        <>
+          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+            <BarChartIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
+            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>
+              OTel Token Consumption Metrics
+            </Text>
+          </Flex>
+          <Flex gap={16} flexWrap="wrap">
+            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Input Tokens (OTel)</Text>
+              <Heading level={2}>{(otelTokens.totalInputTokens / 1000).toFixed(0)}K</Heading>
+              <Text textStyle="small">gen_ai.client.token.usage (input)</Text>
+            </Surface>
+            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Output Tokens (OTel)</Text>
+              <Heading level={2}>{(otelTokens.totalOutputTokens / 1000).toFixed(0)}K</Heading>
+              <Text textStyle="small">gen_ai.client.token.usage (output)</Text>
+            </Surface>
+            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Tokens (OTel)</Text>
+              <Heading level={2} style={{ color: STATUS_COLORS.neutral }}>
+                {(otelTokens.totalTokens / 1000).toFixed(0)}K
+              </Heading>
+              <Text textStyle="small">aggregated metric-based count</Text>
+            </Surface>
+            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Est. Cost (OTel)</Text>
+              <Heading level={2} style={{ color: STATUS_COLORS.warning }}>
+                ${otelTokens.estimatedCostUsd.toFixed(2)}
+              </Heading>
+              <Text textStyle="small">based on metric aggregation</Text>
+            </Surface>
+          </Flex>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Top Expensive Prompts */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {topExpensivePrompts.length > 0 && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <MoneyIcon style={{ width: 16, height: 16, color: STATUS_COLORS.warning }} />
+              <Heading level={6}>Top Expensive Prompts</Heading>
+              <Tooltip text="The prompts consuming the most tokens (input + output). Optimizing these can yield significant cost savings.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+            </Flex>
+            <Flex flexDirection="column" gap={4}>
+              <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
+                <span style={{ flex: 3 }}>Prompt</span>
+                <span style={{ flex: 1 }}>Provider</span>
+                <span style={{ flex: 1 }}>Model</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>Tokens</span>
+                <span style={{ flex: 1, textAlign: 'right' }}>Duration</span>
+              </Flex>
+              {topExpensivePrompts.slice(0, 10).map((p, idx) => (
+                <Flex key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 12 }}>
+                  <span style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.prompt}>
+                    {p.prompt.substring(0, 80)}{p.prompt.length > 80 ? '…' : ''}
+                  </span>
+                  <span style={{ flex: 1, textTransform: 'capitalize' }}>{p.provider}</span>
+                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}>{p.model}</span>
+                  <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{p.totalTokens.toLocaleString()}</span>
+                  <span style={{ flex: 1, textAlign: 'right' }}>{p.durationMs.toFixed(0)}ms</span>
+                </Flex>
+              ))}
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
 
       {/* Cost Optimization Recommendations */}
       <Surface style={{ padding: 16 }}>

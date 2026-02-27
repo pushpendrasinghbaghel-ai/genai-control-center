@@ -10,6 +10,7 @@ import { ProgressBar } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon, DocumentIcon, WarningIcon, CheckmarkIcon, CriticalIcon, SecurityIcon, MoneyIcon, AiIcon, RefreshIcon, StopIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels, useAuditTrail } from '../hooks/useDQLQueries';
+import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
 import type { QueryFilters, PromptFlag } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -105,6 +106,11 @@ export const Governance: React.FC = () => {
   const { data: services, loading: servicesLoading, refetch: refetchServices } = useAIServicesDiscovery(filters);
   const { data: providers, loading: providersLoading, refetch: refetchProviders } = useProviderComparison(filters);
   const { data: promptAnalysisData, loading: promptsLoading, refetch: refetchPrompts } = usePromptAnalysis(filters);
+
+  // Cross-provider deep observability
+  const {
+    refetch: deepDiveRefetch,
+  } = useProviderDeepDive(filters);
 
   // Davis AI-powered prompt scoring
   const { 
@@ -218,7 +224,8 @@ export const Governance: React.FC = () => {
     refetchProviders?.();
     refetchPrompts?.();
     clearScores();  // Clear Davis scores on refresh
-  }, [refetchServices, refetchProviders, refetchPrompts, clearScores]);
+    void deepDiveRefetch();  // Refresh cross-provider data
+  }, [refetchServices, refetchProviders, refetchPrompts, clearScores, deepDiveRefetch]);
 
   // Trigger Davis AI scoring for all prompts - uses SINGLE batch API call
   const handleDavisScoring = useCallback(async () => {
@@ -577,6 +584,8 @@ export const Governance: React.FC = () => {
         </Surface>
       </Flex>
 
+
+
       {/* Tab Navigation */}
       <Flex gap={8}>
         <Button
@@ -601,7 +610,7 @@ export const Governance: React.FC = () => {
           variant={selectedTab === 'challenges' ? 'emphasized' : 'default'}
           onClick={() => setSelectedTab('challenges')}
         >
-          Challenges ({governanceChallenges.filter(c => c.status !== 'resolved').length})
+          Challenges ({governanceChallenges.length})
         </Button>
         <Button
           variant={selectedTab === 'audit' ? 'emphasized' : 'default'}
@@ -615,6 +624,7 @@ export const Governance: React.FC = () => {
         >
           AppSec
         </Button>
+
         <Button
           variant={selectedTab === 'compliance' ? 'emphasized' : 'default'}
           onClick={() => setSelectedTab('compliance')}
@@ -1201,32 +1211,12 @@ export const Governance: React.FC = () => {
             </Flex>
 
             {/* Challenge Summary */}
-            <Flex gap={12}>
-              <Surface style={{ padding: 12, flex: 1 }}>
-                <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Detected</Text>
-                  <Heading level={3} style={{ color: Colors.Text.Critical.Default }}>
-                    {governanceChallenges.filter(c => c.status === 'detected').length}
-                  </Heading>
-                </Flex>
-              </Surface>
-              <Surface style={{ padding: 12, flex: 1 }}>
-                <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Monitoring</Text>
-                  <Heading level={3} style={{ color: '#C99700' }}>
-                    {governanceChallenges.filter(c => c.status === 'monitoring').length}
-                  </Heading>
-                </Flex>
-              </Surface>
-              <Surface style={{ padding: 12, flex: 1 }}>
-                <Flex flexDirection="column" alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Resolved</Text>
-                  <Heading level={3} style={{ color: Colors.Text.Success.Default }}>
-                    {governanceChallenges.filter(c => c.status === 'resolved').length}
-                  </Heading>
-                </Flex>
-              </Surface>
-            </Flex>
+            <Surface style={{ padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.06)' }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                <strong>{governanceChallenges.length} reference scenarios</strong> — These are common enterprise AI governance challenges for awareness and planning. 
+                Statuses are initial assessments to customize based on your environment.
+              </Text>
+            </Surface>
 
             {/* Challenges List */}
             <Flex flexDirection="column" gap={8}>

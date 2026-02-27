@@ -130,69 +130,21 @@ export function useWorkflows(): UseWorkflowsResult {
         state: 'ENABLED'
       }));
       
-      // Add sample GenAI-specific workflows if none found
-      if (workflowList.length === 0) {
-        workflowList.push(
-          {
-            id: 'gcc-rate-limit-response',
-            title: 'GCC: Rate Limit Response',
-            description: 'Automatically respond to 429 errors from AI providers',
-            trigger: 'davis-problem',
-            isPrivate: false,
-            state: 'ENABLED'
-          },
-          {
-            id: 'gcc-provider-failover',
-            title: 'GCC: Provider Failover',
-            description: 'Route traffic to backup provider on primary failure',
-            trigger: 'davis-problem',
-            isPrivate: false,
-            state: 'ENABLED'
-          },
-          {
-            id: 'gcc-cost-alert',
-            title: 'GCC: Cost Threshold Alert',
-            description: 'Alert when AI costs exceed budget threshold',
-            trigger: 'schedule',
-            isPrivate: false,
-            state: 'ENABLED'
-          }
-        );
-      }
-      
       setWorkflows(workflowList);
     } catch (err) {
       console.error('[GCC] Failed to fetch workflows:', err);
       setWorkflowsError(err instanceof Error ? err : new Error('Failed to fetch workflows'));
       
-      // Provide sample workflows on error
-      setWorkflows([
-        {
-          id: 'gcc-rate-limit-response',
-          title: 'GCC: Rate Limit Response',
-          description: 'Automatically respond to 429 errors from AI providers',
-          trigger: 'davis-problem',
-          isPrivate: false,
-          state: 'ENABLED'
-        },
-        {
-          id: 'gcc-provider-failover', 
-          title: 'GCC: Provider Failover',
-          description: 'Route traffic to backup provider on primary failure',
-          trigger: 'davis-problem',
-          isPrivate: false,
-          state: 'ENABLED'
-        }
-      ]);
+      setWorkflows([]);
     } finally {
       setWorkflowsLoading(false);
     }
   }, []);
 
-  // Simulate workflow execution (requires @dynatrace-sdk/client-automation for real execution)
+  // Workflow execution requires @dynatrace-sdk/client-automation
   const runWorkflow = useCallback(async (
     workflowId: string, 
-    params?: Record<string, unknown>
+    _params?: Record<string, unknown>
   ): Promise<WorkflowExecution> => {
     setExecutionsLoading(true);
     
@@ -200,52 +152,24 @@ export function useWorkflows(): UseWorkflowsResult {
     const execution: WorkflowExecution = {
       id: executionId,
       workflowId,
-      status: 'RUNNING',
-      startTime: new Date().toISOString()
+      status: 'ERROR',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      error: `Workflow execution requires @dynatrace-sdk/client-automation. Deploy workflow "${workflowId}" in the Dynatrace Workflows app.`
     };
     
     setExecutions(prev => [...prev, execution]);
-    
-    // Simulate execution delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Update to success
-    const completedExecution: WorkflowExecution = {
-      ...execution,
-      status: 'SUCCESS',
-      endTime: new Date().toISOString(),
-      result: { 
-        message: `Workflow ${workflowId} executed successfully`,
-        params 
-      }
-    };
-    
-    setExecutions(prev => prev.map(e => e.id === executionId ? completedExecution : e));
     setExecutionsLoading(false);
     
-    return completedExecution;
+    return execution;
   }, []);
 
-  // Create a GenAI-specific workflow (simulation)
-  const createGenAIWorkflow = useCallback(async (config: GenAIWorkflowConfig): Promise<string> => {
-    console.log('[GCC] Creating GenAI workflow:', config);
-    
-    // In production, this would use automationClient.createWorkflow()
-    const workflowId = `gcc-${config.type}-${Date.now()}`;
-    
-    const newWorkflow: WorkflowDefinition = {
-      id: workflowId,
-      title: `GCC: ${config.name}`,
-      description: `Auto-generated workflow for ${config.type}`,
-      trigger: config.trigger.type,
-      isPrivate: false,
-      state: 'ENABLED',
-      lastModified: new Date().toISOString()
-    };
-    
-    setWorkflows(prev => [...prev, newWorkflow]);
-    
-    return workflowId;
+  // Create a GenAI-specific workflow — requires @dynatrace-sdk/client-automation
+  const createGenAIWorkflow = useCallback(async (_config: GenAIWorkflowConfig): Promise<string> => {
+    throw new Error(
+      'Workflow creation requires @dynatrace-sdk/client-automation. ' +
+      'Use the Dynatrace Workflows app to create workflows manually.'
+    );
   }, []);
 
   // Auto-fetch workflows on mount

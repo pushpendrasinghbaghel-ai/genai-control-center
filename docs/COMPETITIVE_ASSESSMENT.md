@@ -33,7 +33,7 @@
 | **Kubernetes AI events** | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Source code error attribution** | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Response quality scoring** | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **AI Maturity Score** | ✅ **UNIQUE** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **AI Observability Insights** | ✅ **UNIQUE** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Agentic workflow templates** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Model drift detection** | ✅ | ⚠️ | ⚠️ | ❌ | ✅ | ❌ | ❌ |
 | **Opentelemetry native (gen_ai.*)** | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
@@ -76,11 +76,11 @@
 - Governance workflow for PII violations
 - All built on Dynatrace's battle-tested AutomationEngine
 
-### 4. AI Maturity Score (Home Dashboard)
-**Industry-first quantified AI observability maturity model.**
-- Composite score across 5 dimensions: Coverage, Reliability, Performance, Governance, FinOps
-- Benchmarks against Gartner, McKinsey, DORA frameworks
-- Executive-ready metric for AI strategy conversations
+### 4. AI Observability Insights (Home Dashboard)
+**Industry-first auto-generated AI observability findings + coverage meter.**
+- Coverage meter: binary checks across 10 telemetry surfaces (instrumentation, reliability, cost, governance, observability)
+- Actionable findings: data-driven recommendations with severity, detail, and one-click navigation to the relevant GCC page
+- Follows Dynatrace "findings" model — no composite scores with subjective weights
 
 ### 5. NL2DQL via Dynatrace Assist
 **No competitor embeds natural-language-to-query in the observability tool itself.**
@@ -192,7 +192,7 @@
 | Zero install for Dynatrace customers | ✅ LIVE | 🏆 Unbeatable |
 | Shadow AI detection | ✅ LIVE | 🏆 Unique |
 | One-click remediation workflows | ✅ LIVE | 🏆 Unique |
-| AI Maturity Score | ✅ LIVE | 🏆 Unique |
+| AI Observability Insights | ✅ LIVE | 🏆 Unique |
 | NL2DQL Dynatrace Assist | ✅ LIVE | 🏆 Unique |
 | Evaluation datasets (Phase 3.3) | 📋 TODO | 🥊 vs. LangSmith |
 | Prompt library w/ version control | 📋 TODO | 🥊 vs. LangSmith |

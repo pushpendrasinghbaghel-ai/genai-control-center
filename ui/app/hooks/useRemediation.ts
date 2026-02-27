@@ -1,11 +1,10 @@
 // Remediation Hook for GenAI Control Center
+// Action templates for one-click automation
+// NOTE: Actual execution requires @dynatrace-sdk/client-automation
 
 import { useState, useCallback } from 'react';
 import type { RemediationAction, WorkflowExecution } from '../types';
 import { generateId } from '../utils';
-
-// NOTE: @dynatrace-sdk/client-automation must be added to dependencies for production use
-// For now, workflow execution is simulated
 
 interface UseRemediationResult {
   executions: WorkflowExecution[];
@@ -16,7 +15,8 @@ interface UseRemediationResult {
 }
 
 /**
- * Pre-defined remediation actions (Pillar D)
+ * Pre-defined remediation action TEMPLATES (Pillar D)
+ * These describe capabilities. Actual execution requires @dynatrace-sdk/client-automation.
  */
 export const REMEDIATION_ACTIONS: RemediationAction[] = [
   {
@@ -112,6 +112,7 @@ export const REMEDIATION_ACTIONS: RemediationAction[] = [
 
 /**
  * Hook for remediation workflow execution (Pillar D)
+ * Execution requires @dynatrace-sdk/client-automation to be configured.
  */
 export function useRemediation(): UseRemediationResult {
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
@@ -120,7 +121,7 @@ export function useRemediation(): UseRemediationResult {
 
   const executeRemediation = useCallback(async (
     action: RemediationAction,
-    params?: Record<string, unknown>
+    _params?: Record<string, unknown>
   ): Promise<WorkflowExecution> => {
     const executionId = generateId();
     
@@ -136,40 +137,23 @@ export function useRemediation(): UseRemediationResult {
     setError(null);
 
     try {
-      setExecutions(prev => 
-        prev.map(e => e.id === executionId ? { ...e, status: 'running' as const } : e)
-      );
-
-      // TODO: Replace with actual automation client when @dynatrace-sdk/client-automation is available
-      // For now, simulate workflow execution
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulated response - in production, use:
+      // Real execution requires @dynatrace-sdk/client-automation
       // const response = await automationClient.runWorkflow({
       //   id: action.workflowId,
       //   body: { params: { ...action.parameters, ...params } }
       // });
-      const simulatedExecutionId = `wf-${Date.now()}`;
-
-      const completedExecution: WorkflowExecution = {
-        ...execution,
-        status: 'completed',
-        endTime: new Date(),
-        result: simulatedExecutionId
-      };
-
-      setExecutions(prev => 
-        prev.map(e => e.id === executionId ? completedExecution : e)
-      );
-
-      return completedExecution;
+      
+      const errorMsg = `Workflow execution requires @dynatrace-sdk/client-automation. ` +
+        `Deploy workflow "${action.workflowId}" in the Dynatrace Workflows app first.`;
+      
+      throw new Error(errorMsg);
 
     } catch (err) {
       const failedExecution: WorkflowExecution = {
         ...execution,
         status: 'failed',
         endTime: new Date(),
-        error: err instanceof Error ? err.message : 'Unknown error'
+        error: err instanceof Error ? err.message : 'Automation SDK not configured'
       };
 
       setExecutions(prev => 
@@ -198,7 +182,7 @@ export function useRemediation(): UseRemediationResult {
 }
 
 /**
- * Hook for accessing remediation actions
+ * Hook for accessing remediation action templates
  */
 export function useRemediationActions() {
   return {

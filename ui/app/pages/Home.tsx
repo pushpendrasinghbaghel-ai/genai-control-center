@@ -23,7 +23,9 @@ import {
   ServicesIcon,
   HomeIcon,
   HelpIcon,
-  ResearchIcon
+  ResearchIcon,
+  CheckmarkIcon,
+  CriticalIcon,
 } from "@dynatrace/strato-icons";
 import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend, useAgentTools } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";
@@ -232,38 +234,282 @@ export const Home = () => {
     return { tokens: tokenTotal, cost: costTotal, requests: requestTotal };
   }, [tokenTimeseriesData, costTimeseriesData, requestTimeseriesData, healthMetrics]);
 
-  // ── AI Maturity Score ──────────────────────────────────────────────────────
-  // Evaluates 5 dimensions from live observability data, weighted 0-100.
-  const maturityScore = useMemo(() => {
-    const svcCount = services?.length ?? 0;
+  // ── AI Observability Insights ────────────────────────────────────────────
+  // Replaces the old "AI Maturity Score" with two genuinely useful views:
+  //   1. Coverage Meter — what % of the gen_ai telemetry surface GCC can see
+  //   2. Actionable Findings — specific, data-driven recommendations
+  //
+  // Design philosophy:
+  //   - No composite score with subjective weights
+  //   - Every finding maps to a concrete action + a page in GCC
+  //   - Coverage is binary per-check (it's there or it isn't)
+  //   - Follows Dynatrace "findings" model (like Davis problems)
+  const aiInsights = useMemo(() => {
+    const svcList = services ?? [];
+    const svcCount = svcList.length;
     const errRate = healthMetrics?.avgErrorRate ?? 0;
-    const hasAgentData = (agentSummary?.totalAgents ?? 0) > 0;
-    const hasTokenData = chartTotals.tokens > 0;
-    const hasRequests = chartTotals.requests > 0;
+    const healthyCount = healthMetrics?.healthyCount ?? 0;
+    const criticalCount = healthMetrics?.criticalCount ?? 0;
+    const agentCount = agentSummary?.totalAgents ?? 0;
+    const tokenVol = chartTotals.tokens;
+    const requestVol = chartTotals.requests;
+    const costVol = chartTotals.cost;
+    const avgLatency = healthMetrics?.avgLatency ?? 0;
 
-    // Coverage (20%): how many AI services are instrumented
-    const coverage = svcCount === 0 ? 0 : svcCount < 3 ? 10 : svcCount < 10 ? 16 : 20;
-    // Reliability (25%): based on error rate
-    const reliability = errRate === 0 && !hasRequests ? 18 : errRate < 2 ? 25 : errRate < 5 ? 18 : errRate < 10 ? 12 : 5;
-    // Efficiency (20%): token data present means monitoring is set up
-    const efficiency = hasTokenData ? (chartTotals.tokens > 10000 ? 20 : 14) : 0;
-    // Governance (20%): governance page is wired (always give base score)
-    const governance = 14; // base; improves when no prompt flags detected
-    // Observability (15%): agent tracing + health data active
-    const observability = hasAgentData ? 15 : hasRequests ? 10 : 5;
+    // Unique providers & models across all services
+    const uniqueProviders = new Set<string>();
+    const uniqueModels = new Set<string>();
+    svcList.forEach((svc) => {
+      const provArr = svc.providers && svc.providers.length > 0
+        ? svc.providers
+        : (svc.provider && svc.provider !== 'Unknown' && !svc.provider.match(/^\d+ providers?$/) ? [svc.provider] : []);
+      const modArr = svc.models && svc.models.length > 0
+        ? svc.models
+        : (svc.modelName && svc.modelName !== 'Unknown' && !svc.modelName.match(/^\d+ models?$/) ? [svc.modelName] : []);
+      provArr.forEach((p) => p && p !== 'Unknown' && uniqueProviders.add(p));
+      modArr.forEach((m) => m && m !== 'Unknown' && uniqueModels.add(m));
+    });
+    const providerCount = uniqueProviders.size;
+    const modelCount = uniqueModels.size;
 
-    const total = coverage + reliability + efficiency + governance + observability;
+    // Services with token telemetry (gen_ai.usage.* is opt-in)
+    const svcWithTokens = svcList.filter(s => (s.totalTokens ?? 0) > 0).length;
+    // Services with BOTH provider AND model (not just OR)
+    const svcWithBoth = svcList.filter(s => {
+      const hasProvider = s.providers && s.providers.length > 0
+        ? s.providers.some(p => p && p !== 'Unknown')
+        : (s.provider && s.provider !== 'Unknown' && !s.provider.match(/^\d+ providers?$/));
+      const hasModel = s.models && s.models.length > 0
+        ? s.models.some(m => m && m !== 'Unknown')
+        : (s.modelName && s.modelName !== 'Unknown' && !s.modelName.match(/^\d+ models?$/));
+      return hasProvider && hasModel;
+    }).length;
+
+    // ─── COVERAGE CHECKS ───
+    // Each check is binary: the telemetry surface is covered or it isn't.
+    // This is a sales accelerator ("you're using X% of what GCC can show you")
+    // and an honest representation with zero subjective weighting.
+    type CoverageCheck = {
+      label: string;
+      covered: boolean;
+      detail: string;
+      category: 'instrumentation' | 'reliability' | 'cost' | 'governance' | 'observability';
+    };
+
+    const coverageChecks: CoverageCheck[] = [
+      // Instrumentation surface
+      {
+        label: 'Service discovery',
+        covered: svcCount > 0,
+        detail: svcCount > 0 ? `${svcCount} AI service${svcCount !== 1 ? 's' : ''} detected` : 'No gen_ai.* spans found',
+        category: 'instrumentation',
+      },
+      {
+        label: 'Token telemetry',
+        covered: svcWithTokens > 0,
+        detail: svcWithTokens > 0 ? `${svcWithTokens}/${svcCount} services reporting gen_ai.usage.*` : 'No token usage data (gen_ai.usage.* not emitted)',
+        category: 'instrumentation',
+      },
+      {
+        label: 'Full attribution',
+        covered: svcWithBoth === svcCount && svcCount > 0,
+        detail: svcCount > 0 ? `${svcWithBoth}/${svcCount} services have both provider + model` : 'No services',
+        category: 'instrumentation',
+      },
+      // Reliability surface
+      {
+        label: 'Error monitoring',
+        covered: requestVol > 0,
+        detail: requestVol > 0 ? `${errRate.toFixed(1)}% error rate across ${formatNumber(requestVol)} requests` : 'No request traffic yet',
+        category: 'reliability',
+      },
+      {
+        label: 'Latency tracking',
+        covered: avgLatency > 0,
+        detail: avgLatency > 0 ? `P50 latency: ${avgLatency.toFixed(0)}ms` : 'No latency data available',
+        category: 'reliability',
+      },
+      // Cost surface
+      {
+        label: 'Cost tracking',
+        covered: costVol > 0,
+        detail: costVol > 0 ? `${formatCurrency(costVol)} tracked this period` : 'No cost data — enable token telemetry for cost estimation',
+        category: 'cost',
+      },
+      {
+        label: 'Multi-provider visibility',
+        covered: providerCount >= 2,
+        detail: providerCount >= 2 ? `${providerCount} providers: ${[...uniqueProviders].join(', ')}` : `${providerCount} provider${providerCount !== 1 ? 's' : ''} — single-provider = no cost comparison`,
+        category: 'cost',
+      },
+      // Governance surface
+      {
+        label: 'Model inventory',
+        covered: modelCount >= 1,
+        detail: modelCount > 0 ? `${modelCount} model${modelCount !== 1 ? 's' : ''}: ${[...uniqueModels].slice(0, 4).join(', ')}${modelCount > 4 ? '…' : ''}` : 'No models identified',
+        category: 'governance',
+      },
+      {
+        label: 'Health monitoring',
+        covered: svcCount > 0 && criticalCount === 0,
+        detail: criticalCount > 0 ? `${criticalCount} service${criticalCount !== 1 ? 's' : ''} in critical state` : (svcCount > 0 ? 'All services healthy' : 'No services to monitor'),
+        category: 'governance',
+      },
+      // Observability surface
+      {
+        label: 'Agent tracing',
+        covered: agentCount > 0,
+        detail: agentCount > 0 ? `${agentCount} agent${agentCount !== 1 ? 's' : ''} with tool-call tracing` : 'No agentic workflows traced',
+        category: 'observability',
+      },
+    ];
+
+    const coveredCount = coverageChecks.filter(c => c.covered).length;
+    const totalChecks = coverageChecks.length;
+    const coveragePercent = Math.round((coveredCount / totalChecks) * 100);
+
+    // ─── ACTIONABLE FINDINGS ───
+    // Each finding is: severity + message + action + link to GCC page
+    // Generated from data, not from arbitrary thresholds
+    type Finding = {
+      severity: 'critical' | 'warning' | 'info';
+      title: string;
+      detail: string;
+      action: string;
+      link: string;
+      linkLabel: string;
+    };
+
+    const findings: Finding[] = [];
+
+    // Critical findings
+    if (svcCount === 0) {
+      findings.push({
+        severity: 'critical',
+        title: 'No AI services discovered',
+        detail: 'GCC requires gen_ai.* OpenTelemetry spans to function. No instrumented AI services were found in the selected timeframe.',
+        action: 'Instrument your AI services with OTel gen_ai semantic conventions, then verify in the Health Dashboard.',
+        link: '/health',
+        linkLabel: 'Health Dashboard',
+      });
+    }
+
+    if (criticalCount > 0) {
+      findings.push({
+        severity: 'critical',
+        title: `${criticalCount} service${criticalCount !== 1 ? 's' : ''} in critical state`,
+        detail: `${criticalCount} of ${svcCount} AI services have critical error rates (>10%). This indicates active reliability issues.`,
+        action: 'Investigate error patterns and consider enabling automated remediation workflows.',
+        link: '/operations',
+        linkLabel: 'Operations',
+      });
+    }
+
+    if (errRate > 5 && requestVol > 0) {
+      findings.push({
+        severity: 'critical',
+        title: `Error rate at ${errRate.toFixed(1)}%`,
+        detail: `Your aggregate AI error rate exceeds 5%. Common causes: rate limiting (429), auth failures, model overload. Industry target: <1%.`,
+        action: 'Check error breakdown by provider and model. Set up auto-scaling or fallback provider workflows.',
+        link: '/health',
+        linkLabel: 'Health Dashboard',
+      });
+    }
+
+    // Warning findings
+    if (svcCount > 0 && svcWithTokens === 0) {
+      findings.push({
+        severity: 'warning',
+        title: 'No token telemetry on any service',
+        detail: `All ${svcCount} services are missing gen_ai.usage.input_tokens / output_tokens. Without this, cost tracking and token efficiency analysis are blind.`,
+        action: 'Enable gen_ai.usage.* attributes in your OTel instrumentation. This is the single highest-impact improvement.',
+        link: '/developer-experience',
+        linkLabel: 'Developer Experience',
+      });
+    } else if (svcCount > 0 && svcWithTokens < svcCount) {
+      findings.push({
+        severity: 'warning',
+        title: `Token telemetry gap: ${svcCount - svcWithTokens} service${svcCount - svcWithTokens !== 1 ? 's' : ''} missing`,
+        detail: `${svcWithTokens}/${svcCount} services report token usage. The remaining ${svcCount - svcWithTokens} are invisible to cost tracking.`,
+        action: 'Add gen_ai.usage.* attributes to the uncovered services for full FinOps visibility.',
+        link: '/finops',
+        linkLabel: 'FinOps',
+      });
+    }
+
+    if (providerCount === 1 && svcCount > 0) {
+      findings.push({
+        severity: 'warning',
+        title: `Single-provider dependency: ${[...uniqueProviders][0]}`,
+        detail: 'All AI traffic routes through one provider. This creates concentration risk for availability, pricing, and compliance.',
+        action: 'Consider adding a fallback provider. GCC can compare latency, cost, and error rates across providers.',
+        link: '/finops',
+        linkLabel: 'FinOps',
+      });
+    }
+
+    if (svcCount > 0 && svcWithBoth < svcCount) {
+      findings.push({
+        severity: 'warning',
+        title: `Incomplete attribution: ${svcCount - svcWithBoth} service${svcCount - svcWithBoth !== 1 ? 's' : ''} missing provider or model`,
+        detail: `${svcWithBoth}/${svcCount} services have both gen_ai.provider.name and gen_ai.request.model. Incomplete attribution limits governance and cost analysis.`,
+        action: 'Ensure all AI services emit both provider and model attributes in their gen_ai spans.',
+        link: '/governance',
+        linkLabel: 'Governance',
+      });
+    }
+
+    if (agentCount === 0 && svcCount > 0) {
+      findings.push({
+        severity: 'warning',
+        title: 'No agent tracing enabled',
+        detail: 'Agentic AI workflows (tool calls, chain-of-thought, multi-step reasoning) are not being traced. You have no visibility into autonomous AI behavior.',
+        action: 'Instrument agent frameworks with gen_ai tool-call spans to enable the Agent Analytics page.',
+        link: '/agent-tools',
+        linkLabel: 'Agent Analytics',
+      });
+    }
+
+    // Informational findings
+    if (errRate <= 1 && requestVol > 0 && criticalCount === 0) {
+      findings.push({
+        severity: 'info',
+        title: 'Reliability is strong',
+        detail: `${errRate.toFixed(1)}% error rate with ${healthyCount}/${svcCount} healthy services. This meets DORA "Elite" performance band (<1%).`,
+        action: 'Consider setting up SLO-based alerting to protect this level of performance.',
+        link: '/operations',
+        linkLabel: 'Operations',
+      });
+    }
+
+    if (coveredCount === totalChecks) {
+      findings.push({
+        severity: 'info',
+        title: 'Full observability coverage',
+        detail: 'All telemetry surfaces are active — service discovery, token metrics, cost tracking, attribution, agent tracing, and health monitoring.',
+        action: 'Explore AI Quality and Conversation Intelligence for deeper analysis.',
+        link: '/ai-quality',
+        linkLabel: 'AI Quality',
+      });
+    }
+
+    // Sort: critical → warning → info
+    const severityOrder = { critical: 0, warning: 1, info: 2 };
+    findings.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+    // Overall status color based on worst finding
+    const worstSeverity = findings.length > 0 ? findings[0].severity : 'info';
+    const statusColor = worstSeverity === 'critical' ? STATUS_COLORS.critical
+      : worstSeverity === 'warning' ? STATUS_COLORS.warning
+      : STATUS_COLORS.ideal;
+
     return {
-      total,
-      dimensions: [
-        { label: 'Coverage', score: coverage, max: 20, desc: `${svcCount} AI services instrumented` },
-        { label: 'Reliability', score: reliability, max: 25, desc: `${errRate.toFixed(1)}% avg error rate` },
-        { label: 'Efficiency', score: efficiency, max: 20, desc: hasTokenData ? 'Token telemetry active' : 'No token data yet' },
-        { label: 'Governance', score: governance, max: 20, desc: 'Governance policies defined' },
-        { label: 'Observability', score: observability, max: 15, desc: hasAgentData ? 'Agent tracing active' : 'Basic span monitoring' },
-      ],
-      level: total >= 80 ? 'Advanced' : total >= 60 ? 'Established' : total >= 40 ? 'Developing' : 'Initial',
-      color: total >= 80 ? STATUS_COLORS.ideal : total >= 60 ? STATUS_COLORS.good : total >= 40 ? STATUS_COLORS.warning : STATUS_COLORS.critical,
+      coverageChecks,
+      coveredCount,
+      totalChecks,
+      coveragePercent,
+      findings,
+      statusColor,
     };
   }, [services, healthMetrics, agentSummary, chartTotals]);
 
@@ -693,160 +939,251 @@ export const Home = () => {
         </>
       )}
 
-      {/* ─── AI Maturity Score (Phase 3.1) ─── */}
+      {/* ─── AI Observability Insights ─── */}
       <Surface style={{ padding: 20 }}>
-        <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={16}>
-          {/* Left: Score summary */}
-          <Flex flexDirection="column" gap={12} style={{ flex: '1 1 220px', minWidth: 200 }}>
+        <Flex flexDirection="column" gap={16}>
+          {/* Header row */}
+          <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
-              <ResearchIcon style={{ color: maturityScore.color }} />
-              <span style={{ fontWeight: 700, fontSize: 16 }}>AI Maturity Score</span>
-              <Tooltip text="Click to learn how this score is calculated and how to improve it">
+              <ResearchIcon style={{ color: aiInsights.statusColor }} />
+              <span style={{ fontWeight: 700, fontSize: 16 }}>AI Observability Insights</span>
+              <Tooltip text="Coverage shows which telemetry surfaces GCC can see. Findings are actionable, data-driven recommendations.">
                 <span
                   onClick={() => setShowMaturityModal(true)}
                   style={{ display: 'flex', cursor: 'pointer', color: 'var(--dt-colors-text-secondary-default)' }}
-                  aria-label="AI Maturity Score details"
+                  aria-label="View details"
                 >
                   <HelpIcon style={{ width: 16, height: 16 }} />
                 </span>
               </Tooltip>
             </Flex>
-            <Flex alignItems="center" gap={16}>
-              <span style={{ fontSize: 52, fontWeight: 800, color: maturityScore.color, lineHeight: 1 }}>
-                {maturityScore.total}
+            {/* Coverage percentage badge */}
+            <Flex alignItems="center" gap={8}>
+              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Telemetry Coverage</span>
+              <span style={{
+                fontSize: 20, fontWeight: 800,
+                color: aiInsights.coveragePercent === 100 ? STATUS_COLORS.ideal
+                  : aiInsights.coveragePercent >= 70 ? STATUS_COLORS.good
+                  : aiInsights.coveragePercent >= 40 ? STATUS_COLORS.warning
+                  : STATUS_COLORS.critical,
+              }}>
+                {aiInsights.coveragePercent}%
               </span>
-              <Flex flexDirection="column" gap={2}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: maturityScore.color }}>{maturityScore.level}</span>
-                <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>out of 100</span>
-              </Flex>
+              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                ({aiInsights.coveredCount}/{aiInsights.totalChecks})
+              </span>
             </Flex>
-            <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
-              Score reflects live telemetry: coverage, reliability, efficiency, governance, and observability maturity.
-            </span>
           </Flex>
-          {/* Right: Dimension bars */}
-          <Flex flexDirection="column" gap={8} style={{ flex: '1 1 56%', minWidth: 280 }}>
-            {maturityScore.dimensions.map((dim) => (
-              <Flex key={dim.label} alignItems="center" gap={8}>
-                <span style={{ width: 100, fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{dim.label}</span>
-                <Flex style={{ flex: 1 }} alignItems="center" gap={6}>
-                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--dt-colors-background-base-default)', overflow: 'hidden' }}>
-                    <div style={{ width: `${(dim.score / dim.max) * 100}%`, height: '100%', borderRadius: 4, background: maturityScore.color, transition: 'width 0.5s ease' }} />
-                  </div>
-                  <span style={{ width: 44, fontSize: 11, fontWeight: 700, color: maturityScore.color, textAlign: 'right' }}>{dim.score}/{dim.max}</span>
+
+          {/* Coverage checks — compact horizontal grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+            {aiInsights.coverageChecks.map((check) => (
+              <Tooltip key={check.label} text={check.detail}>
+                <Flex
+                  alignItems="center"
+                  gap={6}
+                  padding={8}
+                  style={{
+                    borderRadius: 6,
+                    background: check.covered
+                      ? `${STATUS_COLORS.ideal}12`
+                      : 'var(--dt-colors-background-base-default)',
+                    border: `1px solid ${check.covered ? `${STATUS_COLORS.ideal}40` : 'var(--dt-colors-border-neutral-default)'}`,
+                    cursor: 'default',
+                  }}
+                >
+                  {check.covered
+                    ? <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.ideal, flexShrink: 0 }} />
+                    : <CriticalIcon style={{ width: 14, height: 14, color: STATUS_COLORS.warning, flexShrink: 0 }} />
+                  }
+                  <span style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.2 }}>{check.label}</span>
                 </Flex>
-                <span style={{ width: 180, fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>{dim.desc}</span>
-              </Flex>
+              </Tooltip>
             ))}
-          </Flex>
+          </div>
+
+          {/* Findings */}
+          {aiInsights.findings.length > 0 && (
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>
+                  Findings ({aiInsights.findings.filter(f => f.severity !== 'info').length} action{aiInsights.findings.filter(f => f.severity !== 'info').length !== 1 ? 's' : ''} needed)
+                </span>
+              </Flex>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 8 }}>
+                {aiInsights.findings.slice(0, 6).map((finding, i) => {
+                  const findingColor = finding.severity === 'critical' ? STATUS_COLORS.critical
+                    : finding.severity === 'warning' ? STATUS_COLORS.warning
+                    : STATUS_COLORS.ideal;
+                  return (
+                    <Surface
+                      key={i}
+                      padding={12}
+                      style={{
+                        borderRadius: 8,
+                        borderLeft: `3px solid ${findingColor}`,
+                      }}
+                    >
+                      <Flex flexDirection="column" gap={6}>
+                        <Flex justifyContent="space-between" alignItems="flex-start" gap={8}>
+                          <Flex alignItems="center" gap={6} style={{ flex: 1 }}>
+                            {finding.severity === 'critical' && <CriticalIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
+                            {finding.severity === 'warning' && <WarningIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
+                            {finding.severity === 'info' && <CheckmarkIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
+                            <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{finding.title}</span>
+                          </Flex>
+                          <Link to={finding.link} style={{ textDecoration: 'none', flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: CHART_COLORS.primary, padding: '2px 8px', borderRadius: 4, background: `${CHART_COLORS.primary}14`, whiteSpace: 'nowrap' }}>
+                              {finding.linkLabel} →
+                            </span>
+                          </Link>
+                        </Flex>
+                        <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
+                          {finding.detail}
+                        </span>
+                      </Flex>
+                    </Surface>
+                  );
+                })}
+              </div>
+            </Flex>
+          )}
         </Flex>
       </Surface>
 
-      {/* ─── AI Maturity Score Help Modal ─── */}
+      {/* ─── AI Observability Insights Detail Modal ─── */}
       <Modal
-        title="AI Maturity Score — How It's Calculated"
+        title="AI Observability Insights"
         show={showMaturityModal}
         onDismiss={() => setShowMaturityModal(false)}
         size="large"
       >
         <Flex flexDirection="column" gap={20}>
 
-          {/* Score overview */}
+          {/* Coverage overview */}
           <Flex alignItems="center" gap={16}>
-            <span style={{ fontSize: 56, fontWeight: 800, color: maturityScore.color, lineHeight: 1 }}>
-              {maturityScore.total}
-            </span>
-            <Flex flexDirection="column" gap={2}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: maturityScore.color }}>{maturityScore.level}</span>
-              <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>out of 100 — based on live telemetry</span>
+            <Flex flexDirection="column" alignItems="center" gap={2}>
+              <span style={{
+                fontSize: 52, fontWeight: 800, lineHeight: 1,
+                color: aiInsights.coveragePercent === 100 ? STATUS_COLORS.ideal
+                  : aiInsights.coveragePercent >= 70 ? STATUS_COLORS.good
+                  : aiInsights.coveragePercent >= 40 ? STATUS_COLORS.warning
+                  : STATUS_COLORS.critical,
+              }}>
+                {aiInsights.coveragePercent}%
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>coverage</span>
+            </Flex>
+            <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
+              <Paragraph>
+                <Strong>Telemetry Coverage</Strong> measures which gen_ai observability surfaces GCC can see in your environment.
+                Each check is binary — the data is either flowing or it isn't. This is not a score with subjective weights;
+                it's a factual inventory of your instrumentation.
+              </Paragraph>
+              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                {aiInsights.coveredCount} of {aiInsights.totalChecks} telemetry surfaces active
+              </span>
             </Flex>
           </Flex>
-          <Paragraph>
-            The AI Maturity Score evaluates your organization's GenAI observability posture across five weighted dimensions.
-            Scores are derived <Strong>entirely from live Dynatrace telemetry</Strong> — no manual configuration required.
-            The score updates automatically as your environment changes.
-          </Paragraph>
 
-          {/* Dimension Breakdown */}
+          {/* Coverage detail table */}
           <Flex flexDirection="column" gap={8}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Score Breakdown</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Coverage Breakdown</span>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--dt-colors-background-base-default)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Dimension</th>
-                  <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Max Pts</th>
-                  <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Your Score</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Live Signal</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', width: 40 }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Telemetry Surface</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Category</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>Detail</th>
                 </tr>
               </thead>
               <tbody>
-                {maturityScore.dimensions.map((dim, i) => (
-                  <tr key={dim.label} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--dt-colors-background-base-default)' }}>
-                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{dim.label}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--dt-colors-text-secondary-default)' }}>{dim.max}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: maturityScore.color }}>{dim.score}/{dim.max}</td>
-                    <td style={{ padding: '8px 12px', color: 'var(--dt-colors-text-secondary-default)' }}>{dim.desc}</td>
+                {aiInsights.coverageChecks.map((check, i) => (
+                  <tr key={check.label} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--dt-colors-background-base-default)' }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      {check.covered
+                        ? <CheckmarkIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal }} />
+                        : <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.warning }} />
+                      }
+                    </td>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{check.label}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--dt-colors-text-secondary-default)', textTransform: 'capitalize' }}>{check.category}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--dt-colors-text-secondary-default)' }}>{check.detail}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Flex>
 
-          {/* Maturity Levels */}
-          <Flex flexDirection="column" gap={8}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Maturity Levels — Industry Context</span>
-            <Paragraph style={{ fontSize: 12, marginBottom: 8 }}>
-              Levels align with frameworks from <Strong>Gartner AI Maturity Model</Strong>, <Strong>McKinsey AI Adoption Report 2024</Strong>,
-              and <Strong>DORA DevOps metrics</Strong> adapted for AI operations.
-            </Paragraph>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {[
-                { level: 'Initial  (0 – 39)', color: STATUS_COLORS.critical, desc: 'Ad-hoc AI usage with no systematic monitoring. Typical of POC or early-stage projects. Fewer than 25% of teams have baseline visibility into their AI spend and errors.' },
-                { level: 'Developing  (40 – 59)', color: STATUS_COLORS.warning, desc: 'Some instrumentation in place. Teams are aware of AI costs but lack full observability. Represents the industry average for AI-first enterprises today.' },
-                { level: 'Established  (60 – 79)', color: STATUS_COLORS.good, desc: 'Consistent monitoring across all AI services with proactive alerting, cost controls, and governance. Reflects the top 30% of AI ops practices globally.' },
-                { level: 'Advanced  (80 – 100)', color: STATUS_COLORS.ideal, desc: 'Full-stack AI observability with automated remediation, multi-provider optimization, and predictive capacity planning. Achieved by only the top 10% of enterprises (McKinsey AI Maturity Index 2024).' },
-              ].map(l => (
-                <Surface key={l.level} padding={12} style={{ borderRadius: 8, borderLeft: `4px solid ${l.color}` }}>
-                  <Flex flexDirection="column" gap={6}>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: l.color }}>{l.level}</span>
-                    <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>{l.desc}</span>
-                  </Flex>
-                </Surface>
-              ))}
-            </div>
-          </Flex>
+          {/* Findings detail */}
+          {aiInsights.findings.length > 0 && (
+            <Flex flexDirection="column" gap={8}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Findings & Recommendations</span>
+              <Paragraph style={{ fontSize: 12 }}>
+                Findings are auto-generated from your live telemetry. Each maps to a specific action and a page in GCC
+                where you can investigate further. Critical findings indicate active issues; warnings highlight gaps
+                in observability coverage.
+              </Paragraph>
+              {aiInsights.findings.map((finding, i) => {
+                const findingColor = finding.severity === 'critical' ? STATUS_COLORS.critical
+                  : finding.severity === 'warning' ? STATUS_COLORS.warning
+                  : STATUS_COLORS.ideal;
+                return (
+                  <Surface
+                    key={i}
+                    padding={14}
+                    style={{
+                      borderRadius: 8,
+                      borderLeft: `4px solid ${findingColor}`,
+                    }}
+                  >
+                    <Flex flexDirection="column" gap={8}>
+                      <Flex justifyContent="space-between" alignItems="center">
+                        <Flex alignItems="center" gap={8}>
+                          {finding.severity === 'critical' && <CriticalIcon style={{ width: 16, height: 16, color: findingColor }} />}
+                          {finding.severity === 'warning' && <WarningIcon style={{ width: 16, height: 16, color: findingColor }} />}
+                          {finding.severity === 'info' && <CheckmarkIcon style={{ width: 16, height: 16, color: findingColor }} />}
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{finding.title}</span>
+                        </Flex>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4,
+                          color: findingColor, background: `${findingColor}18`,
+                        }}>
+                          {finding.severity}
+                        </span>
+                      </Flex>
+                      <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>
+                        {finding.detail}
+                      </span>
+                      <Flex justifyContent="space-between" alignItems="center" style={{ paddingTop: 4, borderTop: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 500 }}>
+                          <Strong>Action:</Strong> {finding.action}
+                        </span>
+                        <Link to={finding.link} onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>
+                          <Button variant="default" style={{ fontSize: 11 }}>
+                            {finding.linkLabel} →
+                          </Button>
+                        </Link>
+                      </Flex>
+                    </Flex>
+                  </Surface>
+                );
+              })}
+            </Flex>
+          )}
 
-          {/* How to Improve */}
-          <Flex flexDirection="column" gap={8}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>How to Improve Your Score</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-              {[
-                { dim: 'Coverage (+20 pts)', tip: 'Instrument all AI services using OpenTelemetry gen_ai.* semantic conventions. Each newly traced service increases your coverage score.' },
-                { dim: 'Reliability (+25 pts)', tip: 'Add retry logic, circuit breakers, and fallback providers. Target <1% error rate for a full score. Monitor with the Health Dashboard.' },
-                { dim: 'Efficiency (+20 pts)', tip: 'Enable token-level tracing to capture input/output ratios. Optimize prompts to reduce input token waste by 20–40%.' },
-                { dim: 'Governance (+20 pts)', tip: 'Configure prompt content policies in the Governance page. Detect PII leakage, injection attempts, and model misuse patterns.' },
-                { dim: 'Observability (+15 pts)', tip: 'Enable agent tracing for autonomous AI workflows. Use Agent Analytics to monitor tool calls, detect loops, and trace multi-step reasoning.' },
-              ].map(item => (
-                <Surface key={item.dim} padding={12} style={{ borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <span style={{ fontWeight: 700, fontSize: 12 }}>{item.dim}</span>
-                    <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>{item.tip}</span>
-                  </Flex>
-                </Surface>
-              ))}
-            </div>
-          </Flex>
-
-          {/* Davis AI CTA */}
+          {/* Dynatrace Intelligence CTA */}
           <Surface padding={16} style={{ borderRadius: 8, background: `${STATUS_COLORS.good}18`, border: `1px solid ${STATUS_COLORS.good}40` }}>
             <Flex alignItems="center" gap={12} justifyContent="space-between" flexWrap="wrap">
               <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                 <Flex alignItems="center" gap={8}>
                   <AiIcon style={{ color: STATUS_COLORS.good, width: 18, height: 18 }} />
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>Get Personalized Insights from Dynatrace Intelligence</span>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>Deep-Dive with Dynatrace Intelligence</span>
                 </Flex>
                 <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
-                  Ask Dynatrace Intelligence to analyze your specific maturity gaps and recommend prioritized improvement actions based on your live environment data.
+                  Ask Dynatrace Intelligence to analyze your AI infrastructure, correlate findings across services, and recommend prioritized actions.
                 </span>
               </Flex>
               <Link to="/intelligence" onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>

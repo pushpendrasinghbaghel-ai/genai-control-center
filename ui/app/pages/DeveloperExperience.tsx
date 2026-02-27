@@ -20,7 +20,7 @@ import {
   SHADOW_AI_DETECTION_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from '../queries/dql-queries';
-import { SampleDataBadge } from '../components/SampleDataBadge';
+
 
 // ============================================
 // Types
@@ -313,7 +313,6 @@ export function DeveloperExperience() {
         <TitleBar.Subtitle>AI instrumentation quality, source code error attribution, model version governance &amp; shadow AI detection</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
-            <SampleDataBadge />
             {TIME_OPTIONS.map(t => (
               <Button key={t} variant={timeframe === t ? 'emphasized' : 'default'}
                 onClick={() => setTimeframe(t)} style={{ padding: '4px 10px', fontSize: 12 }}>{t}</Button>

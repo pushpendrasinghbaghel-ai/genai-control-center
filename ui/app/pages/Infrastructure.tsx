@@ -20,8 +20,9 @@ import {
   AiIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { useInfrastructure } from '../hooks';
+import { useInfrastructure, useProviderDeepDive } from '../hooks';
 import type { ServiceConfig, ModelHistoryEntry, DeploymentEvent } from '../types';
+
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -117,10 +118,15 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, sub, color 
 export const Infrastructure: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(() => createDefaultTimeframe());
   const { deployments, serviceConfigs, modelHistory, loading, error, refetch } = useInfrastructure();
+  const {
+    crossProviderSummary,
+    refetch: deepDiveRefetch,
+  } = useProviderDeepDive();
 
   useEffect(() => {
     void refetch(timeframe);
-  }, [timeframe, refetch]);
+    void deepDiveRefetch();
+  }, [timeframe, refetch, deepDiveRefetch]);
 
   const kpis = useMemo(() => {
     const uniqueModels = new Set(serviceConfigs.map(s => s.model).filter(Boolean)).size;
@@ -420,6 +426,84 @@ export const Infrastructure: React.FC = () => {
           )}
         </Surface>
       </Flex>
+
+
+
+      {/* ─── Cross-Provider Summary ─── */}
+      {crossProviderSummary.length > 0 && (
+        <Surface style={{ padding: 16 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <ServicesIcon />
+            <Heading level={4}>Cross-Provider Summary</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>unified view across all AI providers</Text>
+          </Flex>
+          <DataTable
+            data={crossProviderSummary}
+            columns={[
+              {
+                header: 'Provider',
+                id: 'provider',
+                accessor: 'provider',
+                cell: ({ value }) => <ProviderBadge provider={String(value ?? '')} />,
+              },
+              {
+                header: 'Requests',
+                id: 'requests',
+                accessor: 'requests',
+                width: 100,
+                cell: ({ value }) => <Text style={{ fontWeight: 600 }}>{fmt(Number(value))}</Text>,
+              },
+              {
+                header: 'Input Tokens',
+                id: 'totalInput',
+                accessor: 'totalInput',
+                width: 110,
+                cell: ({ value }) => <Text>{fmt(Number(value))}</Text>,
+              },
+              {
+                header: 'Output Tokens',
+                id: 'totalOutput',
+                accessor: 'totalOutput',
+                width: 110,
+                cell: ({ value }) => <Text>{fmt(Number(value))}</Text>,
+              },
+              {
+                header: 'Avg Latency',
+                id: 'avgLatencyMs',
+                accessor: 'avgLatencyMs',
+                width: 100,
+                cell: ({ value }) => <Text>{Number(value).toFixed(0)}ms</Text>,
+              },
+              {
+                header: 'p99 Latency',
+                id: 'p99LatencyMs',
+                accessor: 'p99LatencyMs',
+                width: 100,
+                cell: ({ value }) => <Text>{Number(value).toFixed(0)}ms</Text>,
+              },
+              {
+                header: 'Error Rate',
+                id: 'errorRate',
+                accessor: 'errorRate',
+                width: 100,
+                cell: ({ value }) => {
+                  const pct = Number(value);
+                  return (
+                    <Text style={{
+                      fontWeight: 600,
+                      color: pct > 5 ? STATUS_COLORS.critical : pct > 1 ? STATUS_COLORS.warning : STATUS_COLORS.healthy,
+                    }}>
+                      {pct.toFixed(1)}%
+                    </Text>
+                  );
+                },
+              },
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Surface>
+      )}
 
     </Flex>
   );

@@ -27,6 +27,9 @@ export interface AIService {
   healthStatus: HealthStatus;
   /** Dynatrace entity ID for deep linking to Services app */
   entityId?: string;
+  /** Raw arrays from collectDistinct — all providers/models observed for this service */
+  providers?: string[];
+  models?: string[];
   /** GenAI Quality Metrics */
   slowRequestRate?: number;  // % of requests > 3 seconds (GenAI: <5% good, 5-10% warning, >10% critical)
   lowOutputRate?: number;    // % of responses with < 10 output tokens
@@ -476,4 +479,67 @@ export interface ModelHistoryEntry {
   requestCount: number;
   firstSeen: string;
   lastSeen: string;
+}
+
+// ============================================
+// Phase 7 — Cross-Provider Deep Observability Types
+// Only types for data confirmed to exist in Grail
+// ============================================
+
+/** Prompt caching summary */
+export interface PromptCacheSummary {
+  cachedTokens: number;
+  writeTokens: number;
+  estimatedSavingsUsd: number;
+}
+
+/** Prompt cache hit rate */
+export interface PromptCacheHitRate {
+  hits: number;
+  total: number;
+  cacheHitPct: number;
+}
+
+/** Prompt cache time saved */
+export interface PromptCacheTimeSaved {
+  cachedDurationMs: number;
+  normalDurationMs: number;
+  timeSavedMs: number;
+}
+
+/** OTel metric-based token consumption */
+export interface OtelTokenConsumption {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+/** Top expensive/slowest prompt entry */
+export interface TopPromptEntry {
+  prompt: string;
+  response: string;
+  traceId: string;
+  provider: string;
+  model: string;
+  totalTokens: number;
+  durationMs: number;
+}
+
+/** Service health split */
+export interface ServiceHealthSplit {
+  status: string;
+  requests: number;
+}
+
+/** Cross-provider summary row */
+export interface CrossProviderSummaryRow {
+  provider: string;
+  requests: number;
+  totalInput: number;
+  totalOutput: number;
+  avgLatencyMs: number;
+  p99LatencyMs: number;
+  errors: number;
+  errorRate: number;
 }

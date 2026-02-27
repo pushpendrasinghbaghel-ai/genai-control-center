@@ -767,18 +767,17 @@ export function useAgentTools(filters?: QueryFilters) {
       // Process summary with agent count from separate query
       const summaryRecord = summaryResponse.result?.records?.[0] as any;
       const agentCountRecord = agentCountResponse.result?.records?.[0] as any;
-      if (summaryRecord) {
-        const topTool = processedUsage[0];
-        setSummary({
-          totalToolCalls: Number(summaryRecord.total_calls) || 0,
-          uniqueTools: Number(summaryRecord.unique_tools) || 0,
-          avgCallsPerTrace: Number(summaryRecord.avg_calls_per_trace) || 0,
-          totalAgents: Number(agentCountRecord?.unique_agents) || processedAgentList.length || 1,
-          suspiciousLoopCount: processedLoops.length,
-          topTool: topTool?.toolName || 'N/A',
-          topToolCalls: topTool?.callCount || 0
-        });
-      }
+      const topTool = processedUsage[0];
+      const agentCount = Number(agentCountRecord?.unique_agents) || processedAgentList.length;
+      setSummary({
+        totalToolCalls: Number(summaryRecord?.total_calls) || 0,
+        uniqueTools: Number(summaryRecord?.unique_tools) || 0,
+        avgCallsPerTrace: Number(summaryRecord?.avg_calls_per_trace) || 0,
+        totalAgents: agentCount,
+        suspiciousLoopCount: processedLoops.length,
+        topTool: topTool?.toolName || 'N/A',
+        topToolCalls: topTool?.callCount || 0
+      });
 
       // Process token costs per agent
       const tokenCostRecords = tokenCostResponse.result?.records || [];

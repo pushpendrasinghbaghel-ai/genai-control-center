@@ -18,7 +18,7 @@ import {
   LONG_CONVERSATION_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from '../queries/dql-queries';
-import { SampleDataBadge } from '../components/SampleDataBadge';
+
 
 // ============================================
 // Types
@@ -250,7 +250,6 @@ export function ConversationIntelligence() {
         <TitleBar.Subtitle>Session-level AI observability — turns, handoffs, token usage &amp; long-dialogue detection</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
-            <SampleDataBadge />
             {TIME_OPTIONS.map(t => (
               <Button key={t} variant={timeframe === t ? 'emphasized' : 'default'}
                 onClick={() => setTimeframe(t)} style={{ padding: '4px 10px', fontSize: 12 }}>{t}</Button>
