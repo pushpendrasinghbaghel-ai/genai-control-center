@@ -1,8 +1,8 @@
 {
   "$schema": "./.dt-app/app.config.schema.json",
   "environmentUrl": "https://demo.apps.dynatrace.com/",
-  "icon": "./ui/assets/logo.svg",
   "app": {
+    "icon": "./ui/assets/logo.svg",
     "name": "GenAI Control Center",
     "version": "1.0.0",
     "description": "Unified GenAI observability: Health, AI Architect, Davis Assistant & Remediation",
