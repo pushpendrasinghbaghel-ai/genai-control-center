@@ -15,6 +15,7 @@ import {
   ResearchIcon,        // Model Drift
   DatabaseIcon,        // RAG / Vector DB
   HostsIcon,           // Infrastructure
+  CodeIcon,            // Developer Experience
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -96,6 +97,11 @@ export const Header = () => {
         {/* 10. Infrastructure: Provider availability + Davis problems */}
         <AppHeader.NavItem as={Link} to="/infrastructure" style={getNavItemStyle('/infrastructure')} aria-label="AI Infrastructure Health">
           <HostsIcon aria-hidden="true" /> Infra
+        </AppHeader.NavItem>
+
+        {/* 11. DevEx: Instrumentation coverage, shadow AI, code attribution */}
+        <AppHeader.NavItem as={Link} to="/devex" style={getNavItemStyle('/devex')} aria-label="Developer Experience">
+          <CodeIcon aria-hidden="true" /> DevEx
         </AppHeader.NavItem>
         
 
