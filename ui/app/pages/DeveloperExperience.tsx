@@ -20,6 +20,8 @@ import {
   SHADOW_AI_DETECTION_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from '../queries/dql-queries';
+import { FilterBar } from '../components/FilterBar';
+import { useGlobalFilters } from '../context';
 
 
 // ============================================
@@ -63,7 +65,7 @@ interface ShadowAiService {
   isUnknown: boolean;
 }
 
-const TIME_OPTIONS = ['1h', '2h', '6h', '24h', '7d'];
+
 
 // ============================================
 // Helpers
@@ -113,7 +115,7 @@ function CoverageRow({ label, value, total, color }: {
 // ============================================
 
 export function DeveloperExperience() {
-  const [timeframe, setTimeframe] = useState('2h');
+  const { filters: globalFilters, setFilters } = useGlobalFilters();
   const [coverage, setCoverage] = useState<InstrumentationCoverage | null>(null);
   const [sourceErrors, setSourceErrors] = useState<SourceCodeError[]>([]);
   const [versionMismatches, setVersionMismatches] = useState<ModelVersionMismatch[]>([]);
@@ -125,7 +127,12 @@ export function DeveloperExperience() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const filters: QueryFilters = { timeRange: timeframe };
+    const filters: QueryFilters = {
+      timeframe: globalFilters.timeframe,
+      serviceName: globalFilters.serviceFilter || undefined,
+      provider: globalFilters.providerFilter || undefined,
+      model: globalFilters.modelFilter || undefined,
+    };
 
     try {
       const [covRes, errRes, funcRes, verRes, shadowRes] = await Promise.all([
@@ -197,7 +204,7 @@ export function DeveloperExperience() {
     } finally {
       setLoading(false);
     }
-  }, [timeframe]);
+  }, [globalFilters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -311,18 +318,15 @@ export function DeveloperExperience() {
         <TitleBar.Prefix aria-hidden="true"><CodeIcon /></TitleBar.Prefix>
         <TitleBar.Title>Developer Experience</TitleBar.Title>
         <TitleBar.Subtitle>AI instrumentation quality, source code error attribution, model version governance &amp; shadow AI detection</TitleBar.Subtitle>
-        <TitleBar.Suffix>
-          <Flex gap={8} alignItems="center">
-            {TIME_OPTIONS.map(t => (
-              <Button key={t} variant={timeframe === t ? 'emphasized' : 'default'}
-                onClick={() => setTimeframe(t)} style={{ padding: '4px 10px', fontSize: 12 }}>{t}</Button>
-            ))}
-            <Button onClick={fetchData} disabled={loading}>
-              {loading ? <ProgressCircle size="small" /> : 'Refresh'}
-            </Button>
-          </Flex>
-        </TitleBar.Suffix>
       </TitleBar>
+
+      {/* Standard FilterBar - consistent with other pages */}
+      <FilterBar
+        filters={globalFilters}
+        onFiltersChange={setFilters}
+        onRefresh={fetchData}
+        isLoading={loading}
+      />
 
       {error && (
         <Surface style={{ padding: 12, borderRadius: 6, border: `1px solid ${Colors.Text.Critical.Default}50` }}>
@@ -420,7 +424,7 @@ export function DeveloperExperience() {
               <AiIcon style={{ width: 16, height: 16 }} />
               <Heading level={5} style={{ margin: 0 }}>Span Attribute Coverage</Heading>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                ({formatNum(coverage?.total ?? 0)} total spans in last {timeframe})
+                ({formatNum(coverage?.total ?? 0)} total spans in selected timeframe)
               </Text>
             </Flex>
             {loading ? (
