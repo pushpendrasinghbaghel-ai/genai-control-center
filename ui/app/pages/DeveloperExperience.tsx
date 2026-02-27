@@ -11,7 +11,8 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components-preview/tables';
-import { CodeIcon, WarningIcon, CheckmarkIcon, CriticalIcon, AiIcon } from '@dynatrace/strato-icons';
+import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { CodeIcon, WarningIcon, CheckmarkIcon, CriticalIcon, AiIcon, HelpIcon, DavisAiIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import {
@@ -22,6 +23,9 @@ import {
 import type { QueryFilters } from '../queries/dql-queries';
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
+import { useDavisInvestigation } from '../hooks/useDavisAI';
+import { DavisResponse } from '../components/DavisResponse';
+import type { ConversationMessage } from '../types';
 
 // ============================================
 // Types
@@ -147,6 +151,17 @@ export function DeveloperExperience() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'report' | 'routing' | 'recommendations'>('report');
+  const [showHelp, setShowHelp] = useState(false);
+  const [showDavis, setShowDavis] = useState(false);
+  const [davisQuery, setDavisQuery] = useState('');
+
+  // Dynatrace Intelligence integration
+  const {
+    messages: davisMessages,
+    isLoading: davisLoading,
+    sendQuery: davisSendQuery,
+    clearConversation: davisClearConversation,
+  } = useDavisInvestigation();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -326,6 +341,60 @@ export function DeveloperExperience() {
   }, [report, routes, coverage]);
 
   // ============================================
+  // Dynatrace Intelligence — contextual prompt builder
+  // ============================================
+
+  const buildContext = useCallback(() => {
+    const lines: string[] = [
+      'Page: AI Integration Health — per-model telemetry completeness for GenAI services.',
+      `Models tracked: ${kpis.modelsTracked}, Avg completeness: ${kpis.avgCompleteness}%, Blind spots: ${kpis.blindSpots}, Model routes: ${routes.length}`,
+    ];
+    if (coverage) {
+      lines.push(`Coverage: ${formatNum(coverage.total)} AI spans, ${pct(coverage.withTokens, coverage.total)}% have tokens, ${pct(coverage.withResponseModel, coverage.total)}% have response model, ${pct(coverage.withAgent, coverage.total)}% have agent name, ${pct(coverage.withConversation, coverage.total)}% have conversation ID`);
+    }
+    if (report.length > 0) {
+      const top3 = report.slice(0, 3).map(r => `${r.provider}/${r.model} (${formatNum(r.calls)} calls, ${r.completeness}% complete)`);
+      lines.push(`Top models: ${top3.join('; ')}`);
+    }
+    if (routes.length > 0) {
+      const topRoutes = routes.slice(0, 3).map(r => `"${r.requested}"→"${r.actual}" via ${r.provider} (${formatNum(r.occurrences)}x)`);
+      lines.push(`Model routing detected: ${topRoutes.join('; ')}`);
+    }
+    if (recommendations.length > 0) {
+      lines.push(`Active recommendations: ${recommendations.map(r => `[${r.severity}] ${r.title}`).join('; ')}`);
+    }
+    return lines.join('\n');
+  }, [kpis, coverage, report, routes, recommendations]);
+
+  const contextualQuestions = useMemo(() => {
+    const qs: { label: string; query: string }[] = [];
+    if (kpis.blindSpots > 0) {
+      qs.push({ label: `Why do ${kpis.blindSpots} models have no token data?`, query: `${kpis.blindSpots} AI models have less than 50% token coverage. Analyze why gen_ai.usage.input_tokens and gen_ai.usage.output_tokens might be missing. What OpenTelemetry instrumentation changes are needed?` });
+    }
+    if (routes.length > 0) {
+      qs.push({ label: `Explain ${routes.length} model routing patterns`, query: `I see ${routes.length} model routing patterns where gen_ai.request.model differs from gen_ai.response.model. The top route is "${routes[0]?.requested}" being served as "${routes[0]?.actual}". Explain common causes: API gateways, deployment aliases, Azure model versions, etc.` });
+    }
+    if (kpis.avgCompleteness < 80) {
+      qs.push({ label: 'How to improve integration completeness?', query: `Our AI integration completeness averages ${kpis.avgCompleteness}%. Which OpenTelemetry gen_ai semantic convention attributes should we prioritize adding to improve observability? List specific attributes and their value.` });
+    }
+    qs.push({ label: 'Best practices for AI observability', query: 'What are the OpenTelemetry gen_ai semantic convention best practices for complete AI observability? Cover tokens, response model, agent identity, and conversation tracking.' });
+    qs.push({ label: 'Compare my setup to ideal', query: `Compare our current AI instrumentation to an ideal setup. We have ${kpis.modelsTracked} models, ${coverage ? pct(coverage.withTokens, coverage.total) : 0}% token coverage, ${coverage ? pct(coverage.withResponseModel, coverage.total) : 0}% response model coverage. What are we missing?` });
+    return qs;
+  }, [kpis, routes, coverage]);
+
+  const handleDavisQuery = useCallback((query: string) => {
+    const ctx = buildContext();
+    davisSendQuery(`${query}\n\nContext from AI Integration Health page:\n${ctx}`);
+  }, [buildContext, davisSendQuery]);
+
+  const handleCustomDavisQuery = useCallback(() => {
+    if (davisQuery.trim()) {
+      handleDavisQuery(davisQuery.trim());
+      setDavisQuery('');
+    }
+  }, [davisQuery, handleDavisQuery]);
+
+  // ============================================
   // Table Columns
   // ============================================
 
@@ -435,7 +504,77 @@ export function DeveloperExperience() {
         <TitleBar.Prefix aria-hidden="true"><CodeIcon /></TitleBar.Prefix>
         <TitleBar.Title>AI Integration Health</TitleBar.Title>
         <TitleBar.Subtitle>Per-model telemetry completeness, model routing visibility, and actionable instrumentation recommendations</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Flex gap={8}>
+            <Button variant={showHelp ? 'emphasized' : 'default'} onClick={() => setShowHelp(h => !h)}>
+              <Button.Prefix><HelpIcon /></Button.Prefix>
+              How to Read
+            </Button>
+            <Button variant={showDavis ? 'emphasized' : 'default'} onClick={() => setShowDavis(d => !d)}>
+              <Button.Prefix><DavisAiIcon /></Button.Prefix>
+              Ask Dynatrace
+            </Button>
+          </Flex>
+        </TitleBar.Suffix>
       </TitleBar>
+
+      {/* Help Guide */}
+      {showHelp && (
+        <Surface style={{ padding: 20, borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
+          <Flex flexDirection="column" gap={16}>
+            <Flex alignItems="center" gap={8}>
+              <HelpIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-text-primary-default)' }} />
+              <Heading level={4} style={{ margin: 0 }}>How to Read This Page</Heading>
+            </Flex>
+
+            <Flex flexDirection="column" gap={12}>
+              <Surface style={{ padding: 14, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Text textStyle="base-emphasized">KPI Cards (Top Row)</Text>
+                  <Text textStyle="small" style={{ lineHeight: '1.6' }}>
+                    <strong>Integration Completeness</strong> — Average % of key telemetry attributes present across all models. 80%+ = Excellent, 60-79% = Good, below = gaps to fix.<br />
+                    <strong>Models Tracked</strong> — Count of unique model+provider combos sending gen_ai.* spans.<br />
+                    <strong>Telemetry Blind Spots</strong> — Models with &lt;50% token coverage — cost analysis is impossible for these.<br />
+                    <strong>Model Routes</strong> — Cases where the model actually served differs from what was requested (gateway aliasing).
+                  </Text>
+                </Flex>
+              </Surface>
+
+              <Surface style={{ padding: 14, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Text textStyle="base-emphasized">Integration Report Tab</Text>
+                  <Text textStyle="small" style={{ lineHeight: '1.6' }}>
+                    Each row is a unique <strong>model + provider</strong> combination. The check columns show what % of spans include that attribute:<br />
+                    <strong>Tokens</strong> — gen_ai.usage.input_tokens / output_tokens (needed for cost tracking)<br />
+                    <strong>Resp Model</strong> — gen_ai.response.model (detect version pinning and routing)<br />
+                    <strong>Agent ID</strong> — gen_ai.agent.name (attribute calls to specific agents/workflows)<br />
+                    <span style={{ color: Colors.Text.Success.Default }}>Green checkmark (≥80%)</span> = well instrumented, <span style={{ color: Colors.Text.Warning.Default }}>yellow warning</span> = partial, <span style={{ color: Colors.Text.Critical.Default }}>red X</span> = missing.
+                    The <strong>Completeness</strong> bar is the average of all four attributes.
+                  </Text>
+                </Flex>
+              </Surface>
+
+              <Surface style={{ padding: 14, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Text textStyle="base-emphasized">Model Routing Tab</Text>
+                  <Text textStyle="small" style={{ lineHeight: '1.6' }}>
+                    Shows cases where <strong>gen_ai.request.model ≠ gen_ai.response.model</strong>. Common causes: Azure OpenAI deployment aliases (e.g. "genai-demo" → "gpt-4o-mini"), API gateways, load-balanced model pools. If you see unexpected routes, investigate your gateway configuration.
+                  </Text>
+                </Flex>
+              </Surface>
+
+              <Surface style={{ padding: 14, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Text textStyle="base-emphasized">Recommendations Tab</Text>
+                  <Text textStyle="small" style={{ lineHeight: '1.6' }}>
+                    Auto-generated from your actual data — not generic advice. Each card shows the <strong>severity</strong> (critical/warning/info), a description of the gap, and the exact <strong>OpenTelemetry attribute</strong> to add to your instrumentation. Start with critical items first.
+                  </Text>
+                </Flex>
+              </Surface>
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
 
       {/* Standard FilterBar */}
       <FilterBar
@@ -644,6 +783,84 @@ export function DeveloperExperience() {
                   );
                 })}
               </Flex>
+            )}
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Dynatrace Intelligence Panel */}
+      {showDavis && (
+        <Surface style={{ padding: 20, borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)', maxHeight: 500, display: 'flex', flexDirection: 'column' }}>
+          <Flex flexDirection="column" gap={12} style={{ flex: 1, minHeight: 0 }}>
+            {/* Header */}
+            <Flex alignItems="center" justifyContent="space-between">
+              <Flex alignItems="center" gap={8}>
+                <DavisAiIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-accent-default)' }} />
+                <Heading level={4} style={{ margin: 0 }}>Dynatrace Intelligence</Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Ask questions about your AI integration health — answers use real page data as context
+                </Text>
+              </Flex>
+              {davisMessages.length > 0 && (
+                <Button variant="default" onClick={davisClearConversation}>
+                  Clear
+                </Button>
+              )}
+            </Flex>
+
+            {/* Contextual Quick Questions */}
+            <Flex gap={8} flexWrap="wrap">
+              {contextualQuestions.map((q, i) => (
+                <Button key={i} variant="default" onClick={() => handleDavisQuery(q.query)}
+                  style={{ fontSize: 11 }}>
+                  <Button.Prefix><AiIcon /></Button.Prefix>
+                  {q.label}
+                </Button>
+              ))}
+            </Flex>
+
+            {/* Custom Query Input */}
+            <Flex gap={8} alignItems="center">
+              <div style={{ flex: 1 }}>
+                <TextInput
+                  placeholder="Ask anything about your AI integration health..."
+                  value={davisQuery}
+                  onChange={setDavisQuery}
+                  onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') handleCustomDavisQuery(); }}
+                />
+              </div>
+              <Button variant="emphasized" onClick={handleCustomDavisQuery}
+                disabled={!davisQuery.trim() || davisLoading}>
+                <Button.Prefix><DavisAiIcon /></Button.Prefix>
+                Ask
+              </Button>
+            </Flex>
+
+            {/* Conversation */}
+            {(davisMessages.length > 0 || davisLoading) && (
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 120, maxHeight: 320, borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
+                <Flex flexDirection="column" gap={12}>
+                  {davisMessages.map((msg: ConversationMessage, i: number) => (
+                    <div key={msg.id || i} style={{ width: '100%' }}>
+                      {msg.role === 'user' ? (
+                        <Flex gap={8} alignItems="flex-start">
+                          <HelpIcon style={{ width: 14, height: 14, marginTop: 2, flexShrink: 0, color: 'var(--dt-colors-text-primary-default)' }} />
+                          <Text textStyle="small" style={{ fontWeight: 600 }}>{msg.content}</Text>
+                        </Flex>
+                      ) : msg.isLoading ? (
+                        <Flex gap={8} alignItems="center">
+                          <ProgressCircle size="small" />
+                          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Analyzing with Dynatrace Intelligence...</Text>
+                        </Flex>
+                      ) : (
+                        <Surface style={{ padding: 12, borderRadius: 6, borderLeft: '3px solid var(--dt-colors-text-accent-default)' }}>
+                          <DavisResponse content={msg.content} />
+                        </Surface>
+                      )}
+                    </div>
+                  ))}
+                </Flex>
+              </div>
             )}
           </Flex>
         </Surface>
