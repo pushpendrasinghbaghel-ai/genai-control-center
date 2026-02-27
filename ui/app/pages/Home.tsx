@@ -1133,7 +1133,7 @@ export const Home = () => {
                 return (
                   <Surface
                     key={i}
-                    padding={14}
+                    padding={12}
                     style={{
                       borderRadius: 8,
                       borderLeft: `4px solid ${findingColor}`,

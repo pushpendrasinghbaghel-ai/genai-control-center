@@ -53,7 +53,7 @@ export const Operations: React.FC = () => {
         incidents.push({
           id: `lat-${service.serviceName}`,
           title: `High latency on ${service.serviceName}`,
-          severity: service.avgLatency > 10000 ? 'critical' : 'open',
+          severity: service.avgLatency > 10000 ? 'critical' : 'medium',
           service: service.serviceName,
           model: service.modelName,
           status: 'open',

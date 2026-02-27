@@ -1479,7 +1479,7 @@ timeseries {
  */
 export const TOP_EXPENSIVE_PROMPTS_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
-  const providerFilter = buildProviderFilter(filters?.providerName);
+  const providerFilter = buildProviderFilter(filters?.provider);
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name)
@@ -1514,7 +1514,7 @@ ${providerFilter}
  */
 export const TOP_SLOWEST_PROMPTS_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
-  const providerFilter = buildProviderFilter(filters?.providerName);
+  const providerFilter = buildProviderFilter(filters?.provider);
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name)
@@ -1550,7 +1550,7 @@ ${providerFilter}
  */
 export const SERVICE_HEALTH_PIE_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
-  const providerFilter = buildProviderFilter(filters?.providerName);
+  const providerFilter = buildProviderFilter(filters?.provider);
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name)
