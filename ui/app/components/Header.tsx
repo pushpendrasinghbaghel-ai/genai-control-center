@@ -16,6 +16,7 @@ import {
   DatabaseIcon,        // RAG / Vector DB
   HostsIcon,           // Infrastructure
   CodeIcon,            // Developer Experience
+  AiIcon,              // Intelligence (Dynatrace Intelligence)
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -102,6 +103,11 @@ export const Header = () => {
         {/* 11. DevEx: Instrumentation coverage, shadow AI, code attribution */}
         <AppHeader.NavItem as={Link} to="/devex" style={getNavItemStyle('/devex')} aria-label="Developer Experience">
           <CodeIcon aria-hidden="true" /> DevEx
+        </AppHeader.NavItem>
+
+        {/* 12. Intelligence: Dynatrace Intelligence chat - agentic deep-dive analysis */}
+        <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="Dynatrace Intelligence">
+          <AiIcon aria-hidden="true" /> Intelligence
         </AppHeader.NavItem>
         
 
