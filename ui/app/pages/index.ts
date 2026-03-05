@@ -38,6 +38,9 @@ export { VectorDB } from './VectorDB';
 // NEW: Infrastructure Health (Phase 6 - Provider availability + Davis problems)
 export { Infrastructure } from './Infrastructure';
 
+// NEW: Security Audit Trail (Phase 2 - Security auto-response, incident mgmt)
+export { SecurityAuditTrail } from './SecurityAuditTrail';
+
 // NEW: AI Quality Dashboard (Phase 2.2 - hallucination scoring)
 export { AIQualityDashboard } from './AIQualityDashboard';
 
@@ -46,6 +49,9 @@ export { ConversationIntelligence } from './ConversationIntelligence';
 
 // NEW: Developer Experience (Phase 3.2 - instrumentation coverage + shadow AI)
 export { DeveloperExperience } from './DeveloperExperience';
+
+// NEW: Provider Status & Failover (Phase 5 - Provider health index, failover intelligence)
+export { ProviderStatus } from './ProviderStatus';
 
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';

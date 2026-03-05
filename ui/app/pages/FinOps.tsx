@@ -13,6 +13,7 @@ import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
+import { CostGuardrailPanel } from '../components/CostGuardrailPanel';
 import { useGlobalFilters } from '../context';
 import { formatRequestCount, formatCostPer1K } from '../utils';
 import { 
@@ -354,6 +355,11 @@ export const FinOps: React.FC = () => {
         availableProviders={availableProviders || []}
         availableModels={availableModels || []}
       />
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Autonomous Cost Guardrails (Phase 1 — Evolution Strategy) */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      <CostGuardrailPanel dailyBudget={budgetLimit} />
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       {/* SECTION: Budget Overview */}

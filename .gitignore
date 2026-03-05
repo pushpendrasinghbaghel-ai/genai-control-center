@@ -41,3 +41,10 @@ Thumbs.db
 
 # Personal demo scripts
 docs/SE_DEMO_SCRIPT.md
+
+# MCP Server build artifacts & deps
+mcp-server/node_modules/
+mcp-server/dist/
+
+# Build output logs
+build_output.txt

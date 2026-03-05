@@ -24,6 +24,8 @@ import {
   AIQualityDashboard,
   ConversationIntelligence,
   DeveloperExperience,
+  SecurityAuditTrail,
+  ProviderStatus,
 } from "./pages";
 
 export const App = () => {
@@ -95,6 +97,12 @@ export const App = () => {
 
                 {/* Developer Experience - Instrumentation coverage, shadow AI, code attribution */}
                 <Route path="/devex" element={<DeveloperExperience />} />
+
+                {/* Security Audit Trail - Prompt security, PII detection, incident response */}
+                <Route path="/security" element={<SecurityAuditTrail />} />
+
+                {/* Provider Status & Failover - Phase 5: Provider health, failover readiness */}
+                <Route path="/provider-status" element={<ProviderStatus />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

@@ -24,6 +24,7 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
+import { OptimizationAdvisor } from '../components/OptimizationAdvisor';
 import { getProviderIcon } from '../utils/providerIcons';
 import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
 import type { AgentRetryTrace, AgentRetrySummary } from '../types';
@@ -1930,6 +1931,9 @@ export const AgentTools: React.FC = () => {
                 </Flex>
               </Surface>
             )}
+
+            {/* Agent Optimization Advisor - Phase 4: Anti-pattern detection & scoring */}
+            <OptimizationAdvisor />
 
             {/* Agent Handoffs - UNIQUE GCC: Multi-agent orchestration visibility */}
             <Surface padding={16}>

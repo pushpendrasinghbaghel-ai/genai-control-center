@@ -12,3 +12,6 @@ export {
   ChartSkeleton,
   DashboardSkeleton,
 } from './LoadingSkeleton';
+export { CostGuardrailPanel } from './CostGuardrailPanel';
+export { RAGHealthPanel } from './RAGHealthPanel';
+export { OptimizationAdvisor } from './OptimizationAdvisor';

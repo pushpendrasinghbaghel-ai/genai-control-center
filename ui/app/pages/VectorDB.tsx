@@ -22,6 +22,7 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useVectorDB } from '../hooks/useVectorDB';
+import { RAGHealthPanel } from '../components/RAGHealthPanel';
 import { createDefaultTimeframe } from '../context';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 import type { RAGPipelineTrace } from '../types';
@@ -460,6 +461,9 @@ export const VectorDB: React.FC = () => {
           <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>{error.message}</Text>
         </Flex>
       )}
+
+      {/* ─── RAG Health Score Panel ─── */}
+      <RAGHealthPanel />
 
       {/* ─── Summary KPI Row ─── */}
       <Flex gap={8} flexWrap="wrap">

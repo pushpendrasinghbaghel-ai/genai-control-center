@@ -378,9 +378,136 @@ const AlertBlockRenderer: React.FC<{ block: AlertBlock }> = ({ block }) => {
   );
 };
 
-/** Render a ChartBlock (bar chart as simple horizontal bars) */
+/** Render a ChartBlock — dispatches to timeseries, pie, or bar sub-renderer */
 const ChartBlockRenderer: React.FC<{ block: ChartBlock }> = ({ block }) => {
+  if (block.chartType === 'timeseries') return <TimeseriesChart block={block} />;
+  if (block.chartType === 'pie') return <PieChart block={block} />;
+  return <BarChart block={block} />;
+};
+
+/** SVG Timeseries (line + area) chart */
+const TimeseriesChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
+  const W = 560, H = 180, PX = 48, PY = 24, PB = 32;
+  const sorted = [...block.data].sort((a, b) => {
+    if (a.timestamp && b.timestamp) return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    return 0;
+  });
+  const vals = sorted.map(d => d.value);
+  const minV = Math.min(...vals, 0);
+  const maxV = Math.max(...vals, 1);
+  const rangeV = maxV - minV || 1;
+
+  const x = (i: number) => PX + (i / Math.max(sorted.length - 1, 1)) * (W - PX - 12);
+  const y = (v: number) => PY + (1 - (v - minV) / rangeV) * (H - PY - PB);
+
+  const linePts = sorted.map((d, i) => `${x(i)},${y(d.value)}`).join(' ');
+  const areaPts = `${x(0)},${y(minV)} ${linePts} ${x(sorted.length - 1)},${y(minV)}`;
+
+  // Y-axis labels (5 ticks)
+  const yTicks = Array.from({ length: 5 }, (_, i) => minV + (rangeV * i) / 4);
+  // X-axis labels (up to 6)
+  const xStep = Math.max(1, Math.floor(sorted.length / 5));
+  const xLabels = sorted.filter((_, i) => i % xStep === 0 || i === sorted.length - 1);
+
+  const accentColor = 'var(--dt-colors-charts-categorical-default-cat-01, #6F2DA8)';
+
+  return (
+    <Surface style={{ padding: 12, marginTop: 8, marginBottom: 8 }}>
+      <Text style={{ fontWeight: 600, marginBottom: 8 }}>{block.title}</Text>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, height: 'auto' }}>
+        {/* Grid lines */}
+        {yTicks.map((v, i) => (
+          <g key={`yg-${i}`}>
+            <line x1={PX} x2={W - 12} y1={y(v)} y2={y(v)} stroke="rgba(128,128,128,0.15)" strokeWidth={0.5} />
+            <text x={PX - 4} y={y(v) + 3} textAnchor="end" fontSize={9} fill="var(--dt-colors-text-secondary-default, #888)">
+              {v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v)}
+            </text>
+          </g>
+        ))}
+        {/* Area */}
+        <polygon points={areaPts} fill={accentColor} opacity={0.1} />
+        {/* Line */}
+        <polyline points={linePts} fill="none" stroke={accentColor} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {/* Dots */}
+        {sorted.length <= 48 && sorted.map((d, i) => (
+          <circle key={`dot-${i}`} cx={x(i)} cy={y(d.value)} r={2.5} fill={accentColor} />
+        ))}
+        {/* X-axis labels */}
+        {xLabels.map((d, i) => {
+          const idx = sorted.indexOf(d);
+          const label = d.timestamp
+            ? new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : d.label;
+          return (
+            <text key={`xl-${i}`} x={x(idx)} y={H - 6} textAnchor="middle" fontSize={8} fill="var(--dt-colors-text-secondary-default, #888)">
+              {label}
+            </text>
+          );
+        })}
+      </svg>
+      {block.unit && (
+        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginTop: 4, textAlign: 'right' }}>
+          Unit: {block.unit}
+        </Text>
+      )}
+    </Surface>
+  );
+};
+
+/** SVG Pie / Donut chart */
+const PieChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
+  const total = block.data.reduce((s, d) => s + d.value, 0) || 1;
+  const R = 60, CX = 80, CY = 80, IR = 35;
+  const COLORS = ['#6F2DA8', '#2ab6a4', '#f5a623', '#e74c3c', '#3498db', '#9b59b6', '#1abc9c', '#34495e'];
+
+  // Build arcs
+  let cumAngle = -Math.PI / 2;
+  const arcs = block.data.map((d, i) => {
+    const angle = (d.value / total) * 2 * Math.PI;
+    const startAngle = cumAngle;
+    cumAngle += angle;
+    const endAngle = cumAngle;
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const x1 = CX + R * Math.cos(startAngle), y1 = CY + R * Math.sin(startAngle);
+    const x2 = CX + R * Math.cos(endAngle), y2 = CY + R * Math.sin(endAngle);
+    const ix1 = CX + IR * Math.cos(startAngle), iy1 = CY + IR * Math.sin(startAngle);
+    const ix2 = CX + IR * Math.cos(endAngle), iy2 = CY + IR * Math.sin(endAngle);
+    const path = `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${IR} ${IR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
+    return { path, color: COLORS[i % COLORS.length], label: d.label, value: d.value, pct: ((d.value / total) * 100).toFixed(1) };
+  });
+
+  return (
+    <Surface style={{ padding: 12, marginTop: 8, marginBottom: 8 }}>
+      <Text style={{ fontWeight: 600, marginBottom: 8 }}>{block.title}</Text>
+      <Flex gap={16} alignItems="center" flexWrap="wrap">
+        <svg viewBox="0 0 160 160" style={{ width: 140, height: 140, flexShrink: 0 }}>
+          {arcs.map((a, i) => (
+            <path key={i} d={a.path} fill={a.color} stroke="var(--dt-colors-surface-default-default, #fff)" strokeWidth={1.5} />
+          ))}
+          <text x={CX} y={CY - 4} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--dt-colors-text-primary-default, #222)">
+            {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toLocaleString()}
+          </text>
+          <text x={CX} y={CY + 10} textAnchor="middle" fontSize={8} fill="var(--dt-colors-text-secondary-default, #888)">
+            {block.unit || 'total'}
+          </text>
+        </svg>
+        <Flex flexDirection="column" gap={4}>
+          {arcs.map((a, i) => (
+            <Flex key={i} gap={6} alignItems="center">
+              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: a.color, flexShrink: 0 }} />
+              <Text textStyle="small">{a.label}: <Strong>{a.value.toLocaleString()}</Strong> ({a.pct}%)</Text>
+            </Flex>
+          ))}
+        </Flex>
+      </Flex>
+    </Surface>
+  );
+};
+
+/** Horizontal bar chart */
+const BarChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
   const maxVal = Math.max(...block.data.map(d => d.value), 1);
+  const COLORS = ['var(--dt-colors-charts-categorical-default-cat-01)', 'var(--dt-colors-charts-categorical-default-cat-02, #2ab6a4)', 'var(--dt-colors-charts-categorical-default-cat-03, #f5a623)'];
   return (
     <Surface style={{ padding: 12, marginTop: 8, marginBottom: 8 }}>
       <Text style={{ fontWeight: 600, marginBottom: 8 }}>{block.title}</Text>
@@ -394,7 +521,7 @@ const ChartBlockRenderer: React.FC<{ block: ChartBlock }> = ({ block }) => {
               <Flex style={{
                 width: `${(d.value / maxVal) * 100}%`,
                 height: '100%',
-                backgroundColor: 'var(--dt-colors-charts-categorical-default-cat-01)',
+                backgroundColor: COLORS[i % COLORS.length],
                 borderRadius: 4,
                 minWidth: 2,
               }} />
