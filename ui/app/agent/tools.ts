@@ -32,15 +32,23 @@ import type {
 // ============================================
 
 async function executeDql(query: string): Promise<any[]> {
-  const response = await queryExecutionClient.queryExecute({
-    body: {
-      query,
-      requestTimeoutMilliseconds: 60000,
-      fetchTimeoutSeconds: 60,
-    },
-  });
-  return response.result?.records || [];
+  try {
+    const response = await queryExecutionClient.queryExecute({
+      body: {
+        query,
+        requestTimeoutMilliseconds: 60000,
+        fetchTimeoutSeconds: 60,
+      },
+    });
+    return response.result?.records || [];
+  } catch (err) {
+    console.warn("[Tools] DQL query failed (gracefully returning []):", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
+
+/** Alias for executeDql — both are now safe (return [] on failure) */
+const safeDql = executeDql;
 
 /** Format number with locale and optional decimals */
 function fmt(n: number, decimals = 0): string {
@@ -782,8 +790,8 @@ const errorInvestigation: AgentTool = {
 | limit 20`;
 
     const [trendRecords, detailRecords] = await Promise.all([
-      executeDql(errorDql),
-      executeDql(detailDql),
+      safeDql(errorDql),
+      safeDql(detailDql),
     ]);
 
     if (detailRecords.length === 0) {
@@ -969,14 +977,14 @@ const executiveSummary: AgentTool = {
 
     // Run multiple queries in parallel
     const [healthRecords, errorRecords, costRecords] = await Promise.all([
-      executeDql(`fetch spans, from:now()-${ctx.timeframe}
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | summarize requests = count(), avg_latency = avg(duration), error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0, tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)), by: { dt.entity.service }
 | sort requests desc`),
-      executeDql(`fetch spans, from:now()-${ctx.timeframe}
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
 | filter (isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)) AND (span.status_code == "error" OR isNotNull(error.type))
 | summarize error_count = count(), by: { gen_ai.provider.name }`),
-      executeDql(`fetch spans, from:now()-${ctx.timeframe}
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | summarize input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)), by: { gen_ai.provider.name }`),
     ]);
@@ -1058,11 +1066,1085 @@ const executiveSummary: AgentTool = {
 };
 
 // ============================================
+// TIER 1 — OBSERVE (Inventory & Discovery)
+// ============================================
+
+const inventoryOverview: AgentTool = {
+  name: "inventory_overview",
+  label: "Inventory Overview",
+  description: "Show a high-level inventory of all GenAI assets — total services, providers, models, agents, and request volumes",
+  triggers: ["inventory", "how many", "count", "total", "assets", "what do i have", "landscape", "footprint", "discovery"],
+  examples: ["How many agents do I have?", "What's my GenAI inventory?", "How many models am I using?", "Show me my AI landscape"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+    const dql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    total_requests = count(),
+    services = countDistinct(dt.entity.service),
+    providers = countDistinct(gen_ai.provider.name),
+    models = countDistinct(gen_ai.request.model),
+    span_types = countDistinct(span.name),
+    agent_tasks = countIf(span.name == "agent.task"),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    provider_list = collectDistinct(gen_ai.provider.name),
+    model_list = collectDistinct(gen_ai.request.model),
+    service_list = collectDistinct(dt.entity.service),
+    span_name_list = collectDistinct(span.name)
+  }`;
+
+    const records = await executeDql(dql);
+    const blocks: MessageBlock[] = [];
+    const r = records[0] || {};
+
+    const totalReqs = Number(r.total_requests || 0);
+    const services = Number(r.services || 0);
+    const providers = Number(r.providers || 0);
+    const models = Number(r.models || 0);
+    const agentTasks = Number(r.agent_tasks || 0);
+    const totalTokens = Number(r.total_tokens || 0);
+    const errorCount = Number(r.error_count || 0);
+    const errorRate = totalReqs > 0 ? (errorCount / totalReqs * 100) : 0;
+    const providerList: string[] = r.provider_list || [];
+    const modelList: string[] = r.model_list || [];
+    const serviceList: string[] = r.service_list || [];
+    const spanNameList: string[] = r.span_name_list || [];
+
+    if (totalReqs === 0) {
+      blocks.push({ type: "alert", severity: "info", title: "No GenAI Data", message: "No gen_ai spans found in the selected timeframe. Ensure services are instrumented with OpenTelemetry gen_ai.* attributes." });
+      return { success: true, toolName: "inventory_overview", summary: "No GenAI data found.", blocks, dql, executionTimeMs: Date.now() - start };
+    }
+
+    // KPI hero row
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "AI Services", value: services, severity: "healthy" },
+        { label: "Providers", value: providers, severity: "healthy" },
+        { label: "Models", value: models, severity: "healthy" },
+        { label: "Agent Tasks", value: fmt(agentTasks), severity: agentTasks > 0 ? "healthy" : "warning" },
+        { label: "Total Requests", value: fmt(totalReqs) },
+        { label: "Error Rate", value: `${errorRate.toFixed(1)}%`, severity: errorRate > 5 ? "critical" : errorRate > 1 ? "warning" : "healthy" },
+        { label: "Total Tokens", value: fmt(totalTokens) },
+      ],
+    });
+
+    // Breakdown text
+    const providerSummary = providerList.length > 0 ? providerList.join(", ") : "None detected";
+    const modelSummary = modelList.length > 6 ? `${modelList.slice(0, 6).join(", ")} and ${modelList.length - 6} more` : modelList.join(", ");
+    const spanSummary = spanNameList.join(", ");
+
+    blocks.push({
+      type: "text",
+      content: `### GenAI Landscape Summary\n\n` +
+        `**Services:** ${serviceList.join(", ")}\n\n` +
+        `**Providers:** ${providerSummary}\n\n` +
+        `**Models (${models}):** ${modelSummary}\n\n` +
+        `**Span Types:** ${spanSummary}\n\n` +
+        (agentTasks > 0
+          ? `**Agents:** Detected **${fmt(agentTasks)} agent task executions** via Langchain agent.task spans.\n\n`
+          : `**Agents:** No agent.task spans detected in this timeframe.\n\n`) +
+        `*Timeframe: last ${ctx.timeframe}*`,
+    });
+
+    // Pie chart of requests by provider
+    const providerDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize requests = count(), by: { gen_ai.provider.name }
+| sort requests desc`;
+    const providerRecords = await executeDql(providerDql);
+    if (providerRecords.length > 0) {
+      blocks.push({
+        type: "chart",
+        chartType: "pie",
+        title: "Request Distribution by Provider",
+        data: providerRecords.map((pr: any) => ({
+          label: pr["gen_ai.provider.name"] || "Unknown",
+          value: Number(pr.requests || 0),
+        })),
+        unit: "requests",
+      });
+    }
+
+    return {
+      success: true,
+      toolName: "inventory_overview",
+      summary: `GenAI Inventory: ${services} services, ${providers} providers, ${models} models, ${fmt(agentTasks)} agent tasks, ${fmt(totalReqs)} total requests in the last ${ctx.timeframe}.`,
+      blocks,
+      dql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Agent details", query: "Tell me more about my AI agents" },
+        { label: "Model details", query: "List all models with usage stats" },
+        { label: "Provider comparison", query: "Compare all my AI providers" },
+        { label: "Service health", query: "How healthy are my AI services?" },
+      ],
+    };
+  },
+};
+
+const agentOverview: AgentTool = {
+  name: "agent_overview",
+  label: "Agent Overview",
+  description: "Show AI agent activity — agent task executions, frameworks (Langchain, etc.), tool usage, and agent performance",
+  triggers: ["agent", "agents", "agentic", "langchain", "agent task", "tool usage", "chain", "rag", "orchestration", "workflow"],
+  examples: ["How many agents do I have?", "Tell me about my AI agents", "Show agent activity", "What Langchain agents are running?"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+
+    // Query 1: Agent task overview
+    const agentDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter span.name == "agent.task" OR gen_ai.provider.name == "Langchain"
+| summarize {
+    executions = count(),
+    avg_duration = avg(duration),
+    p95_duration = percentile(duration, 95),
+    max_duration = max(duration),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    services = collectDistinct(dt.entity.service),
+    models = collectDistinct(gen_ai.request.model)
+  }, by: { span.name }
+| sort executions desc`;
+
+    // Query 2: Agent activity timeseries (for chart)
+    const trendDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter span.name == "agent.task" OR gen_ai.provider.name == "Langchain"
+| summarize executions = count(), by: { bin(timestamp, 1h) }
+| sort timestamp asc`;
+
+    // Query 3: Models used by agents
+    const agentModelsDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter gen_ai.provider.name == "Langchain"
+| summarize requests = count(), avg_latency = avg(duration), tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)), by: { gen_ai.request.model }
+| sort requests desc
+| limit 10`;
+
+    // Execute queries with graceful fallback — trend query can fail on some Grail versions
+    const [agentResult, trendResult, modelResult] = await Promise.allSettled([
+      executeDql(agentDql),
+      executeDql(trendDql),
+      executeDql(agentModelsDql),
+    ]);
+
+    const agentRecords = agentResult.status === "fulfilled" ? agentResult.value : [];
+    const trendRecords = trendResult.status === "fulfilled" ? trendResult.value : [];
+    const modelRecords = modelResult.status === "fulfilled" ? modelResult.value : [];
+
+    const blocks: MessageBlock[] = [];
+
+    if (agentRecords.length === 0 && modelRecords.length === 0) {
+      blocks.push({
+        type: "alert",
+        severity: "info",
+        title: "No Agent Activity",
+        message: "No agent.task spans or Langchain provider data found. Agents may not be instrumented, or no agent activity occurred in this timeframe.",
+      });
+      blocks.push({
+        type: "text",
+        content: "**Tip:** To see agent data, ensure your Langchain / LangGraph agents are instrumented with OpenTelemetry gen_ai semantic conventions. The `agent.task` span name is used to track agentic executions.",
+      });
+      return { success: true, toolName: "agent_overview", summary: "No agent activity found.", blocks, dql: agentDql, executionTimeMs: Date.now() - start };
+    }
+
+    // KPIs
+    const totalExecutions = agentRecords.reduce((s, r) => s + Number(r.executions || 0), 0);
+    const totalErrors = agentRecords.reduce((s, r) => s + Number(r.error_count || 0), 0);
+    const errorRate = totalExecutions > 0 ? (totalErrors / totalExecutions * 100) : 0;
+    const avgDuration = agentRecords.length > 0
+      ? agentRecords.reduce((s, r) => s + Number(r.avg_duration || 0), 0) / agentRecords.length : 0;
+
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Agent Executions", value: fmt(totalExecutions), severity: "healthy" },
+        { label: "Span Types", value: agentRecords.length },
+        { label: "Avg Duration", value: `${nsToMs(avgDuration)}ms` },
+        { label: "Error Rate", value: `${errorRate.toFixed(1)}%`, severity: errorRate > 5 ? "critical" : errorRate > 1 ? "warning" : "healthy" },
+        { label: "Models Used", value: modelRecords.length },
+      ],
+    });
+
+    // Agent span breakdown table
+    blocks.push({
+      type: "table",
+      headers: ["Span Type", "Executions", "Avg Duration", "P95 Duration", "Errors", "Services", "Models"],
+      rows: agentRecords.map((r: any) => [
+        r["span.name"] || "—",
+        fmt(Number(r.executions || 0)),
+        `${nsToMs(Number(r.avg_duration || 0))}ms`,
+        `${nsToMs(Number(r.p95_duration || 0))}ms`,
+        fmt(Number(r.error_count || 0)),
+        (r.services || []).join(", ") || "—",
+        (r.models || []).filter(Boolean).join(", ") || "—",
+      ]),
+      caption: "Agent span activity breakdown",
+    });
+
+    // Models used by agents
+    if (modelRecords.length > 0) {
+      blocks.push({
+        type: "table",
+        headers: ["Model", "Requests", "Avg Latency", "Tokens"],
+        rows: modelRecords.map((r: any) => [
+          r["gen_ai.request.model"] || "—",
+          fmt(Number(r.requests || 0)),
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          fmt(Number(r.tokens || 0)),
+        ]),
+        caption: "Models used by Langchain agents",
+      });
+    }
+
+    // Trend chart
+    if (trendRecords.length > 1) {
+      blocks.push({
+        type: "chart",
+        chartType: "timeseries",
+        title: "Agent Activity Over Time",
+        data: trendRecords.map((r: any) => ({
+          label: "Agent Executions",
+          value: Number(r.executions || 0),
+          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
+        })),
+        unit: "executions",
+      });
+    }
+
+    return {
+      success: true,
+      toolName: "agent_overview",
+      summary: `Agent Activity: ${fmt(totalExecutions)} executions across ${agentRecords.length} span types, ${modelRecords.length} models, ${errorRate.toFixed(1)}% error rate.`,
+      blocks,
+      dql: agentDql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Agent errors", query: "What errors are my agents encountering?" },
+        { label: "Model comparison", query: "Compare the models my agents are using" },
+        { label: "Full inventory", query: "Show my complete GenAI inventory" },
+      ],
+    };
+  },
+};
+
+const modelInventory: AgentTool = {
+  name: "model_inventory",
+  label: "Model Inventory",
+  description: "List all LLM models in use with request counts, providers, token usage, latency, and error rates",
+  triggers: ["list models", "what models", "which models", "model list", "model inventory", "all models", "models in use", "model catalog"],
+  examples: ["What models am I using?", "List all my models", "Which LLMs are deployed?", "Show model catalog"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+    const dql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    requests = count(),
+    avg_latency = avg(duration),
+    p95_latency = percentile(duration, 95),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    services = collectDistinct(dt.entity.service)
+  }, by: { gen_ai.request.model, gen_ai.provider.name }
+| sort requests desc`;
+
+    const records = await executeDql(dql);
+    const blocks: MessageBlock[] = [];
+
+    if (records.length === 0) {
+      blocks.push({ type: "alert", severity: "info", title: "No Models Found", message: "No model data found in the selected timeframe." });
+      return { success: true, toolName: "model_inventory", summary: "No models found.", blocks, dql, executionTimeMs: Date.now() - start };
+    }
+
+    const totalModels = records.length;
+    const totalRequests = records.reduce((s, r) => s + Number(r.requests || 0), 0);
+    const totalTokens = records.reduce((s, r) => s + Number(r.total_tokens || 0), 0);
+
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Unique Models", value: totalModels, severity: "healthy" },
+        { label: "Total Requests", value: fmt(totalRequests) },
+        { label: "Total Tokens", value: fmt(totalTokens) },
+      ],
+    });
+
+    // Full model table
+    blocks.push({
+      type: "table",
+      headers: ["Model", "Provider", "Requests", "% of Total", "Avg Latency", "P95 Latency", "Tokens", "Error Rate", "Services"],
+      rows: records.map((r: any) => {
+        const reqs = Number(r.requests || 0);
+        const pct = totalRequests > 0 ? (reqs / totalRequests * 100) : 0;
+        return [
+          r["gen_ai.request.model"] || "—",
+          r["gen_ai.provider.name"] || "—",
+          fmt(reqs),
+          `${pct.toFixed(1)}%`,
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          `${nsToMs(Number(r.p95_latency || 0))}ms`,
+          fmt(Number(r.total_tokens || 0)),
+          `${Number(r.error_rate || 0).toFixed(1)}%`,
+          String((r.services || []).length),
+        ];
+      }),
+      caption: `${totalModels} models discovered across all providers`,
+    });
+
+    // Bar chart of requests by model (top 10)
+    blocks.push({
+      type: "chart",
+      chartType: "bar",
+      title: "Requests by Model",
+      data: records.slice(0, 10).map((r: any) => ({
+        label: r["gen_ai.request.model"] || "Unknown",
+        value: Number(r.requests || 0),
+      })),
+      unit: "requests",
+    });
+
+    return {
+      success: true,
+      toolName: "model_inventory",
+      summary: `Found ${totalModels} models: ${fmt(totalRequests)} total requests, ${fmt(totalTokens)} tokens consumed.`,
+      blocks,
+      dql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Compare models", query: "Compare model performance" },
+        { label: "Model costs", query: "Show cost breakdown by model" },
+        { label: "Optimize models", query: "How can I optimize my model usage?" },
+      ],
+    };
+  },
+};
+
+const providerInventory: AgentTool = {
+  name: "provider_inventory",
+  label: "Provider Inventory",
+  description: "List all AI providers in use with service counts, model counts, request volumes, and health status",
+  triggers: ["list providers", "what providers", "which providers", "provider list", "provider inventory", "all providers", "vendors"],
+  examples: ["What providers am I using?", "List all my AI providers", "Which AI vendors do I have?"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+    const dql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    requests = count(),
+    avg_latency = avg(duration),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    models = collectDistinct(gen_ai.request.model),
+    services = collectDistinct(dt.entity.service),
+    span_types = collectDistinct(span.name)
+  }, by: { gen_ai.provider.name }
+| sort requests desc`;
+
+    const records = await executeDql(dql);
+    const blocks: MessageBlock[] = [];
+
+    if (records.length === 0) {
+      blocks.push({ type: "alert", severity: "info", title: "No Providers", message: "No provider data found." });
+      return { success: true, toolName: "provider_inventory", summary: "No providers found.", blocks, dql, executionTimeMs: Date.now() - start };
+    }
+
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Providers", value: records.length, severity: "healthy" },
+        { label: "Total Requests", value: fmt(records.reduce((s, r) => s + Number(r.requests || 0), 0)) },
+        { label: "Total Tokens", value: fmt(records.reduce((s, r) => s + Number(r.total_tokens || 0), 0)) },
+      ],
+    });
+
+    blocks.push({
+      type: "table",
+      headers: ["Provider", "Requests", "Models", "Services", "Avg Latency", "Error Rate", "Tokens", "Est. Cost", "Capabilities"],
+      rows: records.map((r: any) => {
+        const provider = r["gen_ai.provider.name"] || "Unknown";
+        const modelCount = (r.models || []).length;
+        const serviceCount = (r.services || []).length;
+        const cost = estimateCost(provider, Number(r.input_tokens || 0), Number(r.output_tokens || 0));
+        const spanTypes = (r.span_types || []).join(", ");
+        return [
+          provider,
+          fmt(Number(r.requests || 0)),
+          String(modelCount),
+          String(serviceCount),
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          `${Number(r.error_rate || 0).toFixed(1)}%`,
+          fmt(Number(r.total_tokens || 0)),
+          `$${cost.toFixed(2)}`,
+          spanTypes || "—",
+        ];
+      }),
+      caption: `${records.length} AI providers discovered`,
+    });
+
+    // Pie chart — token distribution
+    blocks.push({
+      type: "chart",
+      chartType: "pie",
+      title: "Token Usage by Provider",
+      data: records.map((r: any) => ({
+        label: r["gen_ai.provider.name"] || "Unknown",
+        value: Number(r.total_tokens || 0),
+      })),
+      unit: "tokens",
+    });
+
+    return {
+      success: true,
+      toolName: "provider_inventory",
+      summary: `Found ${records.length} providers: ${records.map((r: any) => r["gen_ai.provider.name"]).filter(Boolean).join(", ")}.`,
+      blocks,
+      dql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Compare providers", query: "Compare provider performance" },
+        { label: "Provider costs", query: "Show cost breakdown by provider" },
+        { label: "Full inventory", query: "Show my complete GenAI inventory" },
+      ],
+    };
+  },
+};
+
+const usageTrends: AgentTool = {
+  name: "usage_trends",
+  label: "Usage Trends",
+  description: "Show GenAI usage trends over time — request volume, token consumption, error rates, and latency trends",
+  triggers: ["trend", "trends", "over time", "timeline", "history", "growing", "increasing", "decreasing", "pattern", "volume", "traffic", "throughput"],
+  examples: ["What are the usage trends?", "Show me traffic patterns", "How has usage changed?", "Is my AI usage growing?"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+
+    // Determine bucketization based on timeframe
+    const tf = ctx.timeframe;
+    const bucket = tf.includes("30m") || tf.includes("1h") ? "5m"
+      : tf.includes("2h") || tf.includes("6h") ? "15m"
+      : tf.includes("12h") || tf.includes("24h") || tf.includes("1d") ? "1h"
+      : "4h";
+
+    const dql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    requests = count(),
+    tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    avg_latency = avg(duration),
+    providers = countDistinct(gen_ai.provider.name)
+  }, by: { bin(timestamp, ${bucket}) }
+| sort timestamp asc`;
+
+    // Also get per-provider trends
+    const providerTrendDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize requests = count(), by: { gen_ai.provider.name, bin(timestamp, ${bucket}) }
+| sort timestamp asc`;
+
+    const [records, providerTrendRecords] = await Promise.all([
+      safeDql(dql),
+      safeDql(providerTrendDql),
+    ]);
+
+    const blocks: MessageBlock[] = [];
+
+    if (records.length === 0) {
+      blocks.push({ type: "alert", severity: "info", title: "No Trend Data", message: "No data to show trends for the selected timeframe." });
+      return { success: true, toolName: "usage_trends", summary: "No trend data available.", blocks, dql, executionTimeMs: Date.now() - start };
+    }
+
+    // Compute overall trend direction
+    const firstHalf = records.slice(0, Math.floor(records.length / 2));
+    const secondHalf = records.slice(Math.floor(records.length / 2));
+    const firstAvg = firstHalf.reduce((s, r) => s + Number(r.requests || 0), 0) / (firstHalf.length || 1);
+    const secondAvg = secondHalf.reduce((s, r) => s + Number(r.requests || 0), 0) / (secondHalf.length || 1);
+    const trendDirection = secondAvg > firstAvg * 1.1 ? "up" : secondAvg < firstAvg * 0.9 ? "down" : "stable";
+    const changePct = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
+
+    const totalReqs = records.reduce((s, r) => s + Number(r.requests || 0), 0);
+    const totalTokens = records.reduce((s, r) => s + Number(r.tokens || 0), 0);
+    const totalErrors = records.reduce((s, r) => s + Number(r.errors || 0), 0);
+    const peakRequests = Math.max(...records.map((r: any) => Number(r.requests || 0)));
+
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Total Requests", value: fmt(totalReqs) },
+        { label: "Trend", value: `${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}%`, trend: trendDirection as "up" | "down" | "stable" },
+        { label: "Peak Requests", value: `${fmt(peakRequests)}/${bucket}` },
+        { label: "Total Tokens", value: fmt(totalTokens) },
+        { label: "Total Errors", value: fmt(totalErrors), severity: totalErrors > 0 ? "warning" : "healthy" },
+        { label: "Data Points", value: records.length },
+      ],
+    });
+
+    // Request volume timeseries
+    blocks.push({
+      type: "chart",
+      chartType: "timeseries",
+      title: "Request Volume Over Time",
+      data: records.map((r: any) => ({
+        label: "Requests",
+        value: Number(r.requests || 0),
+        timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
+      })),
+      unit: "requests",
+      dql,
+    });
+
+    // Token consumption timeseries
+    blocks.push({
+      type: "chart",
+      chartType: "timeseries",
+      title: "Token Consumption Over Time",
+      data: records.map((r: any) => ({
+        label: "Tokens",
+        value: Number(r.tokens || 0),
+        timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
+      })),
+      unit: "tokens",
+    });
+
+    // Insight text
+    const trendText = trendDirection === "up" ? "📈 **Increasing** usage trend detected"
+      : trendDirection === "down" ? "📉 **Decreasing** usage trend detected"
+      : "➡️ **Stable** usage pattern";
+
+    blocks.push({
+      type: "text",
+      content: `${trendText} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}% change, comparing first vs second half of the window). ` +
+        `Peak activity: **${fmt(peakRequests)} requests** per ${bucket} bucket.`,
+    });
+
+    return {
+      success: true,
+      toolName: "usage_trends",
+      summary: `Usage Trends: ${trendText.replace(/[📈📉➡️*]/g, '').trim()}, ${fmt(totalReqs)} total requests, peak ${fmt(peakRequests)}/${bucket}.`,
+      blocks,
+      dql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Forecast", query: "Forecast my usage for the next 24 hours" },
+        { label: "Anomalies", query: "Are there any anomalies in the trends?" },
+        { label: "Cost trends", query: "Show cost breakdown over time" },
+      ],
+    };
+  },
+};
+
+const generalQA: AgentTool = {
+  name: "general_qa",
+  label: "General Q&A",
+  description: "Answer general questions about GenAI operations when no specific tool matches — runs a broad data scan and produces a helpful summary",
+  triggers: ["what", "tell me", "explain", "describe", "info", "information", "about", "detail", "details", "help", "question"],
+  examples: ["Tell me about my GenAI setup", "What can you tell me about my AI operations?", "Give me some details"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+
+    // Run a comprehensive scan
+    const [inventoryRecords, topModelsRecords, errorRecords] = await Promise.all([
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| summarize {
+    total_requests = count(),
+    services = countDistinct(dt.entity.service),
+    providers = countDistinct(gen_ai.provider.name),
+    models = countDistinct(gen_ai.request.model),
+    agent_tasks = countIf(span.name == "agent.task"),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    avg_latency = avg(duration),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    provider_list = collectDistinct(gen_ai.provider.name)
+  }`),
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.request.model)
+| summarize requests = count(), by: { gen_ai.request.model, gen_ai.provider.name }
+| sort requests desc
+| limit 5`),
+      safeDql(`fetch spans, from:now()-${ctx.timeframe}
+| filter (isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)) AND (span.status_code == "error" OR isNotNull(error.type))
+| summarize error_count = count(), by: { gen_ai.provider.name }
+| sort error_count desc
+| limit 5`),
+    ]);
+
+    const blocks: MessageBlock[] = [];
+    const inv = inventoryRecords[0] || {};
+
+    const totalReqs = Number(inv.total_requests || 0);
+    const services = Number(inv.services || 0);
+    const providers = Number(inv.providers || 0);
+    const models = Number(inv.models || 0);
+    const agentTasks = Number(inv.agent_tasks || 0);
+    const totalTokens = Number(inv.total_tokens || 0);
+    const avgLatency = Number(inv.avg_latency || 0);
+    const errorRate = Number(inv.error_rate || 0);
+    const providerList: string[] = inv.provider_list || [];
+
+    if (totalReqs === 0) {
+      blocks.push({ type: "alert", severity: "info", title: "No GenAI Data", message: "No gen_ai spans found. Ensure your services are instrumented with OpenTelemetry gen_ai.* attributes." });
+      return { success: true, toolName: "general_qa", summary: "No GenAI data found.", blocks, executionTimeMs: Date.now() - start };
+    }
+
+    // Hero KPIs
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Services", value: services, severity: "healthy" },
+        { label: "Providers", value: providers, severity: "healthy" },
+        { label: "Models", value: models, severity: "healthy" },
+        { label: "Agents", value: fmt(agentTasks), severity: agentTasks > 0 ? "healthy" : "warning" },
+        { label: "Requests", value: fmt(totalReqs) },
+        { label: "Error Rate", value: `${errorRate.toFixed(1)}%`, severity: errorRate > 5 ? "critical" : errorRate > 1 ? "warning" : "healthy" },
+      ],
+    });
+
+    // Natural language summary
+    let nlSummary = `### Your GenAI Environment at a Glance\n\n`;
+    nlSummary += `You have **${services} AI service(s)** running across **${providers} provider(s)** (${providerList.join(", ")}), using **${models} different model(s)**.\n\n`;
+    nlSummary += `In the last **${ctx.timeframe}**, there were **${fmt(totalReqs)} total requests** consuming **${fmt(totalTokens)} tokens** with an average latency of **${nsToMs(avgLatency)}ms**.\n\n`;
+
+    if (agentTasks > 0) {
+      nlSummary += `🤖 **Agent Activity:** ${fmt(agentTasks)} agent task executions detected (Langchain framework).\n\n`;
+    }
+
+    if (errorRate > 5) {
+      nlSummary += `🔴 **Attention:** Error rate is at **${errorRate.toFixed(1)}%** — consider investigating failing services.\n\n`;
+    } else if (errorRate > 1) {
+      nlSummary += `🟡 Error rate is **${errorRate.toFixed(1)}%** — within tolerable range but worth monitoring.\n\n`;
+    } else {
+      nlSummary += `✅ Error rate is a healthy **${errorRate.toFixed(1)}%**.\n\n`;
+    }
+
+    // Top models
+    if (topModelsRecords.length > 0) {
+      nlSummary += `**Top Models by Usage:**\n`;
+      topModelsRecords.forEach((r: any, i: number) => {
+        nlSummary += `${i + 1}. **${r["gen_ai.request.model"] || "Unknown"}** (${r["gen_ai.provider.name"] || "—"}) — ${fmt(Number(r.requests || 0))} requests\n`;
+      });
+      nlSummary += `\n`;
+    }
+
+    // Error breakdown
+    if (errorRecords.length > 0) {
+      nlSummary += `**Errors by Provider:**\n`;
+      errorRecords.forEach((r: any) => {
+        nlSummary += `- ${r["gen_ai.provider.name"] || "Unknown"}: ${fmt(Number(r.error_count || 0))} errors\n`;
+      });
+    }
+
+    blocks.push({ type: "text", content: nlSummary });
+
+    return {
+      success: true,
+      toolName: "general_qa",
+      summary: `GenAI Overview: ${services} services, ${providers} providers, ${models} models, ${fmt(totalReqs)} requests, ${errorRate.toFixed(1)}% error rate.`,
+      blocks,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Deep dive health", query: "How healthy are my AI services?" },
+        { label: "Cost analysis", query: "How much is my AI usage costing?" },
+        { label: "Agent details", query: "Tell me about my AI agents" },
+        { label: "Anomaly detection", query: "Are there any anomalies?" },
+        { label: "Model details", query: "List all models with usage stats" },
+        { label: "Forecast", query: "Forecast my AI usage trends" },
+      ],
+    };
+  },
+};
+
+// ============================================
+// TIER 1 — OBSERVE (Embedding & RAG)
+// ============================================
+
+const embeddingAnalytics: AgentTool = {
+  name: "embedding_analytics",
+  label: "Embedding Analytics",
+  description: "Analyze embedding operations — models, providers, throughput, latency, token usage, and error rates for vector embedding calls",
+  triggers: ["embedding", "embeddings", "embed", "vector", "vectorize", "text-embedding", "ada", "embedding model", "embedding latency", "embedding cost"],
+  examples: ["How are my embeddings performing?", "Show embedding usage", "Which embedding models am I using?", "Embedding latency breakdown"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+
+    // Query 1: Per-model embedding breakdown
+    const modelDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter contains(span.name, "embed")
+| summarize {
+    requests = count(),
+    avg_latency = avg(duration),
+    p95_latency = percentile(duration, 95),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    avg_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    services = collectDistinct(dt.entity.service)
+  }, by: { gen_ai.request.model, gen_ai.provider.name }
+| sort requests desc`;
+
+    // Query 2: Overall embedding KPIs
+    const overviewDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter contains(span.name, "embed")
+| summarize {
+    total_requests = count(),
+    providers = countDistinct(gen_ai.provider.name),
+    models = countDistinct(gen_ai.request.model),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    avg_latency = avg(duration),
+    p95_latency = percentile(duration, 95),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    provider_list = collectDistinct(gen_ai.provider.name),
+    span_types = collectDistinct(span.name)
+  }`;
+
+    // Query 3: Embedding throughput over time
+    const trendDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter contains(span.name, "embed")
+| summarize requests = count(), tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), by: { bin(timestamp, 1h) }
+| sort timestamp asc`;
+
+    const [modelRecords, overviewRecords, trendRecords] = await Promise.all([
+      safeDql(modelDql),
+      safeDql(overviewDql),
+      safeDql(trendDql),
+    ]);
+
+    const blocks: MessageBlock[] = [];
+    const ov = overviewRecords[0] || {};
+
+    const totalReqs = Number(ov.total_requests || 0);
+    const providers = Number(ov.providers || 0);
+    const models = Number(ov.models || 0);
+    const totalTokens = Number(ov.total_tokens || 0);
+    const avgLatency = Number(ov.avg_latency || 0);
+    const p95Latency = Number(ov.p95_latency || 0);
+    const errorCount = Number(ov.error_count || 0);
+    const errorRate = totalReqs > 0 ? (errorCount / totalReqs * 100) : 0;
+    const providerList: string[] = ov.provider_list || [];
+    const spanTypes: string[] = ov.span_types || [];
+
+    if (totalReqs === 0) {
+      blocks.push({
+        type: "alert",
+        severity: "info",
+        title: "No Embedding Data",
+        message: "No embedding spans found. Embedding calls must include 'embed' in the span.name (e.g., openai.embeddings, ollama.embeddings).",
+      });
+      return { success: true, toolName: "embedding_analytics", summary: "No embedding data found.", blocks, dql: modelDql, executionTimeMs: Date.now() - start };
+    }
+
+    // KPI hero row
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Embedding Requests", value: fmt(totalReqs), severity: "healthy" },
+        { label: "Providers", value: providers },
+        { label: "Models", value: models },
+        { label: "Avg Latency", value: `${nsToMs(avgLatency)}ms`, severity: avgLatency > 1e9 ? "warning" : "healthy" },
+        { label: "P95 Latency", value: `${nsToMs(p95Latency)}ms`, severity: p95Latency > 2e9 ? "warning" : "healthy" },
+        { label: "Total Tokens", value: fmt(totalTokens) },
+        { label: "Error Rate", value: `${errorRate.toFixed(1)}%`, severity: errorRate > 5 ? "critical" : errorRate > 1 ? "warning" : "healthy" },
+      ],
+    });
+
+    // Summary text
+    blocks.push({
+      type: "text",
+      content: `### Embedding Operations Summary\n\n` +
+        `**Providers:** ${providerList.join(", ")}\n\n` +
+        `**Span Types:** ${spanTypes.join(", ")}\n\n` +
+        `Processed **${fmt(totalReqs)} embedding requests** consuming **${fmt(totalTokens)} input tokens** over the last **${ctx.timeframe}**. ` +
+        `Average latency is **${nsToMs(avgLatency)}ms** (P95: **${nsToMs(p95Latency)}ms**).` +
+        (errorCount > 0 ? `\n\n⚠️ **${fmt(errorCount)} failed embedding requests** detected (${errorRate.toFixed(1)}% error rate).` : ''),
+    });
+
+    // Per-model breakdown table
+    if (modelRecords.length > 0) {
+      blocks.push({
+        type: "table",
+        headers: ["Model", "Provider", "Requests", "Avg Latency", "P95 Latency", "Tokens", "Avg Tokens/Req", "Error Rate"],
+        rows: modelRecords.map((r: any) => [
+          r["gen_ai.request.model"] || "Unknown",
+          r["gen_ai.provider.name"] || "—",
+          fmt(Number(r.requests || 0)),
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          `${nsToMs(Number(r.p95_latency || 0))}ms`,
+          fmt(Number(r.total_tokens || 0)),
+          fmt(Number(r.avg_tokens || 0), 1),
+          `${Number(r.error_rate || 0).toFixed(1)}%`,
+        ]),
+        caption: `${modelRecords.length} embedding model configurations`,
+      });
+    }
+
+    // Bar chart — requests by model
+    if (modelRecords.length > 1) {
+      blocks.push({
+        type: "chart",
+        chartType: "bar",
+        title: "Embedding Requests by Model",
+        data: modelRecords.filter((r: any) => r["gen_ai.request.model"]).slice(0, 10).map((r: any) => ({
+          label: r["gen_ai.request.model"] || "Unknown",
+          value: Number(r.requests || 0),
+        })),
+        unit: "requests",
+      });
+    }
+
+    // Trend chart
+    if (trendRecords.length > 1) {
+      blocks.push({
+        type: "chart",
+        chartType: "timeseries",
+        title: "Embedding Throughput Over Time",
+        data: trendRecords.map((r: any) => ({
+          label: "Embedding Requests",
+          value: Number(r.requests || 0),
+          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
+        })),
+        unit: "requests/hr",
+      });
+    }
+
+    return {
+      success: true,
+      toolName: "embedding_analytics",
+      summary: `Embedding Analytics: ${fmt(totalReqs)} requests across ${models} models (${providerList.join(", ")}), avg latency ${nsToMs(avgLatency)}ms, ${errorRate.toFixed(1)}% error rate.`,
+      blocks,
+      dql: modelDql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "RAG pipeline", query: "Show my RAG pipeline performance" },
+        { label: "Compare embedding models", query: "Compare my embedding models by latency and cost" },
+        { label: "Embedding errors", query: "What errors are happening in my embedding calls?" },
+        { label: "Full inventory", query: "Show my complete GenAI inventory" },
+      ],
+    };
+  },
+};
+
+const ragPipeline: AgentTool = {
+  name: "rag_pipeline",
+  label: "RAG Pipeline",
+  description: "Analyze RAG (Retrieval-Augmented Generation) pipeline performance — embedding calls vs LLM generation calls, end-to-end latency, token efficiency",
+  triggers: ["rag", "retrieval augmented", "retrieval-augmented", "pipeline", "embed and generate", "rag pipeline", "rag performance", "rag latency", "retrieval"],
+  examples: ["How is my RAG pipeline performing?", "Show RAG metrics", "Analyze my retrieval-augmented generation pipeline", "RAG latency breakdown"],
+  parameters: [],
+  tier: 1,
+  execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
+    const start = Date.now();
+
+    // Query 1: Embedding vs Generation split
+    const splitDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd operation_type = if(contains(span.name, "embed"), "embedding", else: "generation")
+| summarize {
+    requests = count(),
+    avg_latency = avg(duration),
+    p95_latency = percentile(duration, 95),
+    total_input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    models = countDistinct(gen_ai.request.model),
+    providers = collectDistinct(gen_ai.provider.name)
+  }, by: { operation_type }`;
+
+    // Query 2: Embedding models breakdown
+    const embedModelsDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter contains(span.name, "embed")
+| summarize requests = count(), avg_latency = avg(duration), tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), by: { gen_ai.request.model, gen_ai.provider.name }
+| sort requests desc
+| limit 10`;
+
+    // Query 3: Generation models breakdown
+    const genModelsDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter (isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)) AND NOT contains(span.name, "embed")
+| summarize requests = count(), avg_latency = avg(duration), input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)), by: { gen_ai.request.model, gen_ai.provider.name }
+| sort requests desc
+| limit 10`;
+
+    // Query 4: Hourly comparison — embedding vs generation
+    const timelineDql = `fetch spans, from:now()-${ctx.timeframe}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd operation_type = if(contains(span.name, "embed"), "embedding", else: "generation")
+| summarize requests = count(), by: { operation_type, bin(timestamp, 1h) }
+| sort timestamp asc`;
+
+    const [splitRecords, embedModels, genModels, timelineRecords] = await Promise.all([
+      safeDql(splitDql),
+      safeDql(embedModelsDql),
+      safeDql(genModelsDql),
+      safeDql(timelineDql),
+    ]);
+
+    const blocks: MessageBlock[] = [];
+
+    const embRow = splitRecords.find((r: any) => r.operation_type === "embedding") || {};
+    const genRow = splitRecords.find((r: any) => r.operation_type === "generation") || {};
+
+    const embedReqs = Number(embRow.requests || 0);
+    const genReqs = Number(genRow.requests || 0);
+    const totalReqs = embedReqs + genReqs;
+
+    if (totalReqs === 0) {
+      blocks.push({
+        type: "alert",
+        severity: "info",
+        title: "No RAG Data",
+        message: "No GenAI spans found. Ensure embedding and generation calls are instrumented.",
+      });
+      return { success: true, toolName: "rag_pipeline", summary: "No RAG pipeline data found.", blocks, dql: splitDql, executionTimeMs: Date.now() - start };
+    }
+
+    const embedLatency = Number(embRow.avg_latency || 0);
+    const genLatency = Number(genRow.avg_latency || 0);
+    const embedErrorRate = Number(embRow.error_rate || 0);
+    const genErrorRate = Number(genRow.error_rate || 0);
+    const embedTokens = Number(embRow.total_input_tokens || 0);
+    const genInputTokens = Number(genRow.total_input_tokens || 0);
+    const genOutputTokens = Number(genRow.total_output_tokens || 0);
+    const embedRatio = totalReqs > 0 ? (embedReqs / totalReqs * 100) : 0;
+
+    // Hero KPIs
+    blocks.push({
+      type: "metric",
+      metrics: [
+        { label: "Total Requests", value: fmt(totalReqs) },
+        { label: "Embedding Calls", value: fmt(embedReqs) },
+        { label: "Generation Calls", value: fmt(genReqs) },
+        { label: "Embed:Gen Ratio", value: genReqs > 0 ? `${(embedReqs / genReqs).toFixed(1)}:1` : "N/A" },
+        { label: "Embed Latency", value: `${nsToMs(embedLatency)}ms` },
+        { label: "Gen Latency", value: `${nsToMs(genLatency)}ms` },
+        { label: "Est. E2E Latency", value: `${nsToMs(embedLatency + genLatency)}ms` },
+      ],
+    });
+
+    // Pipeline stage comparison table
+    blocks.push({
+      type: "table",
+      headers: ["Pipeline Stage", "Requests", "% of Total", "Avg Latency", "P95 Latency", "Error Rate", "Input Tokens", "Output Tokens", "Providers"],
+      rows: splitRecords.map((r: any) => {
+        const reqs = Number(r.requests || 0);
+        const pct = totalReqs > 0 ? (reqs / totalReqs * 100) : 0;
+        return [
+          r.operation_type === "embedding" ? "🔢 Embedding" : "💬 Generation",
+          fmt(reqs),
+          `${pct.toFixed(1)}%`,
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          `${nsToMs(Number(r.p95_latency || 0))}ms`,
+          `${Number(r.error_rate || 0).toFixed(1)}%`,
+          fmt(Number(r.total_input_tokens || 0)),
+          fmt(Number(r.total_output_tokens || 0)),
+          (r.providers || []).join(", ") || "—",
+        ];
+      }),
+      caption: "RAG Pipeline — Embedding vs Generation comparison",
+    });
+
+    // Insight text
+    let insight = `### RAG Pipeline Analysis\n\n`;
+    insight += `Your RAG pipeline made **${fmt(embedReqs)} embedding calls** and **${fmt(genReqs)} generation calls** (ratio: **${genReqs > 0 ? (embedReqs / genReqs).toFixed(1) : "N/A"}:1**).\n\n`;
+    insight += `**Estimated end-to-end latency:** ${nsToMs(embedLatency)}ms (embed) + ${nsToMs(genLatency)}ms (generate) = **~${nsToMs(embedLatency + genLatency)}ms total**.\n\n`;
+
+    if (embedRatio > 70) {
+      insight += `⚠️ High embedding-to-generation ratio (${embedRatio.toFixed(0)}% are embeddings). Consider caching frequently embedded content or batching embedding requests.\n\n`;
+    }
+    if (embedErrorRate > 5) {
+      insight += `🔴 Embedding error rate is **${embedErrorRate.toFixed(1)}%** — investigate failing embedding calls.\n\n`;
+    }
+    if (genErrorRate > 5) {
+      insight += `🔴 Generation error rate is **${genErrorRate.toFixed(1)}%** — investigate failing LLM calls.\n\n`;
+    }
+    if (embedLatency > 1e9) {
+      insight += `⚡ Embedding latency (${nsToMs(embedLatency)}ms) is above 1 second — consider smaller embedding models or provider optimization.\n\n`;
+    }
+
+    blocks.push({ type: "text", content: insight });
+
+    // Embedding models table
+    if (embedModels.length > 0) {
+      blocks.push({
+        type: "table",
+        headers: ["Embedding Model", "Provider", "Requests", "Avg Latency", "Tokens"],
+        rows: embedModels.map((r: any) => [
+          r["gen_ai.request.model"] || "Unknown",
+          r["gen_ai.provider.name"] || "—",
+          fmt(Number(r.requests || 0)),
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          fmt(Number(r.tokens || 0)),
+        ]),
+        caption: "Embedding models in use",
+      });
+    }
+
+    // Generation models table
+    if (genModels.length > 0) {
+      blocks.push({
+        type: "table",
+        headers: ["Generation Model", "Provider", "Requests", "Avg Latency", "Input Tokens", "Output Tokens"],
+        rows: genModels.map((r: any) => [
+          r["gen_ai.request.model"] || "Unknown",
+          r["gen_ai.provider.name"] || "—",
+          fmt(Number(r.requests || 0)),
+          `${nsToMs(Number(r.avg_latency || 0))}ms`,
+          fmt(Number(r.input_tokens || 0)),
+          fmt(Number(r.output_tokens || 0)),
+        ]),
+        caption: "Generation models in use",
+      });
+    }
+
+    // Pie chart — embed vs generation
+    blocks.push({
+      type: "chart",
+      chartType: "pie",
+      title: "Request Distribution: Embedding vs Generation",
+      data: [
+        { label: "Embedding", value: embedReqs },
+        { label: "Generation", value: genReqs },
+      ],
+      unit: "requests",
+    });
+
+    return {
+      success: true,
+      toolName: "rag_pipeline",
+      summary: `RAG Pipeline: ${fmt(embedReqs)} embedding + ${fmt(genReqs)} generation calls, ~${nsToMs(embedLatency + genLatency)}ms estimated E2E latency.`,
+      blocks,
+      dql: splitDql,
+      executionTimeMs: Date.now() - start,
+      followUps: [
+        { label: "Embedding details", query: "Deep dive into my embedding models" },
+        { label: "Generation models", query: "Compare my generation models" },
+        { label: "Optimize RAG", query: "How can I optimize my RAG pipeline?" },
+        { label: "Cost breakdown", query: "Show cost for embeddings vs generation" },
+      ],
+    };
+  },
+};
+
+// ============================================
 // TOOL REGISTRY
 // ============================================
 
 export const TOOL_REGISTRY: AgentTool[] = [
-  // Tier 1 — Observe
+  // Tier 1 — Observe (Core)
   serviceHealth,
   providerComparison,
   modelComparison,
@@ -1070,6 +2152,17 @@ export const TOOL_REGISTRY: AgentTool[] = [
   costBreakdown,
   latencyAnalysis,
   tokenUsage,
+  // Tier 1 — Observe (Inventory & Discovery)
+  inventoryOverview,
+  agentOverview,
+  modelInventory,
+  providerInventory,
+  usageTrends,
+  // Tier 1 — Observe (Embedding & RAG)
+  embeddingAnalytics,
+  ragPipeline,
+  // Tier 1 — General Catch-all
+  generalQA,
   // Tier 2 — Analyze (Dynatrace Intelligence)
   forecastTool,
   detectAnomalies,

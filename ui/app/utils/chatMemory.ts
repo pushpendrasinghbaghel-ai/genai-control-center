@@ -30,7 +30,7 @@ interface StoredMessage {
   content: string;
   timestamp: string;
   toolsUsed?: string[];
-  selectionMethod?: "semantic" | "davis" | "keyword";
+  selectionMethod?: "semantic" | "ai" | "keyword";
   followUps?: FollowUpChip[];
   // blocks are NOT stored (too large, re-run if needed)
 }

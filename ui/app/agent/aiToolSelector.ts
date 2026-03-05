@@ -142,6 +142,23 @@ const INTENT_MAP: Array<{ signals: string[]; toolNames: string[]; boost: number 
     toolNames: ["token_usage"], boost: 2 },
   { signals: ["executive", "summary", "report", "brief", "overall", "everything", "full"],
     toolNames: ["executive_summary"], boost: 2 },
+  // New intent signals for inventory & discovery tools
+  { signals: ["inventory", "how many", "count", "total", "assets", "landscape", "footprint", "discovery", "deployed"],
+    toolNames: ["inventory_overview"], boost: 3 },
+  { signals: ["agent", "agents", "agentic", "langchain", "langgraph", "agent task", "chain", "rag", "orchestrat"],
+    toolNames: ["agent_overview"], boost: 3 },
+  { signals: ["list models", "what models", "model list", "model catalog", "model inventory", "all models", "llms", "deployed models"],
+    toolNames: ["model_inventory"], boost: 3 },
+  { signals: ["list providers", "what providers", "provider list", "provider inventory", "all providers", "vendors", "which vendor"],
+    toolNames: ["provider_inventory"], boost: 3 },
+  { signals: ["trend", "trends", "over time", "timeline", "history", "growing", "increasing", "decreasing", "pattern", "volume", "traffic", "throughput"],
+    toolNames: ["usage_trends"], boost: 3 },
+  { signals: ["tell me", "describe", "explain", "info", "about", "detail", "details", "general"],
+    toolNames: ["general_qa"], boost: 1 },
+  { signals: ["embedding", "embeddings", "embed", "vector", "vectorize", "text-embedding", "ada", "embedding model"],
+    toolNames: ["embedding_analytics"], boost: 3 },
+  { signals: ["rag", "retrieval augmented", "retrieval-augmented", "pipeline", "embed and generate", "rag pipeline", "retrieval"],
+    toolNames: ["rag_pipeline"], boost: 3 },
 ];
 
 function scoreTool(questionTokens: string[], question: string, tool: AgentTool): number {
@@ -273,7 +290,7 @@ Tool names MUST be one of: ${toolNameList}`;
         }
       }
     } else if (response && typeof response === "object") {
-      const r = response as Record<string, unknown>;
+      const r = response as unknown as Record<string, unknown>;
       responseText = (r.text as string) || (r.answer as string) || "";
       // Check nested content
       if (!responseText && r.data && typeof r.data === "object") {

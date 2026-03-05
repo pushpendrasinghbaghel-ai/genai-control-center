@@ -110,8 +110,33 @@ export async function orchestrate(
   // --- AI-based tool selection ---
   const aiSelection = await selectToolWithAI(question, conversationHistory);
 
-  // No tools selected — question not in scope
+  // No tools selected — fall back to general_qa catch-all
   if (aiSelection.tools.length === 0) {
+    const generalTool = TOOL_REGISTRY.find(t => t.name === "general_qa");
+    if (generalTool) {
+      const extractedParams = extractParams(question);
+      const resolvedTimeframe = typeof extractedParams.timeHint === "string" ? extractedParams.timeHint : timeframe;
+      const ctx: ToolExecutionContext = { question, timeframe: resolvedTimeframe, params: extractedParams };
+      try {
+        const result = await generalTool.execute(ctx);
+        return {
+          markdown: renderBlocksAsMarkdown(result),
+          blocks: result.blocks,
+          toolsUsed: ["general_qa"],
+          dql: result.dql || "",
+          executionTimeMs: Date.now() - startTime,
+          handled: true,
+          aiSelected: false,
+          selectionReasoning: "No specific tool matched — used General Q&A catch-all",
+          selectionMethod: "keyword" as const,
+          selectionPath: `${aiSelection.selectionPath} -> fallback(general_qa)`,
+          selectionConfidence: 50,
+          followUps: result.followUps,
+        };
+      } catch (err) {
+        console.error("[Orchestrator] General Q&A fallback failed:", err);
+      }
+    }
     return {
       markdown: "",
       blocks: [],
@@ -280,7 +305,7 @@ function renderBlocksAsMarkdown(result: ToolResult): string {
 export function listAvailableTools(): string {
   let help = "**Dynatrace Intelligence — Available Capabilities**\n\n";
   const tiers = [
-    { tier: 1 as const, label: "Observe" },
+    { tier: 1 as const, label: "Observe & Discover" },
     { tier: 2 as const, label: "Analyze" },
     { tier: 3 as const, label: "Act" },
   ];
@@ -301,13 +326,17 @@ export function listAvailableTools(): string {
  */
 export function getQuickInvestigations(): FollowUpChip[] {
   return [
+    { label: "AI Inventory", query: "How many services, providers, models, and agents do I have?" },
+    { label: "Agent Activity", query: "Tell me about my AI agents and their activity" },
     { label: "Service Health", query: "How are my AI services doing?" },
     { label: "Compare Providers", query: "Compare all my AI providers" },
     { label: "Cost Analysis", query: "Show me the cost breakdown by provider" },
+    { label: "Usage Trends", query: "Show me GenAI usage trends over time" },
     { label: "Detect Anomalies", query: "Are there any anomalies in my AI services?" },
     { label: "Forecast Tokens", query: "Forecast my token usage for the next 24 hours" },
     { label: "Top Errors", query: "What are the top errors across my AI services?" },
     { label: "Executive Summary", query: "Give me a full executive summary" },
+    { label: "Model Catalog", query: "List all models with usage stats" },
     { label: "Optimize Costs", query: "How can I reduce my AI costs?" },
   ];
 }
