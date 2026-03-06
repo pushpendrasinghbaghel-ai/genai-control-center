@@ -543,3 +543,450 @@ export interface CrossProviderSummaryRow {
   errors: number;
   errorRate: number;
 }
+
+// ============================================
+// Phase 9 — External Integrations Types
+// ============================================
+
+/** Slack integration configuration and status */
+export interface SlackIntegrationConfig {
+  webhookUrl: string;
+  channel: string;
+  enabled: boolean;
+  notifyOn: SlackNotifyTrigger[];
+  lastNotificationTime?: string;
+  totalNotificationsSent: number;
+}
+
+export type SlackNotifyTrigger =
+  | 'error_spike'
+  | 'latency_breach'
+  | 'cost_threshold'
+  | 'model_drift'
+  | 'provider_down'
+  | 'security_incident'
+  | 'anomaly_detected';
+
+export interface SlackNotification {
+  id: string;
+  channel: string;
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+  timestamp: string;
+  trigger: SlackNotifyTrigger;
+  delivered: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SlackChannelStatus {
+  channel: string;
+  connected: boolean;
+  lastMessage?: string;
+  messagesLast24h: number;
+  errorCount: number;
+}
+
+/** PagerDuty integration configuration and status */
+export interface PagerDutyIntegrationConfig {
+  serviceKey: string;
+  apiToken: string;
+  enabled: boolean;
+  escalationPolicy: string;
+  autoResolve: boolean;
+  triggerOn: PagerDutyTrigger[];
+  totalIncidentsCreated: number;
+}
+
+export type PagerDutyTrigger =
+  | 'critical_error_rate'
+  | 'provider_outage'
+  | 'budget_exceeded'
+  | 'security_breach'
+  | 'sla_violation'
+  | 'model_hallucination';
+
+export interface PagerDutyIncident {
+  id: string;
+  incidentKey: string;
+  title: string;
+  description: string;
+  severity: 'critical' | 'error' | 'warning' | 'info';
+  status: 'triggered' | 'acknowledged' | 'resolved';
+  createdAt: string;
+  resolvedAt?: string;
+  assignedTo?: string;
+  service: string;
+  trigger: PagerDutyTrigger;
+  deduplicationKey: string;
+}
+
+export interface PagerDutyServiceStatus {
+  serviceName: string;
+  status: 'active' | 'warning' | 'critical' | 'disabled';
+  openIncidents: number;
+  acknowledgedIncidents: number;
+  resolvedLast24h: number;
+  mttrMinutes: number;
+}
+
+/** Prometheus MCP Server integration types */
+export interface PrometheusMCPConfig {
+  endpoint: string;
+  enabled: boolean;
+  scrapeInterval: number;
+  metricsPrefix: string;
+  lastScrapeTime?: string;
+  exportedMetrics: number;
+}
+
+export interface PrometheusMetric {
+  name: string;
+  type: 'counter' | 'gauge' | 'histogram' | 'summary';
+  help: string;
+  value: number;
+  labels: Record<string, string>;
+  timestamp: number;
+}
+
+export interface PrometheusScrapeStatus {
+  endpoint: string;
+  healthy: boolean;
+  lastScrapeMs: number;
+  sampleCount: number;
+  errorCount: number;
+  uptime: string;
+}
+
+export interface PrometheusGenAIMetrics {
+  totalRequests: number;
+  totalTokens: number;
+  avgLatencyMs: number;
+  errorRate: number;
+  activeModels: number;
+  providers: string[];
+  costUsd: number;
+}
+
+/** Dynatrace Agentic Workflow types */
+export interface AgenticWorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  type: AgenticWorkflowType;
+  triggers: AgenticWorkflowTrigger[];
+  actions: AgenticWorkflowAction[];
+  enabled: boolean;
+  lastExecuted?: string;
+  executionCount: number;
+  successRate: number;
+  avgExecutionTimeMs: number;
+  owner: string;
+}
+
+export type AgenticWorkflowType =
+  | 'remediation'
+  | 'notification'
+  | 'scaling'
+  | 'failover'
+  | 'cost_control'
+  | 'security_response'
+  | 'data_pipeline'
+  | 'observability';
+
+export interface AgenticWorkflowTrigger {
+  type: 'problem' | 'threshold' | 'schedule' | 'manual' | 'event' | 'webhook';
+  condition: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface AgenticWorkflowAction {
+  id: string;
+  type: 'dql_query' | 'slack_notify' | 'pagerduty_incident' | 'http_request'
+       | 'workflow_trigger' | 'davis_analyze' | 'prometheus_push' | 'auto_remediate';
+  name: string;
+  parameters: Record<string, unknown>;
+  retryPolicy?: {
+    maxRetries: number;
+    backoffMs: number;
+  };
+  timeout?: number;
+}
+
+export interface AgenticWorkflowExecution {
+  id: string;
+  workflowId: string;
+  workflowName: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  startTime: string;
+  endTime?: string;
+  durationMs?: number;
+  triggeredBy: string;
+  actionsCompleted: number;
+  totalActions: number;
+  result?: string;
+  error?: string;
+  logs: AgenticWorkflowLog[];
+}
+
+export interface AgenticWorkflowLog {
+  timestamp: string;
+  level: 'info' | 'warning' | 'error' | 'debug';
+  action: string;
+  message: string;
+  durationMs?: number;
+}
+
+/** Agentic Workflow — simplified config for UI hook */
+export interface AgenticWorkflowConfig {
+  enabled: boolean;
+  autoRemediate: boolean;
+  maxConcurrentWorkflows: number;
+  defaultTimeout: number;
+}
+
+/** Agentic Workflow — template with trigger and actions */
+export interface AgenticWorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  actions: AgenticWorkflowAction[];
+  triggerCondition: string;
+  enabled: boolean;
+}
+
+/** Integration health overview */
+export interface IntegrationHealthSummary {
+  slack: {
+    connected: boolean;
+    channels: number;
+    messagesLast24h: number;
+    errors: number;
+  };
+  pagerDuty: {
+    connected: boolean;
+    services: number;
+    openIncidents: number;
+    mttrMinutes: number;
+  };
+  prometheus: {
+    connected: boolean;
+    metricsExported: number;
+    lastScrapeMs: number;
+    healthy: boolean;
+  };
+  agenticWorkflows: {
+    total: number;
+    enabled: number;
+    executionsLast24h: number;
+    successRate: number;
+  };
+  awsBilling: {
+    connected: boolean;
+    monthlySpend: number;
+    budgetUtilizationPct: number;
+    anomalyCount: number;
+  };
+  awsCloudWatch: {
+    connected: boolean;
+    activeAlarms: number;
+    metricsPublished: number;
+    logGroupsMonitored: number;
+  };
+  grafana: {
+    connected: boolean;
+    dashboards: number;
+    alertRules: number;
+    annotations: number;
+  };
+  github: {
+    connected: boolean;
+    openIssues: number;
+    openPRs: number;
+    recentDeployments: number;
+  };
+}
+
+// ============================================
+// Phase 10 — AWS Billing & Cost Management Types
+// ============================================
+
+export interface AWSBillingConfig {
+  accessKeyId: string;
+  region: string;
+  enabled: boolean;
+  monthlyBudget: number;
+  warningThresholdPct: number;
+  criticalThresholdPct: number;
+}
+
+export interface AWSCostBreakdown {
+  service: string;
+  costUsd: number;
+  isGenAI: boolean;
+  period: string;
+}
+
+export interface AWSBudgetStatus {
+  status: 'ok' | 'warning' | 'critical' | 'exceeded';
+  currentSpend: number;
+  monthlyBudget: number;
+  utilizationPct: number;
+  projectedMonthEnd: number;
+  dailyRate: number;
+  alerts: string[];
+}
+
+export interface AWSCostAnomaly {
+  provider: string;
+  metric: string;
+  latestValue: number;
+  mean: number;
+  zScore: number;
+  direction: 'spike' | 'drop';
+  severity: 'warning' | 'critical';
+  estimatedCostImpactUsd: number;
+}
+
+// ============================================
+// Phase 10 — AWS CloudWatch Types
+// ============================================
+
+export interface AWSCloudWatchConfig {
+  region: string;
+  enabled: boolean;
+  namespace: string;
+  metricsPublished: number;
+}
+
+export interface CloudWatchAlarm {
+  title: string;
+  severity: string;
+  status: string;
+  affectedEntity: string;
+  startTime: string;
+  source: string;
+}
+
+export interface CloudWatchMetricData {
+  name: string;
+  value: number;
+  unit: string;
+  namespace: string;
+}
+
+export interface CloudWatchDashboardWidget {
+  title: string;
+  value: number | string;
+  type: string;
+}
+
+// ============================================
+// Phase 10 — Grafana Integration Types
+// ============================================
+
+export interface GrafanaConfig {
+  url: string;
+  apiKey: string;
+  enabled: boolean;
+  defaultDatasource: string;
+}
+
+export interface GrafanaDashboard {
+  uid: string;
+  title: string;
+  url: string;
+  tags: string[];
+  folderTitle: string;
+}
+
+export interface GrafanaAlert {
+  uid: string;
+  title: string;
+  state: 'firing' | 'pending' | 'inactive';
+  condition: string;
+  labels: Record<string, string>;
+}
+
+export interface GrafanaAnnotation {
+  id: number;
+  text: string;
+  tags: string[];
+  dashboardUid: string;
+  time: number;
+}
+
+export interface GrafanaSnapshot {
+  name: string;
+  url: string;
+  key: string;
+  expires: number;
+  metrics: {
+    totalRequests: number;
+    errorRate: number;
+    avgLatencyMs: number;
+    totalTokens: number;
+  };
+}
+
+// ============================================
+// Phase 10 — GitHub Integration Types
+// ============================================
+
+export interface GitHubConfig {
+  owner: string;
+  repo: string;
+  token: string;
+  enabled: boolean;
+  autoCreateIssues: boolean;
+}
+
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  labels: string[];
+  assignees: string[];
+  createdAt: string;
+  updatedAt: string;
+  commentsCount: number;
+  url: string;
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  state: 'open' | 'closed' | 'merged';
+  author: string;
+  branch: string;
+  base: string;
+  draft: boolean;
+  createdAt: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  url: string;
+}
+
+export interface GitHubDeployment {
+  id: number;
+  environment: string;
+  ref: string;
+  sha: string;
+  creator: string;
+  createdAt: string;
+  description: string;
+}
+
+export interface GitHubRepoInfo {
+  name: string;
+  fullName: string;
+  description: string;
+  language: string;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  defaultBranch: string;
+  topics: string[];
+  url: string;
+}

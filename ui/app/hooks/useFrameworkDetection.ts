@@ -190,8 +190,8 @@ fetch spans, from: now()-24h, to: now()
 | fieldsAdd system = toString(gen_ai.system)
 | summarize
     span_count = count(),
-    sample_span_names = collectDistinct(span.name, 20),
-    sample_systems = collectDistinct(gen_ai.system, 10),
+    sample_span_names = collectDistinct(span.name, maxLength:20),
+    sample_systems = collectDistinct(gen_ai.system, maxLength:10),
     unique_traces = countDistinct(trace_id),
     first = min(start_time),
     last = max(start_time),

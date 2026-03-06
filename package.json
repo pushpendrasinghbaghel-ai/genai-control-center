@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "@dynatrace-sdk/app-environment": "^1.1.3",
+    "@dynatrace-sdk/client-automation": "^6.0.0",
     "@dynatrace-sdk/client-davis-analyzers": "^1.9.8",
     "@dynatrace-sdk/client-davis-copilot": "^1.0.0",
     "@dynatrace-sdk/client-query": "^1.21.2",

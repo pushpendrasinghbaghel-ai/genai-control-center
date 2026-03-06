@@ -53,6 +53,9 @@ export { DeveloperExperience } from './DeveloperExperience';
 // NEW: Provider Status & Failover (Phase 5 - Provider health index, failover intelligence)
 export { ProviderStatus } from './ProviderStatus';
 
+// NEW: Integrations Hub (Phase 10 - MCP integrations dashboard)
+export { Integrations } from './Integrations';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

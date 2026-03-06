@@ -126,7 +126,7 @@ fetch spans, from: now()-6h, to: now()
     unique_traces = countDistinct(trace_id),
     avg_input_per_call = avg(input_tokens),
     max_input_per_call = max(input_tokens),
-    models_used = collectDistinct(model, 5),
+    models_used = collectDistinct(model, maxLength:5),
     by: { agent_name }
 | sort total_input desc
 `;
@@ -141,7 +141,7 @@ fetch spans, from: now()-6h, to: now()
     llm_calls = countIf(isNotNull(gen_ai.request.model)),
     tool_calls = countIf(traceloop.span.kind == "tool" OR gen_ai.operation.kind == "tool"),
     error_count = countIf(otel.status_code == "ERROR"),
-    services = collectDistinct(service.name, 5),
+    services = collectDistinct(service.name, maxLength:5),
     by: { trace_id }
 | filter total_duration_ms > 30000
 | sort total_duration_ms desc

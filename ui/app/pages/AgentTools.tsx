@@ -1022,6 +1022,41 @@ export const AgentTools: React.FC = () => {
   // Modal state for flow details
   const [selectedFlow, setSelectedFlow] = useState<AgentFlow | null>(null);
   
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState<'overview' | 'flows' | 'reliability' | 'trends'>('overview');
+  
+  // Section visibility toggles (persisted in localStorage)
+  const [sectionToggles, setSectionToggles] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('gcc-agent-sections');
+      return saved ? JSON.parse(saved) : {
+        loopDetails: true,
+        optimizationAdvisor: true,
+        handoffs: true,
+        entityMapping: true,
+        activeAgents: true,
+        toolFrequency: true,
+        agentFlows: true,
+        toolReliability: true,
+        agentToolMap: true,
+        llmProviderMap: true,
+        retryDetection: true,
+        toolCallsTrend: true,
+        agentActivityTrend: true,
+      };
+    } catch { return {}; }
+  });
+  
+  // Settings panel visibility
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Toggle a section
+  const toggleSection = (key: string) => {
+    const newToggles = { ...sectionToggles, [key]: !sectionToggles[key] };
+    setSectionToggles(newToggles);
+    try { localStorage.setItem('gcc-agent-sections', JSON.stringify(newToggles)); } catch {}
+  };
+  
   // Convert to QueryFilters for the hook
   const queryFilters = useMemo(() => ({
     timeframe: filters.timeframe
@@ -1821,7 +1856,77 @@ export const AgentTools: React.FC = () => {
             <Button.Prefix><RefreshIcon /></Button.Prefix>
             Refresh
           </Button>
+          <div style={{ flex: 1 }} />
+          <Button variant="default" onClick={() => setShowSettings(s => !s)} title="Configure visible sections">
+            <Button.Prefix><SettingIcon /></Button.Prefix>
+          </Button>
         </Flex>
+
+        {/* Tab Navigation */}
+        <Flex gap={0} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+          {[
+            { key: 'overview' as const, label: 'Overview', icon: <SmartscapeIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'flows' as const, label: 'Flows & Patterns', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'reliability' as const, label: 'Reliability', icon: <CheckmarkIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'trends' as const, label: 'Trends', icon: <BarChartIcon style={{ width: 14, height: 14 }} /> },
+          ].map((tab) => (
+            <Button
+              key={tab.key}
+              variant={activeTab === tab.key ? 'accent' : 'default'}
+              onClick={() => setActiveTab(tab.key)}
+              style={{ 
+                borderRadius: 0, 
+                borderBottom: activeTab === tab.key ? '2px solid var(--dt-colors-text-accent-default)' : '2px solid transparent',
+                marginBottom: -1
+              }}
+            >
+              <Button.Prefix>{tab.icon}</Button.Prefix>
+              {tab.label}
+            </Button>
+          ))}
+        </Flex>
+
+        {/* Section Settings Panel */}
+        {showSettings && (
+          <Surface padding={16} style={{ borderLeft: '3px solid var(--dt-colors-text-accent-default)' }}>
+            <Flex flexDirection="column" gap={12}>
+              <Flex alignItems="center" justifyContent="space-between">
+                <Text style={{ fontWeight: 600 }}>Visible Sections</Text>
+                <Button variant="default" onClick={() => setShowSettings(false)}>Close</Button>
+              </Flex>
+              <Flex gap={12} flexWrap="wrap">
+                {[
+                  { key: 'loopDetails', label: 'Loop Details', tab: 'overview' },
+                  { key: 'optimizationAdvisor', label: 'Optimization Advisor', tab: 'overview' },
+                  { key: 'activeAgents', label: 'Active Agents Table', tab: 'overview' },
+                  { key: 'handoffs', label: 'Agent Handoffs', tab: 'flows' },
+                  { key: 'agentFlows', label: 'Common Flows', tab: 'flows' },
+                  { key: 'agentToolMap', label: 'Agent-Tool Map', tab: 'flows' },
+                  { key: 'toolFrequency', label: 'Tool Frequency', tab: 'reliability' },
+                  { key: 'toolReliability', label: 'Tool Reliability', tab: 'reliability' },
+                  { key: 'retryDetection', label: 'Retry Detection', tab: 'reliability' },
+                  { key: 'llmProviderMap', label: 'LLM Provider Map', tab: 'reliability' },
+                  { key: 'entityMapping', label: 'Service Mapping', tab: 'reliability' },
+                  { key: 'toolCallsTrend', label: 'Tool Calls Trend', tab: 'trends' },
+                  { key: 'agentActivityTrend', label: 'Agent Activity', tab: 'trends' },
+                ].map((section) => (
+                  <Button
+                    key={section.key}
+                    variant={sectionToggles[section.key] !== false ? 'accent' : 'default'}
+                    onClick={() => toggleSection(section.key)}
+                    style={{ fontSize: 12 }}
+                  >
+                    {sectionToggles[section.key] !== false ? '✓ ' : ''}{section.label}
+                  </Button>
+                ))}
+              </Flex>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                Click to toggle sections on/off. Settings are saved in your browser.
+              </Text>
+            </Flex>
+          </Surface>
+        )}
+
         {/* Loading State */}
         {loading && (
           <Flex justifyContent="center" alignItems="center" padding={40}>
@@ -1846,10 +1951,10 @@ export const AgentTools: React.FC = () => {
         {/* Main Content when loaded */}
         {!loading && !error && (
           <>
-            {/* Loop Detection Alert */}
+            {/* Loop Detection Alert - Always visible */}
             <LoopAlertBanner loops={suspiciousLoops} />
 
-            {/* Summary Metrics */}
+            {/* Summary Metrics - Always visible on all tabs */}
             {summary && (
               <Flex gap={12} flexWrap="wrap">
                 <MetricCard
@@ -1886,33 +1991,38 @@ export const AgentTools: React.FC = () => {
               </Flex>
             )}
 
-            {/* Suspicious Loops Details (if any) - UNIQUE GCC GOVERNANCE */}
-            {suspiciousLoops.length > 0 && (
-              <Surface padding={16}>
-                <Flex flexDirection="column" gap={12}>
-                  <Flex alignItems="center" gap={8}>
-                    <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
-                    <Heading level={5}>🚨 Suspicious Loop Details</Heading>
-                    <Tooltip text="Potential infinite loop or runaway agent behavior detected. Traces with >10 calls to the same tool.">
-                      <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                    </Tooltip>
-                  </Flex>
-                  
-                  <Flex flexDirection="column" gap={8}>
-                    {suspiciousLoops.slice(0, 10).map((loop) => (
-                      <Flex
-                        key={`${loop.traceId}-${loop.toolName}`}
-                        padding={12}
-                        alignItems="center"
-                        justifyContent="space-between"
-                        style={{
-                          background: 'var(--dt-colors-background-critical-subdued)',
-                          borderRadius: 6,
-                          border: `1px solid ${STATUS_COLORS.critical}`
-                        }}
-                      >
-                        <Flex flexDirection="column" gap={2}>
-                          <Text style={{ fontWeight: 600 }}>{loop.toolName}</Text>
+            {/* ============================================ */}
+            {/* OVERVIEW TAB */}
+            {/* ============================================ */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Suspicious Loops Details (if any) - UNIQUE GCC GOVERNANCE */}
+                {suspiciousLoops.length > 0 && sectionToggles.loopDetails !== false && (
+                  <Surface padding={16}>
+                    <Flex flexDirection="column" gap={12}>
+                      <Flex alignItems="center" gap={8}>
+                        <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
+                        <Heading level={5}>🚨 Suspicious Loop Details</Heading>
+                        <Tooltip text="Potential infinite loop or runaway agent behavior detected. Traces with >10 calls to the same tool.">
+                          <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                        </Tooltip>
+                      </Flex>
+                      
+                      <Flex flexDirection="column" gap={8}>
+                        {suspiciousLoops.slice(0, 10).map((loop) => (
+                          <Flex
+                            key={`${loop.traceId}-${loop.toolName}`}
+                            padding={12}
+                            alignItems="center"
+                            justifyContent="space-between"
+                            style={{
+                              background: 'var(--dt-colors-background-critical-subdued)',
+                              borderRadius: 6,
+                              border: `1px solid ${STATUS_COLORS.critical}`
+                            }}
+                          >
+                            <Flex flexDirection="column" gap={2}>
+                              <Text style={{ fontWeight: 600 }}>{loop.toolName}</Text>
                           <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
                             Agent: {loop.agentName}
                           </Text>
@@ -1933,9 +2043,70 @@ export const AgentTools: React.FC = () => {
             )}
 
             {/* Agent Optimization Advisor - Phase 4: Anti-pattern detection & scoring */}
-            <OptimizationAdvisor />
+            {sectionToggles.optimizationAdvisor !== false && <OptimizationAdvisor />}
 
+            {/* Active Agents Table - OVERVIEW TAB */}
+            {sectionToggles.activeAgents !== false && (
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8} flexWrap="wrap">
+                  <Heading level={5}>Active Agents</Heading>
+                  <Tooltip text="AI agents detected from gen_ai.agent.name or traceloop.span.kind=agent spans">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  {agentFilter && (
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      (Filtered by: {agentFilter})
+                    </Text>
+                  )}
+                  <Flex gap={12} style={{ marginLeft: 'auto' }}>
+                    <Flex alignItems="center" gap={4}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
+                      <Text style={{ fontSize: 11 }}>LLM</Text>
+                    </Flex>
+                    <Flex alignItems="center" gap={4}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
+                      <Text style={{ fontSize: 11 }}>Tool</Text>
+                    </Flex>
+                  </Flex>
+                </Flex>
+                
+                {filteredAgentList.length > 0 ? (
+                  <DataTable 
+                    data={filteredAgentList} 
+                    columns={agentColumns}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={10} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No agent data found. Ensure your agents are instrumented with gen_ai.agent.name or traceloop.span.kind="agent" spans.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+            )}
+              </>
+            )}
+
+            {/* ============================================ */}
+            {/* FLOWS & PATTERNS TAB */}
+            {/* ============================================ */}
+            {activeTab === 'flows' && (
+              <>
             {/* Agent Handoffs - UNIQUE GCC: Multi-agent orchestration visibility */}
+            {sectionToggles.handoffs !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -1973,6 +2144,7 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* Agent Flow Efficiency - UNIQUE GCC: TEMPORARILY HIDDEN */}
             {/* Pending DQL validation with Demo Dynatrace MCP server */}
@@ -2336,6 +2508,7 @@ export const AgentTools: React.FC = () => {
             )}
 
             {/* Agent → Dynatrace Entity Mapping - UNIQUE GCC */}
+            {sectionToggles.entityMapping !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2460,10 +2633,12 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* Agent Activity Trends */}
             <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
               {/* Tool Calls Over Time */}
+              {sectionToggles.toolCallsTrend !== false && (
               <Surface padding={16}>
                 <Flex flexDirection="column" gap={8}>
                   <Flex justifyContent="space-between" alignItems="center">
@@ -2503,8 +2678,10 @@ export const AgentTools: React.FC = () => {
                   )}
                 </Flex>
               </Surface>
+              )}
 
               {/* Agent Activity Over Time */}
+              {sectionToggles.agentActivityTrend !== false && (
               <Surface padding={16}>
                 <Flex flexDirection="column" gap={8}>
                   <Flex justifyContent="space-between" alignItems="center">
@@ -2544,6 +2721,7 @@ export const AgentTools: React.FC = () => {
                   )}
                 </Flex>
               </Surface>
+              )}
             </Flex>
 
             {/* Agents Table */}
@@ -2598,6 +2776,7 @@ export const AgentTools: React.FC = () => {
             </Surface>
 
             {/* Tool Usage Table (Primary View - Scalable) */}
+            {sectionToggles.toolFrequency !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2637,8 +2816,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
-            {/* Agent Tool Flows */}
+            {/* Agent Tool Flows - FLOWS TAB */}
+            {sectionToggles.agentFlows !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2681,8 +2862,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* Tool Reliability - Agent-Tool Usage Patterns */}
+            {sectionToggles.toolReliability !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2721,8 +2904,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* Agent-Tool Topology - Which agents use which tools */}
+            {sectionToggles.agentToolMap !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2785,8 +2970,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* NEW: Agent → LLM Provider Relationships */}
+            {sectionToggles.llmProviderMap !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -2921,8 +3108,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
             {/* Agent Retry / Loop Detection */}
+            {sectionToggles.retryDetection !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -3048,7 +3237,11 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
+            )}
 
+              </>
+            )}
+            
           </>
         )}
       </Flex>

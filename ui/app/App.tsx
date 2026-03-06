@@ -26,6 +26,7 @@ import {
   DeveloperExperience,
   SecurityAuditTrail,
   ProviderStatus,
+  Integrations,
 } from "./pages";
 
 export const App = () => {
@@ -103,6 +104,9 @@ export const App = () => {
 
                 {/* Provider Status & Failover - Phase 5: Provider health, failover readiness */}
                 <Route path="/provider-status" element={<ProviderStatus />} />
+
+                {/* Integrations Hub - Phase 10: MCP integrations dashboard */}
+                <Route path="/integrations" element={<Integrations />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

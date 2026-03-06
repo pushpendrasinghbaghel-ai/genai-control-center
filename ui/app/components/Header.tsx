@@ -52,7 +52,7 @@ export const Header = () => {
   });
 
   // Check if any "More" page is currently active
-  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect'];
+  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations'];
   const isMoreActive = morePages.some(p => isActive(p));
 
   // Navigation follows Observe → Analyze → Act pattern
@@ -186,6 +186,13 @@ export const Header = () => {
             >
               <Menu.Prefix><SyncIcon /></Menu.Prefix>
               Provider Failover
+            </Menu.Item>
+            <Menu.Item
+              onSelect={() => navigate('/integrations')}
+              style={isActive('/integrations') ? { fontWeight: 600 } : {}}
+            >
+              <Menu.Prefix><AutomationEngineIcon /></Menu.Prefix>
+              Integrations Hub
             </Menu.Item>
           </Menu.Content>
         </Menu>
