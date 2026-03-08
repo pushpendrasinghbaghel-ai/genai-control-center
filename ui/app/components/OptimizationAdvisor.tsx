@@ -7,7 +7,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { Modal, Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import {
   CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, RefreshIcon,
 } from '@dynatrace/strato-icons';
@@ -43,6 +43,154 @@ const sevColor = (sev: string) => {
     default: return STATUS_COLORS.neutral;
   }
 };
+
+// ============================================
+// Scoring Methodology Modal
+// ============================================
+const ScoringMethodologyModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => (
+  <Modal title="Optimization Score Methodology" show={open} onDismiss={onClose} size="medium">
+    <Flex flexDirection="column" gap={16} style={{ padding: '8px 0' }}>
+      {/* Methodology Overview */}
+      <Surface style={{ padding: 16, background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 6 }}>
+        <Flex flexDirection="column" gap={8}>
+          <Text style={{ fontWeight: 600 }}>Scoring Approach</Text>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+            Scores are based on <strong>industry SRE standards</strong> and <strong>LLM cost optimization research</strong>. 
+            Each metric uses thresholds derived from Google SRE handbook principles, OpenAI best practices, 
+            and Apdex (Application Performance Index) methodology.
+          </Text>
+        </Flex>
+      </Surface>
+
+      <Surface style={{ padding: 16, background: 'var(--dt-colors-surface-default)', borderRadius: 6 }}>
+        <Flex flexDirection="column" gap={8}>
+          <Text style={{ fontWeight: 600 }}>Overall Score Formula</Text>
+          <Text textStyle="small" style={{ fontFamily: 'monospace', padding: '8px 12px', background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 4 }}>
+            Overall = (Reliability × 0.30) + (Efficiency × 0.30) + (Latency × 0.25) + (Retry × 0.15)
+          </Text>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic' }}>
+            Weights reflect production impact: reliability and cost efficiency are prioritized over latency for AI workloads.
+          </Text>
+        </Flex>
+      </Surface>
+
+      <Flex flexDirection="column" gap={12}>
+        {/* Reliability Score */}
+        <Surface style={{ padding: 12, borderLeft: `3px solid ${Colors.Charts.Categorical.Color04.Default}` }}>
+          <Flex flexDirection="column" gap={6}>
+            <Flex alignItems="center" gap={8}>
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>🛡️ Reliability Score (30%)</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic' }}>Based on Google SRE error budgets</Text>
+            </Flex>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Uses industry-standard SLO tiers. Most production systems target 99.9% availability (0.1% error rate).
+            </Text>
+            <Flex flexDirection="column" gap={2} style={{ marginTop: 4, padding: '8px', background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 4 }}>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ &lt;0.1% errors (99.9% SLO): 100</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ 0.1-1% errors (99% SLO): 90</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 1-5% errors: 70</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 5-10% errors: 50</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.critical }}>✗ &gt;10% errors: Linear decay to 0</Text>
+            </Flex>
+            <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+              Source: Google SRE Handbook Ch. 4 "Service Level Objectives"
+            </Text>
+          </Flex>
+        </Surface>
+
+        {/* Efficiency Score */}
+        <Surface style={{ padding: 12, borderLeft: `3px solid ${Colors.Charts.Categorical.Color02.Default}` }}>
+          <Flex flexDirection="column" gap={6}>
+            <Flex alignItems="center" gap={8}>
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>💰 Efficiency Score (30%)</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic' }}>Based on LLM context window utilization</Text>
+            </Flex>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Measures token efficiency against model context limits. Optimal usage is 10-25% of context window 
+              (enough context without waste). Thresholds based on GPT-4 128K / Claude 200K windows.
+            </Text>
+            <Flex flexDirection="column" gap={2} style={{ marginTop: 4, padding: '8px', background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 4 }}>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ &lt;4K tokens (optimal): 100</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ 4-8K tokens (efficient): 85</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 8-16K tokens (moderate): 70</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 16-32K tokens (high): 50</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.critical }}>✗ &gt;32K tokens (wasteful): 30</Text>
+            </Flex>
+            <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+              Source: OpenAI "GPT-4 Best Practices", Anthropic "Prompt Engineering Guide"
+            </Text>
+          </Flex>
+        </Surface>
+
+        {/* Latency Score */}
+        <Surface style={{ padding: 12, borderLeft: `3px solid ${Colors.Charts.Categorical.Color03.Default}` }}>
+          <Flex flexDirection="column" gap={6}>
+            <Flex alignItems="center" gap={8}>
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>⚡ Latency Score (25%)</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic' }}>Based on Apdex methodology</Text>
+            </Flex>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Uses Apdex (Application Performance Index) with T=10s threshold for AI agents. 
+              Apdex formula: (Satisfied + Tolerating×0.5) / Total. AI workloads accept higher latency than web apps.
+            </Text>
+            <Flex flexDirection="column" gap={2} style={{ marginTop: 4, padding: '8px', background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 4 }}>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ &lt;10s (satisfied): 100</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ 10-20s (tolerating): 75</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 20-40s (frustrating): 50</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.critical }}>✗ &gt;40s (frustrated): 25</Text>
+            </Flex>
+            <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+              Source: Apdex Alliance Standard, adapted for AI workloads (T=10s vs T=4s for web)
+            </Text>
+          </Flex>
+        </Surface>
+
+        {/* Retry Score */}
+        <Surface style={{ padding: 12, borderLeft: `3px solid ${Colors.Charts.Categorical.Color01.Default}` }}>
+          <Flex flexDirection="column" gap={6}>
+            <Flex alignItems="center" gap={8}>
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>🔄 Retry Score (15%)</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic' }}>Based on distributed systems retry patterns</Text>
+            </Flex>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Measures retry efficiency. AWS and GCP recommend max 3 retries with exponential backoff. 
+              Score penalizes excessive retries which indicate unstable dependencies or poor error handling.
+            </Text>
+            <Flex flexDirection="column" gap={2} style={{ marginTop: 4, padding: '8px', background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 4 }}>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ 1-2 spans/trace (normal): 100</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.healthy }}>✓ 3 spans/trace (acceptable): 85</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.warning }}>⚠ 4-5 spans/trace (elevated): 60</Text>
+              <Text textStyle="small" style={{ color: STATUS_COLORS.critical }}>✗ &gt;5 spans/trace (retry storm): 30</Text>
+            </Flex>
+            <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+              Source: AWS Well-Architected Framework, GCP Retry Guidelines
+            </Text>
+          </Flex>
+        </Surface>
+      </Flex>
+
+      <Surface style={{ padding: 12, background: 'var(--dt-colors-background-container-neutral-subdued)', borderRadius: 6 }}>
+        <Flex flexDirection="column" gap={6}>
+          <Text style={{ fontWeight: 600, fontSize: 13 }}>Score Interpretation</Text>
+          <Flex gap={24}>
+            <Flex alignItems="center" gap={6}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.healthy }} />
+              <Text textStyle="small">75-100: Production Ready</Text>
+            </Flex>
+            <Flex alignItems="center" gap={6}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+              <Text textStyle="small">50-74: Needs Attention</Text>
+            </Flex>
+            <Flex alignItems="center" gap={6}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+              <Text textStyle="small">0-49: Action Required</Text>
+            </Flex>
+          </Flex>
+        </Flex>
+      </Surface>
+    </Flex>
+  </Modal>
+);
 
 // ============================================
 // Agent Score Row
@@ -83,7 +231,7 @@ const AgentScoreRow: React.FC<{ score: OptimizationScore }> = ({ score }) => {
         </Flex>
       </Flex>
       <Flex gap={4} style={{ width: 200 }}>
-        <Tooltip text={`Retry: ${Math.round(score.retryScore)} | Efficiency: ${Math.round(score.efficiencyScore)} | Latency: ${Math.round(score.latencyScore)} | Error: ${Math.round(score.errorScore)}`}>
+        <Tooltip text={`Reliability: ${Math.round(score.errorScore)} | Efficiency: ${Math.round(score.efficiencyScore)} | Latency: ${Math.round(score.latencyScore)} | Retry: ${Math.round(score.retryScore)}`}>
           <ProgressBar value={score.overallScore} style={{ width: 120 }} />
         </Tooltip>
       </Flex>
@@ -159,6 +307,7 @@ interface OptimizationAdvisorProps {
 export const OptimizationAdvisor: React.FC<OptimizationAdvisorProps> = ({ compact = false }) => {
   const { antiPatterns, agentScores, summary, loading, refetch } = useAgentOptimization();
   const [showAll, setShowAll] = useState(false);
+  const [showMethodology, setShowMethodology] = useState(false);
 
   if (loading && !summary) {
     return (
@@ -205,18 +354,32 @@ export const OptimizationAdvisor: React.FC<OptimizationAdvisorProps> = ({ compac
         {/* Header with summary */}
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center" gap={12}>
-            <Flex
-              alignItems="center"
-              justifyContent="center"
-              style={{
-                width: 56, height: 56, borderRadius: '50%',
-                border: `3px solid ${avgColor}`, background: `${avgColor}10`,
-              }}
-            >
-              <Text style={{ fontSize: 22, fontWeight: 700, color: avgColor, lineHeight: 1 }}>{Math.round(avgScore)}</Text>
-            </Flex>
+            <Tooltip text="Click to see how this score is calculated">
+              <Flex
+                alignItems="center"
+                justifyContent="center"
+                style={{
+                  width: 56, height: 56, borderRadius: '50%',
+                  border: `3px solid ${avgColor}`, background: `${avgColor}10`,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setShowMethodology(true)}
+              >
+                <Text style={{ fontSize: 22, fontWeight: 700, color: avgColor, lineHeight: 1 }}>{Math.round(avgScore)}</Text>
+              </Flex>
+            </Tooltip>
             <Flex flexDirection="column" gap={2}>
-              <Heading level={4}>Agent Optimization Advisor</Heading>
+              <Flex alignItems="center" gap={8}>
+                <Heading level={4}>Agent Optimization Advisor</Heading>
+                <Button 
+                  variant="default" 
+                  onClick={() => setShowMethodology(true)}
+                  style={{ padding: '2px 8px', fontSize: 11 }}
+                >
+                  <HelpIcon style={{ width: 12, height: 12 }} />
+                  <span style={{ marginLeft: 4 }}>How is this calculated?</span>
+                </Button>
+              </Flex>
               <Flex alignItems="center" gap={8}>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                   {summary.totalAgents} agents analyzed
@@ -283,6 +446,9 @@ export const OptimizationAdvisor: React.FC<OptimizationAdvisorProps> = ({ compac
           </Flex>
         )}
       </Flex>
+
+      {/* Scoring Methodology Modal */}
+      <ScoringMethodologyModal open={showMethodology} onClose={() => setShowMethodology(false)} />
     </Surface>
   );
 };

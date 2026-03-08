@@ -1,14 +1,12 @@
 // GenAI Control Center - Navigation Header
 // Navigation Pattern: Observe → Analyze → Act
-// Main Nav (9): Home → Services → FinOps → Analytics → Governance → Topology → Agents → RAG → Intelligence
-// More Menu (8): Drift | Quality | Conversation | DevEx | Infra | Operations | Security | Provider Status
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AppHeader } from "@dynatrace/strato-components-preview/layouts";
+import { AppHeader, HelpMenu } from "@dynatrace/strato-components-preview/layouts";
 import { Menu } from "@dynatrace/strato-components-preview/navigation";
 import { Button } from "@dynatrace/strato-components/buttons";
 import { 
-  HomeIcon, 
+  HomeIcon,            // Home
   ServicesIcon,        // AI Services
   SmartscapeIcon,      // Topology
   BarChartIcon,        // Response Analytics / Quality
@@ -82,7 +80,7 @@ export const Header = () => {
           <BarChartIcon aria-hidden="true" /> Analytics
         </AppHeader.NavItem>
         
-        {/* 5. Prompt Governance: PII, injection, Davis AI scoring — the data-rich governance page */}
+        {/* 5. Prompt Governance: PII, injection, Davis AI scoring */}
         <AppHeader.NavItem as={Link} to="/prompt-governance" style={getNavItemStyle('/prompt-governance')} aria-label="Prompt Governance">
           <LockIcon aria-hidden="true" /> Governance
         </AppHeader.NavItem>
@@ -118,10 +116,7 @@ export const Header = () => {
       <AppHeader.Menus>
         <Menu>
           <Menu.Trigger>
-            <Button
-              variant="default"
-              aria-label="More pages"
-            >
+            <Button variant="default" aria-label="More pages">
               <DotMenuIcon aria-hidden="true" /> More {isMoreActive ? '●' : ''}
             </Button>
           </Menu.Trigger>
@@ -196,6 +191,40 @@ export const Header = () => {
             </Menu.Item>
           </Menu.Content>
         </Menu>
+
+        {/* HelpMenu - MANDATORY per Dynatrace Experience Standard */}
+        <HelpMenu
+          entries={{
+            whatsNew: 'default',
+            getStarted: {
+              onSelect: () => window.open('https://developer.dynatrace.com', '_blank'),
+            },
+            documentation: [
+              {
+                label: 'GenAI Control Center Guide',
+                href: 'https://developer.dynatrace.com',
+                onSelect: () => undefined,
+              },
+              {
+                label: 'GenAI Observability',
+                href: 'https://docs.dynatrace.com/docs/platform-modules/automations/workflows/actions/genai',
+                onSelect: () => undefined,
+              },
+              {
+                label: 'Strato Design System',
+                href: 'https://strato.dynatrace.com',
+                onSelect: () => undefined,
+              },
+            ],
+            keyboardShortcuts: 'default',
+            feedback: {
+              onSelect: () => {
+                window.open('https://github.com/pushpendrasinghbaghel-ai/genai-control-center/issues', '_blank');
+              },
+            },
+            about: 'default',
+          }}
+        />
       </AppHeader.Menus>
 
     </AppHeader>

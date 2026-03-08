@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.6.0
+# GenAI Control Center (GCC) v2.9.0
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -38,6 +38,7 @@ Navigation follows the **Observe → Analyze → Act** pattern, implemented in t
 | 9 | 🔍 **RAG** | `/vector-db` | VectorDB | Pinecone query volume, embedding trends, RAG pipeline E2E, response latency by model |
 | 10 | 🧠 **Intelligence** | `/intelligence` | Intelligence | Davis CoPilot integration, natural language queries, DQL generation |
 | 11 | ⚙️ **Operations** | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
+| 12 | 🔌 **Integrations** | `/integrations` | Integrations | MCP server integrations: Slack, PagerDuty, Prometheus, GitHub, Grafana |
 
 ### Additional Routes (not in nav bar)
 
@@ -75,30 +76,47 @@ Navigation follows the **Observe → Analyze → Act** pattern, implemented in t
 - **Cost Trend Charts** - Timeseries visualization by provider
 
 ### 🤖 Agent Tools - AI Agent Monitoring
+**Five-tab dashboard** for comprehensive agent observability:
+
+#### Overview Tab
 - **Active Agents Table** - Comprehensive agent metrics including:
   - Tool calls, avg tools per trace, avg duration
   - **Token Usage** - Input tokens, output tokens, total tokens per agent
   - **LLM Cost** - Estimated inference cost per agent
   - **LLM/Tool Split** - Visual breakdown of time spent on LLM inference vs tool execution
+- **🔗 Tool Topology** - Interactive SVG visualization of tool relationships
+- **Loop Detection** - Identify suspicious patterns (>10 calls to same tool)
+
+#### Optimizer Tab (NEW)
+- **Industry-Standard Scoring** - Composite optimization score (0-100) based on:
+  - **Reliability Score (30%)** - Based on Google SRE error budgets (99.9%/99%/95%/90% SLO tiers)
+  - **Efficiency Score (30%)** - Token utilization vs LLM context windows (4K/8K/16K/32K thresholds)
+  - **Latency Score (25%)** - Apdex methodology adapted for AI (T=10s tolerable, T=40s frustrating)
+  - **Retry Score (15%)** - AWS/GCP retry guidelines (max 3 retries recommended)
+- **Anti-Pattern Detection** - Identifies common issues:
+  - Excessive retries (>3 attempts per operation)
+  - Token bloat (inefficient prompt/response ratios)
+  - High latency outliers (P95 > 40s)
+  - Error-prone agents (>5% error rate)
+- **"How is this calculated?" Modal** - Full methodology explanation with industry citations
+
+#### Flows Tab
+- **Agent Handoffs** - Cross-agent communication patterns
+- **Entity Mapping** - Service-to-agent relationships
+- **Common Agent Tool Flows** - Frequent tool calling sequences
+- **Agent-Tool Map** - Which agents use which tools
+
+#### Reliability Tab
 - **Tool Call Frequency** - Tool usage metrics with call counts, health status, error rates
-- **Agent Tool Flows** - Common tool calling sequences with occurrence counts and sample traces
-- **Agent Handoffs** - Cross-agent communication patterns with:
-  - Source → Target agent visualization
-  - Self-transfer detection (agents restarting their own flow)
-  - Handoff counts and average durations
-- **Tool Reliability** - Per-agent tool usage patterns and reliability metrics:
-  - Call counts and traces per agent-tool combination
-  - **Calls/Trace** - Ratio indicating potential retry behavior (>1 = retries)
-  - **Avg/P95 Duration** - Performance metrics per tool
-  - **Error Rate** - Tool failure rates with health indicators
-  - **Health Status** - Visual indicator based on error rate and retry patterns
-- **🔗 Tool Topology** - Interactive SVG visualization of tool relationships:
-  - Circular layout showing all tools used together
-  - Edge thickness indicates co-occurrence frequency
-  - Node size based on tool call volume
-  - Error rate indicators (red border for high error tools)
-  - Hover tooltips with detailed metrics
-- **Loop Detection** - Identify suspicious patterns (>10 calls to same tool) indicating infinite loops
+- **Tool Reliability** - Per-agent tool usage patterns and reliability metrics
+- **Agent → LLM Provider Map** - Provider distribution per agent
+- **Retry Detection** - Identify retry patterns (calls/trace > 1)
+
+#### Trends Tab
+- **Tool Calls Over Time** - Timeseries of tool invocations
+- **Agent Activity Over Time** - Agent execution trends
+
+#### Common Features
 - **View Sample Trace** - Direct deep-link to Distributed Traces for any agent or flow
 - **Case-Normalized Names** - Agent names normalized to prevent duplicates from case differences
 
@@ -437,12 +455,24 @@ gcc/
 
 ## 🔗 Integrations
 
+### Dynatrace Native
 - **Davis CoPilot** - Natural language to DQL, conversational AI
 - **Dynatrace Grail** - DQL queries for AI telemetry
 - **Dynatrace Services App** - Deep linking for detailed analysis
 - **Dynatrace Distributed Traces** - Trace linking from agent flows
 - **Dynatrace Workflows** - Automated remediation
 - **OpenTelemetry** - GenAI semantic conventions
+
+### MCP Server Integrations (NEW)
+The Integrations page (`/integrations`) provides connections to external systems via MCP servers:
+
+| Integration | Capabilities |
+|-------------|--------------|
+| 🔔 **Slack** | Send alerts, create channels, post incident updates |
+| 📟 **PagerDuty** | Create incidents, list on-call schedules, manage escalations |
+| 📊 **Prometheus** | Query metrics, execute PromQL, fetch alert rules |
+| 🐙 **GitHub** | Repository info, issues, pull requests, code search |
+| 📈 **Grafana** | Dashboard links, panel queries, annotation management |
 
 ## 🔒 Security Features
 
@@ -463,6 +493,27 @@ gcc/
 - Cost attribution
 
 ## 📋 Changelog
+
+### v2.9.0 (March 2026)
+- 🔌 **Integrations Page**: New MCP server integrations hub
+  - Slack: Send messages, create channels, post incident updates
+  - PagerDuty: Create incidents, list on-call, manage escalations
+  - Prometheus: Query metrics, execute PromQL, fetch alerts
+  - GitHub: Repository info, issues, PRs, code search
+  - Grafana: Dashboard links, panel queries, annotations
+- 📊 **Agent Tools Optimizer Tab**: Industry-standard scoring methodology
+  - Reliability Score (30%) based on Google SRE error budgets
+  - Efficiency Score (30%) based on LLM context window utilization
+  - Latency Score (25%) using Apdex methodology (T=10s for AI)
+  - Retry Score (15%) per AWS/GCP retry guidelines
+  - "How is this calculated?" modal with full methodology citations
+- 🧹 **Agent Tools Tab Deduplication**: Each tab now has unique content
+  - Overview: Active Agents, Tool Topology, Loop Detection
+  - Optimizer: Scoring, anti-pattern detection
+  - Flows: Handoffs, entity mapping, tool flows
+  - Reliability: Tool frequency, reliability metrics, retry detection
+  - Trends: Tool calls over time, agent activity over time
+- 🐛 **Header Fixes**: Restored icons and More menu functionality
 
 ### v2.6.0 (February 2026)
 - 🔍 **RAG / Vector DB Page**: End-to-end pipeline observability for Retrieval-Augmented Generation
@@ -540,7 +591,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.6.0 | © 2026*
+*Version 2.9.0 | © 2026*
 
 ---
 

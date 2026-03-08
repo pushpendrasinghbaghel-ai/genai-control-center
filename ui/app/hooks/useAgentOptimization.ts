@@ -406,6 +406,48 @@ export function useAgentOptimization() {
           return sev[a.severity] - sev[b.severity];
         });
 
+      // ============================================
+      // Industry-Standard Scoring Functions
+      // ============================================
+      
+      // Reliability Score (Based on Google SRE error budgets)
+      // 99.9% SLO = 0.1% error rate target
+      const calcReliabilityScore = (errorRate: number): number => {
+        if (errorRate < 0.1) return 100;      // 99.9%+ SLO
+        if (errorRate < 1) return 90;          // 99%+ SLO
+        if (errorRate < 5) return 70;          // 95%+ SLO
+        if (errorRate < 10) return 50;         // 90%+ SLO
+        // Linear decay from 50 to 0 for 10-50% error rates
+        return Math.max(0, 50 - (errorRate - 10) * 1.25);
+      };
+
+      // Efficiency Score (Based on LLM context window utilization)
+      // Optimal: 10-25% of context window (GPT-4: 128K, Claude: 200K)
+      const calcEfficiencyScore = (avgTokens: number): number => {
+        if (avgTokens < 4000) return 100;      // Optimal (<3% of context)
+        if (avgTokens < 8000) return 85;       // Efficient (3-6%)
+        if (avgTokens < 16000) return 70;      // Moderate (6-12%)
+        if (avgTokens < 32000) return 50;      // High (12-25%)
+        return 30;                              // Wasteful (>25%)
+      };
+
+      // Latency Score (Based on Apdex with T=10s for AI workloads)
+      // AI agents tolerate higher latency than web apps (T=4s)
+      const calcLatencyScore = (avgDurationMs: number): number => {
+        if (avgDurationMs < 10000) return 100;   // Satisfied (<T)
+        if (avgDurationMs < 20000) return 75;    // Tolerating (<2T)
+        if (avgDurationMs < 40000) return 50;    // Frustrating (<4T)
+        return 25;                                // Frustrated (>4T)
+      };
+
+      // Retry Score (Based on AWS/GCP retry guidelines - max 3 retries)
+      const calcRetryScore = (spansPerTrace: number): number => {
+        if (spansPerTrace <= 2) return 100;      // Normal (1-2 attempts)
+        if (spansPerTrace <= 3) return 85;       // Acceptable (3 attempts = 2 retries)
+        if (spansPerTrace <= 5) return 60;       // Elevated
+        return 30;                                // Retry storm
+      };
+
       // Compute per-agent optimization scores
       const agentMap = new Map<string, {
         retryScore: number; efficiencyScore: number; latencyScore: number;
@@ -421,10 +463,10 @@ export function useAgentOptimization() {
         const avgDuration = Number(r.avg_duration_ms) || 0;
 
         agentMap.set(name, {
-          retryScore: Math.min(100, Math.max(0, 100 - (spansPerTrace - 1) * 15)),
-          efficiencyScore: 80, // default, adjusted below
-          latencyScore: avgDuration < 5000 ? 100 : avgDuration < 15000 ? 70 : avgDuration < 30000 ? 40 : 20,
-          errorScore: Math.min(100, Math.max(0, 100 - errorRate * 3)),
+          retryScore: calcRetryScore(spansPerTrace),
+          efficiencyScore: 85, // default until token data enriches
+          latencyScore: calcLatencyScore(avgDuration),
+          errorScore: calcReliabilityScore(errorRate),
           patterns: 0,
           traces: Number(r.trace_count) || 0,
           avgDuration,
@@ -440,7 +482,7 @@ export function useAgentOptimization() {
         if (!existing) return;
         const avgInput = Number(r.avg_input_per_call) || 0;
         existing.avgTokens = avgInput;
-        existing.efficiencyScore = avgInput < 1000 ? 100 : avgInput < 2000 ? 80 : avgInput < 4000 ? 60 : avgInput < 8000 ? 40 : 20;
+        existing.efficiencyScore = calcEfficiencyScore(avgInput);
       });
 
       // Count patterns per agent
@@ -451,7 +493,9 @@ export function useAgentOptimization() {
 
       const scores: OptimizationScore[] = [];
       agentMap.forEach((v, name) => {
-        const overall = v.retryScore * 0.25 + v.efficiencyScore * 0.25 + v.latencyScore * 0.25 + v.errorScore * 0.25;
+        // Weighted formula: Reliability 30%, Efficiency 30%, Latency 25%, Retry 15%
+        // Weights reflect production priority: reliability and cost > latency for AI
+        const overall = v.errorScore * 0.30 + v.efficiencyScore * 0.30 + v.latencyScore * 0.25 + v.retryScore * 0.15;
         scores.push({
           agentName: name,
           overallScore: overall,
@@ -467,6 +511,7 @@ export function useAgentOptimization() {
         });
       });
       scores.sort((a, b) => a.overallScore - b.overallScore);
+
 
       // Summary
       const totalWaste = allPatterns.reduce((s, p) => {

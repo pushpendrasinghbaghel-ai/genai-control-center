@@ -1023,7 +1023,7 @@ export const AgentTools: React.FC = () => {
   const [selectedFlow, setSelectedFlow] = useState<AgentFlow | null>(null);
   
   // Tab navigation state
-  const [activeTab, setActiveTab] = useState<'overview' | 'flows' | 'reliability' | 'trends'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'optimizer' | 'flows' | 'reliability' | 'trends'>('overview');
   
   // Section visibility toggles (persisted in localStorage)
   const [sectionToggles, setSectionToggles] = useState<Record<string, boolean>>(() => {
@@ -1866,6 +1866,7 @@ export const AgentTools: React.FC = () => {
         <Flex gap={0} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
           {[
             { key: 'overview' as const, label: 'Overview', icon: <SmartscapeIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'optimizer' as const, label: 'Optimizer', icon: <AiIcon style={{ width: 14, height: 14 }} /> },
             { key: 'flows' as const, label: 'Flows & Patterns', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
             { key: 'reliability' as const, label: 'Reliability', icon: <CheckmarkIcon style={{ width: 14, height: 14 }} /> },
             { key: 'trends' as const, label: 'Trends', icon: <BarChartIcon style={{ width: 14, height: 14 }} /> },
@@ -1897,7 +1898,6 @@ export const AgentTools: React.FC = () => {
               <Flex gap={12} flexWrap="wrap">
                 {[
                   { key: 'loopDetails', label: 'Loop Details', tab: 'overview' },
-                  { key: 'optimizationAdvisor', label: 'Optimization Advisor', tab: 'overview' },
                   { key: 'activeAgents', label: 'Active Agents Table', tab: 'overview' },
                   { key: 'handoffs', label: 'Agent Handoffs', tab: 'flows' },
                   { key: 'agentFlows', label: 'Common Flows', tab: 'flows' },
@@ -2042,9 +2042,6 @@ export const AgentTools: React.FC = () => {
               </Surface>
             )}
 
-            {/* Agent Optimization Advisor - Phase 4: Anti-pattern detection & scoring */}
-            {sectionToggles.optimizationAdvisor !== false && <OptimizationAdvisor />}
-
             {/* Active Agents Table - OVERVIEW TAB */}
             {sectionToggles.activeAgents !== false && (
             <Surface padding={16}>
@@ -2098,6 +2095,13 @@ export const AgentTools: React.FC = () => {
             </Surface>
             )}
               </>
+            )}
+
+            {/* ============================================ */}
+            {/* OPTIMIZER TAB */}
+            {/* ============================================ */}
+            {activeTab === 'optimizer' && (
+              <OptimizationAdvisor />
             )}
 
             {/* ============================================ */}
@@ -2635,189 +2639,6 @@ export const AgentTools: React.FC = () => {
             </Surface>
             )}
 
-            {/* Agent Activity Trends */}
-            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
-              {/* Tool Calls Over Time */}
-              {sectionToggles.toolCallsTrend !== false && (
-              <Surface padding={16}>
-                <Flex flexDirection="column" gap={8}>
-                  <Flex justifyContent="space-between" alignItems="center">
-                    <Flex alignItems="center" gap={8}>
-                      <WorkflowsIcon style={{ width: 16, height: 16, color: CHART_COLORS.toolCalls }} />
-                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Tool Calls Over Time</Text>
-                      <Tooltip text="Hourly trend of tool invocations across all agents. Helps identify usage patterns and peak activity periods.">
-                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                      </Tooltip>
-                    </Flex>
-                    <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.toolCalls }}>
-                      {formatNumber(toolCallsTrend.reduce((sum, item) => sum + item.callCount, 0))} total
-                    </Text>
-                  </Flex>
-                  
-                  {toolCallsTimeseriesData.length > 0 ? (
-                    <TimeseriesChart
-                      data={toolCallsTimeseriesData}
-                      variant="area"
-                      height={140}
-                      colorPalette={[CHART_COLORS.toolCalls]}
-                    >
-                      <TimeseriesChart.Tooltip variant="shared" />
-                      <TimeseriesChart.Legend hidden />
-                    </TimeseriesChart>
-                  ) : (
-                    <Flex 
-                      justifyContent="center" 
-                      alignItems="center" 
-                      flexDirection="column" 
-                      gap={4}
-                      style={{ height: 140, color: 'var(--dt-colors-text-secondary-default)' }}
-                    >
-                      <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                      <Text style={{ fontSize: 12 }}>No tool call data in timeframe</Text>
-                    </Flex>
-                  )}
-                </Flex>
-              </Surface>
-              )}
-
-              {/* Agent Activity Over Time */}
-              {sectionToggles.agentActivityTrend !== false && (
-              <Surface padding={16}>
-                <Flex flexDirection="column" gap={8}>
-                  <Flex justifyContent="space-between" alignItems="center">
-                    <Flex alignItems="center" gap={8}>
-                      <AgentIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal }} />
-                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Agent Activity Over Time</Text>
-                      <Tooltip text="Hourly agent invocations (unique traces) per agent. Shows which agents are most active and when.">
-                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                      </Tooltip>
-                    </Flex>
-                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                      Top {Math.min(6, agentActivityTimeseriesData.length)} agents
-                    </Text>
-                  </Flex>
-                  
-                  {agentActivityTimeseriesData.length > 0 ? (
-                    <TimeseriesChart
-                      data={agentActivityTimeseriesData}
-                      variant="line"
-                      height={140}
-                      colorPalette={CHART_COLORS.agentActivity}
-                    >
-                      <TimeseriesChart.Tooltip variant="shared" />
-                      <TimeseriesChart.Legend position="bottom" />
-                    </TimeseriesChart>
-                  ) : (
-                    <Flex 
-                      justifyContent="center" 
-                      alignItems="center" 
-                      flexDirection="column" 
-                      gap={4}
-                      style={{ height: 140, color: 'var(--dt-colors-text-secondary-default)' }}
-                    >
-                      <AgentIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                      <Text style={{ fontSize: 12 }}>No agent activity in timeframe</Text>
-                    </Flex>
-                  )}
-                </Flex>
-              </Surface>
-              )}
-            </Flex>
-
-            {/* Agents Table */}
-            <Surface padding={16}>
-              <Flex flexDirection="column" gap={12}>
-                <Flex alignItems="center" gap={8} flexWrap="wrap">
-                  <Heading level={5}>Active Agents</Heading>
-                  <Tooltip text="AI agents detected from gen_ai.agent.name or traceloop.span.kind=agent spans">
-                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                  </Tooltip>
-                  {agentFilter && (
-                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                      (Filtered by: {agentFilter})
-                    </Text>
-                  )}
-                  <Flex gap={12} style={{ marginLeft: 'auto' }}>
-                    <Flex alignItems="center" gap={4}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
-                      <Text style={{ fontSize: 11 }}>LLM</Text>
-                    </Flex>
-                    <Flex alignItems="center" gap={4}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
-                      <Text style={{ fontSize: 11 }}>Tool</Text>
-                    </Flex>
-                  </Flex>
-                </Flex>
-                
-                {filteredAgentList.length > 0 ? (
-                  <DataTable 
-                    data={filteredAgentList} 
-                    columns={agentColumns}
-                    sortable
-                    resizable
-                  >
-                    <DataTable.Pagination defaultPageSize={10} />
-                  </DataTable>
-                ) : (
-                  <Flex 
-                    padding={32} 
-                    justifyContent="center"
-                    style={{ 
-                      background: 'var(--dt-colors-background-container-neutral-subdued)',
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                      No agent data found. Ensure your agents are instrumented with gen_ai.agent.name or traceloop.span.kind="agent" spans.
-                    </Text>
-                  </Flex>
-                )}
-              </Flex>
-            </Surface>
-
-            {/* Tool Usage Table (Primary View - Scalable) */}
-            {sectionToggles.toolFrequency !== false && (
-            <Surface padding={16}>
-              <Flex flexDirection="column" gap={12}>
-                <Flex alignItems="center" gap={8}>
-                  <Heading level={5}>Tool Call Frequency</Heading>
-                  <Tooltip text="Overview of tool usage with call counts, duration, and error rates. Sorted by call count.">
-                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                  </Tooltip>
-                  {toolFilter && (
-                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                      (Filtered by: {toolFilter})
-                    </Text>
-                  )}
-                </Flex>
-                
-                {filteredToolUsage.length > 0 ? (
-                  <DataTable 
-                    data={filteredToolUsage} 
-                    columns={toolColumns as any}
-                    sortable
-                    resizable
-                  >
-                    <DataTable.Pagination defaultPageSize={10} />
-                  </DataTable>
-                ) : (
-                  <Flex 
-                    padding={32} 
-                    justifyContent="center"
-                    style={{ 
-                      background: 'var(--dt-colors-background-container-neutral-subdued)',
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                      No tool call data found. Ensure your agents are instrumented with gen_ai.tool.name or traceloop.span.kind="tool" spans.
-                    </Text>
-                  </Flex>
-                )}
-              </Flex>
-            </Surface>
-            )}
-
             {/* Agent Tool Flows - FLOWS TAB */}
             {sectionToggles.agentFlows !== false && (
             <Surface padding={16}>
@@ -2857,48 +2678,6 @@ export const AgentTools: React.FC = () => {
                   >
                     <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
                       No agent flow data available. Agent flows require gen_ai.agent.name attribute in spans.
-                    </Text>
-                  </Flex>
-                )}
-              </Flex>
-            </Surface>
-            )}
-
-            {/* Tool Reliability - Agent-Tool Usage Patterns */}
-            {sectionToggles.toolReliability !== false && (
-            <Surface padding={16}>
-              <Flex flexDirection="column" gap={12}>
-                <Flex alignItems="center" gap={8}>
-                  <BarChartIcon style={{ color: Colors.Charts.Categorical.Color05.Default }} />
-                  <Heading level={5}>Tool Reliability</Heading>
-                  <Tooltip text="Per-agent tool usage patterns including call counts, duration metrics, and error rates. Calls/Trace > 1 may indicate retry behavior.">
-                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-                  </Tooltip>
-                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                    ({agentToolReliability.length} agent-tool combinations)
-                  </Text>
-                </Flex>
-                
-                {agentToolReliability.length > 0 ? (
-                  <DataTable 
-                    data={agentToolReliability} 
-                    columns={reliabilityColumns}
-                    sortable
-                    resizable
-                  >
-                    <DataTable.Pagination defaultPageSize={10} />
-                  </DataTable>
-                ) : (
-                  <Flex 
-                    padding={32} 
-                    justifyContent="center"
-                    style={{ 
-                      background: 'var(--dt-colors-background-container-neutral-subdued)',
-                      borderRadius: 6
-                    }}
-                  >
-                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                      No tool reliability data available. Ensure tools are instrumented with gen_ai.tool.name attribute.
                     </Text>
                   </Flex>
                 )}
@@ -2965,6 +2744,99 @@ export const AgentTools: React.FC = () => {
                   >
                     <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
                       No agent-tool relationship data available. Ensure agents and tools are instrumented with gen_ai attributes.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+            )}
+
+              </>
+            )}
+
+            {/* ============================================ */}
+            {/* RELIABILITY TAB */}
+            {/* ============================================ */}
+            {activeTab === 'reliability' && (
+              <>
+            {/* Tool Usage Table (Primary View - Scalable) */}
+            {sectionToggles.toolFrequency !== false && (
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <Heading level={5}>Tool Call Frequency</Heading>
+                  <Tooltip text="Overview of tool usage with call counts, duration, and error rates. Sorted by call count.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  {toolFilter && (
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      (Filtered by: {toolFilter})
+                    </Text>
+                  )}
+                </Flex>
+                
+                {filteredToolUsage.length > 0 ? (
+                  <DataTable 
+                    data={filteredToolUsage} 
+                    columns={toolColumns as any}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={10} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No tool call data found. Ensure your agents are instrumented with gen_ai.tool.name or traceloop.span.kind="tool" spans.
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
+            </Surface>
+            )}
+
+            {/* Tool Reliability - Agent-Tool Usage Patterns */}
+            {sectionToggles.toolReliability !== false && (
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ color: Colors.Charts.Categorical.Color05.Default }} />
+                  <Heading level={5}>Tool Reliability</Heading>
+                  <Tooltip text="Per-agent tool usage patterns including call counts, duration metrics, and error rates. Calls/Trace > 1 may indicate retry behavior.">
+                    <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                  </Tooltip>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    ({agentToolReliability.length} agent-tool combinations)
+                  </Text>
+                </Flex>
+                
+                {agentToolReliability.length > 0 ? (
+                  <DataTable 
+                    data={agentToolReliability} 
+                    columns={reliabilityColumns}
+                    sortable
+                    resizable
+                  >
+                    <DataTable.Pagination defaultPageSize={10} />
+                  </DataTable>
+                ) : (
+                  <Flex 
+                    padding={32} 
+                    justifyContent="center"
+                    style={{ 
+                      background: 'var(--dt-colors-background-container-neutral-subdued)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                      No tool reliability data available. Ensure tools are instrumented with gen_ai.tool.name attribute.
                     </Text>
                   </Flex>
                 )}
@@ -3239,6 +3111,102 @@ export const AgentTools: React.FC = () => {
             </Surface>
             )}
 
+              </>
+            )}
+
+            {/* ============================================ */}
+            {/* TRENDS TAB */}
+            {/* ============================================ */}
+            {activeTab === 'trends' && (
+              <>
+            {/* Agent Activity Trends */}
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {/* Tool Calls Over Time */}
+              {sectionToggles.toolCallsTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <WorkflowsIcon style={{ width: 16, height: 16, color: CHART_COLORS.toolCalls }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Tool Calls Over Time</Text>
+                      <Tooltip text="Hourly trend of tool invocations across all agents. Helps identify usage patterns and peak activity periods.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.toolCalls }}>
+                      {formatNumber(toolCallsTrend.reduce((sum, item) => sum + item.callCount, 0))} total
+                    </Text>
+                  </Flex>
+                  
+                  {toolCallsTimeseriesData.length > 0 ? (
+                    <TimeseriesChart
+                      data={toolCallsTimeseriesData}
+                      variant="area"
+                      height={200}
+                      colorPalette={[CHART_COLORS.toolCalls]}
+                    >
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend hidden />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex 
+                      justifyContent="center" 
+                      alignItems="center" 
+                      flexDirection="column" 
+                      gap={4}
+                      style={{ height: 200, color: 'var(--dt-colors-text-secondary-default)' }}
+                    >
+                      <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No tool call data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+
+              {/* Agent Activity Over Time */}
+              {sectionToggles.agentActivityTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <AgentIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Agent Activity Over Time</Text>
+                      <Tooltip text="Hourly agent invocations (unique traces) per agent. Shows which agents are most active and when.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      Top {Math.min(6, agentActivityTimeseriesData.length)} agents
+                    </Text>
+                  </Flex>
+                  
+                  {agentActivityTimeseriesData.length > 0 ? (
+                    <TimeseriesChart
+                      data={agentActivityTimeseriesData}
+                      variant="line"
+                      height={200}
+                      colorPalette={CHART_COLORS.agentActivity}
+                    >
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend position="bottom" />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex 
+                      justifyContent="center" 
+                      alignItems="center" 
+                      flexDirection="column" 
+                      gap={4}
+                      style={{ height: 200, color: 'var(--dt-colors-text-secondary-default)' }}
+                    >
+                      <AgentIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No agent activity in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+            </Flex>
               </>
             )}
             
