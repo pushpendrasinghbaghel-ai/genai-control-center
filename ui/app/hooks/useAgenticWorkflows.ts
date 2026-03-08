@@ -13,12 +13,48 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import { workflowsClient } from '@dynatrace-sdk/client-automation';
+import { workflowsClient, executionsClient } from '@dynatrace-sdk/client-automation';
 import type {
   AgenticWorkflowConfig,
   AgenticWorkflowTemplate,
   AgenticWorkflowExecution,
 } from '../types';
+
+// ============================================
+// Real Workflow Types (from Dynatrace Automation API)
+// ============================================
+
+export interface RealWorkflow {
+  id: string;
+  title: string;
+  description?: string;
+  owner: string;
+  state: 'ENABLED' | 'DISABLED';
+  lastExecution?: {
+    id: string;
+    state: string;
+    startTime: string;
+    endTime?: string;
+  };
+  trigger?: {
+    eventTrigger?: { isActive: boolean; triggerConfiguration?: { type: string } };
+    schedule?: { isActive: boolean };
+  };
+  tasks?: Record<string, { name: string; action: string }>;
+  modificationDate?: string;
+  creationDate?: string;
+}
+
+export interface RealExecution {
+  id: string;
+  workflowId: string;
+  title: string;
+  state: 'RUNNING' | 'SUCCESS' | 'ERROR' | 'CANCELLED' | 'WAITING';
+  startTime: string;
+  endTime?: string;
+  trigger: string;
+  user?: string;
+}
 
 // ============================================
 // DQL Queries
@@ -162,6 +198,9 @@ const WORKFLOW_TEMPLATES: AgenticWorkflowTemplate[] = [
 interface AgenticWorkflowsState {
   templates: AgenticWorkflowTemplate[];
   executions: AgenticWorkflowExecution[];
+  // Real workflows from Dynatrace Automation API
+  realWorkflows: RealWorkflow[];
+  realExecutions: RealExecution[];
   stats: {
     totalExecutions: number;
     successful: number;
@@ -198,6 +237,8 @@ export function useAgenticWorkflows(timeframe = '24h') {
   const [state, setState] = useState<AgenticWorkflowsState>({
     templates: WORKFLOW_TEMPLATES,
     executions: [],
+    realWorkflows: [],
+    realExecutions: [],
     stats: { totalExecutions: 0, successful: 0, failed: 0, running: 0, avgDurationMs: 0, distinctWorkflows: 0, successRate: 0 },
     workflowPerformance: [],
     remediationCandidates: [],
@@ -209,11 +250,56 @@ export function useAgenticWorkflows(timeframe = '24h') {
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
+  // Fetch real workflows from Dynatrace Automation API
+  const fetchRealWorkflows = useCallback(async (): Promise<{ workflows: RealWorkflow[]; executions: RealExecution[] }> => {
+    try {
+      // Fetch all workflows
+      const workflowsResponse = await workflowsClient.getWorkflows({});
+      const workflows: RealWorkflow[] = (workflowsResponse.results || []).map((w: any) => ({
+        id: w.id || '',
+        title: w.title || 'Untitled Workflow',
+        description: w.description || '',
+        owner: w.owner || 'unknown',
+        state: w.state || 'DISABLED',
+        lastExecution: w.lastExecution ? {
+          id: w.lastExecution.id || '',
+          state: w.lastExecution.state || 'UNKNOWN',
+          startTime: w.lastExecution.startTime || '',
+          endTime: w.lastExecution.endTime,
+        } : undefined,
+        trigger: w.trigger,
+        tasks: w.tasks,
+        modificationDate: w.modificationDate,
+        creationDate: w.creationDate,
+      }));
+
+      // Fetch recent executions
+      const executionsResponse = await executionsClient.getExecutions({});
+      const executions: RealExecution[] = (executionsResponse.results || []).map((e: any) => ({
+        id: e.id || '',
+        workflowId: e.workflowId || '',
+        title: e.title || 'Unknown Execution',
+        state: e.state || 'RUNNING',
+        startTime: e.startTime || new Date().toISOString(),
+        endTime: e.endTime,
+        trigger: e.trigger?.type || 'manual',
+        user: e.user,
+      }));
+
+      return { workflows, executions };
+    } catch (err) {
+      console.error('[GCC] Failed to fetch real workflows:', err);
+      return { workflows: [], executions: [] };
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setState(s => ({ ...s, loading: true, error: null }));
 
     try {
-      const [statsRes, historyRes, perfRes, candRes] = await Promise.all([
+      // Fetch real workflows in parallel with DQL queries
+      const [realData, statsRes, historyRes, perfRes, candRes] = await Promise.all([
+        fetchRealWorkflows(),
         queryExecutionClient.queryExecute({
           body: { query: WORKFLOW_EXECUTIONS_QUERY(timeframe), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
@@ -290,6 +376,8 @@ export function useAgenticWorkflows(timeframe = '24h') {
         executions,
         workflowPerformance,
         remediationCandidates,
+        realWorkflows: realData.workflows,
+        realExecutions: realData.executions,
         loading: false,
         lastRefresh: new Date(),
       }));
@@ -302,7 +390,7 @@ export function useAgenticWorkflows(timeframe = '24h') {
         }));
       }
     }
-  }, [timeframe]);
+  }, [timeframe, fetchRealWorkflows]);
 
   // Execute a workflow via Automation SDK
   const executeWorkflow = useCallback(async (workflowId: string) => {

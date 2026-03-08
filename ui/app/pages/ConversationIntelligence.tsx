@@ -109,12 +109,11 @@ fetch spans, ${timeClause}
     session_key = coalesce(
       traceloop.association.properties.conversation_id,
       trace_id
-    ),
-    is_conversation_id = isNotNull(traceloop.association.properties.conversation_id)
+    )
 | summarize
     total_spans = count(),
     unique_sessions = countDistinct(session_key),
-    sessions_with_conv_id = countDistinctIf(traceloop.association.properties.conversation_id, is_conversation_id),
+    sessions_with_conv_id = countDistinct(traceloop.association.properties.conversation_id),
     error_spans = countIf(span.status_code == "error" OR isNotNull(error.type)),
     handoffs = countIf(contains(lower(span.name), "transfer") OR contains(lower(span.name), "handoff")),
     total_input_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), toLong(gen_ai.usage.prompt_tokens), 0)),
@@ -410,7 +409,7 @@ export function ConversationIntelligence() {
   const longCount = conversations.filter(c => c.isLong).length;
 
   return (
-    <Flex flexDirection="column" gap={16} padding={16} style={{ height: '100%' }}>
+    <Flex flexDirection="column" gap={16} padding={16} style={{ height: '100%', overflow: 'hidden' }}>
       {/* Header */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true"><ChatIcon /></TitleBar.Prefix>
@@ -469,13 +468,14 @@ export function ConversationIntelligence() {
 
       {/* Info banner about data source */}
       {stats && !stats.hasConversationIdData && conversations.length > 0 && (
-        <Surface style={{ padding: 12, borderRadius: 6, background: 'var(--dt-colors-surface-neutral-subdued)', border: `1px solid ${Colors.Border.Neutral.Default}` }}>
+        <Surface style={{ padding: 12, borderRadius: 6, background: 'var(--dt-colors-surface-neutral-subdued)', border: `1px solid ${Colors.Border.Neutral.Default}`, flexShrink: 0 }}>
           <Flex alignItems="center" gap={8}>
             <AiIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Default }} />
             <Flex flexDirection="column" gap={2}>
               <Text textStyle="small-emphasized">Sessions grouped by trace_id</Text>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                No <code>conversation_id</code> found in spans. For multi-turn session tracking, set <code>traceloop.association.properties.conversation_id</code> in your instrumentation.{' '}
+                No <code>conversation_id</code> found. All spans sharing the same <code>trace_id</code> are grouped as one session.
+                {conversations.length === 1 && ' If you see only 1 session, your spans likely share a single parent trace.'}{' '}
                 <span style={{ cursor: 'pointer', color: Colors.Text.Primary.Default, textDecoration: 'underline' }} onClick={() => setShowHelp(true)}>Learn more</span>
               </Text>
             </Flex>
@@ -517,7 +517,7 @@ export function ConversationIntelligence() {
       </Flex>
 
       {/* Table */}
-      <Surface style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Surface style={{ flex: 1, minHeight: 200, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Flex alignItems="center" justifyContent="space-between"
           style={{ padding: '10px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
           <Flex alignItems="center" gap={8}>
@@ -552,11 +552,13 @@ export function ConversationIntelligence() {
             </Button>
           </Flex>
         ) : (
-          <DataTable data={filtered} columns={columns} fullWidth />
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <DataTable data={filtered} columns={columns} fullWidth />
+          </div>
         )}
       </Surface>
 
-      <Surface style={{ padding: 12, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6 }}>
+      <Surface style={{ padding: 12, background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 6, flexShrink: 0 }}>
         <Flex alignItems="flex-start" gap={8}>
           <AiIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, marginTop: 2 }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
