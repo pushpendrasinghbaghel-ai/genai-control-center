@@ -18,7 +18,7 @@ import {
   RefreshIcon, WarningIcon, CheckmarkIcon, CriticalIcon, 
   HelpIcon, SettingIcon, WorkflowsIcon, BarChartIcon,
   ExternalLinkIcon, SmartscapeIcon, AgentIcon, ServicesIcon,
-  AiIcon, DatabaseIcon, AppsIcon
+  AiIcon, DatabaseIcon, AppsIcon, ClockIcon, MoneyIcon
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
@@ -516,7 +516,7 @@ const LoopAlertBanner: React.FC<{ loops: SuspiciousLoop[] }> = ({ loops }) => {
       <CriticalIcon style={{ color: STATUS_COLORS.critical, width: 24, height: 24 }} />
       <Flex flexDirection="column" gap={2} style={{ flex: 1 }}>
         <Text style={{ fontWeight: 600, color: STATUS_COLORS.critical }}>
-          ⚠️ Potential Infinite Loop Detected
+          Potential Infinite Loop Detected
         </Text>
         <Text style={{ fontSize: 13 }}>
           Tool "{topLoop.toolName}" was called {topLoop.callCount} times in a single trace by {topLoop.agentName}.
@@ -1278,27 +1278,27 @@ export const AgentTools: React.FC = () => {
     const recommendations: string[] = [];
     
     if (flowEfficiencyMetrics.repetitiveRate > 15) {
-      recommendations.push(`🔄 ${flowEfficiencyMetrics.repetitiveFlowCount} flows show repetitive tool calls. Consider adding caching or improving tool selection logic.`);
+      recommendations.push(`${flowEfficiencyMetrics.repetitiveFlowCount} flows show repetitive tool calls. Consider adding caching or improving tool selection logic.`);
     }
     
     if (flowEfficiencyMetrics.complexFlowRate > 20) {
-      recommendations.push(`🧩 ${flowEfficiencyMetrics.complexFlowCount} flows have >5 tools. Break down complex tasks into specialized sub-agents.`);
+      recommendations.push(`[COMPLEXITY] ${flowEfficiencyMetrics.complexFlowCount} flows have >5 tools. Break down complex tasks into specialized sub-agents.`);
     }
     
     if (flowEfficiencyMetrics.avgHandoffLatency > 3000) {
-      recommendations.push(`⏱️ Agent handoffs average ${(flowEfficiencyMetrics.avgHandoffLatency / 1000).toFixed(1)}s. Consider async handoffs or connection pooling.`);
+      recommendations.push(`Agent handoffs average ${(flowEfficiencyMetrics.avgHandoffLatency / 1000).toFixed(1)}s. Consider async handoffs or connection pooling.`);
     }
     
     if (flowEfficiencyMetrics.llmTimeRatio > 70) {
-      recommendations.push(`🤖 LLM calls consume ${flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% of flow time. Optimize prompts or cache similar requests.`);
+      recommendations.push(`[LLM] LLM calls consume ${flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% of flow time. Optimize prompts or cache similar requests.`);
     }
     
     if (flowEfficiencyMetrics.wastedTokensEstimate > 10000) {
-      recommendations.push(`💸 ~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
+      recommendations.push(`[COST] ~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
     }
     
     if (recommendations.length === 0) {
-      recommendations.push('✅ Agent flows are operating efficiently. No immediate optimizations needed.');
+      recommendations.push('[OK] Agent flows are operating efficiently. No immediate optimizations needed.');
     }
     
     return recommendations;
@@ -1740,7 +1740,7 @@ export const AgentTools: React.FC = () => {
             fontWeight: isRetry ? 600 : 400
           }}>
             {value.toFixed(2)}
-            {isRetry && ' ⟳'}
+            {isRetry && ' (retry)'}
           </Text>
         );
       },
@@ -1916,7 +1916,7 @@ export const AgentTools: React.FC = () => {
                     onClick={() => toggleSection(section.key)}
                     style={{ fontSize: 12 }}
                   >
-                    {sectionToggles[section.key] !== false ? '✓ ' : ''}{section.label}
+                    {section.label}
                   </Button>
                 ))}
               </Flex>
@@ -1978,7 +1978,7 @@ export const AgentTools: React.FC = () => {
                 <MetricCard
                   value={summary.totalAgents}
                   label="Active Agents"
-                  icon={<WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />}
+                  icon={<AgentIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />}
                   tooltip="Number of distinct agents making tool calls"
                 />
                 <MetricCard
@@ -1996,13 +1996,263 @@ export const AgentTools: React.FC = () => {
             {/* ============================================ */}
             {activeTab === 'overview' && (
               <>
+                {/* Industry-Standard Agent Performance Metrics */}
+                <Surface padding={16}>
+                  <Flex flexDirection="column" gap={12}>
+                    <Flex alignItems="center" gap={8}>
+                      <Flex alignItems="center" gap={6}>
+                        <BarChartIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />
+                        <Heading level={5}>Agent Performance Summary</Heading>
+                      </Flex>
+                      <span style={{ 
+                        padding: '2px 8px', 
+                        borderRadius: '4px', 
+                        backgroundColor: '#14a8f5',
+                        color: 'white',
+                        fontSize: '10px',
+                        fontWeight: 600
+                      }}>
+                        INDUSTRY STANDARD
+                      </span>
+                      <Tooltip text="Key performance indicators for AI agent observability - success rate, token efficiency, cost tracking, and latency">
+                        <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    
+                    {/* Row 1: Success Rate, Token Efficiency, Cost, Response Time */}
+                    <Flex gap={16} flexWrap="wrap">
+                      {/* Agent Success Rate */}
+                      {(() => {
+                        const totalTraces = agentList.reduce((sum, a) => sum + a.traceCount, 0);
+                        const errorTraces = agentList.reduce((sum, a) => sum + Math.ceil(a.traceCount * (a.errorRate / 100)), 0);
+                        const successRate = totalTraces > 0 ? ((totalTraces - errorTraces) / totalTraces) * 100 : 100;
+                        const successColor = successRate >= 95 ? STATUS_COLORS.ideal : successRate >= 85 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                        return (
+                          <Surface style={{ 
+                            flex: '1 1 200px', 
+                            padding: 16,
+                            borderLeft: `4px solid ${successColor}`
+                          }}>
+                            <Flex flexDirection="column" gap={4}>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Agent Success Rate</Text>
+                              <Heading level={2} style={{ color: successColor }}>{successRate.toFixed(1)}%</Heading>
+                              <Text textStyle="small">{totalTraces - errorTraces} / {totalTraces} traces succeeded</Text>
+                              <Tooltip text="Industry benchmark: >95% is excellent, 85-95% acceptable, <85% needs attention">
+                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }}>
+                                  Benchmark: &gt;95% excellent
+                                </Text>
+                              </Tooltip>
+                            </Flex>
+                          </Surface>
+                        );
+                      })()}
+
+                      {/* Token Efficiency (Output/Input ratio) */}
+                      {(() => {
+                        const totalInput = agentTokenCosts.reduce((sum, a) => sum + a.totalInputTokens, 0);
+                        const totalOutput = agentTokenCosts.reduce((sum, a) => sum + a.totalOutputTokens, 0);
+                        const efficiency = totalInput > 0 ? totalOutput / totalInput : 0;
+                        const efficiencyColor = efficiency >= 0.3 ? STATUS_COLORS.ideal : efficiency >= 0.1 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                        return (
+                          <Surface style={{ 
+                            flex: '1 1 200px', 
+                            padding: 16,
+                            borderLeft: `4px solid ${efficiencyColor}`
+                          }}>
+                            <Flex flexDirection="column" gap={4}>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Token Efficiency</Text>
+                              <Heading level={2} style={{ color: efficiencyColor }}>{efficiency.toFixed(2)}</Heading>
+                              <Text textStyle="small">{formatNumber(totalOutput)} out / {formatNumber(totalInput)} in</Text>
+                              <Tooltip text="Output/Input token ratio. Higher = more efficient. Low ratio may indicate prompt bloat.">
+                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }}>
+                                  Ratio &gt;0.3 is efficient
+                                </Text>
+                              </Tooltip>
+                            </Flex>
+                          </Surface>
+                        );
+                      })()}
+
+                      {/* Estimated Cost */}
+                      {(() => {
+                        const totalCost = agentTokenCosts.reduce((sum, a) => sum + a.estimatedCostUsd, 0);
+                        const totalLLMCalls = agentTokenCosts.reduce((sum, a) => sum + a.llmCalls, 0);
+                        const costPerCall = totalLLMCalls > 0 ? totalCost / totalLLMCalls : 0;
+                        return (
+                          <Surface style={{ 
+                            flex: '1 1 200px', 
+                            padding: 16,
+                            borderLeft: `4px solid ${Colors.Charts.Categorical.Color05.Default}`
+                          }}>
+                            <Flex flexDirection="column" gap={4}>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Est. AI Spend</Text>
+                              <Heading level={2}>${totalCost.toFixed(2)}</Heading>
+                              <Text textStyle="small">{formatNumber(totalLLMCalls)} LLM calls</Text>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                                ${costPerCall.toFixed(4)}/call avg
+                              </Text>
+                            </Flex>
+                          </Surface>
+                        );
+                      })()}
+
+                      {/* Average Response Time */}
+                      {(() => {
+                        const avgDuration = agentList.length > 0 
+                          ? agentList.reduce((sum, a) => sum + a.avgDuration, 0) / agentList.length 
+                          : 0;
+                        const latencyColor = avgDuration < 2000 ? STATUS_COLORS.ideal : avgDuration < 5000 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                        return (
+                          <Surface style={{ 
+                            flex: '1 1 200px', 
+                            padding: 16,
+                            borderLeft: `4px solid ${latencyColor}`
+                          }}>
+                            <Flex flexDirection="column" gap={4}>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Avg Response Time</Text>
+                              <Heading level={2} style={{ color: latencyColor }}>{formatDuration(avgDuration)}</Heading>
+                              <Text textStyle="small">End-to-end agent latency</Text>
+                              <Tooltip text="Total time from agent invocation to completion. Includes LLM calls, tool calls, and processing.">
+                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }}>
+                                  &lt;2s excellent, &lt;5s acceptable
+                                </Text>
+                              </Tooltip>
+                            </Flex>
+                          </Surface>
+                        );
+                      })()}
+                    </Flex>
+
+                    {/* Row 2: Time Breakdown - LLM vs Tool (industry standard visualization) */}
+                    {agentLatency.length > 0 && (
+                      <Flex gap={16} flexWrap="wrap" style={{ marginTop: 8 }}>
+                        <Surface style={{ flex: '1 1 400px', padding: 16 }}>
+                          <Flex flexDirection="column" gap={12}>
+                            <Flex alignItems="center" gap={8}>
+                              <Flex alignItems="center" gap={6}>
+                              <ClockIcon style={{ width: 14, height: 14 }} />
+                              <Text style={{ fontWeight: 600 }}>Time Distribution</Text>
+                            </Flex>
+                              <Tooltip text="How agent time is spent across LLM inference and tool execution. Key for identifying optimization opportunities.">
+                                <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                              </Tooltip>
+                            </Flex>
+                            
+                            {/* Stacked bar showing LLM vs Tool time */}
+                            {(() => {
+                              const totalLLMTime = agentLatency.reduce((sum, a) => sum + a.llmTimeMs, 0);
+                              const totalToolTime = agentLatency.reduce((sum, a) => sum + a.toolTimeMs, 0);
+                              const totalTime = totalLLMTime + totalToolTime;
+                              const llmPct = totalTime > 0 ? (totalLLMTime / totalTime) * 100 : 50;
+                              const toolPct = totalTime > 0 ? (totalToolTime / totalTime) * 100 : 50;
+                              
+                              return (
+                                <>
+                                  <Flex style={{ height: 32, borderRadius: 4, overflow: 'hidden' }}>
+                                    <div style={{ 
+                                      width: `${llmPct}%`, 
+                                      background: Colors.Charts.Categorical.Color01.Default,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: 'white',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      minWidth: llmPct > 10 ? 'auto' : 0
+                                    }}>
+                                      {llmPct > 15 && `LLM ${llmPct.toFixed(0)}%`}
+                                    </div>
+                                    <div style={{ 
+                                      width: `${toolPct}%`, 
+                                      background: Colors.Charts.Categorical.Color02.Default,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: 'white',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      minWidth: toolPct > 10 ? 'auto' : 0
+                                    }}>
+                                      {toolPct > 15 && `Tool ${toolPct.toFixed(0)}%`}
+                                    </div>
+                                  </Flex>
+                                  <Flex gap={16}>
+                                    <Flex alignItems="center" gap={6}>
+                                      <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
+                                      <Text textStyle="small">LLM Time: {formatDuration(totalLLMTime)} ({llmPct.toFixed(1)}%)</Text>
+                                    </Flex>
+                                    <Flex alignItems="center" gap={6}>
+                                      <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
+                                      <Text textStyle="small">Tool Time: {formatDuration(totalToolTime)} ({toolPct.toFixed(1)}%)</Text>
+                                    </Flex>
+                                  </Flex>
+                                </>
+                              );
+                            })()}
+                          </Flex>
+                        </Surface>
+
+                        {/* Top/Bottom Performers */}
+                        <Surface style={{ flex: '1 1 300px', padding: 16 }}>
+                          <Flex flexDirection="column" gap={12}>
+                            <Flex alignItems="center" gap={6}>
+                              <CheckmarkIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color03.Default }} />
+                              <Text style={{ fontWeight: 600 }}>Agent Leaderboard</Text>
+                            </Flex>
+                            {(() => {
+                              const sortedBySuccess = [...agentList].sort((a, b) => a.errorRate - b.errorRate);
+                              const topAgent = sortedBySuccess[0];
+                              const bottomAgent = sortedBySuccess[sortedBySuccess.length - 1];
+                              const mostExpensive = [...agentTokenCosts].sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)[0];
+                              
+                              return (
+                                <Flex flexDirection="column" gap={8}>
+                                  {topAgent && (
+                                    <Flex alignItems="center" gap={8}>
+                                      <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.ideal }} />
+                                      <Text textStyle="small">
+                                        <strong>Most Reliable:</strong> {topAgent.agentName} ({(100 - topAgent.errorRate).toFixed(1)}% success)
+                                      </Text>
+                                    </Flex>
+                                  )}
+                                  {bottomAgent && bottomAgent.errorRate > 5 && (
+                                    <Flex alignItems="center" gap={8}>
+                                      <WarningIcon style={{ width: 14, height: 14, color: STATUS_COLORS.warning }} />
+                                      <Text textStyle="small">
+                                        <strong>Needs Attention:</strong> {bottomAgent.agentName} ({bottomAgent.errorRate.toFixed(1)}% errors)
+                                      </Text>
+                                    </Flex>
+                                  )}
+                                  {mostExpensive && mostExpensive.estimatedCostUsd > 0 && (
+                                    <Flex alignItems="center" gap={8}>
+                                      <MoneyIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color05.Default }} />
+                                      <Text textStyle="small">
+                                        <strong>Highest Spend:</strong> {mostExpensive.agentName} (${mostExpensive.estimatedCostUsd.toFixed(2)})
+                                      </Text>
+                                    </Flex>
+                                  )}
+                                  {agentList.length === 0 && (
+                                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                                      No agent data available
+                                    </Text>
+                                  )}
+                                </Flex>
+                              );
+                            })()}
+                          </Flex>
+                        </Surface>
+                      </Flex>
+                    )}
+                  </Flex>
+                </Surface>
+
                 {/* Suspicious Loops Details (if any) - UNIQUE GCC GOVERNANCE */}
                 {suspiciousLoops.length > 0 && sectionToggles.loopDetails !== false && (
                   <Surface padding={16}>
                     <Flex flexDirection="column" gap={12}>
                       <Flex alignItems="center" gap={8}>
                         <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
-                        <Heading level={5}>🚨 Suspicious Loop Details</Heading>
+                        <Heading level={5}>Suspicious Loop Details</Heading>
                         <Tooltip text="Potential infinite loop or runaway agent behavior detected. Traces with >10 calls to the same tool.">
                           <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                         </Tooltip>
@@ -2114,7 +2364,7 @@ export const AgentTools: React.FC = () => {
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
-                  <Heading level={5}>🤝 Agent Handoffs</Heading>
+                  <Heading level={5}>Agent Handoffs</Heading>
                   <Tooltip text="Communication patterns between agents. Shows how often one agent calls or delegates to another. Unique to GCC - not available in standard AI Observability.">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
@@ -2162,7 +2412,7 @@ export const AgentTools: React.FC = () => {
               <Flex flexDirection="column" gap={16}>
                 <Flex alignItems="center" gap={8}>
                   <WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color06.Default }} />
-                  <Heading level={5}>🔄 Agent Flow Efficiency</Heading>
+                  <Heading level={5}>Agent Flow Efficiency</Heading>
                   <span style={{ 
                     padding: '2px 8px', 
                     borderRadius: '4px', 
@@ -2360,7 +2610,7 @@ export const AgentTools: React.FC = () => {
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
                   <ServicesIcon style={{ color: Colors.Charts.Categorical.Color05.Default }} />
-                  <Heading level={5}>🔗 Agent → Service Dependencies</Heading>
+                  <Heading level={5}>Agent → Service Dependencies</Heading>
                   <Tooltip text="Backend services (HTTP APIs, databases, message queues) called by agents. Unique to GCC - shows what external dependencies each agent relies on.">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
@@ -2517,7 +2767,7 @@ export const AgentTools: React.FC = () => {
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
                   <SmartscapeIcon style={{ color: Colors.Charts.Categorical.Color06.Default }} />
-                  <Heading level={5}>🏢 Agent → Dynatrace Service Mapping</Heading>
+                  <Heading level={5}>Agent → Dynatrace Service Mapping</Heading>
                   <Tooltip text="Maps AI agents to their host Dynatrace service entities. Unique to GCC - links agents to the Dynatrace topology for deep-dive analysis.">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>

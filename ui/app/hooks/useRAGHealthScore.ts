@@ -121,7 +121,7 @@ fetch spans, from: now()-2h, to: now()
 | summarize
     total_queries = sum(count),
     unique_queries = count(),
-    duplicate_queries = sumIf(count, count > 1),
+    duplicate_queries = sum(if(count > 1, count, else: 0)),
     max_duplicates = max(count)
 `;
 

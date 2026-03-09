@@ -12,6 +12,7 @@ import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
 import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
 import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
+import { Tabs, Tab } from '@dynatrace/strato-components-preview/navigation';
 import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 import type { Timeframe } from '@dynatrace/strato-components-preview/core';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
@@ -330,6 +331,7 @@ const ttftRating = (ms: number): { label: string; color: string } => {
 export const VectorDB: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe | null>(createDefaultTimeframe);
   const [selectedTrace, setSelectedTrace] = useState<RAGPipelineTrace | null>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
   const filters: QueryFilters = { timeframe };
 
   const {
@@ -462,10 +464,11 @@ export const VectorDB: React.FC = () => {
         </Flex>
       )}
 
-      {/* ─── RAG Health Score Panel ─── */}
-      <RAGHealthPanel />
-
-      {/* ─── Summary KPI Row ─── */}
+      {/* ─── Tabs Navigation ─── */}
+      <Tabs selectedIndex={activeTab} onChange={(index) => setActiveTab(index)}>
+        <Tab title="Overview">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+          {/* ─── Summary KPI Row ─── */}
       <Flex gap={8} flexWrap="wrap">
         <MetricCard
           value={summary ? fmt(summary.totalPineconeQueries) : '—'}
@@ -552,89 +555,57 @@ export const VectorDB: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ─── Row 2: Latency Percentiles + Embedding Providers ─── */}
-      <Flex gap={16} flexWrap="wrap">
-        {/* Latency Cards */}
-        <Surface style={{ padding: 16 }}>
-          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <BarChartIcon />
-            <Heading level={4}>Pinecone Latency Percentiles</Heading>
-          </Flex>
-          <Flex gap={8}>
-            {latency ? (
-              (['avg', 'p50', 'p95', 'p99'] as const).map((key) => {
-                const val = key === 'avg' ? latency.avgLatencyMs
-                  : key === 'p50' ? latency.p50Ms
-                  : key === 'p95' ? latency.p95Ms
-                  : latency.p99Ms;
-                const color = latencyColor(val);
-                return (
-                  <Flex
-                    key={key}
-                    flexDirection="column"
-                    alignItems="center"
-                    gap={4}
-                    padding={12}
-                    style={{
-                      background: 'var(--dt-colors-surface-default)',
-                      border: '1px solid var(--dt-colors-border-neutral-default)',
-                      borderRadius: 6,
-                      minWidth: 80,
-                    }}
-                  >
-                    <Text style={{ fontSize: 20, fontWeight: 700, color }}>{fmtMs(val)}</Text>
-                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{key}</Text>
-                  </Flex>
-                );
-              })
-            ) : (
-              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No data'}</Text>
-            )}
-          </Flex>
-        </Surface>
-
-        {/* Embedding Providers Table */}
-        <Surface style={{ flex: 1, padding: 16, minWidth: 340 }}>
-          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <AiIcon />
-            <Heading level={4}>Embedding Providers</Heading>
-            <Text textStyle="small" style={{ opacity: 0.6 }}>volume &amp; latency by provider/model</Text>
-          </Flex>
-          {embeddingProviders.length > 0 ? (
-            <DataTable
-              data={embeddingProviders}
-              columns={[
-                { header: 'Provider', id: 'provider', accessor: 'provider', width: 100 },
-                { header: 'Model', id: 'model', accessor: 'model', width: 180, cell: ({ value }) => (
-                  <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+      {/* Embedding Providers Table */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <AiIcon />
+          <Heading level={4}>Embedding Providers</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>volume &amp; latency by provider/model</Text>
+        </Flex>
+        {embeddingProviders.length > 0 ? (
+          <DataTable
+            data={embeddingProviders}
+            columns={[
+              { header: 'Provider', id: 'provider', accessor: 'provider', width: 100 },
+              { header: 'Model', id: 'model', accessor: 'model', width: 180, cell: ({ value }) => (
+                <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+              )},
+              { header: 'Calls', id: 'callCount', accessor: 'callCount', width: 80,
+                cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text> },
+              { header: 'Avg Latency', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 100,
+                cell: ({ value }) => {
+                  const ms = Number(value ?? 0);
+                  return <Text style={{ color: latencyColor(ms) }}>{fmtMs(ms)}</Text>;
+                }},
+              { header: 'p95', id: 'p95LatencyMs', accessor: 'p95LatencyMs', width: 90,
+                cell: ({ value }) => (
+                  <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>
                 )},
-                { header: 'Calls', id: 'callCount', accessor: 'callCount', width: 80,
-                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text> },
-                { header: 'Avg Latency', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 100,
-                  cell: ({ value }) => {
-                    const ms = Number(value ?? 0);
-                    return <Text style={{ color: latencyColor(ms) }}>{fmtMs(ms)}</Text>;
-                  }},
-                { header: 'p95', id: 'p95LatencyMs', accessor: 'p95LatencyMs', width: 90,
-                  cell: ({ value }) => (
-                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>
-                  )},
-                { header: 'Err%', id: 'errorRate', accessor: 'errorRate', width: 70,
-                  cell: ({ value }) => {
-                    const rate = Number(value ?? 0);
-                    return <Text style={{ color: healthColor(rate) }}>{rate.toFixed(1)}%</Text>;
-                  }},
-              ]}
-            >
-              <DataTable.Pagination defaultPageSize={5} />
-            </DataTable>
-          ) : (
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No embedding data'}</Text>
-          )}
-        </Surface>
-      </Flex>
+              { header: 'Err%', id: 'errorRate', accessor: 'errorRate', width: 70,
+                cell: ({ value }) => {
+                  const rate = Number(value ?? 0);
+                  return <Text style={{ color: healthColor(rate) }}>{rate.toFixed(1)}%</Text>;
+                }},
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={5} />
+          </DataTable>
+        ) : (
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No embedding data'}</Text>
+        )}
+      </Surface>
+          </Flex>
+        </Tab>
 
-      {/* ─── Row 3: RAG Chain Performance ─── */}
+        <Tab title="Health Score">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+            <RAGHealthPanel />
+          </Flex>
+        </Tab>
+
+        <Tab title="Pipeline Performance">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+      {/* ─── RAG Chain Performance ─── */}
       <Surface style={{ padding: 16 }}>
         <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
           <BarChartIcon />
@@ -818,150 +789,121 @@ export const VectorDB: React.FC = () => {
         )}
       </Surface>
 
-      {/* ─── Row 5: TTFT by Model + Cache Opportunities ─── */}
-      <Flex gap={16} flexWrap="wrap">
-        {/* TTFT by Model */}
-        <Surface style={{ flex: '1 1 50%', padding: 16, minWidth: 280 }}>
-          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <ClockIcon />
-            <Heading level={4}>Response Latency by Model (TTFT proxy)</Heading>
-            <Tooltip text="gen_ai.server.time_to_first_token is only set when streaming is explicitly instrumented. Showing span duration as TTFT proxy.">
-              <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-            </Tooltip>
-          </Flex>
-          {ttftByModel.length > 0 ? (
-            <DataTable
-              data={ttftByModel}
-              columns={[
-                {
-                  header: 'Model',
-                  id: 'model',
-                  accessor: 'model',
-                  cell: ({ value }) => (
-                    <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
-                  ),
+      {/* TTFT by Model */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <ClockIcon />
+          <Heading level={4}>Response Latency by Model (TTFT proxy)</Heading>
+          <Tooltip text="gen_ai.server.time_to_first_token is only set when streaming is explicitly instrumented. Showing span duration as TTFT proxy.">
+            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        </Flex>
+        {ttftByModel.length > 0 ? (
+          <DataTable
+            data={ttftByModel}
+            columns={[
+              {
+                header: 'Model',
+                id: 'model',
+                accessor: 'model',
+                cell: ({ value }) => (
+                  <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+                ),
+              },
+              {
+                header: 'Avg',
+                id: 'avgTtftMs',
+                accessor: 'avgTtftMs',
+                width: 90,
+                cell: ({ value }) => {
+                  const ms = Number(value ?? 0);
+                  const r = ttftRating(ms);
+                  return <Text style={{ color: r.color, fontWeight: 600 }}>{fmtMs(ms)}</Text>;
                 },
-                {
-                  header: 'Avg',
-                  id: 'avgTtftMs',
-                  accessor: 'avgTtftMs',
-                  width: 90,
-                  cell: ({ value }) => {
-                    const ms = Number(value ?? 0);
-                    const r = ttftRating(ms);
-                    return <Text style={{ color: r.color, fontWeight: 600 }}>{fmtMs(ms)}</Text>;
-                  },
-                },
-                {
-                  header: 'p95',
-                  id: 'p95TtftMs',
-                  accessor: 'p95TtftMs',
-                  width: 80,
-                  cell: ({ value }) => <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>,
-                },
-                {
-                  header: 'Rating',
-                  id: 'rating',
-                  accessor: 'avgTtftMs',
-                  width: 90,
-                  cell: ({ value }) => {
-                    const r = ttftRating(Number(value ?? 0));
-                    return (
-                      <Text style={{
-                        fontSize: 11, fontWeight: 600, color: r.color,
-                        background: `${r.color}20`, borderRadius: 4,
-                        padding: '2px 6px', display: 'inline-block',
-                      }}>
-                        {r.label}
-                      </Text>
-                    );
-                  },
-                },
-              ]}
-            >
-              <DataTable.Pagination defaultPageSize={5} />
-            </DataTable>
-          ) : (
-            <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 120 }}>
-              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>No LLM call data detected</Text>
-              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                Requires spans with gen_ai.request.model
-              </Text>
-            </Flex>
-          )}
-        </Surface>
-
-        {/* Semantic Cache Opportunities */}
-        <Surface style={{ flex: '1 1 45%', padding: 16, minWidth: 280 }}>
-          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-            <DatabaseIcon />
-            <Heading level={4}>Semantic Cache Opportunities</Heading>
-            <Text textStyle="small" style={{ opacity: 0.6 }}>repeated Pinecone queries</Text>
-          </Flex>
-          {cacheCandidates.length > 0 ? (
-            <DataTable
-              data={cacheCandidates}
-              columns={[
-                {
-                  header: 'Query Preview',
-                  id: 'queryPreview',
-                  accessor: 'queryPreview',
-                  cell: ({ value }) => (
-                    <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-secondary-default)' }}>
-                      {String(value ?? '').slice(0, 60) + (String(value ?? '').length > 60 ? '…' : '')}
+              },
+              {
+                header: 'p95',
+                id: 'p95TtftMs',
+                accessor: 'p95TtftMs',
+                width: 80,
+                cell: ({ value }) => <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{fmtMs(Number(value ?? 0))}</Text>,
+              },
+              {
+                header: 'Rating',
+                id: 'rating',
+                accessor: 'avgTtftMs',
+                width: 90,
+                cell: ({ value }) => {
+                  const r = ttftRating(Number(value ?? 0));
+                  return (
+                    <Text style={{
+                      fontSize: 11, fontWeight: 600, color: r.color,
+                      background: `${r.color}20`, borderRadius: 4,
+                      padding: '2px 6px', display: 'inline-block',
+                    }}>
+                      {r.label}
                     </Text>
-                  ),
+                  );
                 },
-                {
-                  header: 'Repeats',
-                  id: 'count',
-                  accessor: 'count',
-                  width: 80,
-                  cell: ({ value }) => (
-                    <Text style={{ fontWeight: 600, color: Number(value ?? 0) > 10 ? STATUS_COLORS.warning : 'inherit' }}>
-                      {fmt(Number(value ?? 0))}
-                    </Text>
-                  ),
-                },
-                {
-                  header: 'Avg Latency',
-                  id: 'avgLatencyMs',
-                  accessor: 'avgLatencyMs',
-                  width: 100,
-                  cell: ({ value }) => <Text>{fmtMs(Number(value ?? 0))}</Text>,
-                },
-                {
-                  header: 'Savings',
-                  id: 'savingsPotentialMs',
-                  accessor: 'savingsPotentialMs',
-                  width: 100,
-                  cell: ({ value }) => (
-                    <Text style={{ color: STATUS_COLORS.ideal, fontWeight: 600 }}>
-                      {fmtMs(Number(value ?? 0))}
-                    </Text>
-                  ),
-                },
-              ]}
-            >
-              <DataTable.Pagination defaultPageSize={5} />
-            </DataTable>
-          ) : (
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-              {loading ? 'Loading…' : 'No repeated queries detected'}
+              },
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={5} />
+          </DataTable>
+        ) : (
+          <Flex flexDirection="column" gap={8} alignItems="center" justifyContent="center" style={{ height: 120 }}>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>No LLM call data detected</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+              Requires spans with gen_ai.request.model
             </Text>
+          </Flex>
+        )}
+      </Surface>
+          </Flex>
+        </Tab>
+
+        <Tab title="Vector Store">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+      {/* Latency Percentiles */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <BarChartIcon />
+          <Heading level={4}>Pinecone Latency Percentiles</Heading>
+        </Flex>
+        <Flex gap={8} flexWrap="wrap">
+          {latency ? (
+            (['avg', 'p50', 'p95', 'p99'] as const).map((key) => {
+              const val = key === 'avg' ? latency.avgLatencyMs
+                : key === 'p50' ? latency.p50Ms
+                : key === 'p95' ? latency.p95Ms
+                : latency.p99Ms;
+              const color = latencyColor(val);
+              return (
+                <Flex
+                  key={key}
+                  flexDirection="column"
+                  alignItems="center"
+                  gap={4}
+                  padding={12}
+                  style={{
+                    background: 'var(--dt-colors-surface-default)',
+                    border: '1px solid var(--dt-colors-border-neutral-default)',
+                    borderRadius: 6,
+                    minWidth: 80,
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 700, color }}>{fmtMs(val)}</Text>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{key}</Text>
+                </Flex>
+              );
+            })
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No data'}</Text>
           )}
-        </Surface>
-      </Flex>
+        </Flex>
+      </Surface>
 
-      {/* ─── Trace Analysis Modal ─── */}
-      {selectedTrace && (
-        <RAGTraceDetailModal trace={selectedTrace} onClose={() => setSelectedTrace(null)} />
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════
-          Phase 5.4 — Extended Vector DB Observability
-          Row A: Index Performance + Data Ingestion Metrics
-      ══════════════════════════════════════════════════════════════ */}
+      {/* Index Performance + Data Ingestion Metrics */}
       <Flex gap={16} flexWrap="wrap">
         {/* Index Performance — operation type latency split */}
         <Surface style={{ flex: '1 1 50%', padding: 16, minWidth: 280 }}>
@@ -1062,11 +1004,9 @@ export const VectorDB: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ══════════════════════════════════════════════════════════════
-          Row B: Result Set Sizes + Source Document Metadata
-      ══════════════════════════════════════════════════════════════ */}
+      {/* Result Set Sizes + Source Document Metadata */}
       <Flex gap={16} flexWrap="wrap">
-        {/* Result Set Sizes */}
+        {/* Query Volume by Namespace */}
         <Surface style={{ flex: '1 1 48%', padding: 16, minWidth: 280 }}>
           <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
             <BarChartIcon />
@@ -1169,10 +1109,73 @@ export const VectorDB: React.FC = () => {
           )}
         </Surface>
       </Flex>
+          </Flex>
+        </Tab>
 
-      {/* ══════════════════════════════════════════════════════════════
-          Row C: Tokenization Drift + Retrieval Anomalies
-      ══════════════════════════════════════════════════════════════ */}
+        <Tab title="Data Quality">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+      {/* Semantic Cache Opportunities */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <DatabaseIcon />
+          <Heading level={4}>Semantic Cache Opportunities</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>repeated Pinecone queries that could be cached</Text>
+        </Flex>
+        {cacheCandidates.length > 0 ? (
+          <DataTable
+            data={cacheCandidates}
+            columns={[
+              {
+                header: 'Query Preview',
+                id: 'queryPreview',
+                accessor: 'queryPreview',
+                cell: ({ value }) => (
+                  <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-secondary-default)' }}>
+                    {String(value ?? '').slice(0, 60) + (String(value ?? '').length > 60 ? '…' : '')}
+                  </Text>
+                ),
+              },
+              {
+                header: 'Repeats',
+                id: 'count',
+                accessor: 'count',
+                width: 80,
+                cell: ({ value }) => (
+                  <Text style={{ fontWeight: 600, color: Number(value ?? 0) > 10 ? STATUS_COLORS.warning : 'inherit' }}>
+                    {fmt(Number(value ?? 0))}
+                  </Text>
+                ),
+              },
+              {
+                header: 'Avg Latency',
+                id: 'avgLatencyMs',
+                accessor: 'avgLatencyMs',
+                width: 100,
+                cell: ({ value }) => <Text>{fmtMs(Number(value ?? 0))}</Text>,
+              },
+              {
+                header: 'Savings',
+                id: 'savingsPotentialMs',
+                accessor: 'savingsPotentialMs',
+                width: 100,
+                cell: ({ value }) => (
+                  <Text style={{ color: STATUS_COLORS.ideal, fontWeight: 600 }}>
+                    {fmtMs(Number(value ?? 0))}
+                  </Text>
+                ),
+              },
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        ) : (
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+            {loading ? 'Loading…' : 'No repeated queries detected'}
+          </Text>
+        )}
+      </Surface>
+
+      {/* Tokenization Drift + Retrieval Anomalies */}
       <Flex gap={16} flexWrap="wrap">
         {/* Tokenization Drift */}
         <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 300 }}>
@@ -1289,9 +1292,7 @@ export const VectorDB: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ══════════════════════════════════════════════════════════════
-          Row D: Context Retrieval Effectiveness
-      ══════════════════════════════════════════════════════════════ */}
+      {/* Context Retrieval Effectiveness */}
       <Surface style={{ padding: 16 }}>
         <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
           <CheckmarkIcon />
@@ -1353,6 +1354,14 @@ export const VectorDB: React.FC = () => {
           </Text>
         )}
       </Surface>
+          </Flex>
+        </Tab>
+      </Tabs>
+
+      {/* ─── Trace Analysis Modal (outside tabs) ─── */}
+      {selectedTrace && (
+        <RAGTraceDetailModal trace={selectedTrace} onClose={() => setSelectedTrace(null)} />
+      )}
     </Flex>
   );
 };

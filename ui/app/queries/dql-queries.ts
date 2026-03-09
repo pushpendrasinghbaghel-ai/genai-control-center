@@ -636,7 +636,6 @@ fetch spans, ${timeClause}
     OR contains(lower(span.name), "retrieve")
 | makeTimeseries
     total = count(),
-    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
     interval: 1h
 `;
 };
@@ -864,7 +863,6 @@ fetch spans, ${timeClause}
 | makeTimeseries
     upserts = count(),
     avg_upsert_latency_ms = avg(duration) / 1000000,
-    errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
     interval: 1h
 `;
 };
@@ -973,9 +971,7 @@ fetch spans, ${timeClause}
     avg_latency_ms = avg(duration) / 1000000,
     p95_latency_ms = percentile(duration, 95) / 1000000,
     p99_latency_ms = percentile(duration, 99) / 1000000,
-    query_count = count(),
-    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
-    hour_bucket = bin(start_time, 1h)
+    query_count = count()
   , by: { hour_bucket = bin(start_time, 1h) }
 | fieldsAdd
     anomaly_ratio = if(avg_latency_ms > 0, then: p99_latency_ms / avg_latency_ms, else: 0.0),
