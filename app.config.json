@@ -23,7 +23,10 @@
       { "name": "davis-copilot:dql2nl:execute", "comment": "Explain DQL queries in natural language (Dynatrace Intelligence DQL2NL)" },
       { "name": "davis-copilot:conversations:execute", "comment": "Dynatrace Assist conversational analysis (recommenderConversation)" },
       { "name": "davis:analyzers:execute", "comment": "Execute Dynatrace Intelligence analyzers: GenericForecast, AutoAdaptiveAnomaly, NoveltyScore" },
-      { "name": "davis:analyzers:read", "comment": "List and inspect available Dynatrace Intelligence analyzers" }
+      { "name": "davis:analyzers:read", "comment": "List and inspect available Dynatrace Intelligence analyzers" },
+      { "name": "document:documents:read", "comment": "Read GCC configuration documents (rate cards, guardrails)" },
+      { "name": "document:documents:write", "comment": "Write GCC configuration documents" },
+      { "name": "document:documents:delete", "comment": "Delete GCC configuration documents" }
     ]
   }
 }

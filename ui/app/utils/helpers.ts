@@ -1,39 +1,104 @@
 // Utility functions for GenAI Control Center
 
 import type { AIService, HealthStatus, HealthMetrics } from '../types';
+import { 
+  loadRateCardConfig, 
+  saveRateCardConfig,
+  getEffectiveRate, 
+  calculateCostFromRate,
+  type RateCardConfig 
+} from '../config/rate-card-config';
+import { documentsClient } from '@dynatrace-sdk/client-document';
+
+// Document configuration (must match useRateCardStorage)
+const RATE_CARD_DOCUMENT_NAME = 'gcc-rate-card-config';
+const RATE_CARD_DOCUMENT_TYPE = 'gcc-config';
+
+// Cache the rate card config — synced from Grail, with localStorage as fallback
+let cachedRateCardConfig: RateCardConfig | null = null;
+let lastConfigLoad = 0;
+const CONFIG_CACHE_TTL = 5000; // Refresh every 5 seconds
+let grailSyncComplete = false;
+
+function getRateCardConfig(): RateCardConfig {
+  const now = Date.now();
+  if (!cachedRateCardConfig || (!grailSyncComplete && (now - lastConfigLoad) > CONFIG_CACHE_TTL)) {
+    cachedRateCardConfig = loadRateCardConfig(); // localStorage fallback
+    lastConfigLoad = now;
+  }
+  return cachedRateCardConfig;
+}
 
 /**
- * Cost estimation based on provider and token count
+ * Sync rate card config from Grail Document storage into the local cache.
+ * Call this once on app startup. It fetches the Grail document and writes
+ * to localStorage so that all subsequent `estimateCost` calls use the
+ * Grail-stored (user-customized) rates. If no Grail document exists yet
+ * (day zero), the default list prices are used automatically.
  */
-const COST_PER_1K_TOKENS: Record<string, { input: number; output: number }> = {
-  openai: { input: 0.01, output: 0.03 },
-  azure_openai: { input: 0.01, output: 0.03 },
-  azure: { input: 0.01, output: 0.03 },
-  anthropic: { input: 0.008, output: 0.024 },
-  google: { input: 0.0005, output: 0.0015 },
-  vertexai: { input: 0.00025, output: 0.0005 },
-  amazon: { input: 0.0008, output: 0.0024 },
-  amazon_bedrock: { input: 0.0008, output: 0.0024 },
-  cohere: { input: 0.0004, output: 0.0004 },
-  local: { input: 0, output: 0 },
-  ollama: { input: 0, output: 0 },
-  langchain: { input: 0.005, output: 0.015 },
-  default: { input: 0.005, output: 0.015 }
-};
+export async function syncRateCardFromGrail(): Promise<void> {
+  try {
+    const response = await documentsClient.listDocuments({
+      filter: `name == '${RATE_CARD_DOCUMENT_NAME}' and type == '${RATE_CARD_DOCUMENT_TYPE}'`,
+    });
+
+    if (response.documents && response.documents.length > 0) {
+      const doc = response.documents[0];
+      const docResponse = await documentsClient.getDocument({ id: doc.id });
+
+      if (docResponse.content) {
+        let contentStr: string;
+        if (typeof docResponse.content === 'string') {
+          contentStr = docResponse.content;
+        } else if (docResponse.content instanceof Blob) {
+          contentStr = await docResponse.content.text();
+        } else {
+          const decoder = new TextDecoder('utf-8');
+          contentStr = decoder.decode(docResponse.content as unknown as ArrayBuffer);
+        }
+        const grailConfig = JSON.parse(contentStr) as RateCardConfig;
+        // Persist to localStorage as sync cache for fast reads
+        saveRateCardConfig(grailConfig);
+        cachedRateCardConfig = grailConfig;
+        lastConfigLoad = Date.now();
+      }
+    }
+    // If no document exists, day-zero defaults are already in getEffectiveRate
+  } catch (err) {
+    console.warn('Failed to sync rate card from Grail, using local/default rates:', err);
+  }
+  grailSyncComplete = true;
+}
 
 /**
- * Estimate cost based on provider and token usage
+ * Force refresh of rate card config cache (call after saving changes in RateCardSettings)
+ */
+export function refreshRateCardCache(): void {
+  cachedRateCardConfig = loadRateCardConfig();
+  lastConfigLoad = Date.now();
+  // Also re-sync from Grail in the background
+  syncRateCardFromGrail().catch(() => {});
+}
+
+/**
+ * Estimate cost based on provider, model, and token usage.
+ * Always uses the rate card system (Grail-stored or default list prices).
+ * 
+ * @param provider - Provider name (e.g., "openai", "anthropic")
+ * @param promptTokens - Number of input/prompt tokens
+ * @param completionTokens - Number of output/completion tokens
+ * @param model - Model name for model-specific pricing (e.g., "gpt-4o", "claude-3-opus"). 
+ *                When omitted, uses the best matching provider default rate.
  */
 export function estimateCost(
   provider: string,
   promptTokens: number,
-  completionTokens: number
+  completionTokens: number,
+  model?: string
 ): number {
-  const normalizedProvider = provider?.toLowerCase().trim() || 'default';
-  const rates = COST_PER_1K_TOKENS[normalizedProvider] || COST_PER_1K_TOKENS.default;
-  const inputCost = (promptTokens / 1000) * rates.input;
-  const outputCost = (completionTokens / 1000) * rates.output;
-  return inputCost + outputCost;
+  const config = getRateCardConfig();
+  const rate = getEffectiveRate(config, provider, model || 'unknown');
+  return calculateCostFromRate(rate, promptTokens, completionTokens);
 }
 
 /**

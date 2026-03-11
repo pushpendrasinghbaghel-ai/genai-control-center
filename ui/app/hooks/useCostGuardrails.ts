@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { estimateCost } from '../utils/helpers';
 
 // ============================================
 // Types
@@ -69,31 +70,8 @@ export interface CostGuardrailConfig {
   notifyEmail: boolean;
 }
 
-// ============================================
-// Pricing Model (matches tools.ts)
-// ============================================
-
-const PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-4': { input: 30.0, output: 60.0 },
-  'gpt-4-turbo': { input: 10.0, output: 30.0 },
-  'gpt-4o': { input: 2.5, output: 10.0 },
-  'gpt-4o-mini': { input: 0.15, output: 0.6 },
-  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  'claude-3-opus': { input: 15.0, output: 75.0 },
-  'claude-3-sonnet': { input: 3.0, output: 15.0 },
-  'claude-3-haiku': { input: 0.25, output: 1.25 },
-  'claude-3.5-sonnet': { input: 3.0, output: 15.0 },
-  'gemini-pro': { input: 0.5, output: 1.5 },
-  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
-  'command-r': { input: 0.5, output: 1.5 },
-  'command-r-plus': { input: 3.0, output: 15.0 },
-};
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const key = Object.keys(PRICING).find(k => model.toLowerCase().includes(k)) || '';
-  const rate = PRICING[key] || { input: 2.0, output: 6.0 };
-  return (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000;
-}
+// Cost estimation now uses the shared estimateCost() from utils/helpers.ts
+// which reads from the user-configurable rate card (Grail-stored or defaults)
 
 // ============================================
 // DQL Queries
@@ -127,7 +105,6 @@ fetch spans, from: now()-24h, to: now()-2h
     total_input = sum(input_tok),
     total_output = sum(output_tok),
     request_count = count(),
-    duration_minutes = (toDouble(end(timeframe())) - toDouble(start(timeframe()))) / 60000000000,
     by: { provider, model }
 `;
 
@@ -150,6 +127,7 @@ fetch spans, from: now()-24h, to: now()
 const HOURLY_SPEND_QUERY = `
 fetch spans, from: now()-24h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
 | fieldsAdd input_tok = toDouble(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0))
 | fieldsAdd output_tok = toDouble(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown")
@@ -157,7 +135,7 @@ fetch spans, from: now()-24h, to: now()
     total_input = sum(input_tok),
     total_output = sum(output_tok),
     request_count = count(),
-    by: { time_bucket = bin(start_time, 1h), model }
+    by: { time_bucket = bin(start_time, 1h), provider, model }
 | sort time_bucket asc
 `;
 
@@ -201,11 +179,12 @@ export function useCostVelocity() {
       let baselineTotalCost = 0;
       let baselineDurationMin = 0;
       baselineRecords.forEach((r: any) => {
+        const provider = String(r.provider || 'Unknown');
         const model = String(r.model || 'unknown');
         const inputTok = Number(r.total_input) || 0;
         const outputTok = Number(r.total_output) || 0;
-        baselineTotalCost += estimateCost(model, inputTok, outputTok);
-        baselineDurationMin = Math.max(baselineDurationMin, Number(r.duration_minutes) || 1320); // 22h default
+        baselineTotalCost += estimateCost(provider, inputTok, outputTok, model);
+        baselineDurationMin = Math.max(baselineDurationMin, 1320); // 22h default
       });
       const baselineCPM = baselineDurationMin > 0 ? baselineTotalCost / baselineDurationMin : 0;
 
@@ -217,7 +196,7 @@ export function useCostVelocity() {
         const provider = String(r.provider || 'Unknown');
         const inputTok = Number(r.total_input) || 0;
         const outputTok = Number(r.total_output) || 0;
-        const cost = estimateCost(model, inputTok, outputTok);
+        const cost = estimateCost(provider, inputTok, outputTok, model);
 
         const existing = bucketMap.get(ts) || { cost: 0, tokens: 0, requests: 0, provider };
         existing.cost += cost;
@@ -243,7 +222,7 @@ export function useCostVelocity() {
       velocityRecords.forEach((r: any) => {
         const provider = String(r.provider || 'Unknown');
         const model = String(r.model || 'unknown');
-        const cost = estimateCost(model, Number(r.total_input) || 0, Number(r.total_output) || 0);
+        const cost = estimateCost(provider, Number(r.total_input) || 0, Number(r.total_output) || 0, model);
         const existing = providerMap.get(provider) || { cost: 0, tokens: 0, requests: 0, minutes: 120 };
         existing.cost += cost;
         existing.tokens += (Number(r.total_input) || 0) + (Number(r.total_output) || 0);
@@ -331,16 +310,18 @@ export function useBudgetBurnRate(dailyBudget: number = 1000) {
       // Total daily spend
       let totalSpend = 0;
       dailyRecords.forEach((r: any) => {
+        const provider = String(r.provider || 'Unknown');
         const model = String(r.model || 'unknown');
-        totalSpend += estimateCost(model, Number(r.total_input) || 0, Number(r.total_output) || 0);
+        totalSpend += estimateCost(provider, Number(r.total_input) || 0, Number(r.total_output) || 0, model);
       });
 
       // Hourly breakdown for burn rate
       const hourlyMap = new Map<number, number>();
       hourlyRecords.forEach((r: any) => {
         const ts = new Date(r.time_bucket).getTime();
+        const provider = String(r.provider || 'Unknown');
         const model = String(r.model || 'unknown');
-        const cost = estimateCost(model, Number(r.total_input) || 0, Number(r.total_output) || 0);
+        const cost = estimateCost(provider, Number(r.total_input) || 0, Number(r.total_output) || 0, model);
         hourlyMap.set(ts, (hourlyMap.get(ts) || 0) + cost);
       });
 

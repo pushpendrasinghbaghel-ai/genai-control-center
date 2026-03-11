@@ -198,7 +198,7 @@ export const Governance: React.FC = () => {
         enhancedFlags.push({
           type: davisScore.category as PromptFlag['type'],
           severity: davisScore.severity,
-          detail: `Davis AI: ${davisScore.explanation}`
+          detail: `Dynatrace Intelligence Analyzer: ${davisScore.explanation}`
         });
         enhancedFlagTypes.add(davisScore.category);
       }

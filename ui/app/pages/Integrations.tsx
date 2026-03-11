@@ -899,7 +899,7 @@ export function Integrations() {
           <Flex flexDirection="column" gap={8}>
             <Heading level={5} style={{ margin: 0, color: Colors.Text.Primary.Default }}>Using "Ask Dynatrace"</Heading>
             <Text>
-              Click the "Ask Dynatrace" button to open Davis AI chat. Davis has full context of all integration data and can:
+              Click the "Ask Dynatrace" button to open Dynatrace Intelligence chat. It has full context of all integration data and can:
             </Text>
             <Flex flexDirection="column" gap={4} style={{ paddingLeft: 12 }}>
               <Text>• Summarize integration health across all systems</Text>
@@ -916,7 +916,7 @@ export function Integrations() {
               <Text textStyle="small">• Use the global time filter (top bar) to change the analysis window for all integrations at once</Text>
               <Text textStyle="small">• Red status badges require immediate attention — click Details to investigate</Text>
               <Text textStyle="small">• Cost anomalies (z-score {">"} 1.5) indicate unusual spending patterns worth reviewing</Text>
-              <Text textStyle="small">• Provider deep-dives auto-trigger suggested Davis questions for quick analysis</Text>
+              <Text textStyle="small">• Provider deep-dives auto-trigger suggested Dynatrace Intelligence questions for quick analysis</Text>
             </Flex>
           </Surface>
         </Flex>

@@ -397,7 +397,7 @@ const costBreakdown: AgentTool = {
       const inputTok = Number(r.input_tokens || 0);
       const outputTok = Number(r.output_tokens || 0);
       const tokens = Number(r.total_tokens || 0);
-      const cost = estimateCost(provider, inputTok, outputTok);
+      const cost = estimateCost(provider, inputTok, outputTok, model);
       totalCost += cost;
       totalTokens += tokens;
       return [provider, model, fmt(Number(r.requests || 0)), fmt(inputTok), fmt(outputTok), fmt(tokens), `$${cost.toFixed(2)}`];
@@ -424,7 +424,7 @@ const costBreakdown: AgentTool = {
       title: "Cost Distribution by Provider",
       data: records.reduce((acc: any[], r: any) => {
         const provider = r["gen_ai.provider.name"] || "Unknown";
-        const cost = estimateCost(provider, Number(r.input_tokens || 0), Number(r.output_tokens || 0));
+        const cost = estimateCost(provider, Number(r.input_tokens || 0), Number(r.output_tokens || 0), r["gen_ai.request.model"]);
         const existing = acc.find(a => a.label === provider);
         if (existing) { existing.value += cost; } else { acc.push({ label: provider, value: cost }); }
         return acc;
@@ -1004,7 +1004,7 @@ const executiveSummary: AgentTool = {
 
     let totalCost = 0;
     costRecords.forEach((r: any) => {
-      totalCost += estimateCost(r["gen_ai.provider.name"] || "", Number(r.input_tokens || 0), Number(r.output_tokens || 0));
+      totalCost += estimateCost(r["gen_ai.provider.name"] || "", Number(r.input_tokens || 0), Number(r.output_tokens || 0), r["gen_ai.request.model"]);
     });
     const totalErrors = errorRecords.reduce((s, r) => s + Number(r.error_count || 0), 0);
 

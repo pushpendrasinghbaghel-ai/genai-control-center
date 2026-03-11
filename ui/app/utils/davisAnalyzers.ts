@@ -13,8 +13,10 @@
  * Required scopes: davis:analyzers:execute, davis:analyzers:read
  */
 
-import { analyzersClient } from '@dynatrace-sdk/client-davis-analyzers';
+import { analyzersClient, type AnalyzerResult } from '@dynatrace-sdk/client-davis-analyzers';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { convertToTimeseriesBand } from '@dynatrace/strato-components-preview/charts';
+import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components-preview/charts';
 
 // ============================================
 // Result Types
@@ -34,7 +36,11 @@ export interface ForecastResult {
   forecastPoints: ForecastPoint[];
   trend: 'increasing' | 'decreasing' | 'stable';
   forecastQuality: 'good' | 'fair' | 'poor';
-  budgetBreachDay?: number;  // days until budget threshold is hit (if applicable)
+  budgetBreachDay?: number;
+  /** TimeseriesBand for chart visualization (confidence interval) — from convertToTimeseriesBand */
+  timeseriesBand?: TimeseriesBand;
+  /** Timeseries lines (historical + forecast) — from convertToTimeseriesBand */
+  forecastTimeseries?: Timeseries[];
   error?: string;
 }
 
@@ -99,9 +105,84 @@ function extractTimestamps(result: any): string[] {
 }
 
 // ============================================
+// Polling helper — per official Dynatrace forecast guide
+// https://developer.dynatrace.com/develop/guides/forecast-with-dynatrace-intelligence/
+// ============================================
+
+async function pollExecution(
+  analyzerName: string,
+  requestToken: string,
+): Promise<AnalyzerResult> {
+  const MAX_ATTEMPTS = 10;
+  const INTERVAL_MS = 1000;
+  let attempts = 0;
+
+  while (attempts < MAX_ATTEMPTS) {
+    await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+
+    const { result } = await analyzersClient.pollAnalyzerExecution({
+      analyzerName,
+      requestToken,
+    });
+
+    if (result.executionStatus === 'COMPLETED') {
+      return result;
+    }
+
+    if (result.executionStatus === 'ABORTED') {
+      throw new Error('The analyzer execution was aborted');
+    }
+
+    attempts++;
+  }
+
+  const cancelResponse = await analyzersClient.cancelAnalyzerExecution({
+    analyzerName,
+    requestToken,
+  });
+
+  if (cancelResponse?.result?.executionStatus === 'COMPLETED') {
+    return cancelResponse.result;
+  }
+
+  throw new Error('Max polling retries reached');
+}
+
+// ============================================
 // 1. GenericForecastAnalyzer
 //    Predicts future values for token usage, cost, or request rate
 // ============================================
+
+/**
+ * Execute a GenericForecastAnalyzer with polling support per official guide.
+ * Returns the completed AnalyzerResult or throws on failure.
+ */
+async function executeForecastAnalyzer(
+  expression: string,
+  forecastHorizon: number,
+): Promise<AnalyzerResult> {
+  const analyzerName = 'dt.statistics.GenericForecastAnalyzer';
+
+  const response = await analyzersClient.executeAnalyzer({
+    analyzerName,
+    body: {
+      timeSeriesData: { expression },
+      forecastHorizon,
+    } as any,
+  });
+
+  // Handle polling for long-running executions (official guide pattern)
+  const analysisResult = response.requestToken
+    ? await pollExecution(analyzerName, response.requestToken)
+    : response.result;
+
+  if (analysisResult.executionStatus !== 'COMPLETED' || analysisResult.resultStatus === 'FAILED') {
+    const logMsg = analysisResult.logs?.map((l) => l.message).join('; ') || 'Analysis unsuccessful';
+    throw new Error(logMsg);
+  }
+
+  return analysisResult;
+}
 
 /**
  * Forecast AI token usage for the next N hours using real DQL timeseries data.
@@ -111,7 +192,7 @@ export async function forecastTokenUsage(
   timeRangeHours: number = 24,
   forecastHorizonHours: number = 24
 ): Promise<ForecastResult> {
-  const metricExpression = `
+  const expression = `
     fetch spans, from: now()-${timeRangeHours}h, to: now()
     | filter isNotNull(gen_ai.provider.name)
     | fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
@@ -121,44 +202,61 @@ export async function forecastTokenUsage(
 
   try {
     console.log('[GCC Analyzers] Running GenericForecastAnalyzer for token usage');
+    const analysisResult = await executeForecastAnalyzer(expression, forecastHorizonHours);
 
-    const result = await analyzersClient.executeAnalyzer({
-      analyzerName: 'dt.statistics.GenericForecastAnalyzer',
-      body: {
-        timeSeriesData: {
-          expression: metricExpression,
-        },
-        forecastHorizon: forecastHorizonHours,
-      } as any,
-    });
+    // Parse output using convertToTimeseriesBand per official guide
+    const analyzerOutput = analysisResult.output[0] as any;
+    const predictions = analyzerOutput?.timeSeriesDataWithPredictions;
+    let forecastPoints: ForecastPoint[] = [];
+    let resultBand: TimeseriesBand | undefined;
+    let resultTimeseries: Timeseries[] | undefined;
 
-    const output = (result as any)?.output;
-    
-    // Extract forecast values and timestamps
-    const forecastValues: number[] = output?.forecastedValues || output?.forecast?.values || [];
-    const forecastTimestamps: string[] = output?.forecastedTimestamps || output?.forecast?.timestamps || [];
-    const lowerBounds: number[] = output?.lowerConfidenceBound || [];
-    const upperBounds: number[] = output?.upperConfidenceBound || [];
-    const currentValue = output?.observedValue || output?.currentValue || 0;
-    const trend = output?.trend?.toLowerCase() || 'stable';
-    const quality = output?.forecastQuality?.toLowerCase() || 'fair';
+    if (predictions?.records?.[0] && predictions?.types?.[0]) {
+      const bandData = convertToTimeseriesBand(predictions.records[0], predictions.types[0]);
+      if (bandData) {
+        resultBand = bandData.timeseriesBand;
+        resultTimeseries = bandData.timeseries;
 
-    const forecastPoints: ForecastPoint[] = forecastValues.map((val: number, i: number) => ({
-      timestamp: forecastTimestamps[i] || new Date(Date.now() + i * 3600000).toISOString(),
-      value: val,
-      lowerBound: lowerBounds[i] ?? val * 0.85,
-      upperBound: upperBounds[i] ?? val * 1.15,
-    }));
+        // Extract forecast points from the timeseries (future data only)
+        const now = Date.now();
+        const forecastSeries = bandData.timeseries[0];
+        if (forecastSeries?.datapoints) {
+          forecastPoints = forecastSeries.datapoints
+            .filter((dp) => dp.start.getTime() > now)
+            .map((dp) => {
+              const bandDp = resultBand!.datapoints.find(
+                (bp) => bp.start.getTime() === dp.start.getTime(),
+              );
+              return {
+                timestamp: dp.start.toISOString(),
+                value: dp.value ?? 0,
+                lowerBound: bandDp?.y0 ?? (dp.value ?? 0) * 0.85,
+                upperBound: bandDp?.y1 ?? (dp.value ?? 0) * 1.15,
+              };
+            });
+        }
+      }
+    }
+
+    // Detect trend
+    let trend: ForecastResult['trend'] = 'stable';
+    if (forecastPoints.length >= 2) {
+      const first = forecastPoints[0].value;
+      const last = forecastPoints[forecastPoints.length - 1].value;
+      const change = (last - first) / Math.max(first, 0.001);
+      if (change > 0.1) trend = 'increasing';
+      else if (change < -0.1) trend = 'decreasing';
+    }
 
     return {
       success: true,
       metric: 'token_usage',
-      currentValue,
+      currentValue: forecastPoints[0]?.value ?? 0,
       forecastPoints,
-      trend: trend === 'increase' || trend === 'increasing' ? 'increasing'
-           : trend === 'decrease' || trend === 'decreasing' ? 'decreasing'
-           : 'stable',
-      forecastQuality: quality === 'good' ? 'good' : quality === 'fair' ? 'fair' : 'poor',
+      trend,
+      forecastQuality: analysisResult.logs?.some((l) => l.level === 'WARNING') ? 'fair' : 'good',
+      timeseriesBand: resultBand,
+      forecastTimeseries: resultTimeseries,
     };
   } catch (error) {
     console.error('[GCC Analyzers] GenericForecastAnalyzer failed:', error);
@@ -176,14 +274,15 @@ export async function forecastTokenUsage(
 
 /**
  * Forecast estimated AI cost for budget planning.
+ * Uses GenericForecastAnalyzer with polling + convertToTimeseriesBand per official guide.
  */
 export async function forecastAICost(
   currentDailyCost: number,
   timeRangeHours: number = 24,
-  forecastHorizonHours: number = 72,
+  forecastHorizonHours: number = 600,
   budgetThreshold?: number
 ): Promise<ForecastResult> {
-  const metricExpression = `
+  const expression = `
     fetch spans, from: now()-${timeRangeHours}h, to: now()
     | filter isNotNull(gen_ai.provider.name)
     | fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
@@ -193,32 +292,75 @@ export async function forecastAICost(
 
   try {
     console.log('[GCC Analyzers] Running GenericForecastAnalyzer for cost projection');
+    const analysisResult = await executeForecastAnalyzer(expression, forecastHorizonHours);
 
-    const result = await analyzersClient.executeAnalyzer({
-      analyzerName: 'dt.statistics.GenericForecastAnalyzer',
-      body: {
-        timeSeriesData: {
-          expression: metricExpression,
-        },
-        forecastHorizon: forecastHorizonHours,
-      } as any,
-    });
+    // Parse output using convertToTimeseriesBand per official guide
+    const analyzerOutput = analysisResult.output[0] as any;
+    const predictions = analyzerOutput?.timeSeriesDataWithPredictions;
 
-    const output = (result as any)?.output;
-    const forecastValues: number[] = output?.forecastedValues || [];
-    const forecastTimestamps: string[] = output?.forecastedTimestamps || [];
-    const lowerBounds: number[] = output?.lowerConfidenceBound || [];
-    const upperBounds: number[] = output?.upperConfidenceBound || [];
-    const trend = output?.trend?.toLowerCase() || 'stable';
+    if (!predictions?.records?.[0] || !predictions?.types?.[0]) {
+      throw new Error('Analyzer returned no timeSeriesDataWithPredictions');
+    }
 
-    // Convert token forecasts to cost (blended rate $0.000002/token)
+    const bandData = convertToTimeseriesBand(predictions.records[0], predictions.types[0]);
+    if (!bandData) {
+      throw new Error('Failed to convert analyzer output to timeseries band');
+    }
+
+    // Convert from token-space to cost-space (blended rate $0.000002/token)
     const costPerToken = 0.000002;
-    const forecastPoints: ForecastPoint[] = forecastValues.map((tokens: number, i: number) => ({
-      timestamp: forecastTimestamps[i] || new Date(Date.now() + i * 3600000).toISOString(),
-      value: tokens * costPerToken,
-      lowerBound: (lowerBounds[i] ?? tokens * 0.85) * costPerToken,
-      upperBound: (upperBounds[i] ?? tokens * 1.15) * costPerToken,
+
+    const costBand: TimeseriesBand = {
+      name: 'Cost Forecast (confidence interval)',
+      unit: '$',
+      datapoints: bandData.timeseriesBand.datapoints.map((dp) => ({
+        y0: dp.y0 * costPerToken,
+        y1: dp.y1 * costPerToken,
+        start: dp.start,
+        end: dp.end,
+      })),
+    };
+
+    const costTimeseries: Timeseries[] = bandData.timeseries.map((ts) => ({
+      name: typeof ts.name === 'string' ? ts.name : String(ts.name),
+      unit: '$',
+      datapoints: ts.datapoints.map((dp) => ({
+        start: dp.start,
+        end: dp.end,
+        value: (dp.value ?? 0) * costPerToken,
+      })),
     }));
+
+    // Extract hourly forecast points (future only) for card-level projections
+    const now = Date.now();
+    const forecastPoints: ForecastPoint[] = [];
+    const forecastSeries = bandData.timeseries[0];
+
+    if (forecastSeries?.datapoints) {
+      forecastSeries.datapoints
+        .filter((dp) => dp.start.getTime() > now)
+        .forEach((dp) => {
+          const bandDp = bandData.timeseriesBand.datapoints.find(
+            (bp) => bp.start.getTime() === dp.start.getTime(),
+          );
+          forecastPoints.push({
+            timestamp: dp.start.toISOString(),
+            value: (dp.value ?? 0) * costPerToken,
+            lowerBound: (bandDp?.y0 ?? (dp.value ?? 0) * 0.85) * costPerToken,
+            upperBound: (bandDp?.y1 ?? (dp.value ?? 0) * 1.15) * costPerToken,
+          });
+        });
+    }
+
+    // Detect trend from forecast values
+    let trend: ForecastResult['trend'] = 'stable';
+    if (forecastPoints.length >= 2) {
+      const first = forecastPoints[0].value;
+      const last = forecastPoints[forecastPoints.length - 1].value;
+      const change = (last - first) / Math.max(first, 0.001);
+      if (change > 0.1) trend = 'increasing';
+      else if (change < -0.1) trend = 'decreasing';
+    }
 
     // Find budget breach day if threshold provided
     let budgetBreachDay: number | undefined;
@@ -238,11 +380,11 @@ export async function forecastAICost(
       metric: 'ai_cost',
       currentValue: currentDailyCost,
       forecastPoints,
-      trend: trend === 'increase' || trend === 'increasing' ? 'increasing'
-           : trend === 'decrease' || trend === 'decreasing' ? 'decreasing'
-           : 'stable',
-      forecastQuality: output?.forecastQuality?.toLowerCase() || 'fair',
+      trend,
+      forecastQuality: analysisResult.logs?.some((l) => l.level === 'WARNING') ? 'fair' : 'good',
       budgetBreachDay,
+      timeseriesBand: costBand,
+      forecastTimeseries: costTimeseries,
     };
   } catch (error) {
     console.error('[GCC Analyzers] Cost forecast failed:', error);

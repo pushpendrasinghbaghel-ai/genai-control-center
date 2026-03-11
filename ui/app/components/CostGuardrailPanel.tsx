@@ -1,26 +1,19 @@
 // GenAI Control Center — Cost Guardrail Panel Component
-// Phase 1: Displays cost velocity, budget burn rate, guardrail events
+// Displays cost velocity monitoring
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressBar } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import {
-  WarningIcon, CriticalIcon, CheckmarkIcon, HelpIcon,
-  RefreshIcon, MoneyIcon, BarChartIcon, WorkflowsIcon,
+import { WarningIcon, CriticalIcon, HelpIcon,
+  RefreshIcon, BarChartIcon, WorkflowsIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import {
   useCostVelocity,
-  useBudgetBurnRate,
-  useGuardrailEvents,
 } from '../hooks/useCostGuardrails';
 import type {
-  CostVelocitySummary,
-  BudgetBurnRate,
-  GuardrailEvent,
   ProviderCostVelocity,
 } from '../hooks/useCostGuardrails';
 
@@ -44,13 +37,7 @@ const velocityStatusColor = (status: string): string => {
   }
 };
 
-const burnStatusColor = (status: string): string => {
-  switch (status) {
-    case 'exceeded': return STATUS_COLORS.critical;
-    case 'approaching': return STATUS_COLORS.warning;
-    default: return STATUS_COLORS.good;
-  }
-};
+
 
 // ============================================
 // Mini SVG Sparkline for cost velocity
@@ -116,13 +103,10 @@ export const CostGuardrailPanel: React.FC<CostGuardrailPanelProps> = ({
   compact = false,
 }) => {
   const { data: velocity, timeseries, loading: velocityLoading, refetch: refetchVelocity } = useCostVelocity();
-  const { data: burnRate, loading: burnLoading, refetch: refetchBurn } = useBudgetBurnRate(dailyBudget);
-  const { events, addEvent } = useGuardrailEvents();
   const [showDetails, setShowDetails] = useState(false);
 
   const handleRefresh = () => {
     void refetchVelocity();
-    void refetchBurn();
   };
 
   // Format dollar/minute values
@@ -142,14 +126,6 @@ export const CostGuardrailPanel: React.FC<CostGuardrailPanelProps> = ({
           </Text>
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
             {velocity ? `${velocity.velocityRatio.toFixed(1)}x baseline` : ''}
-          </Text>
-          <div style={{ width: 1, height: 20, backgroundColor: Colors.Border.Neutral.Default }} />
-          <Text textStyle="small" style={{ fontWeight: 600 }}>Budget Burn</Text>
-          <Text textStyle="small" style={{ color: burnStatusColor(burnRate?.status || 'under'), fontWeight: 600 }}>
-            {burnLoading ? '…' : burnRate ? `${burnRate.budgetUsedPct.toFixed(0)}%` : 'N/A'}
-          </Text>
-          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            {burnRate?.budgetEtaHours ? `${burnRate.budgetEtaHours.toFixed(1)}h to exhaustion` : ''}
           </Text>
         </Flex>
       </Surface>
@@ -227,90 +203,7 @@ export const CostGuardrailPanel: React.FC<CostGuardrailPanelProps> = ({
           </Flex>
         </Surface>
 
-        {/* Budget Burn Rate Card */}
-        <Surface style={{
-          flex: 1,
-          padding: 16,
-          borderLeft: `4px solid ${burnStatusColor(burnRate?.status || 'under')}`,
-        }}>
-          <Flex flexDirection="column" gap={8}>
-            <Flex alignItems="center" gap={4}>
-              <MoneyIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontWeight: 600 }}>Budget Burn Rate</Text>
-            </Flex>
 
-            {burnLoading ? (
-              <Text>Loading…</Text>
-            ) : burnRate ? (
-              <>
-                <Heading level={2} style={{ color: burnStatusColor(burnRate.status) }}>
-                  {burnRate.budgetUsedPct.toFixed(0)}%
-                </Heading>
-                <ProgressBar
-                  value={Math.min(burnRate.budgetUsedPct, 100)}
-                  style={{ maxWidth: 200 }}
-                />
-                <Flex flexDirection="column" gap={4}>
-                  <Text textStyle="small">
-                    Spent: ${burnRate.currentSpend.toFixed(2)} / ${burnRate.dailyBudget}
-                  </Text>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                    Burn: ${burnRate.burnRatePerHour.toFixed(2)}/hr • Projected: ${burnRate.projectedDailySpend.toFixed(2)}/day
-                  </Text>
-                  {burnRate.budgetEtaHours !== null && (
-                    <Text textStyle="small" style={{
-                      color: burnRate.budgetEtaHours < 4 ? STATUS_COLORS.critical : STATUS_COLORS.warning,
-                      fontWeight: 600,
-                    }}>
-                      ⏱ Budget exhaustion in {burnRate.budgetEtaHours.toFixed(1)} hours
-                    </Text>
-                  )}
-                </Flex>
-              </>
-            ) : (
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No data</Text>
-            )}
-          </Flex>
-        </Surface>
-
-        {/* Guardrail Events Card */}
-        <Surface style={{ flex: 1, padding: 16, borderLeft: `4px solid ${STATUS_COLORS.neutral}` }}>
-          <Flex flexDirection="column" gap={8}>
-            <Flex alignItems="center" gap={4}>
-              <WorkflowsIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontWeight: 600 }}>Guardrail Events</Text>
-            </Flex>
-
-            <Heading level={2}>{events.length}</Heading>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              Autonomous actions taken today
-            </Text>
-
-            {events.length > 0 ? (
-              <Flex flexDirection="column" gap={4}>
-                {events.slice(0, 3).map(e => (
-                  <Flex key={e.id} alignItems="center" gap={6}>
-                    {e.status === 'executed' ? (
-                      <CheckmarkIcon style={{ width: 10, height: 10, color: STATUS_COLORS.good }} />
-                    ) : (
-                      <WarningIcon style={{ width: 10, height: 10, color: STATUS_COLORS.warning }} />
-                    )}
-                    <Text textStyle="small">{e.action}</Text>
-                    {e.costSaved > 0 && (
-                      <Text textStyle="small" style={{ color: STATUS_COLORS.good, fontWeight: 600 }}>
-                        -${e.costSaved.toFixed(2)}
-                      </Text>
-                    )}
-                  </Flex>
-                ))}
-              </Flex>
-            ) : (
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontStyle: 'italic' }}>
-                No guardrail events. System operating within budget.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
       </Flex>
 
       {/* Provider Cost Velocity Details (expandable) */}

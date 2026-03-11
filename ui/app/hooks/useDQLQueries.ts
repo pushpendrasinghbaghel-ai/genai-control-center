@@ -194,7 +194,7 @@ export function useAIServicesDiscovery(filters?: QueryFilters): UseQueryResult<A
         
         // Estimate cost using blended rate when multiple providers
         // Use a weighted estimate since we don't have per-provider breakdown
-        const cost = estimateCost(primaryProvider, promptTokens, completionTokens);
+        const cost = estimateCost(primaryProvider, promptTokens, completionTokens, primaryModel);
         
         return {
           serviceName: serviceName,
@@ -264,7 +264,8 @@ export function useProviderComparison(filters?: QueryFilters) {
         estimatedCost: estimateCost(
           provider,
           inputTokens || totalTokens * 0.3,
-          outputTokens || totalTokens * 0.7
+          outputTokens || totalTokens * 0.7,
+          record.models?.[0]
         ),
         // GenAI Quality Metrics
         slowRequestRate: Number(record.slow_request_rate) || 0,
@@ -879,7 +880,7 @@ export function usePromptAnalysis(filters?: QueryFilters): UseQueryResult<Analyz
         const latencyMs = Number(record['avg_latency'] || 0) / 1_000_000;
         
         // Calculate cost (for all requests in this group)
-        const cost = estimateCost(provider, inputTokens, outputTokens);
+        const cost = estimateCost(provider, inputTokens, outputTokens, modelName);
         
         // Build context for flag detection - use full content for better analysis
         // Include token counts for response length anomaly detection
@@ -1913,9 +1914,9 @@ ${providerFilter}
         totalTokens: inputTokens + outputTokens,
         avgLatency: (Number(record.avg_latency) || 0) / 1_000_000,
         errorRate: Number(record.error_rate) || 0,
-        estimatedCost: estimateCost(provider, inputTokens, outputTokens),
+        estimatedCost: estimateCost(provider, inputTokens, outputTokens, model),
         costPerRequest: totalRequests > 0 
-          ? estimateCost(provider, inputTokens, outputTokens) / totalRequests 
+          ? estimateCost(provider, inputTokens, outputTokens, model) / totalRequests 
           : 0
       };
     });
@@ -2076,10 +2077,10 @@ fetch spans, ${timeClause}
         efficiency,
         // Flag as wasteful if efficiency < 0.5 (less than 50% output vs input)
         isWasteful: efficiency < 0.5,
-        estimatedCost: estimateCost(provider, inputTokens, outputTokens),
+        estimatedCost: estimateCost(provider, inputTokens, outputTokens, model),
         // Potential savings if efficiency improved to 1.0
         potentialSavings: efficiency < 1.0 
-          ? estimateCost(provider, inputTokens * (1 - efficiency), 0)
+          ? estimateCost(provider, inputTokens * (1 - efficiency), 0, model)
           : 0
       };
     });
@@ -2173,7 +2174,7 @@ export function useSemanticCacheSavings(filters?: QueryFilters) {
       const avgOutput = Number(record.avg_output) || 0;
       
       // Calculate total cost for all requests
-      const totalCost = estimateCost(provider, totalInput, totalOutput);
+      const totalCost = estimateCost(provider, totalInput, totalOutput, model);
       
       // If cached after first request, we'd save (count-1)/count of the cost
       // (First request pays full cost, subsequent requests are free/minimal)

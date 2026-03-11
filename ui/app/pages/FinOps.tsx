@@ -5,17 +5,22 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
+import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components-preview/charts';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
-import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
+import { Tabs, Tab } from '@dynatrace/strato-components-preview/navigation';
+
+import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon, EditIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
 import { CostGuardrailPanel } from '../components/CostGuardrailPanel';
+import { RateCardSettings } from '../components/RateCardSettings';
+import { refreshRateCardCache } from '../utils';
 import { useGlobalFilters } from '../context';
 import { formatRequestCount, formatCostPer1K } from '../utils';
+import { useBudgetBurnRate } from '../hooks/useCostGuardrails';
 import { 
   useProviderComparison, 
   useDistinctServices, 
@@ -30,6 +35,7 @@ import {
 } from '../hooks/useDQLQueries';
 import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
 import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
+import { useDavisForecast } from '../hooks/useDavisForecast';
 
 // Strato Design Tokens for status colors
 const STATUS_COLORS = {
@@ -60,57 +66,14 @@ interface BudgetAlert {
   current: number;
 }
 
-interface ForecastData {
-  day: number;
-  projectedCost: number;
-  projectedTokens: number;
-  confidence: 'high' | 'medium' | 'low';
-}
-
-// Simple linear regression for forecasting
-function calculateForecast(
-  currentCost: number,
-  currentTokens: number,
-  daysOfData: number = 7
-): ForecastData[] {
-  // Calculate daily average based on current period
-  const dailyAvgCost = currentCost / Math.max(daysOfData, 1);
-  const dailyAvgTokens = currentTokens / Math.max(daysOfData, 1);
-  
-  // Assume slight growth trend (5% weekly increase typical for AI adoption)
-  const dailyGrowthRate = 1.007; // ~0.7% daily growth
-  
-  const forecast: ForecastData[] = [];
-  
-  for (let day = 1; day <= 30; day++) {
-    const growthFactor = Math.pow(dailyGrowthRate, day);
-    const projectedDailyCost = dailyAvgCost * growthFactor;
-    const projectedDailyTokens = dailyAvgTokens * growthFactor;
-    
-    // Cumulative projection
-    const projectedCost = currentCost + (projectedDailyCost * day);
-    const projectedTokens = currentTokens + (projectedDailyTokens * day);
-    
-    // Confidence decreases over time
-    let confidence: 'high' | 'medium' | 'low' = 'high';
-    if (day > 14) confidence = 'low';
-    else if (day > 7) confidence = 'medium';
-    
-    forecast.push({
-      day,
-      projectedCost,
-      projectedTokens,
-      confidence,
-    });
-  }
-  
-  return forecast;
-}
-
 export const FinOps: React.FC = () => {
   // Use global filter state for consistency across pages
   const { filters, setFilters } = useGlobalFilters();
   const [budgetLimit, setBudgetLimit] = useState<number>(1000);
+  const [showRateCardSettings, setShowRateCardSettings] = useState(false);
+
+  // Budget burn rate — used by the hero card for $/hr, projection, ETA
+  const { data: burnRate } = useBudgetBurnRate(budgetLimit);
   
   // Get available service options (with entity IDs)
   const { data: availableServiceOptions } = useDistinctServices();
@@ -202,6 +165,12 @@ export const FinOps: React.FC = () => {
     return costBreakdown.reduce((sum, c) => sum + c.totalTokens, 0);
   }, [costBreakdown]);
 
+  // Budget exhaustion ETA based on burn rate
+  const budgetEtaHours = useMemo(() => {
+    if (!burnRate || burnRate.burnRatePerHour <= 0 || totalCost >= budgetLimit) return null;
+    return (budgetLimit - totalCost) / burnRate.burnRatePerHour;
+  }, [burnRate, totalCost, budgetLimit]);
+
   // Generate budget alerts
   const budgetAlerts = useMemo((): BudgetAlert[] => {
     const alerts: BudgetAlert[] = [];
@@ -243,10 +212,14 @@ export const FinOps: React.FC = () => {
     return alerts;
   }, [costBreakdown, totalCost, budgetLimit]);
 
-  // Calculate cost forecast
-  const costForecast = useMemo(() => {
-    return calculateForecast(totalCost, totalTokens, 7);
-  }, [totalCost, totalTokens]);
+  // Davis Analyzer-powered cost forecast (falls back to linear if unavailable)
+  const {
+    forecast: costForecast,
+    trend: forecastTrend,
+    quality: forecastQuality,
+    isDavisPowered,
+    budgetBreachDay: davisBudgetBreachDay,
+  } = useDavisForecast(totalCost, totalTokens, budgetLimit);
 
   // ─── Cost Optimization Insights (Phase 1.2 enhancement) ───
   const costInsights = useMemo(() => {
@@ -271,9 +244,9 @@ export const FinOps: React.FC = () => {
     }
 
     // 30-day budget projection warning
-    const f30 = totalCost > 0 ? calculateForecast(totalCost, totalTokens, 7).find(f => f.day === 30) : null;
+    const f30 = costForecast.find(f => f.day === 30);
     if (f30 && f30.projectedCost > totalCost * 1.1) {
-      insights.push({ type: 'info', title: `30-day projection: $${f30.projectedCost.toFixed(2)}`, detail: `Projected assuming ~0.7%/day growth. Review token usage and enable caching to manage costs.` });
+      insights.push({ type: 'info', title: `30-day projection: $${f30.projectedCost.toFixed(2)}`, detail: isDavisPowered ? 'Projected by Dynatrace Intelligence Analyzer based on historical trend analysis.' : 'Projected assuming ~0.7%/day growth. Review token usage and enable caching to manage costs.' });
     }
 
     // Caching opportunity (if high request count)
@@ -285,42 +258,13 @@ export const FinOps: React.FC = () => {
     }
 
     return insights;
-  }, [costBreakdown, totalCost, totalTokens]);
-
-  // Transform forecast data to Timeseries format for the projection chart
-  const forecastTimeseriesData = useMemo((): Timeseries[] => {
-    if (costForecast.length === 0 || totalCost === 0) return [];
-    
-    const now = new Date();
-    const projectionDatapoints = costForecast.map((f) => ({
-      start: new Date(now.getTime() + (f.day - 1) * 24 * 60 * 60 * 1000),
-      end: new Date(now.getTime() + f.day * 24 * 60 * 60 * 1000),
-      value: f.projectedCost
-    }));
-
-    // Create budget line for reference
-    const budgetDatapoints = costForecast.map((f) => ({
-      start: new Date(now.getTime() + (f.day - 1) * 24 * 60 * 60 * 1000),
-      end: new Date(now.getTime() + f.day * 24 * 60 * 60 * 1000),
-      value: budgetLimit
-    }));
-
-    return [
-      { name: 'Projected Cost ($)', datapoints: projectionDatapoints, unit: '$' },
-      { name: 'Budget Limit ($)', datapoints: budgetDatapoints, unit: '$' }
-    ];
-  }, [costForecast, totalCost, budgetLimit]);
+  }, [costBreakdown, totalCost, costForecast, isDavisPowered]);
 
   // Forecast projections
-  const forecast7Day = costForecast.find(f => f.day === 7);
-  const forecast14Day = costForecast.find(f => f.day === 14);
   const forecast30Day = costForecast.find(f => f.day === 30);
 
-  // Budget breach prediction
-  const budgetBreachDay = useMemo(() => {
-    const breachPoint = costForecast.find(f => f.projectedCost >= budgetLimit);
-    return breachPoint?.day || null;
-  }, [costForecast, budgetLimit]);
+  // Budget breach prediction (from Davis or local)
+  const budgetBreachDay = davisBudgetBreachDay;
 
   const loading = providersLoading;
 
@@ -333,6 +277,14 @@ export const FinOps: React.FC = () => {
         </TitleBar.Prefix>
         <TitleBar.Title>FinOps Dashboard</TitleBar.Title>
         <TitleBar.Subtitle>AI cost management & optimization</TitleBar.Subtitle>
+        <TitleBar.Suffix>
+          <Tooltip text="Configure custom rate cards based on your provider contracts">
+            <Button variant="default" onClick={() => setShowRateCardSettings(true)}>
+              <Button.Prefix><EditIcon /></Button.Prefix>
+              Rate Card Settings
+            </Button>
+          </Tooltip>
+        </TitleBar.Suffix>
       </TitleBar>
 
       {/* Estimation Disclaimer */}
@@ -340,8 +292,8 @@ export const FinOps: React.FC = () => {
         <Flex alignItems="center" gap={8}>
           <DocumentIcon aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            <strong>Note:</strong> Cost estimates use public pricing (OpenAI $0.50-$15/MTok, Anthropic $3-$75/MTok). 
-            Token split assumes 30% input / 70% output. Forecasts use 0.7% daily growth projection.
+            <strong>Note:</strong> Cost estimates use default public pricing. 
+            <strong style={{ cursor: 'pointer', color: Colors.Text.Primary.Default }} onClick={() => setShowRateCardSettings(true)}> Click here</strong> to configure your custom contract rates for more accurate estimates.
           </Text>
         </Flex>
       </Surface>
@@ -357,9 +309,14 @@ export const FinOps: React.FC = () => {
       />
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Autonomous Cost Guardrails (Phase 1 — Evolution Strategy) */}
+      {/* TABBED LAYOUT: Group content into logical sections */}
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      <CostGuardrailPanel dailyBudget={budgetLimit} />
+      <Tabs defaultIndex={0}>
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 1: Overview — Budget, Alerts, Guardrails, Optimization Insights   */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="Overview" prefixIcon={<MoneyIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       {/* SECTION: Budget Overview */}
@@ -395,6 +352,23 @@ export const FinOps: React.FC = () => {
               <Text textStyle="small" style={{ fontWeight: 600, color: totalCost > budgetLimit * 0.9 ? Colors.Text.Critical.Default : totalCost > budgetLimit * 0.7 ? Colors.Text.Warning.Default : Colors.Text.Success.Default }}>
                 {((totalCost / budgetLimit) * 100).toFixed(0)}%
               </Text>
+            </Flex>
+            <Flex flexDirection="column" gap={2}>
+              {burnRate ? (
+                <>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                    Burn: ${burnRate.burnRatePerHour.toFixed(2)}/hr &bull; Projected: ${burnRate.projectedDailySpend.toFixed(2)}/day
+                  </Text>
+                  {budgetEtaHours !== null && (
+                    <Text textStyle="small" style={{
+                      color: budgetEtaHours < 4 ? STATUS_COLORS.critical : STATUS_COLORS.warning,
+                      fontWeight: 600,
+                    }}>
+                      &#9201; Budget exhaustion in {budgetEtaHours.toFixed(1)} hours
+                    </Text>
+                  )}
+                </>
+              ) : null}
             </Flex>
           </Flex>
         </Surface>
@@ -534,170 +508,81 @@ export const FinOps: React.FC = () => {
         </Flex>
       </Surface>
 
-      {/* Cost Forecast Section */}
+      {/* Budget Projection Strip — compact, actionable forecast summary */}
       <Surface style={{ padding: 16 }}>
         <Flex flexDirection="column" gap={12}>
           <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
-              <Heading level={6}>AI-Powered Cost Forecast</Heading>
-              <Tooltip text="Predicts future costs using linear regression on your historical data with ~0.7% daily growth assumption (typical for AI adoption). Confidence decreases over time: High (1-7 days), Medium (8-14 days), Low (15-30 days).">
-                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-              </Tooltip>
+              <AiIcon style={{ width: 16, height: 16, color: isDavisPowered ? Colors.Charts.Status.Good.Default : Colors.Text.Neutral.Subdued }} />
+              <Heading level={6}>Budget Projection</Heading>
+              {isDavisPowered && (
+                <span style={{ fontSize: 9, padding: '2px 8px', background: Colors.Charts.Status.Good.Default + '20', color: Colors.Charts.Status.Good.Default, borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px' }}>DT INTELLIGENCE</span>
+              )}
             </Flex>
-            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              Based on 7-day rolling average with growth trend
-            </Text>
+            {isDavisPowered ? (
+              <Text textStyle="small" style={{ color: Colors.Charts.Status.Good.Default }}>
+                Quality: {forecastQuality} &bull; Trend: {forecastTrend}
+              </Text>
+            ) : (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Linear estimate</Text>
+            )}
           </Flex>
-          
+
           <Flex gap={16}>
-            {/* 7-Day Projection */}
-            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
+            {/* Projected 30-Day Spend */}
+            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color01.Default}` }}>
               <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  7-Day Projection
-                </Text>
-                <Heading level={3}>
-                  ${forecast7Day?.projectedCost.toFixed(2) || '0.00'}
-                </Heading>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ 
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: Colors.Charts.Apdex.Excellent.Default
-                  }} />
-                  <Text textStyle="small">High confidence</Text>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Projected 30-Day Spend</Text>
+                <Flex alignItems="baseline" gap={6}>
+                  <Heading level={4}>${forecast30Day?.projectedCost.toFixed(2) || '—'}</Heading>
+                  <Text textStyle="small" style={{
+                    color: forecastTrend === 'increasing' ? Colors.Text.Warning.Default
+                         : forecastTrend === 'decreasing' ? Colors.Text.Success.Default
+                         : Colors.Text.Neutral.Subdued,
+                    fontWeight: 600,
+                  }}>
+                    {forecastTrend === 'increasing' ? '↑' : forecastTrend === 'decreasing' ? '↓' : '→'} {forecastTrend}
+                  </Text>
                 </Flex>
               </Flex>
             </Surface>
 
-            {/* 14-Day Projection */}
-            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
-              <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  14-Day Projection
-                </Text>
-                <Heading level={3}>
-                  ${forecast14Day?.projectedCost.toFixed(2) || '0.00'}
-                </Heading>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ 
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: Colors.Charts.Apdex.Good.Default
-                  }} />
-                  <Text textStyle="small">Medium confidence</Text>
-                </Flex>
-              </Flex>
-            </Surface>
-
-            {/* 30-Day Projection */}
-            <Surface style={{ flex: 1, padding: 12, backgroundColor: 'rgba(99, 102, 241, 0.05)' }}>
-              <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  30-Day Projection
-                </Text>
-                <Heading level={3}>
-                  ${forecast30Day?.projectedCost.toFixed(2) || '0.00'}
-                </Heading>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ 
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: Colors.Charts.Apdex.Poor.Default
-                  }} />
-                  <Text textStyle="small">Low confidence</Text>
-                </Flex>
-              </Flex>
-            </Surface>
-
-            {/* Budget Breach Prediction */}
-            <Surface style={{ 
-              flex: 1, 
-              padding: 12, 
-              backgroundColor: budgetBreachDay 
-                ? budgetBreachDay <= 7 ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 165, 0, 0.1)'
-                : 'rgba(0, 200, 100, 0.1)'
+            {/* Budget Breach ETA */}
+            <Surface style={{
+              flex: 1, padding: 14,
+              borderLeft: `3px solid ${
+                budgetBreachDay
+                  ? budgetBreachDay <= 7 ? Colors.Charts.Status.Critical.Default : Colors.Charts.Status.Warning.Default
+                  : Colors.Charts.Status.Good.Default
+              }`,
             }}>
               <Flex flexDirection="column" gap={4}>
                 <Flex alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                    Budget Breach ETA
-                  </Text>
-                  <Tooltip text="Estimated days until your spending exceeds the budget limit. Red = breach in ≤7 days (urgent), Orange = breach in 8-30 days, Green = on track within 30 days.">
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Budget Breach ETA</Text>
+                  <Tooltip text="Days until projected spend exceeds your budget limit.">
                     <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <Heading level={3} style={{
-                  color: budgetBreachDay 
+                <Heading level={4} style={{
+                  color: budgetBreachDay
                     ? budgetBreachDay <= 7 ? Colors.Text.Critical.Default : Colors.Text.Warning.Default
-                    : Colors.Text.Success.Default
+                    : Colors.Text.Success.Default,
                 }}>
-                  {budgetBreachDay 
+                  {budgetBreachDay
                     ? budgetBreachDay === 1 ? 'Tomorrow!' : `${budgetBreachDay} days`
                     : 'On Track ✓'}
                 </Heading>
-                <Text textStyle="small">
-                  {budgetBreachDay 
-                    ? `Projected to exceed $${budgetLimit} budget`
-                    : 'Within budget for next 30 days'}
-                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Daily Run Rate */}
+            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color03.Default}` }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Daily Run Rate</Text>
+                <Heading level={4}>${burnRate ? burnRate.projectedDailySpend.toFixed(2) : '—'}/day</Heading>
               </Flex>
             </Surface>
           </Flex>
-
-          {/* Forecast Trend Visualization - Proper Line Chart */}
-          <Surface style={{ padding: 16 }}>
-            <Flex flexDirection="column" gap={12}>
-              <Flex justifyContent="space-between" alignItems="center">
-                <Text textStyle="small" style={{ fontWeight: 600 }}>30-Day Cost Projection</Text>
-                <Flex alignItems="center" gap={12}>
-                  <Flex alignItems="center" gap={4}>
-                    <span style={{ width: 12, height: 3, backgroundColor: Colors.Charts.Categorical.Color01.Default, borderRadius: 1 }} />
-                    <Text textStyle="small">Projected Cost</Text>
-                  </Flex>
-                  <Flex alignItems="center" gap={4}>
-                    <span style={{ width: 12, height: 3, backgroundColor: Colors.Text.Warning.Default, borderRadius: 1 }} />
-                    <Text textStyle="small">Budget (${budgetLimit})</Text>
-                  </Flex>
-                </Flex>
-              </Flex>
-              {forecastTimeseriesData.length > 0 ? (
-                <TimeseriesChart
-                  data={forecastTimeseriesData}
-                  variant="line"
-                  height={160}
-                  colorPalette={[Colors.Charts.Categorical.Color01.Default, Colors.Text.Warning.Default]}
-                >
-                  <TimeseriesChart.Tooltip variant="shared" />
-                </TimeseriesChart>
-              ) : (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 160, color: 'var(--dt-colors-text-secondary-default)' }}>
-                  <Text textStyle="small">No forecast data available</Text>
-                </Flex>
-              )}
-              {/* Confidence Legend */}
-              <Flex justifyContent="center" gap={16}>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: Colors.Charts.Apdex.Excellent.Default }} />
-                  <Text textStyle="small" style={{ fontSize: 11 }}>High confidence (Day 1-7)</Text>
-                </Flex>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: Colors.Charts.Apdex.Good.Default }} />
-                  <Text textStyle="small" style={{ fontSize: 11 }}>Medium (Day 8-14)</Text>
-                </Flex>
-                <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: Colors.Charts.Apdex.Poor.Default }} />
-                  <Text textStyle="small" style={{ fontSize: 11 }}>Low (Day 15-30)</Text>
-                </Flex>
-              </Flex>
-            </Flex>
-          </Surface>
         </Flex>
       </Surface>
 
@@ -751,13 +636,17 @@ export const FinOps: React.FC = () => {
         </Surface>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Cost Breakdown & Analysis */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-        <AiIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-        <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Breakdown & Analysis</Text>
-      </Flex>
+      {/* Autonomous Cost Guardrails */}
+      <CostGuardrailPanel dailyBudget={budgetLimit} />
+
+          </Flex>
+        </Tab>
+
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 2: Cost Breakdown — Provider, Model, Embedding, Service tables   */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="Cost Breakdown" prefixIcon={<AiIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* Cost Breakdown Table */}
       <Surface style={{ padding: 16 }}>
@@ -1015,13 +904,14 @@ export const FinOps: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Efficiency & Optimization */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-        <WarningIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-        <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Efficiency & Optimization</Text>
-      </Flex>
+          </Flex>
+        </Tab>
+
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 3: Efficiency & Caching — Token analysis, caching, OTel, prompts */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="Efficiency & Caching" prefixIcon={<WarningIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
       {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator - TEMPORARILY HIDDEN */}
@@ -1425,6 +1315,22 @@ export const FinOps: React.FC = () => {
           </Flex>
         </Flex>
       </Surface>
+
+          </Flex>
+        </Tab>
+      </Tabs>
+
+      {/* Rate Card Settings Modal */}
+      <RateCardSettings
+        isOpen={showRateCardSettings}
+        onClose={() => setShowRateCardSettings(false)}
+        onConfigChange={() => {
+          refreshRateCardCache();
+          // Trigger data refetch to recalculate costs with new rates
+          handleRefresh();
+        }}
+        detectedModels={modelCosts?.map(mc => ({ model: mc.model, provider: mc.provider })) || []}
+      />
     </Flex>
   );
 };

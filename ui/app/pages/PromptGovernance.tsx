@@ -687,7 +687,7 @@ export function PromptGovernance() {
       <TitleBar>
         <TitleBar.Title>Prompt Governance</TitleBar.Title>
         <TitleBar.Subtitle>
-          PII detection, injection risk analysis, and Davis AI prompt scoring
+          PII detection, injection risk analysis, and Dynatrace Intelligence prompt scoring
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">

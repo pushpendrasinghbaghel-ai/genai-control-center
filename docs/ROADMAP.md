@@ -193,24 +193,37 @@ fetch spans | filter traceloop.span.kind == "task"
 ---
 
 ### 1.2 Cost Forecasting with Davis Analyzers
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v3.0.0)
 
-> Implemented: AI-Powered Cost Forecast section with 7/14/30-day projections, budget breach ETA, and AI cost optimization insights (top provider concentration, cheapest-per-request, caching opportunity).
+> Implemented: Real Davis `GenericForecastAnalyzer` integration per [official Dynatrace Intelligence guide](https://developer.dynatrace.com/develop/guides/forecast-with-dynatrace-intelligence/). Features polling for long-running executions, `convertToTimeseriesBand` for proper output parsing, band chart visualization with confidence intervals, and linear fallback when analyzer is unavailable.
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Davis-Powered Forecasting | `GenericForecastAnalyzer` | 📋 | Analyzer available |
-| Anomaly Detection | `AutoAdaptiveAnomalyDetectionAnalyzer` | 📋 | 3 analyzers available |
-| Token Usage Trends | `gen_ai.usage.input_tokens/output_tokens` | 📋 | Full timeseries data |
-| Provider Cost Comparison | Tokens × pricing model | 📋 | 6 providers tracked |
-| Budget Breach ETA | Forecast + threshold | 📋 | Can calculate |
+| Davis-Powered Forecasting | `GenericForecastAnalyzer` | ✅ | Polling + `convertToTimeseriesBand` per official guide |
+| Confidence Band Chart | `TimeseriesChart.Band` | ✅ | Shows prediction interval from analyzer |
+| 7/14/30-Day Projections | Analyzer output → daily aggregation | ✅ | Cards with confidence levels |
+| Budget Breach ETA | Forecast + threshold | ✅ | Cumulative cost vs budget limit |
+| Linear Fallback | Local calculation | ✅ | 0.7%/day growth when analyzer unavailable |
+| Token Usage Trends | `gen_ai.usage.input_tokens/output_tokens` | ✅ | Full timeseries data |
+| Provider Cost Comparison | Tokens × pricing model | ✅ | 6 providers tracked |
 
 #### Davis Analyzers Available
-- `dt.statistics.GenericForecastAnalyzer`
-- `dt.statistics.anomaly_detection.AutoAdaptiveAnomalyDetectionAnalyzer`
-- `dt.statistics.anomaly_detection.SeasonalBaselineAnomalyDetectionAnalyzer`
-- `dt.statistics.anomaly_detection.StaticThresholdAnomalyDetectionAnalyzer`
+- `dt.statistics.GenericForecastAnalyzer` — ✅ **Wired** (cost forecast with polling)
+- `dt.statistics.anomaly_detection.AutoAdaptiveAnomalyDetectionAnalyzer` — SDK ready in `davisAnalyzers.ts`
+- `dt.statistics.anomaly_detection.SeasonalBaselineAnomalyDetectionAnalyzer` — SDK ready in `davisAnalyzers.ts`
+- `dt.statistics.anomaly_detection.StaticThresholdAnomalyDetectionAnalyzer` — SDK ready in `davisAnalyzers.ts`
+
+#### Dynatrace Intelligence Integration Roadmap
+Based on analysis of reference implementations, the following Davis Intelligence features are planned:
+
+| Feature | Analyzer / Service | Priority | Status | Target |
+|---------|-------------------|----------|--------|--------|
+| Token/Cost Spike Detection | `AutoAdaptiveAnomalyDetectionAnalyzer` | P1 | 📋 Planned | Health Dashboard |
+| Deployment Regression Detection | `NoveltyScoreAnalyzer` | P2 | 📋 Planned | Infrastructure |
+| Business-Hour Pattern Anomalies | `SeasonalBaselineAnomalyDetectionAnalyzer` | P2 | 📋 Planned | Health Dashboard |
+| Composite Health Analysis | All analyzers in parallel | P2 | 📋 Planned | Health Dashboard |
+| Root Cause Analysis via Copilot | Davis Copilot conversations | P3 | 📋 Planned | Davis Assistant |
 
 ---
 

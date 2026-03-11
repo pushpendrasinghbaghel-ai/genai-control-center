@@ -203,11 +203,294 @@ const FailoverEventCard: React.FC<{ event: FailoverEvent }> = ({ event }) => {
   );
 };
 
+// ─── Methodology Help Modal ─────────────────────────────────────
+
+const MethodologyHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [activeSection, setActiveSection] = useState<'health' | 'readiness' | 'status'>('health');
+  
+  const sections = [
+    { key: 'health' as const, label: 'Health Index' },
+    { key: 'readiness' as const, label: 'Failover Readiness' },
+    { key: 'status' as const, label: 'Status Thresholds' },
+  ];
+
+  return (
+    <Modal title="Calculation Methodology" show={isOpen} onDismiss={onClose} size="large">
+      <Flex flexDirection="column" gap={16} style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        {/* Section Tabs */}
+        <Flex gap={8}>
+          {sections.map((s) => (
+            <Button
+              key={s.key}
+              variant={activeSection === s.key ? 'accent' : 'default'}
+              onClick={() => setActiveSection(s.key)}
+            >
+              {s.label}
+            </Button>
+          ))}
+        </Flex>
+
+        {/* Health Index Section */}
+        {activeSection === 'health' && (
+          <Flex flexDirection="column" gap={16}>
+            <Surface padding={16} style={{ borderLeft: `3px solid ${STATUS_COLORS.healthy}` }}>
+              <Flex flexDirection="column" gap={8}>
+                <Heading level={5} style={{ margin: 0 }}>Provider Health Index (0–100)</Heading>
+                <Text style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  The Health Index is a weighted composite score calculated from four real-time dimensions,
+                  each contributing 25 points to the total score. All data is sourced from gen_ai.* OpenTelemetry spans.
+                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Reliability Score */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>1. Reliability Score</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Measures error rate based on span.status_code == "error"</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: score = 100 × (1 − errorRate / 10)</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • 0% error rate → 100 (full 25 pts) | • 5% error rate → 50 (12.5 pts) | • ≥10% error rate → 0 (0 pts)
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Performance Score */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>2. Performance Score</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Based on p95 latency percentile (optimal for AI inference workloads)</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: score = 100 × (1 − (p95_ms − 500) / 4500)</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • ≤500ms → 100 (full 25 pts) | • 2000ms → 67 (16.7 pts) | • ≥5000ms → 0 (0 pts)
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Availability Score */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>3. Availability Score</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Uptime percentage: 100 × (1 − errors / total)</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: score = (availability − 90) × 10</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • 99.9%+ → 100 (full 25 pts) | • 99% → 90 (22.5 pts) | • 95% → 50 (12.5 pts) | • &lt;90% → 0 (0 pts)
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Freshness Score */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>4. Freshness Score</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Time since last successful span (detects brownouts/silent failures)</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: score = 100 × (1 − (minutesSinceLastSeen − 5) / 55)</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • ≤5 min ago → 100 (full 25 pts) | • 30 min ago → 55 (13.8 pts) | • ≥60 min ago → 0 (0 pts)
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            <Surface padding={12} style={{ borderLeft: `3px solid ${STATUS_COLORS.degraded}` }}>
+              <Flex alignItems="center" gap={8}>
+                <BarChartIcon />
+                <Text style={{ fontSize: 13 }}>
+                  <strong>Final Health Index</strong> = (Reliability + Performance + Availability + Freshness) / 4
+                </Text>
+              </Flex>
+            </Surface>
+          </Flex>
+        )}
+
+        {/* Failover Readiness Section */}
+        {activeSection === 'readiness' && (
+          <Flex flexDirection="column" gap={16}>
+            <Surface padding={16} style={{ borderLeft: `3px solid ${STATUS_COLORS.healthy}` }}>
+              <Flex flexDirection="column" gap={8}>
+                <Heading level={5} style={{ margin: 0 }}>Failover Readiness Score (0–100)</Heading>
+                <Text style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  Measures your infrastructure's ability to handle provider outages. A high score means you're
+                  well-positioned to failover traffic with minimal disruption.
+                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Redundancy */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>1. Provider Redundancy</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Ratio of healthy providers to total providers</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: (healthyCount / totalProviders) × 25</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      Example: 3 of 4 providers healthy → 18.75 pts
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Diversification */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>2. Traffic Diversification</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Penalizes single-provider concentration (avoids single point of failure)</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: if maxShare ≤ 50% → 25 pts; else 25 × (1 − (maxShare − 0.5) × 2)</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • ≤50% to largest provider → full 25 pts | • 75% to one provider → 0 pts
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Average Health */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>3. Average Health</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Mean health index across all providers</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: (avgHealthIndex / 100) × 25</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      Example: Average health 80 → 20 pts
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            {/* Stability */}
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <Text style={{ fontSize: 14, fontWeight: 700 }}>4. Stability</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 600, color: STATUS_COLORS.healthy }}>(max 25 pts)</Text>
+                </Flex>
+                <Text style={{ fontSize: 13 }}>Penalizes critical/down providers</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12, fontFamily: 'monospace' }}>Formula: 25 × (1 − criticalOrDownCount / totalProviders)</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                      • No critical/down → full 25 pts | • 1 of 4 critical → 18.75 pts
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+          </Flex>
+        )}
+
+        {/* Status Thresholds Section */}
+        {activeSection === 'status' && (
+          <Flex flexDirection="column" gap={16}>
+            <Surface padding={16} style={{ borderLeft: `3px solid ${STATUS_COLORS.healthy}` }}>
+              <Flex flexDirection="column" gap={8}>
+                <Heading level={5} style={{ margin: 0 }}>Provider Status Classification</Heading>
+                <Text style={{ fontSize: 13 }}>
+                  Provider status is derived from the Health Index using these thresholds:
+                </Text>
+              </Flex>
+            </Surface>
+
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={12}>
+                {[
+                  { status: 'healthy', range: '80–100', desc: 'Provider operating within normal parameters', color: STATUS_COLORS.healthy },
+                  { status: 'degraded', range: '60–79', desc: 'Elevated errors or latency; monitor closely', color: STATUS_COLORS.degraded },
+                  { status: 'critical', range: '30–59', desc: 'Significant issues; consider failover', color: STATUS_COLORS.critical },
+                  { status: 'down', range: '0–29', desc: 'Provider effectively unavailable; failover recommended', color: STATUS_COLORS.down },
+                ].map((s) => (
+                  <Flex key={s.status} alignItems="center" gap={12}>
+                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: s.color }} />
+                    <Text style={{ width: 70, fontWeight: 600, textTransform: 'capitalize' }}>{s.status}</Text>
+                    <Text style={{ width: 60, fontFamily: 'monospace', fontSize: 12 }}>{s.range}</Text>
+                    <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>{s.desc}</Text>
+                  </Flex>
+                ))}
+              </Flex>
+            </Surface>
+
+            <Surface padding={16}>
+              <Flex flexDirection="column" gap={8}>
+                <Heading level={6} style={{ margin: 0 }}>Model-Level Status</Heading>
+                <Text style={{ fontSize: 13 }}>Individual models are classified separately based on:</Text>
+                <Surface padding={12} style={{ backgroundColor: 'var(--dt-colors-background-surface-subdued)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontSize: 12 }}>• <strong>unknown</strong>: No data in last 30 minutes</Text>
+                    <Text style={{ fontSize: 12 }}>• <strong>critical</strong>: Error rate &gt; 20%</Text>
+                    <Text style={{ fontSize: 12 }}>• <strong>degraded</strong>: Error rate &gt; 5%</Text>
+                    <Text style={{ fontSize: 12 }}>• <strong>healthy</strong>: Error rate ≤ 5%</Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+            </Surface>
+
+            <Surface padding={16} style={{ borderLeft: `3px solid ${STATUS_COLORS.degraded}` }}>
+              <Flex flexDirection="column" gap={8}>
+                <Heading level={6} style={{ margin: 0 }}>Data Source</Heading>
+                <Text style={{ fontSize: 13 }}>
+                  All metrics are computed in real-time from OpenTelemetry gen_ai.* semantic convention spans
+                  stored in Dynatrace Grail. No mock data is used.
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>
+                  Required attributes: gen_ai.provider.name, gen_ai.request.model, span.status_code, duration
+                </Text>
+              </Flex>
+            </Surface>
+          </Flex>
+        )}
+      </Flex>
+    </Modal>
+  );
+};
+
 // ─── Main Page ──────────────────────────────────────────────────
 
 export const ProviderStatus: React.FC = () => {
   const { providers, errorBursts, modelHealth, failoverEvents, trendData, overallReadiness, loading, error, refetch } = useProviderFailover();
   const [activeTab, setActiveTab] = useState<'overview' | 'models' | 'errors' | 'events'>('overview');
+  const [showMethodologyHelp, setShowMethodologyHelp] = useState(false);
 
   // Sort providers: worst health first
   const sortedProviders = useMemo(
@@ -298,12 +581,23 @@ export const ProviderStatus: React.FC = () => {
           Real-time provider health monitoring, failover readiness, and autonomous degradation detection
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
-          <Button variant="accent" onClick={() => refetch()} disabled={loading}>
-            <Button.Prefix><RefreshIcon /></Button.Prefix>
-            Refresh
-          </Button>
+          <Flex gap={8}>
+            <Tooltip text="View calculation methodology">
+              <Button variant="default" onClick={() => setShowMethodologyHelp(true)}>
+                <Button.Prefix><HelpIcon /></Button.Prefix>
+                Methodology
+              </Button>
+            </Tooltip>
+            <Button variant="accent" onClick={() => refetch()} disabled={loading}>
+              <Button.Prefix><RefreshIcon /></Button.Prefix>
+              Refresh
+            </Button>
+          </Flex>
         </TitleBar.Suffix>
       </TitleBar>
+
+      {/* Methodology Help Modal */}
+      <MethodologyHelpModal isOpen={showMethodologyHelp} onClose={() => setShowMethodologyHelp(false)} />
 
       {/* Content */}
       <Flex flexDirection="column" gap={16} padding={16} style={{ flex: 1, overflowY: 'auto' }}>

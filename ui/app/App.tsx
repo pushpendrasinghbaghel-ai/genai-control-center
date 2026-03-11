@@ -1,9 +1,10 @@
 // GenAI Control Center - Main App Component
 import { Page } from "@dynatrace/strato-components-preview/layouts";
-import React from "react";
+import React, { useEffect } from "react";
 import { Route, Routes, Navigate } from "react-router-dom";
 import { Header, ErrorBoundary } from "./components";
 import { FilterProvider } from "./context";
+import { syncRateCardFromGrail } from "./utils/helpers";
 import { 
   Home,
   HealthDashboard, 
@@ -30,6 +31,11 @@ import {
 } from "./pages";
 
 export const App = () => {
+  // Sync rate card config from Grail on startup
+  useEffect(() => {
+    syncRateCardFromGrail().catch(() => {});
+  }, []);
+
   return (
     <ErrorBoundary>
       <FilterProvider>
