@@ -28,6 +28,7 @@ import {
   SecurityAuditTrail,
   ProviderStatus,
   Integrations,
+  MLOps,
 } from "./pages";
 
 export const App = () => {
@@ -113,6 +114,9 @@ export const App = () => {
 
                 {/* Integrations Hub - Phase 10: MCP integrations dashboard */}
                 <Route path="/integrations" element={<Integrations />} />
+
+                {/* MLOps - Model Registry, SLOs, Comparison, Cost Attribution */}
+                <Route path="/mlops" element={<MLOps />} />
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

@@ -56,6 +56,9 @@ export { ProviderStatus } from './ProviderStatus';
 // NEW: Integrations Hub (Phase 10 - MCP integrations dashboard)
 export { Integrations } from './Integrations';
 
+// NEW: MLOps (Model Registry, AI SLOs, Model Comparison, Cost Attribution)
+export { MLOps } from './MLOps';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

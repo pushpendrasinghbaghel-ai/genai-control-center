@@ -1646,6 +1646,46 @@ fetch spans, from:now()-24h
 
 -- Long conversation / agent loop warning
 fetch spans, from:now()-24h
+
+---
+
+## Phase 11 — MLOps (Implemented)
+
+> **Status:** ✅ LIVE  
+> **Route:** `/mlops`  
+> **Added:** March 2026
+
+### What It Does
+Unified MLOps observability page with 5 tabs — all backed by real DQL queries against gen_ai.* spans in Grail. No mock data, no arbitrary composite scores.
+
+### Tabs
+
+1. **Model Registry** — Every model+provider combination in production. Requests, latency (avg/p95/p99), tokens, error rates, services consuming each model, first/last seen timestamps.
+2. **AI SLOs** — User-configurable latency and error thresholds. Compliance computed from actual span data (% requests meeting SLO). Error budget tracking per model+service.
+3. **Model Comparison** — Side-by-side performance: latency percentiles (p50/p95/p99), token efficiency (output/input ratio), error rates. Direct comparison from real metrics.
+4. **Cost Attribution** — Token consumption by service and by model. Shows which services and models consume the most tokens, with % share calculations. Pairs with FinOps rate cards.
+5. **Deployment Tracker** — Model version history and current service configuration. Reuses Infrastructure queries (model history + service config snapshots).
+
+### DQL Queries Added
+- `MLOPS_MODEL_REGISTRY_QUERY` — Model+provider aggregation with usage stats
+- `MLOPS_SLO_COMPLIANCE_QUERY` — SLO compliance per model+provider+service
+- `MLOPS_SLO_TREND_QUERY` — Hourly compliance for timeseries
+- `MLOPS_MODEL_COMPARISON_QUERY` — Side-by-side model metrics
+- `MLOPS_COST_BY_SERVICE_QUERY` — Token cost by service
+- `MLOPS_COST_BY_MODEL_QUERY` — Token cost by model
+- `MLOPS_MODEL_USAGE_TREND_QUERY` — Hourly model usage
+
+### Key Design Decisions
+- **No arbitrary scores**: All numbers are direct DQL aggregations (counts, averages, percentiles)
+- **No mock data**: Everything runs against real Grail span data
+- **SLO thresholds are user-configurable**: Latency threshold (ms) and error budget (%) stored in localStorage
+- **Reuses existing hooks**: Deployment Tracker tab uses `useInfrastructure` for model history data
+
+### Future Enhancements (Planned)
+- [ ] Evaluation Dataset Management (capture golden prompt/response pairs)
+- [ ] Prompt Template Library with versioning
+- [ ] A/B testing with statistical significance
+- [ ] Compliance reporting (EU AI Act evidence packages)
 | filter isNotNull(traceloop.association.properties.conversation_id)
 | summarize turns = count(), by: { conversation_id = traceloop.association.properties.conversation_id }
 | filter turns > 20

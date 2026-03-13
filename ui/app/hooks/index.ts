@@ -25,3 +25,4 @@ export * from './useGrafanaIntegration';
 export * from './useGitHubIntegration';
 export * from './useAgenticWorkflows';
 export * from './useRateCardStorage';
+export * from './useMLOps';

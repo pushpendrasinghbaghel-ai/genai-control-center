@@ -50,7 +50,7 @@ export const Header = () => {
   });
 
   // Check if any "More" page is currently active
-  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations'];
+  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations', '/mlops'];
   const isMoreActive = morePages.some(p => isActive(p));
 
   // Navigation follows Observe → Analyze → Act pattern
@@ -188,6 +188,15 @@ export const Header = () => {
             >
               <Menu.Prefix><AutomationEngineIcon /></Menu.Prefix>
               Integrations Hub
+            </Menu.Item>
+
+            <Menu.Label>MLOps</Menu.Label>
+            <Menu.Item
+              onSelect={() => navigate('/mlops')}
+              style={isActive('/mlops') ? { fontWeight: 600 } : {}}
+            >
+              <Menu.Prefix><ResearchIcon /></Menu.Prefix>
+              MLOps
             </Menu.Item>
           </Menu.Content>
         </Menu>

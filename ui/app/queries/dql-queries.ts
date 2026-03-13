@@ -1683,3 +1683,205 @@ fetch events, ${timeClause}
 | limit 20
 `.trim();
 };
+
+
+// ============================================
+// MLOps — Model Registry, SLOs, Comparison, Cost Attribution
+// ============================================
+
+/**
+ * Model Registry — Every model+provider combination in use, with usage stats.
+ * Pure aggregation from gen_ai.* spans. No synthetic scores.
+ */
+export const MLOPS_MODEL_REGISTRY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+${providerFilter}
+| summarize
+    requests = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000,
+    avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    total_input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    services = collectDistinct(entityName(dt.entity.service)),
+    first_seen = min(start_time),
+    last_seen = max(start_time)
+  , by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
+| fieldsAdd error_rate = if(requests > 0, 100.0 * toDouble(error_count) / toDouble(requests), else: 0.0)
+| sort requests desc
+| limit 100
+`.trim();
+};
+
+/**
+ * AI SLO Compliance — Measures actual compliance against latency and error targets.
+ * Returns raw counts so the UI can compute compliance % against user-defined thresholds.
+ */
+export const MLOPS_SLO_COMPLIANCE_QUERY = (filters?: QueryFilters, latencyThresholdMs = 3000, errorBudgetPct = 1.0): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  const modelFilter = buildModelFilter(filters?.model);
+  const latencyNs = latencyThresholdMs * 1000000;
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+${providerFilter}
+${modelFilter}
+| summarize
+    total_requests = count(),
+    fast_requests = countIf(duration <= ${latencyNs}),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000
+  , by: { model = gen_ai.request.model, provider = gen_ai.provider.name, service_name = entityName(dt.entity.service) }
+| fieldsAdd
+    latency_compliance = if(total_requests > 0, 100.0 * toDouble(fast_requests) / toDouble(total_requests), else: 100.0),
+    error_rate = if(total_requests > 0, 100.0 * toDouble(error_count) / toDouble(total_requests), else: 0.0)
+| fieldsAdd
+    error_budget_remaining = ${errorBudgetPct} - error_rate,
+    meets_latency_slo = latency_compliance >= 99.0,
+    meets_error_slo = error_rate <= ${errorBudgetPct}
+| sort total_requests desc
+| limit 100
+`.trim();
+};
+
+/**
+ * SLO Trend — Hourly compliance breakdown for timeseries charts.
+ */
+export const MLOPS_SLO_TREND_QUERY = (filters?: QueryFilters, latencyThresholdMs = 3000): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  const latencyNs = latencyThresholdMs * 1000000;
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+| summarize
+    total = count(),
+    fast = countIf(duration <= ${latencyNs}),
+    errors = countIf(span.status_code == "error" OR isNotNull(error.type))
+  , by: { time_bucket = bin(start_time, 1h) }
+| fieldsAdd
+    latency_compliance = if(total > 0, 100.0 * toDouble(fast) / toDouble(total), else: 100.0),
+    error_rate = if(total > 0, 100.0 * toDouble(errors) / toDouble(total), else: 0.0)
+| sort time_bucket asc
+`.trim();
+};
+
+/**
+ * Model Comparison — Side-by-side metrics for all models.
+ * Pure DQL aggregation: latency percentiles, token efficiency, error rates.
+ */
+export const MLOPS_MODEL_COMPARISON_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+${providerFilter}
+| fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
+| fieldsAdd output_tok = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| summarize
+    requests = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p50_latency_ms = percentile(duration, 50) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    p99_latency_ms = percentile(duration, 99) / 1000000,
+    avg_input = avg(input_tok),
+    avg_output = avg(output_tok),
+    total_input = sum(input_tok),
+    total_output = sum(output_tok),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type))
+  , by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
+| fieldsAdd
+    error_rate = if(requests > 0, 100.0 * toDouble(error_count) / toDouble(requests), else: 0.0),
+    token_efficiency = if(avg_input > 0, avg_output / avg_input, else: 0.0)
+| sort requests desc
+`.trim();
+};
+
+/**
+ * Cost Attribution by Service — Token usage per service for cost allocation.
+ * Maps AI spend to individual services consuming models.
+ */
+export const MLOPS_COST_BY_SERVICE_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const providerFilter = buildProviderFilter(filters?.provider);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${providerFilter}
+| fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
+| fieldsAdd output_tok = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| summarize
+    requests = count(),
+    total_input = sum(input_tok),
+    total_output = sum(output_tok),
+    models_used = collectDistinct(gen_ai.request.model),
+    providers_used = collectDistinct(gen_ai.provider.name),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type))
+  , by: { service_name = entityName(dt.entity.service) }
+| fieldsAdd
+    total_tokens = total_input + total_output,
+    error_rate = if(requests > 0, 100.0 * toDouble(error_count) / toDouble(requests), else: 0.0)
+| sort total_tokens desc
+`.trim();
+};
+
+/**
+ * Cost Attribution by Model — Token/cost breakdown per model across all services.
+ */
+export const MLOPS_COST_BY_MODEL_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+| fieldsAdd input_tok = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)
+| fieldsAdd output_tok = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| summarize
+    requests = count(),
+    total_input = sum(input_tok),
+    total_output = sum(output_tok),
+    avg_input = avg(input_tok),
+    avg_output = avg(output_tok),
+    services_count = countDistinct(entityName(dt.entity.service))
+  , by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
+| fieldsAdd total_tokens = total_input + total_output
+| sort total_tokens desc
+`.trim();
+};
+
+/**
+ * Model Usage Trend — Hourly request volume per model for timeseries display.
+ */
+export const MLOPS_MODEL_USAGE_TREND_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  const serviceFilter = buildServiceFilter(filters?.serviceName);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+${serviceFilter}
+| summarize
+    requests = count(),
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))
+  , by: { model = gen_ai.request.model, time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc
+`.trim();
+};

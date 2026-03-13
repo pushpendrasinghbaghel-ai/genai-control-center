@@ -882,6 +882,96 @@ export interface CloudWatchDashboardWidget {
 }
 
 // ============================================
+// MLOps — Model Registry, SLOs, Cost Attribution
+// ============================================
+
+/** A model+provider entry from the registry query */
+export interface MLOpsModelEntry {
+  model: string;
+  provider: string;
+  requests: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  errorCount: number;
+  errorRate: number;
+  services: string[];
+  firstSeen: string;
+  lastSeen: string;
+}
+
+/** SLO compliance row per model+provider+service */
+export interface MLOpsSLOEntry {
+  model: string;
+  provider: string;
+  serviceName: string;
+  totalRequests: number;
+  fastRequests: number;
+  errorCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  latencyCompliance: number;
+  errorRate: number;
+  errorBudgetRemaining: number;
+  meetsLatencySlo: boolean;
+  meetsErrorSlo: boolean;
+}
+
+/** Hourly SLO trend point */
+export interface MLOpsSLOTrendPoint {
+  timeBucket: string;
+  total: number;
+  fast: number;
+  errors: number;
+  latencyCompliance: number;
+  errorRate: number;
+}
+
+/** Model comparison entry */
+export interface MLOpsModelComparison {
+  model: string;
+  provider: string;
+  requests: number;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  avgInput: number;
+  avgOutput: number;
+  totalInput: number;
+  totalOutput: number;
+  errorCount: number;
+  errorRate: number;
+  tokenEfficiency: number;
+}
+
+/** Cost attribution row */
+export interface MLOpsCostEntry {
+  serviceName?: string;
+  model?: string;
+  provider?: string;
+  requests: number;
+  totalInput: number;
+  totalOutput: number;
+  totalTokens: number;
+  errorRate: number;
+  modelsUsed?: string[];
+  providersUsed?: string[];
+  servicesCount?: number;
+}
+
+/** User-defined SLO configuration (stored in localStorage) */
+export interface MLOpsSLOConfig {
+  latencyThresholdMs: number;
+  errorBudgetPct: number;
+}
+
+// ============================================
 // Phase 10 — Grafana Integration Types
 // ============================================
 
