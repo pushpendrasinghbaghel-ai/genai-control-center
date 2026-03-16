@@ -13,7 +13,8 @@ import {
   LockIcon,            // Governance / Security
   MoneyIcon,           // FinOps
   AgentIcon,           // Agent Tools (AI agents)
-  ResearchIcon,        // Model Drift
+  DifferenceChartIcon, // Model Drift (deviation/drift)
+  CycleIcon,           // MLOps (ML lifecycle)
   DatabaseIcon,        // RAG / Vector DB
   HostsIcon,           // Infrastructure
   CodeIcon,            // Developer Experience
@@ -50,7 +51,7 @@ export const Header = () => {
   });
 
   // Check if any "More" page is currently active
-  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations', '/mlops'];
+  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations'];
   const isMoreActive = morePages.some(p => isActive(p));
 
   // Navigation follows Observe → Analyze → Act pattern
@@ -102,12 +103,17 @@ export const Header = () => {
 
         {/* 9. Drift: Model behavior tracking */}
         <AppHeader.NavItem as={Link} to="/drift" style={getNavItemStyle('/drift')} aria-label="Model Drift Detection">
-          <ResearchIcon aria-hidden="true" /> Drift
+          <DifferenceChartIcon aria-hidden="true" /> Drift
         </AppHeader.NavItem>
 
         {/* 10. Intelligence: Davis AI agentic chat */}
         <AppHeader.NavItem as={Link} to="/intelligence" style={getNavItemStyle('/intelligence')} aria-label="Dynatrace Intelligence">
           <AiIcon aria-hidden="true" /> Intelligence
+        </AppHeader.NavItem>
+
+        {/* 11. MLOps: ML lifecycle management */}
+        <AppHeader.NavItem as={Link} to="/mlops" style={getNavItemStyle('/mlops')} aria-label="MLOps">
+          <CycleIcon aria-hidden="true" /> MLOps
         </AppHeader.NavItem>
 
       </AppHeader.NavItems>
@@ -190,14 +196,6 @@ export const Header = () => {
               Integrations Hub
             </Menu.Item>
 
-            <Menu.Label>MLOps</Menu.Label>
-            <Menu.Item
-              onSelect={() => navigate('/mlops')}
-              style={isActive('/mlops') ? { fontWeight: 600 } : {}}
-            >
-              <Menu.Prefix><ResearchIcon /></Menu.Prefix>
-              MLOps
-            </Menu.Item>
           </Menu.Content>
         </Menu>
 

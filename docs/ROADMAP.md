@@ -1507,23 +1507,170 @@ COMPETITIVE GAPS CLOSED: 16 of 22 identified gaps (73%)
 > **DATA STATUS:** 🟢 HIGH for Groups B, E — conversation IDs, token costs already in Grail. 🟡 PARTIAL for Group A — basic heuristic evals now; true LLM-as-judge requires Phase 0. Phase 0 unlocks the full layer.
 
 ### 8.1 LLM Evaluation Engine
-**Priority:** P1 | **Feasibility:** 🟡 PARTIAL (heuristics now; full LLM-judge after Phase 0) | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** � HIGH (Davis CoPilot as LLM-judge + Document Service + Bizevents) | **Status:** 📋 Planned
 
 **Why:** This is the single most-repeated feature across all 7 competitors. Arize, Opik, Langfuse, LangSmith, W&B, and Datadog all have robust LLM-as-a-judge scoring. Customers evaluating GCC for AI observability ask: *"Can I automatically score my production traces for hallucinations, relevance, and toxicity?"*
 
+**Key Insight (March 2026):** Davis CoPilot IS an LLM — it can serve as the evaluation judge without requiring Phase 0 or an external eval API. Combined with the Document Service (for dataset/rubric storage) and Bizevents (for persisting evaluation results in Grail), the full evaluation engine is **unblocked today**.
+
 **New Page:** `/evaluations` | **New Hook:** `useEvaluations.ts`
 
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    UI LAYER (New Page or MLOps Tab)      │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │ Dataset Mgr  │  │ Run Manager  │  │ Results View  │  │
+│  │ (upload/edit │  │ (pick model, │  │ (scores table,│  │
+│  │  golden set) │  │  run eval)   │  │  trend chart) │  │
+│  └──────┬──────┘  └──────┬───────┘  └───────┬───────┘  │
+├─────────┼────────────────┼───────────────────┼──────────┤
+│         │          HOOK LAYER                │          │
+│  ┌──────▼──────────────────────────────────────────┐    │
+│  │            useEvaluation.ts                      │    │
+│  │  • loadDataset() → Document Service              │    │
+│  │  • runEvaluation() → Davis CoPilot batch score   │    │
+│  │  • saveResults() → Bizevents to Grail            │    │
+│  │  • queryResults() → DQL fetch bizevents          │    │
+│  └──────────────────────────────────────────────────┘    │
+├──────────────────────────────────────────────────────────┤
+│                    STORAGE LAYER                         │
+│  ┌────────────────┐  ┌────────────┐  ┌──────────────┐   │
+│  │ Documents API  │  │ Bizevents  │  │  DQL Queries  │  │
+│  │ (datasets +    │  │ (eval      │  │ (query eval   │  │
+│  │  rubrics)      │  │  results)  │  │  results)     │  │
+│  └────────────────┘  └────────────┘  └──────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### Implementation Phases
+
+**Phase A — Span-Based Evaluation (2-3 days, immediate value)**
+Score existing production traffic with no new infrastructure.
+- DQL fetches recent `gen_ai.*` spans with input/output content
+- Davis CoPilot batch-scores each span on custom rubrics (reuses `scorePromptsBatchWithDavis()` from `useDavisAI.ts`)
+- Results displayed in new "Evaluation" tab on MLOps page or standalone page
+- Dimensions: Relevance, Completeness, Safety (governance scoring), Latency SLO, Cost Efficiency
+- **Impact:** Matches Datadog's auto-evaluators. Beats Helicone & New Relic.
+
+**Phase B — Golden Dataset Evaluation (5-7 days, enterprise feature)**
+Upload test sets, run models against them, persist results.
+- User creates **golden datasets** (input + expected output pairs) stored via **Document Service** (`documentsClient` — pattern from `useRateCardStorage.ts`)
+- User defines **rubrics** (scoring criteria) — also stored as Documents
+- Davis CoPilot acts as LLM-judge with custom evaluation prompts per rubric dimension
+- Results written as **bizevents** to Grail (`event.type: "gcc.evaluation.result"`) for historical tracking + DQL querying
+- UI shows pass/fail per sample, aggregate scores, trend over time
+- **Scope change:** Add `storage:bizevents:write` to `app.config.json`
+- **Impact:** Matches Arize/LangSmith core evaluation workflow.
+
+**Phase C — Automated Evaluation Pipeline (5-7 days, full parity)**
+- **Scheduled runs:** Dynatrace Workflow triggers nightly evaluation against golden datasets
+- **CI/CD gate:** Workflow blocks model rollout if evaluation fails
+- **Drift detection:** Compare current eval scores vs. baseline; alert on regression
+- **Leaderboard:** Rank models by aggregate evaluation score across datasets
+- **Agent tool:** Add `evaluate_model` tool to agentic orchestrator for on-demand evaluation
+- **Impact:** Full competitive parity. GCC-unique: no competitor connects evaluation → workflow automation.
+
+#### Data Schemas
+
+**Evaluation Dataset** (stored as Dynatrace Document):
+```typescript
+interface EvaluationDataset {
+  id: string;
+  name: string;
+  description: string;
+  version: number;
+  samples: Array<{
+    id: string;
+    input: string;           // The prompt
+    expectedOutput?: string; // Golden answer (optional)
+    context?: string;        // RAG context (optional)
+    tags: string[];          // e.g., ["rag", "summarization", "code-gen"]
+    metadata: Record<string, string>;
+  }>;
+}
+```
+
+**Evaluation Rubric** (stored as Dynatrace Document):
+```typescript
+interface EvaluationRubric {
+  id: string;
+  name: string;            // e.g., "RAG Faithfulness"
+  dimensions: Array<{
+    name: string;          // e.g., "Groundedness"
+    weight: number;        // 0-1, weights sum to 1
+    judgePrompt: string;   // Prompt template for Davis CoPilot
+    passingScore: number;  // Threshold for pass (e.g., 70)
+  }>;
+}
+```
+
+**Evaluation Result** (written as bizevent to Grail):
+```typescript
+// Queryable via: fetch bizevents | filter event.type == "gcc.evaluation.result"
+{
+  "event.type": "gcc.evaluation.result",
+  "dataset_id": "ds-001",
+  "rubric_id": "rubric-rag-v2",
+  "sample_id": "sample-042",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "dimension": "groundedness",
+  "score": 85,
+  "pass": true,
+  "judge_reasoning": "Output is well-grounded in the provided context...",
+  "run_id": "eval-run-2026-03-16T14:00:00Z",
+  "timestamp": "2026-03-16T14:30:00Z"
+}
+```
+
+#### Davis CoPilot as LLM-as-Judge
+Davis CoPilot is already an LLM. Custom judge prompts can be sent through the conversation API:
+```typescript
+// Extend useDavisAI.ts
+async function judgeResponse(input: string, output: string, rubric: string): Promise<{score: number, reasoning: string}> {
+  const judgePrompt = `You are an AI evaluation judge. Score the following AI response on a 0-100 scale.
+    RUBRIC: ${rubric}
+    USER INPUT: ${input}
+    AI OUTPUT: ${output}
+    Respond with ONLY a JSON object: { "score": <number>, "reasoning": "<brief explanation>" }`;
+  const result = await davisCopilotClient.executeConversation({
+    body: { messages: [{ role: 'user', content: judgePrompt }] }
+  });
+  return JSON.parse(result.content);
+}
+```
+
+#### Existing Building Blocks (Already in GCC)
+| Component | Where | Reuse For |
+|-----------|-------|-----------|
+| Davis CoPilot batch scoring | `useDavisAI.ts` → `scorePromptsBatchWithDavis()` | LLM-as-judge per sample |
+| 5-dimension quality model | `useAIQuality.ts` | Extend with custom rubric dimensions |
+| Document Service (CRUD) | `useRateCardStorage.ts` pattern | Store datasets + rubrics |
+| Bizevents (write to Grail) | `scripts/send_demo_bizevents.py` pattern | Persist evaluation results |
+| QualityScoreRing, DimensionBar, ForecastChart | `AIQualityDashboard.tsx` | Scoring visualizations |
+| Workflow automation | `useWorkflows.ts` | Scheduled runs, CI/CD gates |
+| Agentic tool registry | `agent/tools.ts` | `evaluate_model` agent tool |
+
 #### Features
-| Feature | Data Source | Feasibility | Status | Notes |
-|---------|-------------|------------|--------|-------|
-| Heuristic eval metrics | Span attributes (response length, latency, error rate) | 🟢 HIGH | 📋 | Buildable today from Grail spans |
-| Hallucination scoring (pattern-based) | Response content patterns + DQL | 🟢 HIGH | 📋 | Flag responses with known hallucination indicators |
-| Response quality score (latency × error-rate × token-efficiency) | `gen_ai.usage.*`, `duration`, error spans | 🟢 HIGH | 📋 | Composite score per trace |
-| Online evaluation rules (auto-flag low-quality traces) | DQL threshold rules + Davis events | 🟢 HIGH | 📋 | If response quality score < threshold → flag |
-| Annotation queue (human review of flagged traces) | Dynatrace notebook + workflow trigger | 🟡 PARTIAL | 📋 | Review via Dynatrace; not native GCC UI |
-| LLM-as-a-judge scoring (true semantic eval) | `gen_ai.eval.*` attributes OR Phase 0 bizevent | 🔴 Blocked | 📋 | Requires Phase 0 or external eval API |
-| Evaluation datasets (curate production traces) | `gen_ai.prompt`, `gen_ai.completion` in Grail | 🟡 PARTIAL | 📋 | Export curated trace subsets to JSON |
-| Experiment comparison (prompt A vs B vs C) | DQL group by `gen_ai.request.model` × time window | 🟢 HIGH | 📋 | Compare quality/latency/cost across versions |
+| Feature | Data Source | Feasibility | Status | Phase | Notes |
+|---------|-------------|------------|--------|-------|-------|
+| Heuristic eval metrics | Span attributes (response length, latency, error rate) | 🟢 HIGH | 📋 | A | Buildable today from Grail spans |
+| Hallucination scoring (pattern-based) | Response content patterns + DQL | 🟢 HIGH | 📋 | A | Flag responses with known hallucination indicators |
+| Response quality score (latency × error-rate × token-efficiency) | `gen_ai.usage.*`, `duration`, error spans | 🟢 HIGH | 📋 | A | Composite score per trace |
+| Online evaluation rules (auto-flag low-quality traces) | DQL threshold rules + Davis events | 🟢 HIGH | 📋 | A | If response quality score < threshold → flag |
+| LLM-as-a-judge scoring (Davis CoPilot) | Davis CoPilot conversation API + custom judge prompts | 🟢 HIGH | 📋 | B | **UNBLOCKED** — Davis CoPilot IS the judge |
+| Golden dataset management | Document Service (JSON CRUD) | 🟢 HIGH | 📋 | B | Store/edit/version datasets via `documentsClient` |
+| Custom evaluation rubrics | Document Service (JSON CRUD) | 🟢 HIGH | 📋 | B | Configurable judge prompts per dimension |
+| Evaluation results in Grail | Bizevents (`gcc.evaluation.result`) | 🟢 HIGH | 📋 | B | Requires `storage:bizevents:write` scope |
+| DQL-queryable eval history | `fetch bizevents \| filter event.type == "gcc.evaluation.result"` | 🟢 HIGH | 📋 | B | Trend analysis, regression detection |
+| Experiment comparison (prompt A vs B vs C) | DQL group by `gen_ai.request.model` × time window | 🟢 HIGH | 📋 | B | Compare quality/latency/cost across versions |
+| Annotation queue (human review) | Dynatrace notebook + workflow trigger | 🟡 PARTIAL | 📋 | B | Review via Dynatrace; not native GCC UI |
+| Scheduled evaluation workflows | Dynatrace Automation Engine | 🟢 HIGH | 📋 | C | Nightly runs against golden datasets |
+| CI/CD quality gate | Workflow blocks deployment on eval failure | 🟢 HIGH | 📋 | C | Model rollout gated on evaluation pass |
+| Evaluation leaderboard | DQL aggregate scores across datasets | 🟢 HIGH | 📋 | C | Rank models by eval score |
+| Agent tool: `evaluate_model` | Agentic tool registry | 🟢 HIGH | 📋 | C | On-demand evaluation via AI assistant |
 
 #### Heuristic Eval Metrics (DQL — Buildable Today)
 ```dql
@@ -1561,21 +1708,35 @@ fetch spans, from:now()-1h
 | limit 100
 ```
 
-#### What's Blocked (Requires Phase 0 LLM-judge instrumentation)
-- ❌ True hallucination score (needs `gen_ai.eval.hallucination_score` on spans)
-- ❌ Answer relevance / context precision (needs external eval call)
-- ❌ Grounding / faithfulness scoring (needs RAG context + eval pipeline)
-- ❌ Toxicity/bias detection (needs NLP classifier or LLM judge call)
+#### Previously Blocked — Now Unblocked via Davis CoPilot
+- ~~❌ True hallucination score~~ → ✅ Davis CoPilot judges output groundedness via custom prompt
+- ~~❌ Answer relevance / context precision~~ → ✅ Davis CoPilot scores relevance given input + context
+- ~~❌ Grounding / faithfulness scoring~~ → ✅ Davis CoPilot evaluates RAG context + output alignment
+- ~~❌ Toxicity/bias detection~~ → ✅ Existing `scorePromptsBatchWithDavis()` already classifies `pii|injection|bias|hallucination`
 
 #### Implementation Checklist
-| Component | Effort | Status |
-|-----------|--------|--------|
-| DQL queries — heuristic evals | 2h | 📋 |
-| Types: `EvalScore`, `EvalResult`, `AnnotationFlag` | 1h | 📋 |
-| `useEvaluations.ts` hook | 3h | 📋 |
-| `Evaluations.tsx` page (quality scores, flagged traces table) | 5h | 📋 |
-| Route + navigation | 0.5h | 📋 |
-| **Total (heuristic tier)** | **~11.5h** | |
+| Component | Effort | Phase | Status |
+|-----------|--------|-------|--------|
+| DQL queries — heuristic evals (span-based scoring) | 2h | A | 📋 |
+| Types: `EvalDataset`, `EvalRubric`, `EvalResult`, `EvalRun` | 2h | A | 📋 |
+| `useEvaluation.ts` hook (Davis judge + Document Service + Bizevents) | 5h | A+B | 📋 |
+| Evaluation page/tab — span-based scoring UI | 4h | A | 📋 |
+| Golden dataset CRUD UI (Document Service) | 4h | B | 📋 |
+| Rubric editor UI | 3h | B | 📋 |
+| Davis CoPilot judge integration (`judgeResponse()`) | 3h | B | 📋 |
+| Bizevents writer (eval results → Grail) | 2h | B | 📋 |
+| Results dashboard (pass/fail, trends, DQL query) | 4h | B | 📋 |
+| Experiment comparison view (prompt A vs B) | 3h | B | 📋 |
+| Scheduled workflow evaluation runs | 3h | C | 📋 |
+| CI/CD gate workflow template | 2h | C | 📋 |
+| Evaluation leaderboard | 2h | C | 📋 |
+| Agent tool: `evaluate_model` | 2h | C | 📋 |
+| Route + navigation | 0.5h | A | 📋 |
+| `storage:bizevents:write` scope addition | 0.5h | B | 📋 |
+| **Phase A total** | **~8.5h** | A | |
+| **Phase B total** | **~21.5h** | B | |
+| **Phase C total** | **~9h** | C | |
+| **Grand total** | **~39h** | | |
 
 ---
 
@@ -1677,6 +1838,18 @@ Unified MLOps observability page with 5 tabs — all backed by real DQL queries 
 
 ### Key Design Decisions
 - **No arbitrary scores**: All numbers are direct DQL aggregations (counts, averages, percentiles)
+- **SLO management is a unique differentiator**: No competitor offers configurable AI-specific SLOs with error budget tracking
+
+### Planned Enhancements (ties to Phase 8.1 Evaluation Engine)
+
+| Enhancement | Effort | Impact | Phase |
+|-------------|--------|--------|-------|
+| **SLO burn rate alerts** — "At current error rate, you'll exhaust budget in 4h" | 3h | Very High — extends unique differentiator | Quick Win |
+| **SLO report export** — PDF/JSON export for customer-facing uptime commitments | 3h | High — enterprise procurement requirement | Quick Win |
+| **Cost forecasting** — "At current rate, $X by month end" (surface FinOps data) | 2h | High — parity with Helicone/Datadog | Quick Win |
+| **Evaluation tab** — Span-based quality scoring via Davis CoPilot as judge | 8.5h | Critical — table stakes for enterprise adoption | Phase 8.1A |
+| **Golden dataset evaluation** — Upload test sets, run models, persist to Grail | 21.5h | Critical — matches Arize/LangSmith | Phase 8.1B |
+| **Automated eval pipeline** — Scheduled runs, CI/CD gates, leaderboard | 9h | High — GCC-unique: eval → workflow automation | Phase 8.1C |
 - **No mock data**: Everything runs against real Grail span data
 - **SLO thresholds are user-configurable**: Latency threshold (ms) and error budget (%) stored in localStorage
 - **Reuses existing hooks**: Deployment Tracker tab uses `useInfrastructure` for model history data
@@ -1893,7 +2066,7 @@ fetch spans, from:now()-90d
 
 | Sub-Phase | Feature Group | Effort | Feasibility | New Page/Hook |
 |-----------|--------------|--------|------------|--------------|
-| 8.1 | LLM Evaluation Engine | ~11.5h | 🟡 PARTIAL | `/evaluations`, `useEvaluations.ts` |
+| 8.1 | LLM Evaluation Engine | ~39h (3 phases) | 🟢 HIGH | `/evaluations`, `useEvaluation.ts` |
 | 8.2 | Conversation Intelligence | ~11.5h | 🟢 HIGH | `/conversations`, `useConversations.ts` |
 | 8.3 | Prompt Playground + Version History | ~6h | 🟢 HIGH | Enhance PromptGovernance |
 | 8.4 | MCP Protocol Observability | ~4h | 🟡 PARTIAL | Enhance AgentTools |
@@ -1911,7 +2084,7 @@ fetch spans, from:now()-90d
 | Spend Alerts | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
 | Prompt History | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | MCP Tracing | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ | ⚠️ |
-| LLM-as-judge (true) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ (Phase 0 needed) |
+| LLM-as-judge (true) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (Davis CoPilot) |
 | **Infra+LLM Correlation** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | **✅ (Unique!)** |
 | **Davis AI Causation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ (Unique!)** |
 | **Workflow Automation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | **✅ (Unique!)** |
@@ -1919,6 +2092,19 @@ fetch spans, from:now()-90d
 ---
 
 ## 🔄 Changelog
+
+### v3.1.0 (Mar 16, 2026)
+- **Evaluation Engine Blueprint**: Full 3-phase implementation plan for LLM-as-judge using Davis CoPilot
+  - Phase A: Span-based evaluation (~8.5h) — score production traffic with Davis CoPilot
+  - Phase B: Golden dataset evaluation (~21.5h) — Document Service for datasets/rubrics, Bizevents for results
+  - Phase C: Automated pipeline (~9h) — scheduled workflows, CI/CD gates, leaderboard
+- **LLM-as-judge UNBLOCKED**: Davis CoPilot serves as evaluation judge (no Phase 0 dependency)
+- **Data schemas defined**: `EvaluationDataset`, `EvaluationRubric`, `EvalResult` (bizevent) schemas
+- **Architecture diagram** added to Phase 8.1 (UI → Hook → Storage 3-layer design)
+- **MLOps enhancements planned**: SLO burn rate alerts, report export, cost forecasting, evaluation tab
+- **Competitive matrix updated**: GCC LLM-as-judge status changed from ❌ to ✅
+- **Existing building blocks mapped**: 7 reusable components identified (Davis batch scoring, Document Service, Bizevents, quality visualizations, workflows, agent tools)
+- **New competitors identified** for tracking: MLflow, WhyLabs, Galileo, Fiddler AI, TruEra/TruLens, Neptune.ai
 
 ### v3.0.0 (Feb 25, 2026)
 - **Competitive Landscape Analysis**: Comprehensive research across 7 AI observability competitors — Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, Datadog LLM Observability

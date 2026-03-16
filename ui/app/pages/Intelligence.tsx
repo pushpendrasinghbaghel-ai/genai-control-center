@@ -1167,7 +1167,9 @@ export const Intelligence: React.FC = () => {
       const history = getConversationHistory(activeSessionId, 10);
 
       // Orchestrate — AI tool selection + execution
+      console.log(`[Intelligence] Sending to orchestrator: "${query.trim()}" timeframe=${timeframeStr}`);
       const result = await orchestrate(query.trim(), timeframeStr, history);
+      console.log(`[Intelligence] Orchestrator result: handled=${result.handled}, tools=${result.toolsUsed.join(',')}, blocks=${result.blocks.length}, method=${result.selectionMethod}, path=${result.selectionPath}`);
 
       const assistantMsg: ChatMessage = {
         id: `msg-${Date.now()}-assistant`,

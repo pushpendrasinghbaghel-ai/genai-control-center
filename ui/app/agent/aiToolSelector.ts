@@ -248,6 +248,7 @@ Tool names MUST be one of: ${toolNameList}`;
   try {
     console.log(`[AI Selector] Calling Dynatrace Intelligence for: "${question}"`);
     const response = await publicClient.recommenderConversation({
+      abortSignal: controller.signal,
       body: {
         text: `User question: "${question}"`,
         context: [

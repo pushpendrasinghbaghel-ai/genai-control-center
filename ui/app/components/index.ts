@@ -16,3 +16,5 @@ export { CostGuardrailPanel } from './CostGuardrailPanel';
 export { RAGHealthPanel } from './RAGHealthPanel';
 export { OptimizationAdvisor } from './OptimizationAdvisor';
 export { RateCardSettings } from './RateCardSettings';
+export { AskAIButton } from './AskAIButton';
+export { AskAISheet } from './AskAISheet';

@@ -9,6 +9,7 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
 import { TextInput } from '@dynatrace/strato-components-preview/forms';
 import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components-preview/charts';
+import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
 import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
 import { Tabs, Tab } from '@dynatrace/strato-components-preview/navigation';
 
@@ -17,6 +18,9 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar } from '../components/FilterBar';
 import { CostGuardrailPanel } from '../components/CostGuardrailPanel';
 import { RateCardSettings } from '../components/RateCardSettings';
+import { AskAIButton } from '../components/AskAIButton';
+import { AskAISheet } from '../components/AskAISheet';
+import type { AskAIContext } from '../hooks/useAskAI';
 import { refreshRateCardCache } from '../utils';
 import { useGlobalFilters } from '../context';
 import { formatRequestCount, formatCostPer1K } from '../utils';
@@ -71,6 +75,18 @@ export const FinOps: React.FC = () => {
   const { filters, setFilters } = useGlobalFilters();
   const [budgetLimit, setBudgetLimit] = useState<number>(1000);
   const [showRateCardSettings, setShowRateCardSettings] = useState(false);
+  const [askAISheet, setAskAISheet] = useState<{ show: boolean; context: AskAIContext }>({
+    show: false,
+    context: { domain: 'FinOps', suggestedPrompts: [] },
+  });
+
+  const openAskAI = useCallback((context: AskAIContext) => {
+    setAskAISheet({ show: true, context });
+  }, []);
+
+  const closeAskAI = useCallback(() => {
+    setAskAISheet(prev => ({ ...prev, show: false }));
+  }, []);
 
   // Budget burn rate — used by the hero card for $/hr, projection, ETA
   const { data: burnRate } = useBudgetBurnRate(budgetLimit);
@@ -278,6 +294,26 @@ export const FinOps: React.FC = () => {
         <TitleBar.Title>FinOps Dashboard</TitleBar.Title>
         <TitleBar.Subtitle>AI cost management & optimization</TitleBar.Subtitle>
         <TitleBar.Suffix>
+          <AskAIButton
+            variant="button"
+            label="Ask AI about your FinOps data"
+            onClick={() => openAskAI({
+              domain: 'FinOps',
+              data: {
+                'Total Spend': totalCost,
+                'Budget': budgetLimit,
+                'Total Tokens': totalTokens,
+                'Providers': costBreakdown.length,
+              },
+              suggestedPrompts: [
+                'Give me a FinOps health check across all AI providers',
+                'Which provider is most cost-effective per request?',
+                'How can I reduce my AI spend by 20%?',
+                'Forecast my AI costs for the next 30 days',
+                'Compare token efficiency across all models',
+              ],
+            })}
+          />
           <Tooltip text="Configure custom rate cards based on your provider contracts">
             <Button variant="default" onClick={() => setShowRateCardSettings(true)}>
               <Button.Prefix><EditIcon /></Button.Prefix>
@@ -339,6 +375,15 @@ export const FinOps: React.FC = () => {
               <Tooltip text="Estimated cost based on token usage × provider pricing rates. OpenAI: $0.50-$15/MTok, Anthropic: $3-$75/MTok. Actual costs may vary based on your contract.">
                 <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
+              <AskAIButton
+                label="Ask AI about total spend"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Total Spend',
+                  itemLabel: 'Total Estimated Spend',
+                  data: { 'Total Cost': totalCost, 'Budget': budgetLimit, 'Usage %': Math.round((totalCost / budgetLimit) * 100), 'Providers': costBreakdown.length, 'Total Tokens': totalTokens },
+                  suggestedPrompts: ['Why is my total spend this high?', 'How does my spend compare to industry benchmarks?', 'What are the top cost drivers?', 'How can I reduce costs without losing quality?'],
+                })}
+              />
             </Flex>
             <Heading level={1} style={{ color: totalCost > budgetLimit ? Colors.Text.Critical.Default : Colors.Text.Neutral.Default, fontSize: 36 }}>
               ${totalCost.toFixed(2)}
@@ -479,6 +524,15 @@ export const FinOps: React.FC = () => {
               <Tooltip text="Shows estimated costs over time, grouped by AI provider. Use this to identify spending patterns, detect cost spikes, and compare provider costs. Each color represents a different provider.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
+              <AskAIButton
+                label="Ask AI about cost trends"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Cost Trends',
+                  itemLabel: 'Cost Trend by Provider',
+                  data: { 'Total Cost': totalCost, 'Providers Tracked': costTimeseriesData.length },
+                  suggestedPrompts: ['Explain the cost trend over the last 7 days', 'Are there any cost anomalies or spikes?', 'Which provider is trending up the most?', 'Predict costs for the next week'],
+                })}
+              />
             </Flex>
             {costTimeseriesData.length > 0 && (
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
@@ -656,6 +710,15 @@ export const FinOps: React.FC = () => {
             <Tooltip text="Detailed cost analysis per AI provider. Input tokens = prompt/context tokens (cheaper), Output tokens = completion tokens (more expensive). $/1K Req shows cost per 1,000 requests for comparison.">
               <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
             </Tooltip>
+            <AskAIButton
+              label="Ask AI about provider costs"
+              onClick={() => openAskAI({
+                domain: 'FinOps — Provider Breakdown',
+                itemLabel: 'All Providers',
+                data: { 'Providers': costBreakdown.length, 'Total Cost': totalCost, 'Total Tokens': totalTokens },
+                suggestedPrompts: ['Which provider gives the best value per token?', 'Compare all providers on cost efficiency', 'Should I consolidate to fewer providers?', 'Which provider has the lowest error rate?'],
+              })}
+            />
           </Flex>
           {loading ? (
             <Text>Loading cost data...</Text>
@@ -677,6 +740,7 @@ export const FinOps: React.FC = () => {
                 <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
+                <span style={{ width: 28 }}></span>
               </Flex>
               {/* Table Rows */}
               {costBreakdown.map((row, idx) => (
@@ -695,6 +759,17 @@ export const FinOps: React.FC = () => {
                   <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${row.estimatedCost.toFixed(2)}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.requestCount)}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>${(row.avgCostPerRequest * 1000).toFixed(2)}</span>
+                  <span style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
+                    <AskAIButton
+                      label={`Ask AI about ${row.provider}`}
+                      onClick={() => openAskAI({
+                        domain: 'FinOps — Provider',
+                        itemLabel: row.provider,
+                        data: { 'Est. Cost': row.estimatedCost, 'Total Tokens': row.totalTokens, 'Input Tokens': row.inputTokens, 'Output Tokens': row.outputTokens, 'Requests': row.requestCount, '$/1K Req': row.avgCostPerRequest * 1000 },
+                        suggestedPrompts: [`Why is ${row.provider} costing $${row.estimatedCost.toFixed(2)}?`, `Compare ${row.provider} with other providers`, `How to optimize ${row.provider} token usage?`, `Show ${row.provider} error rate and latency`],
+                      })}
+                    />
+                  </span>
                 </Flex>
               ))}
             </Flex>
@@ -739,6 +814,7 @@ export const FinOps: React.FC = () => {
                 <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
                 <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
+                <span style={{ width: 28 }}></span>
               </Flex>
               {/* Table Rows */}
               {modelCosts.map((row: any, idx: number) => (
@@ -759,6 +835,17 @@ export const FinOps: React.FC = () => {
                   </span>
                   <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.totalRequests)}</span>
                   <span style={{ flex: 1, textAlign: 'right' }}>${(row.costPerRequest * 1000).toFixed(2)}</span>
+                  <span style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
+                    <AskAIButton
+                      label={`Ask AI about ${row.model}`}
+                      onClick={() => openAskAI({
+                        domain: 'FinOps — Model Cost',
+                        itemLabel: row.model,
+                        data: { 'Provider': row.provider || 'Unknown', 'Est. Cost': row.estimatedCost, 'Input Tokens': row.inputTokens, 'Output Tokens': row.outputTokens, 'Requests': row.totalRequests, '$/1K Req': row.costPerRequest * 1000 },
+                        suggestedPrompts: [`Why is ${row.model} costing $${row.estimatedCost.toFixed(2)}?`, `Is there a cheaper alternative to ${row.model}?`, `Analyze token efficiency for ${row.model}`, `Show latency distribution for ${row.model}`],
+                      })}
+                    />
+                  </span>
                 </Flex>
               ))}
               {/* Summary Row */}
@@ -1083,6 +1170,15 @@ export const FinOps: React.FC = () => {
               <Tooltip text="Efficiency = Output tokens / Input tokens. Values <0.5x are flagged as wasteful (you're paying for large prompts but getting small responses). Optimize by: reducing context, using prompt caching, or switching to smaller models.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
+              <AskAIButton
+                label="Ask AI about token efficiency"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Token Efficiency',
+                  itemLabel: 'Token Efficiency Analysis',
+                  data: { 'Models Analyzed': tokenEfficiency?.length || 0, 'Wasteful Models': tokenEfficiency?.filter((i: any) => i.isWasteful).length || 0 },
+                  suggestedPrompts: ['Which models are the most wasteful and why?', 'How can I improve token efficiency?', 'What is a good efficiency ratio for my use case?', 'Compare input vs output token ratios across models'],
+                })}
+              />
             </Flex>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               Low efficiency = high input, low output (potential waste)
@@ -1248,6 +1344,15 @@ export const FinOps: React.FC = () => {
               <Tooltip text="The prompts consuming the most tokens (input + output). Optimizing these can yield significant cost savings.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
+              <AskAIButton
+                label="Ask AI about expensive prompts"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Expensive Prompts',
+                  itemLabel: 'Top Expensive Prompts',
+                  data: { 'Prompts Listed': topExpensivePrompts.length },
+                  suggestedPrompts: ['How can I optimize these expensive prompts?', 'Which prompts are candidates for caching?', 'Suggest prompt engineering techniques to reduce tokens', 'What is the cost impact of optimizing top 3 prompts?'],
+                })}
+              />
             </Flex>
             <Flex flexDirection="column" gap={4}>
               <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
@@ -1330,6 +1435,13 @@ export const FinOps: React.FC = () => {
           handleRefresh();
         }}
         detectedModels={modelCosts?.map(mc => ({ model: mc.model, provider: mc.provider })) || []}
+      />
+
+      {/* Ask Dynatrace Intelligence Sheet */}
+      <AskAISheet
+        show={askAISheet.show}
+        onDismiss={closeAskAI}
+        context={askAISheet.context}
       />
     </Flex>
   );

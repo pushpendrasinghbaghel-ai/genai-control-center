@@ -33,6 +33,7 @@ import type {
 
 async function executeDql(query: string): Promise<any[]> {
   try {
+    console.log("[Tools] Executing DQL:", query.slice(0, 120) + (query.length > 120 ? "..." : ""));
     const response = await queryExecutionClient.queryExecute({
       body: {
         query,
@@ -40,9 +41,11 @@ async function executeDql(query: string): Promise<any[]> {
         fetchTimeoutSeconds: 60,
       },
     });
-    return response.result?.records || [];
+    const records = response.result?.records || [];
+    console.log(`[Tools] DQL returned ${records.length} records`);
+    return records;
   } catch (err) {
-    console.warn("[Tools] DQL query failed (gracefully returning []):", err instanceof Error ? err.message : err);
+    console.error("[Tools] DQL query failed (gracefully returning []):", err instanceof Error ? err.message : err);
     return [];
   }
 }
