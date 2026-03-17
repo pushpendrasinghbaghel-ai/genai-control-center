@@ -1,6 +1,6 @@
 // Custom hooks for DQL queries in GenAI Control Center
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { AIService, ServiceEntityOption } from '../types';
 import { 
@@ -20,7 +20,7 @@ import {
   QueryFilters,
   buildTimeRangeClauseFromTimeframe
 } from '../queries/dql-queries';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { estimateCost, calculateHealthStatus } from '../utils';
 
 export type { QueryFilters } from '../queries/dql-queries';
@@ -63,16 +63,27 @@ interface UseQueryResult<T> {
   refetch: () => Promise<void>;
 }
 
+interface UseDQLQueryOptions<T> {
+  /** Data to display while the first real query is still loading */
+  placeholderData?: T;
+  /** Automatically re-execute the query when the component remounts after an error (default: true) */
+  retryOnMount?: boolean;
+}
+
 /**
- * Generic DQL query hook with dynamic query support
+ * Generic DQL query hook with dynamic query support.
+ * Supports placeholderData for instant loading UX and retryOnMount for resilience.
  */
 export function useDQLQuery<T>(
   query: string,
-  transform?: (records: unknown[]) => T
+  transform?: (records: unknown[]) => T,
+  options?: UseDQLQueryOptions<T>
 ): UseQueryResult<T> {
-  const [data, setData] = useState<T | null>(null);
+  const { placeholderData, retryOnMount = true } = options ?? {};
+  const [data, setData] = useState<T | null>(placeholderData ?? null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const mountRef = React.useRef(false);
 
   const executeQuery = useCallback(async () => {
     setLoading(true);
@@ -124,8 +135,17 @@ export function useDQLQuery<T>(
   }, [query, transform]);
 
   useEffect(() => {
-    executeQuery();
-  }, [executeQuery]);
+    // On initial mount, always execute
+    if (!mountRef.current) {
+      mountRef.current = true;
+      executeQuery();
+      return;
+    }
+    // On subsequent mounts (remount), retry only if previous attempt had an error
+    if (retryOnMount && error) {
+      executeQuery();
+    }
+  }, [executeQuery, retryOnMount, error]);
 
   return { data, loading, error, refetch: executeQuery };
 }

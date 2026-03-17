@@ -3,15 +3,15 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components-preview/charts';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { Tabs, Tab } from '@dynatrace/strato-components-preview/navigation';
+import { TextInput } from '@dynatrace/strato-components/forms';
+import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { Tabs, Tab } from '@dynatrace/strato-components/navigation';
 
 import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon, EditIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';

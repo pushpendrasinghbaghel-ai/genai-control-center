@@ -10,24 +10,24 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
-import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components-preview/tables';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components/tables';
+import { TextInput } from '@dynatrace/strato-components/forms';
 import {
   AutomationEngineIcon,
   WarningIcon,
   CheckmarkIcon,
   CriticalIcon,
   AiIcon,
-  DavisAiIcon,
+  DavisAIIcon,
   HelpIcon,
   SyncIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { Modal } from '@dynatrace/strato-components-preview/overlays';
+import { Modal } from '@dynatrace/strato-components/overlays';
 
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
@@ -307,7 +307,7 @@ export function Integrations() {
               Refresh All
             </Button>
             <Button variant={showDavis ? 'emphasized' : 'default'} onClick={() => setShowDavis(d => !d)}>
-              <Button.Prefix><DavisAiIcon /></Button.Prefix>
+              <Button.Prefix><DavisAIIcon /></Button.Prefix>
               Ask Dynatrace
             </Button>
           </Flex>
@@ -765,7 +765,7 @@ export function Integrations() {
           <Flex flexDirection="column" gap={12} style={{ flex: 1, minHeight: 0 }}>
             <Flex alignItems="center" justifyContent="space-between">
               <Flex alignItems="center" gap={8}>
-                <DavisAiIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-accent-default)' }} />
+                <DavisAIIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-accent-default)' }} />
                 <Heading level={4} style={{ margin: 0 }}>Dynatrace Intelligence</Heading>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                   Ask about integration health, costs, alerts, or workflows
@@ -800,7 +800,7 @@ export function Integrations() {
                 />
               </div>
               <Button variant="emphasized" onClick={handleCustomDavisQuery} disabled={!davisQuery.trim() || davisLoading}>
-                <Button.Prefix><DavisAiIcon /></Button.Prefix>
+                <Button.Prefix><DavisAIIcon /></Button.Prefix>
                 Ask
               </Button>
             </Flex>

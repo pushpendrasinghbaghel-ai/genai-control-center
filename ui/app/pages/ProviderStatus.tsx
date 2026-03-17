@@ -5,15 +5,15 @@
 
 import React, { useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
 import {
   RefreshIcon, CheckmarkIcon, WarningIcon, CriticalIcon,
-  HelpIcon, SmartscapeIcon, BarChartIcon,
+  HelpIcon, SmartscapeIcon, BarChartIcon, AIModelIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useProviderFailover, type ProviderHealth, type ProviderModelHealth, type ProviderErrorBurst, type FailoverEvent, type ProviderTrendPoint } from '../hooks/useProviderFailover';
@@ -510,7 +510,14 @@ export const ProviderStatus: React.FC = () => {
   // Model health table columns
   const modelColumns = useMemo(() => [
     { id: 'provider', header: 'Provider', minWidth: 100 },
-    { id: 'model', header: 'Model', minWidth: 140 },
+    { id: 'model', header: 'Model', minWidth: 140,
+      cell: ({ value }: any) => (
+        <Flex alignItems="center" gap={4}>
+          <AIModelIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
+          <Text>{value}</Text>
+        </Flex>
+      ),
+    },
     {
       id: 'requests', header: 'Requests', minWidth: 80,
       cell: ({ value }: any) => <Text>{Number(value).toLocaleString()}</Text>,
@@ -573,7 +580,7 @@ export const ProviderStatus: React.FC = () => {
       <TitleBar>
         <TitleBar.Title>
           <Flex alignItems="center" gap={8}>
-            <SmartscapeIcon />
+            <AIModelIcon />
             Provider Status & Failover
           </Flex>
         </TitleBar.Title>

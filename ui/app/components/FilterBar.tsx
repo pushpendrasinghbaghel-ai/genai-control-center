@@ -17,8 +17,8 @@ import {
   FilterField,
   TimeframeSelector,
   type FilterFieldValidatorMap
-} from '@dynatrace/strato-components-preview/filters';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+} from '@dynatrace/strato-components/filters';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 
 /** Service option with both display name and entity ID for Grail queries */
 export interface ServiceOption {

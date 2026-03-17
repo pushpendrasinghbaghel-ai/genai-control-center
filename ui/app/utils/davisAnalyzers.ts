@@ -15,8 +15,8 @@
 
 import { analyzersClient, type AnalyzerResult } from '@dynatrace-sdk/client-davis-analyzers';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import { convertToTimeseriesBand } from '@dynatrace/strato-components-preview/charts';
-import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components-preview/charts';
+import { convertToTimeseriesBand } from '@dynatrace/strato-components/charts';
+import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components/charts';
 
 // ============================================
 // Result Types

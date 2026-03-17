@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { WarningIcon, CriticalIcon, HelpIcon,
   RefreshIcon, BarChartIcon, WorkflowsIcon,
 } from '@dynatrace/strato-icons';

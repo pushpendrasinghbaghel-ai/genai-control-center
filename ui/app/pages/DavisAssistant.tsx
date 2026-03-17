@@ -3,11 +3,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { AiIcon, HelpIcon, DavisAiIcon } from '@dynatrace/strato-icons';
+import { TextInput } from '@dynatrace/strato-components/forms';
+import { AiIcon, HelpIcon, DavisAIIcon } from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks';
 import type { ConversationMessage } from '../types';
 
@@ -118,7 +118,7 @@ export const DavisAssistant: React.FC = () => {
       {/* Page TitleBar */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true">
-          <DavisAiIcon />
+          <DavisAIIcon />
         </TitleBar.Prefix>
         <TitleBar.Title>Dynatrace Assist</TitleBar.Title>
         <TitleBar.Subtitle>Natural language AI investigation</TitleBar.Subtitle>

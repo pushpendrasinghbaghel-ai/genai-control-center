@@ -4,17 +4,17 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
-import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
-import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
-import { Tabs, Tab } from '@dynatrace/strato-components-preview/navigation';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
+import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import { Tabs, Tab } from '@dynatrace/strato-components/navigation';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import {
   RefreshIcon, DatabaseIcon, BarChartIcon, WarningIcon,

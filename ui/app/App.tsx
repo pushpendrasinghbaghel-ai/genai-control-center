@@ -1,5 +1,5 @@
 // GenAI Control Center - Main App Component
-import { Page } from "@dynatrace/strato-components-preview/layouts";
+import { Page } from "@dynatrace/strato-components/layouts";
 import React, { useEffect } from "react";
 import { Route, Routes, Navigate } from "react-router-dom";
 import { Header, ErrorBoundary } from "./components";

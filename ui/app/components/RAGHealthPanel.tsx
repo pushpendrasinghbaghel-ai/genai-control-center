@@ -7,7 +7,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar, ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
 import {
   CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, RefreshIcon,
 } from '@dynatrace/strato-icons';

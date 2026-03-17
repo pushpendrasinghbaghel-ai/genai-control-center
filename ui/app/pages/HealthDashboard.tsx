@@ -6,12 +6,12 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon } from '@dynatrace/strato-icons';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon, AIModelIcon, LargeLanguageModelIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
@@ -154,6 +154,7 @@ const ServiceRow: React.FC<{
             )}
           </Flex>
           <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+            <LargeLanguageModelIcon style={{ width: 12, height: 12, verticalAlign: 'middle', marginRight: 3 }} />
             {service.modelName || 'Unknown'} • {service.provider || 'Unknown'}
           </Text>
         </div>

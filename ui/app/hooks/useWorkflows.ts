@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { Timeframe } from '@dynatrace/strato-components/core';
 import { getTimeframeDqlClause } from '../components/FilterBar';
 
 // Note: @dynatrace-sdk/client-automation should be added for production workflow execution

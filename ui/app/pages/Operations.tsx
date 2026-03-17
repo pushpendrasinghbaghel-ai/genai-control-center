@@ -3,9 +3,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
+import { AnnotationsChart } from '@dynatrace/strato-components/charts';
 import { 
   CriticalIcon, WarningIcon, CheckmarkIcon, WorkflowsIcon, RefreshIcon, PlayIcon
 } from '@dynatrace/strato-icons';
@@ -189,6 +190,48 @@ export const Operations: React.FC = () => {
           Problems ({genaiProblems.length})
         </Button>
       </Flex>
+
+      {/* Event Timeline — AnnotationsChart showing problems & incidents */}
+      {(genaiProblems.length > 0 || activeIncidents.length > 0) && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={8}>
+            <Heading level={6}>Event Timeline</Heading>
+            <AnnotationsChart height={120} labelWidth={90}>
+              <AnnotationsChart.XAxis />
+              <AnnotationsChart.Tooltip />
+              {genaiProblems.length > 0 && (
+                <AnnotationsChart.Track label="Problems" color={Colors.Charts.Status.Critical.Default}>
+                  {genaiProblems.map((p) => (
+                    <AnnotationsChart.Marker
+                      key={p.problemId}
+                      start={new Date(p.startTime)}
+                      end={p.endTime ? new Date(p.endTime) : undefined}
+                      title={p.displayId}
+                      description={p.title}
+                      color={p.severity === 'ERROR' ? Colors.Charts.Status.Critical.Default : Colors.Charts.Status.Warning.Default}
+                      symbol="!"
+                    />
+                  ))}
+                </AnnotationsChart.Track>
+              )}
+              {activeIncidents.length > 0 && (
+                <AnnotationsChart.Track label="Incidents" color={Colors.Charts.Status.Warning.Default}>
+                  {activeIncidents.map((inc) => (
+                    <AnnotationsChart.Marker
+                      key={inc.id}
+                      start={new Date()}
+                      title={inc.severity.toUpperCase()}
+                      description={inc.title}
+                      color={inc.severity === 'critical' ? Colors.Charts.Status.Critical.Default : Colors.Charts.Status.Warning.Default}
+                      symbol={inc.severity === 'critical' ? '!' : '⚠'}
+                    />
+                  ))}
+                </AnnotationsChart.Track>
+              )}
+            </AnnotationsChart>
+          </Flex>
+        </Surface>
+      )}
 
       {/* Workflows Tab - Real workflows from Dynatrace Automation */}
       {selectedTab === 'workflows' && (

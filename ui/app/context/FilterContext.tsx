@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 
 export interface FilterOptions {
   /** Timeframe object from Dynatrace TimeframeSelector */

@@ -4,17 +4,17 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ArrowUpRightIcon, ArrowDownRightIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
+import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
 
 import { 
   useResponseAnalytics, 

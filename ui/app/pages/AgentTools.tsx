@@ -3,17 +3,17 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
+import { TextInput } from '@dynatrace/strato-components/forms';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import { 
   RefreshIcon, WarningIcon, CheckmarkIcon, CriticalIcon, 
   HelpIcon, SettingIcon, WorkflowsIcon, BarChartIcon,

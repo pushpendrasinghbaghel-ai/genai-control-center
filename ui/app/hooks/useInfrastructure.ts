@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import {
   INFRA_DEPLOYMENT_EVENTS_QUERY,
   INFRA_SERVICE_CONFIG_QUERY,

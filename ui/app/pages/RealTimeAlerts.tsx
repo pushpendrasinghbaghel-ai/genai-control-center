@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
-import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components-preview/tables';
+import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components/tables';
 import { CriticalIcon, WarningIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { useLiveProblems, LiveProblem } from '../hooks/useWorkflows';
 import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';

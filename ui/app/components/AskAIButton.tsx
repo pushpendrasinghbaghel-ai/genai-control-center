@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { AiIcon } from '@dynatrace/strato-icons';
 
 interface AskAIButtonProps {

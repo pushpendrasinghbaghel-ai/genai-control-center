@@ -5,11 +5,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
+import { DataTable } from '@dynatrace/strato-components/tables';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { createDefaultTimeframe } from '../components/FilterBar';
 import {
   HostsIcon,

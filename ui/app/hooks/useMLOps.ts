@@ -4,7 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import {
   MLOPS_MODEL_REGISTRY_QUERY,
   MLOPS_SLO_COMPLIANCE_QUERY,

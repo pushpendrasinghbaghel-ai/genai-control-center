@@ -4,12 +4,12 @@ import { Flex, Surface } from "@dynatrace/strato-components/layouts";
 import { Paragraph, Strong } from "@dynatrace/strato-components/typography";
 import { ProgressCircle } from "@dynatrace/strato-components/content";
 import { Button } from "@dynatrace/strato-components/buttons";
-import { TitleBar } from "@dynatrace/strato-components-preview/layouts";
-import { TimeframeSelector } from "@dynatrace/strato-components-preview/filters";
-import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components-preview/charts";
-import { Tooltip, Modal } from "@dynatrace/strato-components-preview/overlays";
-import type { Timeseries } from "@dynatrace/strato-components-preview/charts";
-import type { Timeframe } from "@dynatrace/strato-components-preview/core";
+import { TitleBar } from "@dynatrace/strato-components/layouts";
+import { TimeframeSelector } from "@dynatrace/strato-components/filters";
+import { TimeseriesChart, DonutChart } from "@dynatrace/strato-components/charts";
+import { Tooltip, Modal } from "@dynatrace/strato-components/overlays";
+import type { Timeseries } from "@dynatrace/strato-components/charts";
+import type { Timeframe } from "@dynatrace/strato-components/core";
 import { Colors } from "@dynatrace/strato-design-tokens";
 import {
   AiIcon,
@@ -26,6 +26,9 @@ import {
   ResearchIcon,
   CheckmarkIcon,
   CriticalIcon,
+  AIModelIcon,
+  LargeLanguageModelIcon,
+  DavisCoPilotIcon,
 } from "@dynatrace/strato-icons";
 import { useAIServicesDiscovery, useAIServicesTrend, useTokensByProvider, useErrorRateTrendByModel, useLatencyTrendByProvider, useTokenEfficiencyByProvider, useModelUsageTrend, useAgentTools } from "../hooks";
 import { calculateOverallHealth, formatNumber, formatCurrency } from "../utils";

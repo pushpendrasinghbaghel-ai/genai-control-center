@@ -3,10 +3,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { Sheet } from '@dynatrace/strato-components-preview/overlays';
+import { Sheet } from '@dynatrace/strato-components/overlays';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { Text, Heading } from '@dynatrace/strato-components/typography';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
+import { TextInput } from '@dynatrace/strato-components/forms';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { AiIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';

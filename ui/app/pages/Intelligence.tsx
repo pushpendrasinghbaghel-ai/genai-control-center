@@ -1,4 +1,4 @@
-ï»¿// GenAI Control Center â€” GenAI Intelligence
+// GenAI Control Center — GenAI Intelligence
 // Single full-width chat with agentic tool orchestration
 // Free-flowing Q&A about GenAI services, agents, models, costs, etc.
 
@@ -8,10 +8,10 @@ import { Heading, Text, Strong } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
+import type { Timeframe } from '@dynatrace/strato-components/core';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import {
   AiIcon,
@@ -30,13 +30,13 @@ import {
   SecurityIcon,
   DocumentIcon,
   ArrowRightIcon,
-  DavisAiIcon,
+  DavisAIIcon,
   CodeIcon,
   ChatIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@dynatrace/strato-icons';
-import { showToast } from '@dynatrace/strato-components-preview/notifications';
+import { showToast } from '@dynatrace/strato-components/notifications';
 import { orchestrate, getQuickInvestigations, listAvailableTools } from '../agent';
 import type {
   ChatMessage,
@@ -90,7 +90,7 @@ const createDefaultTimeframe = (): Timeframe => ({
 /** Icon style for suggested prompt chips */
 const CHIP_ICON_STYLE: React.CSSProperties = { width: 13, height: 13, flexShrink: 0 };
 
-/** Suggested prompts â€” free-flowing GenAI Q&A style (not investigation-focused) */
+/** Suggested prompts — free-flowing GenAI Q&A style (not investigation-focused) */
 const SUGGESTED_PROMPTS: { icon: React.ReactNode; label: string; query: string }[] = [
   { icon: <ServicesIcon style={CHIP_ICON_STYLE} />,  label: 'My AI inventory',   query: 'How many services, providers, models, and agents do I have?' },
   { icon: <AiIcon style={CHIP_ICON_STYLE} />,        label: 'Agent activity',    query: 'Tell me about my AI agents and their activity' },
@@ -100,11 +100,11 @@ const SUGGESTED_PROMPTS: { icon: React.ReactNode; label: string; query: string }
   { icon: <CriticalIcon style={CHIP_ICON_STYLE} />,  label: 'Error analysis',    query: 'What are the top errors across my AI services?' },
   { icon: <BarChartIcon style={CHIP_ICON_STYLE} />,  label: 'Token usage',       query: 'Which models are consuming the most tokens?' },
   { icon: <AnalyticsIcon style={CHIP_ICON_STYLE} />, label: 'Usage trends',      query: 'Show me usage trends over time' },
-  { icon: <DavisAiIcon style={CHIP_ICON_STYLE} />,   label: 'Forecast spend',    query: 'Forecast my token usage and costs for the next 24 hours' },
+  { icon: <DavisAIIcon style={CHIP_ICON_STYLE} />,   label: 'Forecast spend',    query: 'Forecast my token usage and costs for the next 24 hours' },
   { icon: <SecurityIcon style={CHIP_ICON_STYLE} />,  label: 'Anomaly detection', query: 'Are there any anomalies in my AI services?' },
   { icon: <DocumentIcon style={CHIP_ICON_STYLE} />,  label: 'Compare providers', query: 'Compare performance across all my AI providers' },
   { icon: <CodeIcon style={CHIP_ICON_STYLE} />,      label: 'Embedding perf',   query: 'How are my embedding models performing?' },
-  { icon: <ArrowRightIcon style={CHIP_ICON_STYLE} />,label: 'RAG pipeline',      query: 'Analyze my RAG pipeline â€” embedding vs generation' },
+  { icon: <ArrowRightIcon style={CHIP_ICON_STYLE} />,label: 'RAG pipeline',      query: 'Analyze my RAG pipeline — embedding vs generation' },
   { icon: <DocumentIcon style={CHIP_ICON_STYLE} />,  label: 'Executive summary', query: 'Give me a full executive summary of GenAI operations' },
 ];
 
@@ -132,7 +132,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   inventory: '#2ab6a4',
 };
 
-/** Tool Help Guide â€” organized by tier (Observe / Analyze / Act) â€” toggleable panel */
+/** Tool Help Guide — organized by tier (Observe / Analyze / Act) — toggleable panel */
 const TOOL_HELP_GUIDE: { tier: string; color: string; tools: { name: string; prompt: string; desc: string }[] }[] = [
   {
     tier: 'Observe',
@@ -163,7 +163,7 @@ const TOOL_HELP_GUIDE: { tier: string; color: string; tools: { name: string; pro
     tools: [
       { name: 'Forecast Spend', prompt: 'Forecast my token usage and costs for the next 24 hours', desc: 'Predict future spend and usage' },
       { name: 'Executive Summary', prompt: 'Give me a full executive summary of GenAI operations', desc: 'Comprehensive operations report' },
-      { name: 'RAG Pipeline', prompt: 'Analyze my RAG pipeline â€” embedding vs generation', desc: 'End-to-end RAG pipeline analysis' },
+      { name: 'RAG Pipeline', prompt: 'Analyze my RAG pipeline — embedding vs generation', desc: 'End-to-end RAG pipeline analysis' },
     ],
   },
 ];
@@ -198,7 +198,7 @@ const MetricBlockRenderer: React.FC<{ block: MetricBlock }> = ({ block }) => (
                   m.trend === 'down' ? Colors.Text.Success.Default :
                     Colors.Text.Neutral.Subdued,
               }}>
-                {m.trend === 'up' ? 'â†‘' : m.trend === 'down' ? 'â†“' : 'â†’'}
+                {m.trend === 'up' ? '?' : m.trend === 'down' ? '?' : '?'}
               </Text>
             )}
           </Flex>
@@ -211,7 +211,7 @@ const MetricBlockRenderer: React.FC<{ block: MetricBlock }> = ({ block }) => (
 /**
  * Lightweight inline markdown renderer.
  * Handles: **bold**, ### headings, `code`, - bullet lists, numbered lists, \n paragraphs.
- * No external dependencies â€” built for chat message rendering.
+ * No external dependencies — built for chat message rendering.
  */
 const MarkdownText: React.FC<{ content: string; style?: React.CSSProperties }> = ({ content, style }) => {
   const elements = useMemo(() => {
@@ -378,7 +378,7 @@ const AlertBlockRenderer: React.FC<{ block: AlertBlock }> = ({ block }) => {
   );
 };
 
-/** Render a ChartBlock â€” dispatches to timeseries, pie, or bar sub-renderer */
+/** Render a ChartBlock — dispatches to timeseries, pie, or bar sub-renderer */
 const ChartBlockRenderer: React.FC<{ block: ChartBlock }> = ({ block }) => {
   if (block.chartType === 'timeseries') return <TimeseriesChart block={block} />;
   if (block.chartType === 'pie') return <PieChart block={block} />;
@@ -801,7 +801,7 @@ const MessageBubble: React.FC<{
               {/* Inline DQL query display (learned from DavisAssistant) */}
               {dqlQuery && <DQLQueryBlock dql={dqlQuery} />}
 
-              {/* Follow-up chips inside the message (DB Explain Pro style â€” with separator) */}
+              {/* Follow-up chips inside the message (DB Explain Pro style — with separator) */}
               {!isUser && isLastAssistant && message.followUps && message.followUps.length > 0 && (
                 <Flex
                   gap={6}
@@ -1047,7 +1047,7 @@ export const Intelligence: React.FC = () => {
     // Request microphone permission explicitly before starting recognition
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Release the stream immediately â€” we just needed the permission grant
+      // Release the stream immediately — we just needed the permission grant
       stream.getTracks().forEach(t => t.stop());
     } catch (permErr: any) {
       const msg = permErr?.name === 'NotAllowedError'
@@ -1166,7 +1166,7 @@ export const Intelligence: React.FC = () => {
       // Get conversation history for context
       const history = getConversationHistory(activeSessionId, 10);
 
-      // Orchestrate â€” AI tool selection + execution
+      // Orchestrate — AI tool selection + execution
       console.log(`[Intelligence] Sending to orchestrator: "${query.trim()}" timeframe=${timeframeStr}`);
       const result = await orchestrate(query.trim(), timeframeStr, history);
       console.log(`[Intelligence] Orchestrator result: handled=${result.handled}, tools=${result.toolsUsed.join(',')}, blocks=${result.blocks.length}, method=${result.selectionMethod}, path=${result.selectionPath}`);
@@ -1257,7 +1257,7 @@ export const Intelligence: React.FC = () => {
       <Flex flexDirection="column" style={{ flex: 1, minWidth: 0 }}>
         <Flex flexDirection="column" style={{ height: '100%', maxWidth: 1400, margin: '0 auto', width: '100%' }}>
 
-          {/* Branding â€” always visible above chat */}
+          {/* Branding — always visible above chat */}
           <Flex
             flexDirection="column"
             alignItems="center"
@@ -1299,7 +1299,7 @@ export const Intelligence: React.FC = () => {
             </Text>
           </Flex>
 
-          {/* Tool Guide Panel â€” toggleable help */}
+          {/* Tool Guide Panel — toggleable help */}
           {showToolGuide && (
             <Surface
               style={{
@@ -1375,7 +1375,7 @@ export const Intelligence: React.FC = () => {
               minHeight: 0,
             }}
           >
-            {/* Welcome â€” shown when no messages */}
+            {/* Welcome — shown when no messages */}
             {!hasMessages && !isLoading && (
               <Flex
                 flexDirection="column"
@@ -1415,7 +1415,7 @@ export const Intelligence: React.FC = () => {
             <div ref={messagesEndRef} />
           </Flex>
 
-          {/* Input Area â€” always at the bottom */}
+          {/* Input Area — always at the bottom */}
           <Flex flexDirection="column" style={{ padding: '12px 16px', borderTop: hasMessages ? '1px solid var(--dt-colors-border-neutral-default)' : 'none' }}>
             {/* Filter bar: Timeframe */}
             <Flex gap={8} alignItems="center" style={{ marginBottom: 8 }}>
@@ -1430,7 +1430,7 @@ export const Intelligence: React.FC = () => {
             </Flex>
             {/* Text input + Send */}
             <Flex gap={12} alignItems="center">
-              <Tooltip text={isListening ? 'Stop listening' : 'Voice input â€” click, then speak your question'}>
+              <Tooltip text={isListening ? 'Stop listening' : 'Voice input — click, then speak your question'}>
                 <Button
                   variant={isListening ? 'emphasized' : 'default'}
                   onClick={isListening ? stopVoiceInput : startVoiceInput}

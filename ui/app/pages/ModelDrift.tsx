@@ -3,17 +3,17 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
-import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { TimeframeSelector, FilterBar } from '@dynatrace/strato-components-preview/filters';
-import { SelectV2 } from '@dynatrace/strato-components-preview/forms';
-import { TimeseriesChart } from '@dynatrace/strato-components-preview/charts';
-import type { Timeseries } from '@dynatrace/strato-components-preview/charts';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { TimeframeSelector, FilterBar } from '@dynatrace/strato-components/filters';
+import { Select } from '@dynatrace/strato-components/forms';
+import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { 
   RefreshIcon, 
@@ -983,7 +983,7 @@ export const ModelDrift: React.FC = () => {
   ];
 
   return (
-    <Flex flexDirection="column" padding={16} gap={16}>
+    (<Flex flexDirection="column" padding={16} gap={16}>
       {/* TitleBar */}
       <TitleBar>
         <TitleBar.Prefix>
@@ -1003,7 +1003,6 @@ export const ModelDrift: React.FC = () => {
           </Flex>
         </TitleBar.Suffix>
       </TitleBar>
-
       {/* Summary Cards */}
       <Flex gap={12} flexWrap="wrap">
         <MetricCard
@@ -1047,7 +1046,6 @@ export const ModelDrift: React.FC = () => {
           tooltip="Average drift score across all combinations (0-100)"
         />
       </Flex>
-
       {/* Anomaly Alert Banner */}
       {anomalies.length > 0 && (
         <Surface style={{ 
@@ -1075,7 +1073,6 @@ export const ModelDrift: React.FC = () => {
           </Flex>
         </Surface>
       )}
-
       {/* Operation Type Filter */}
       <Flex alignItems="center" gap={8}>
         <Text textStyle="small" style={{ opacity: 0.7 }}>Filter by type:</Text>
@@ -1120,7 +1117,6 @@ export const ModelDrift: React.FC = () => {
           )}
         </Flex>
       </Flex>
-
       {/* Model Drift Scores Table - Full Width */}
       <Surface padding={16} style={{ borderRadius: 8 }}>
         <Flex flexDirection="column" gap={12}>
@@ -1275,7 +1271,6 @@ export const ModelDrift: React.FC = () => {
           )}
         </Flex>
       </Surface>
-
       {/* Drift Score Trend - Full Width Chart */}
       <Surface padding={16} style={{ borderRadius: 8 }}>
         <Flex flexDirection="column" gap={12}>
@@ -1325,17 +1320,17 @@ export const ModelDrift: React.FC = () => {
             }}>
               <Flex alignItems="center" gap={12} flexWrap="wrap">
                 <Text textStyle="small" style={{ opacity: 0.7, whiteSpace: 'nowrap' }}>Display:</Text>
-                <SelectV2
+                <Select
                   value={selectedTrendModels}
                   onChange={(values) => setSelectedTrendModels(values as string[])}
                   multiple
                   clearable
                   style={{ minWidth: 280, flex: 1, maxWidth: 500 }}
                 >
-                  <SelectV2.Trigger placeholder="Select models..." />
-                  <SelectV2.Content style={{ maxHeight: 300 }}>
+                  <Select.Trigger placeholder="Select models..." />
+                  <Select.Content style={{ maxHeight: 300 }}>
                     {availableTrendModels.map(model => (
-                      <SelectV2.Option key={model.id} value={model.id}>
+                      <Select.Option key={model.id} value={model.id}>
                         <Flex justifyContent="space-between" alignItems="center" style={{ width: '100%' }}>
                           <span style={{ fontSize: 12 }}>{model.label}</span>
                           <span style={{ 
@@ -1352,10 +1347,10 @@ export const ModelDrift: React.FC = () => {
                             {model.driftScore}
                           </span>
                         </Flex>
-                      </SelectV2.Option>
+                      </Select.Option>
                     ))}
-                  </SelectV2.Content>
-                </SelectV2>
+                  </Select.Content>
+                </Select>
                 <Flex gap={6}>
                   <Button 
                     variant="default" 
@@ -1406,7 +1401,6 @@ export const ModelDrift: React.FC = () => {
           )}
         </Flex>
       </Surface>
-
       {/* Model Anomalies List */}
       {anomalies.length > 0 && (
         <Surface padding={16} style={{ borderRadius: 8 }}>
@@ -1455,7 +1449,6 @@ export const ModelDrift: React.FC = () => {
           </Flex>
         </Surface>
       )}
-
       {/* Detail Modal */}
       {selectedModel && (
         <DriftDetailModal 
@@ -1465,6 +1458,6 @@ export const ModelDrift: React.FC = () => {
           onClearBaseline={clearBaseline}
         />
       )}
-    </Flex>
+    </Flex>)
   );
 };

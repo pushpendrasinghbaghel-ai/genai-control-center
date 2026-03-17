@@ -4,7 +4,7 @@
 // Falls back to simple linear projection if the analyzer is unavailable.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components-preview/charts';
+import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components/charts';
 import { forecastAICost, type ForecastResult, type ForecastPoint } from '../utils/davisAnalyzers';
 
 // ============================================

@@ -5,15 +5,15 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { Heading, Text, Strong } from '@dynatrace/strato-components/typography';
-import { Tab, Tabs } from '@dynatrace/strato-components-preview/navigation';
+import { Tab, Tabs } from '@dynatrace/strato-components/navigation';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
-import { TimeframeSelector } from '@dynatrace/strato-components-preview/filters';
-import { TextInput } from '@dynatrace/strato-components-preview/forms';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
+import { TimeframeSelector } from '@dynatrace/strato-components/filters';
+import { TextInput } from '@dynatrace/strato-components/forms';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import {
   RefreshIcon,
   AiIcon,

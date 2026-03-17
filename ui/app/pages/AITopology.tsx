@@ -3,12 +3,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { ExternalLinkIcon, SmartscapeIcon, ServicesIcon, AppsIcon } from '@dynatrace/strato-icons';
-import { Modal } from '@dynatrace/strato-components-preview/overlays';
+import { Modal } from '@dynatrace/strato-components/overlays';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { FilterBar } from '../components/FilterBar';

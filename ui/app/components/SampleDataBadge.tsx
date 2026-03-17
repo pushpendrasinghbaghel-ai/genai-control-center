@@ -4,7 +4,7 @@
 import React from 'react';
 import { Flex } from '@dynatrace/strato-components/layouts';
 import { Text } from '@dynatrace/strato-components/typography';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { DocumentIcon, HelpIcon, PinIcon, WarningIcon } from '@dynatrace/strato-icons';
 

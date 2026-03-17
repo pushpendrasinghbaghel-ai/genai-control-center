@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 import { buildTimeRangeClauseFromTimeframe } from '../queries/dql-queries';
 
 // ============================================

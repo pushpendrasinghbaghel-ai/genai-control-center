@@ -3,11 +3,11 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip, Modal } from '@dynatrace/strato-components-preview/overlays';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { 
   RefreshIcon, 
   LockIcon, 

@@ -1,6 +1,6 @@
 // DQL Queries for GenAI Control Center
 
-import type { Timeframe } from '@dynatrace/strato-components-preview/core';
+import type { Timeframe } from '@dynatrace/strato-components/core';
 
 /**
  * Build time range clause for DQL queries from Timeframe object

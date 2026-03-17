@@ -3,12 +3,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
-import { TitleBar } from '@dynatrace/strato-components-preview/layouts';
+import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressBar } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components-preview/overlays';
-import { DataTable } from '@dynatrace/strato-components-preview/tables';
+import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
 import {
   RefreshIcon, WarningIcon, CriticalIcon, CheckmarkIcon,
   HelpIcon, LockIcon,

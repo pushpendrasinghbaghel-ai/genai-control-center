@@ -2,8 +2,8 @@
 // Navigation Pattern: Observe → Analyze → Act
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AppHeader, HelpMenu } from "@dynatrace/strato-components-preview/layouts";
-import { Menu } from "@dynatrace/strato-components-preview/navigation";
+import { AppHeader, HelpMenu } from "@dynatrace/strato-components/layouts";
+import { Menu } from "@dynatrace/strato-components/navigation";
 import { Button } from "@dynatrace/strato-components/buttons";
 import { 
   HomeIcon,            // Home
