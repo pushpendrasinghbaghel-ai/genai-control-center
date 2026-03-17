@@ -8,6 +8,7 @@
         "/^npx dt-app dev --open$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "npx dt-app": true
     }
 }

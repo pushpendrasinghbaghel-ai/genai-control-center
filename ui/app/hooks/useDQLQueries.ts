@@ -83,12 +83,35 @@ export function useDQLQuery<T>(
       const response = await queryExecutionClient.queryExecute({
         body: {
           query,
-          requestTimeoutMilliseconds: 60000,
+          requestTimeoutMilliseconds: 30000,
           fetchTimeoutSeconds: 60
         }
       });
       
-      const records = response.result?.records || [];
+      let records: unknown[] = [];
+
+      if (response.state === 'SUCCEEDED') {
+        records = response.result?.records || [];
+      } else if (response.state === 'RUNNING' && response.requestToken) {
+        // Poll for results if query didn't finish in initial timeout
+        console.log('[GCC] Query still running, polling...');
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const poll = await queryExecutionClient.queryPoll({ requestToken: response.requestToken });
+          if (poll.state === 'SUCCEEDED') {
+            records = poll.result?.records || [];
+            break;
+          }
+          if (poll.state === 'FAILED' || poll.state === 'CANCELLED') {
+            throw new Error(`Query ${poll.state}`);
+          }
+        }
+      } else if (response.state === 'FAILED' || response.state === 'CANCELLED') {
+        throw new Error(`Query ${response.state}`);
+      } else {
+        records = response.result?.records || [];
+      }
+
       console.log('[GCC] Query returned', records.length, 'records');
       const transformedData = transform ? transform(records) : (records as T);
       setData(transformedData);

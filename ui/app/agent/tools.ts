@@ -32,17 +32,58 @@ import type {
 // ============================================
 
 async function executeDql(query: string): Promise<any[]> {
+  const MAX_POLL_ATTEMPTS = 10;
+  const POLL_INTERVAL_MS = 3000;
+
   try {
     console.log("[Tools] Executing DQL:", query.slice(0, 120) + (query.length > 120 ? "..." : ""));
     const response = await queryExecutionClient.queryExecute({
       body: {
         query,
-        requestTimeoutMilliseconds: 60000,
+        requestTimeoutMilliseconds: 30000,
         fetchTimeoutSeconds: 60,
       },
     });
+
+    // If query completed immediately, return records
+    if (response.state === "SUCCEEDED") {
+      const records = response.result?.records || [];
+      console.log(`[Tools] DQL returned ${records.length} records (immediate)`);
+      return records;
+    }
+
+    // If query is still running, poll for results
+    if (response.state === "RUNNING" && response.requestToken) {
+      console.log(`[Tools] DQL query still running, polling (token: ${response.requestToken.slice(0, 20)}...)`);
+      for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+        const pollResponse = await queryExecutionClient.queryPoll({
+          requestToken: response.requestToken,
+        });
+        if (pollResponse.state === "SUCCEEDED") {
+          const records = pollResponse.result?.records || [];
+          console.log(`[Tools] DQL returned ${records.length} records (after ${attempt} poll(s))`);
+          return records;
+        }
+        if (pollResponse.state === "FAILED" || pollResponse.state === "CANCELLED") {
+          console.error(`[Tools] DQL query ${pollResponse.state} during polling`);
+          return [];
+        }
+        console.log(`[Tools] Poll ${attempt}/${MAX_POLL_ATTEMPTS}: state=${pollResponse.state}, progress=${pollResponse.progress ?? "?"}%`);
+      }
+      console.warn(`[Tools] DQL query did not complete after ${MAX_POLL_ATTEMPTS} polls (${MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000}s)`);
+      return [];
+    }
+
+    // Query failed or was cancelled at start
+    if (response.state === "FAILED" || response.state === "CANCELLED") {
+      console.error(`[Tools] DQL query ${response.state} immediately`);
+      return [];
+    }
+
+    // Fallback: try to get records from whatever state we're in
     const records = response.result?.records || [];
-    console.log(`[Tools] DQL returned ${records.length} records`);
+    console.log(`[Tools] DQL returned ${records.length} records (state: ${response.state})`);
     return records;
   } catch (err) {
     console.error("[Tools] DQL query failed (gracefully returning []):", err instanceof Error ? err.message : err);
