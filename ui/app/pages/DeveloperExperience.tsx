@@ -1,4 +1,4 @@
-// DeveloperExperience.tsx — AI Integration Health
+// DeveloperExperience.tsx ï¿½ AI Integration Health
 // A Lighthouse-style diagnostic for AI observability quality.
 // Shows per-model telemetry completeness, model routing patterns, and actionable recommendations.
 // Unique value: no competitor surfaces per-model instrumentation gaps or gateway routing visibility.
@@ -186,7 +186,7 @@ export function DeveloperExperience() {
         }),
       ]);
 
-      // Integration report — per model×provider
+      // Integration report ï¿½ per modelï¿½provider
       const rows = (reportRes.result?.records || []).map((r: any) => {
         const calls = Number(r['calls'] || 0);
         const tokPct = pct(Number(r['has_tokens'] || 0), calls);
@@ -213,7 +213,7 @@ export function DeveloperExperience() {
       });
       setReport(rows);
 
-      // Model routing — requested ? served
+      // Model routing ï¿½ requested ? served
       setRoutes((routeRes.result?.records || []).map((r: any) => ({
         requested: String(r['requested'] || ''),
         actual: String(r['actual'] || ''),
@@ -274,7 +274,7 @@ export function DeveloperExperience() {
       recs.push({
         severity: 'critical',
         title: `${noTokenModels.length} model${noTokenModels.length > 1 ? 's' : ''} report zero token data`,
-        detail: `${names}${extra} — ${formatNum(noTokenModels.reduce((s, r) => s + r.calls, 0))} calls with no cost visibility. Add gen_ai.usage.input_tokens and gen_ai.usage.output_tokens to these spans.`,
+        detail: `${names}${extra} ï¿½ ${formatNum(noTokenModels.reduce((s, r) => s + r.calls, 0))} calls with no cost visibility. Add gen_ai.usage.input_tokens and gen_ai.usage.output_tokens to these spans.`,
         attribute: 'gen_ai.usage.input_tokens',
       });
     }
@@ -286,7 +286,7 @@ export function DeveloperExperience() {
       recs.push({
         severity: 'warning',
         title: `${noResponseModel.length} model${noResponseModel.length > 1 ? 's' : ''} don't report response model`,
-        detail: `${names} — without gen_ai.response.model you can't detect model aliasing, version pinning, or gateway routing.`,
+        detail: `${names} ï¿½ without gen_ai.response.model you can't detect model aliasing, version pinning, or gateway routing.`,
         attribute: 'gen_ai.response.model',
       });
     }
@@ -295,7 +295,7 @@ export function DeveloperExperience() {
     if (coverage && coverage.withConversation === 0) {
       recs.push({
         severity: 'warning',
-        title: 'No session grouping — 0 conversation IDs found',
+        title: 'No session grouping ï¿½ 0 conversation IDs found',
         detail: `${formatNum(coverage.total)} AI spans have no traceloop.association.properties.conversation_id. Session tracking, multi-turn analysis, and conversation-level cost attribution are impossible without this.`,
         attribute: 'traceloop.association.properties.conversation_id',
       });
@@ -308,7 +308,7 @@ export function DeveloperExperience() {
       recs.push({
         severity: 'info',
         title: `${formatNum(totalRouted)} calls routed through ${routes.length} model aliases`,
-        detail: `Top route: "${topRoute.requested}" ? "${topRoute.actual}" (${formatNum(topRoute.occurrences)} calls). Verify these routes are intentional — this typically indicates an API gateway, proxy, or deployment alias.`,
+        detail: `Top route: "${topRoute.requested}" ? "${topRoute.actual}" (${formatNum(topRoute.occurrences)} calls). Verify these routes are intentional ï¿½ this typically indicates an API gateway, proxy, or deployment alias.`,
         attribute: 'gen_ai.request.model / gen_ai.response.model',
       });
     }
@@ -332,7 +332,7 @@ export function DeveloperExperience() {
       recs.push({
         severity: 'info',
         title: `${formatNum(total)} framework/orchestration spans detected`,
-        detail: `Providers: ${providers}. These spans have gen_ai.provider.name but no model — likely from LangChain, Traceloop, or similar orchestration layers. Consider enriching with gen_ai.request.model for complete attribution.`,
+        detail: `Providers: ${providers}. These spans have gen_ai.provider.name but no model ï¿½ likely from LangChain, Traceloop, or similar orchestration layers. Consider enriching with gen_ai.request.model for complete attribution.`,
         attribute: 'gen_ai.request.model',
       });
     }
@@ -341,12 +341,12 @@ export function DeveloperExperience() {
   }, [report, routes, coverage]);
 
   // ============================================
-  // Dynatrace Intelligence — contextual prompt builder
+  // Dynatrace Intelligence ï¿½ contextual prompt builder
   // ============================================
 
   const buildContext = useCallback(() => {
     const lines: string[] = [
-      'Page: AI Integration Health — per-model telemetry completeness for GenAI services.',
+      'Page: AI Integration Health ï¿½ per-model telemetry completeness for GenAI services.',
       `Models tracked: ${kpis.modelsTracked}, Avg completeness: ${kpis.avgCompleteness}%, Blind spots: ${kpis.blindSpots}, Model routes: ${routes.length}`,
     ];
     if (coverage) {
@@ -532,10 +532,10 @@ export function DeveloperExperience() {
                 <Flex flexDirection="column" gap={6}>
                   <Text textStyle="base-emphasized">KPI Cards (Top Row)</Text>
                   <Text textStyle="small" style={{ lineHeight: '1.6' }}>
-                    <strong>Integration Completeness</strong> — Average % of key telemetry attributes present across all models. 80%+ = Excellent, 60-79% = Good, below = gaps to fix.<br />
-                    <strong>Models Tracked</strong> — Count of unique model+provider combos sending gen_ai.* spans.<br />
-                    <strong>Telemetry Blind Spots</strong> — Models with &lt;50% token coverage — cost analysis is impossible for these.<br />
-                    <strong>Model Routes</strong> — Cases where the model actually served differs from what was requested (gateway aliasing).
+                    <strong>Integration Completeness</strong> ï¿½ Average % of key telemetry attributes present across all models. 80%+ = Excellent, 60-79% = Good, below = gaps to fix.<br />
+                    <strong>Models Tracked</strong> ï¿½ Count of unique model+provider combos sending gen_ai.* spans.<br />
+                    <strong>Telemetry Blind Spots</strong> ï¿½ Models with &lt;50% token coverage ï¿½ cost analysis is impossible for these.<br />
+                    <strong>Model Routes</strong> ï¿½ Cases where the model actually served differs from what was requested (gateway aliasing).
                   </Text>
                 </Flex>
               </Surface>
@@ -545,9 +545,9 @@ export function DeveloperExperience() {
                   <Text textStyle="base-emphasized">Integration Report Tab</Text>
                   <Text textStyle="small" style={{ lineHeight: '1.6' }}>
                     Each row is a unique <strong>model + provider</strong> combination. The check columns show what % of spans include that attribute:<br />
-                    <strong>Tokens</strong> — gen_ai.usage.input_tokens / output_tokens (needed for cost tracking)<br />
-                    <strong>Resp Model</strong> — gen_ai.response.model (detect version pinning and routing)<br />
-                    <strong>Agent ID</strong> — gen_ai.agent.name (attribute calls to specific agents/workflows)<br />
+                    <strong>Tokens</strong> ï¿½ gen_ai.usage.input_tokens / output_tokens (needed for cost tracking)<br />
+                    <strong>Resp Model</strong> ï¿½ gen_ai.response.model (detect version pinning and routing)<br />
+                    <strong>Agent ID</strong> ï¿½ gen_ai.agent.name (attribute calls to specific agents/workflows)<br />
                     <span style={{ color: Colors.Text.Success.Default }}>Green checkmark (=80%)</span> = well instrumented, <span style={{ color: Colors.Text.Warning.Default }}>yellow warning</span> = partial, <span style={{ color: Colors.Text.Critical.Default }}>red X</span> = missing.
                     The <strong>Completeness</strong> bar is the average of all four attributes.
                   </Text>
@@ -567,7 +567,7 @@ export function DeveloperExperience() {
                 <Flex flexDirection="column" gap={6}>
                   <Text textStyle="base-emphasized">Recommendations Tab</Text>
                   <Text textStyle="small" style={{ lineHeight: '1.6' }}>
-                    Auto-generated from your actual data — not generic advice. Each card shows the <strong>severity</strong> (critical/warning/info), a description of the gap, and the exact <strong>OpenTelemetry attribute</strong> to add to your instrumentation. Start with critical items first.
+                    Auto-generated from your actual data ï¿½ not generic advice. Each card shows the <strong>severity</strong> (critical/warning/info), a description of the gap, and the exact <strong>OpenTelemetry attribute</strong> to add to your instrumentation. Start with critical items first.
                   </Text>
                 </Flex>
               </Surface>
@@ -600,7 +600,7 @@ export function DeveloperExperience() {
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Integration Completeness</Text>
             <Flex alignItems="center" gap={12}>
               <Heading level={2} style={{ margin: 0, color: completenessColor }}>
-                {loading ? '—' : `${kpis.avgCompleteness}%`}
+                {loading ? 'ï¿½' : `${kpis.avgCompleteness}%`}
               </Heading>
               <Flex flexDirection="column" gap={2}>
                 <Text textStyle="small" style={{ color: completenessColor }}>
@@ -619,7 +619,7 @@ export function DeveloperExperience() {
           <Flex flexDirection="column" gap={6}>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Models Tracked</Text>
             <Heading level={3} style={{ margin: 0 }}>
-              {loading ? '—' : kpis.modelsTracked}
+              {loading ? 'ï¿½' : kpis.modelsTracked}
             </Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               {coverage ? `${formatNum(coverage.total)} total AI spans` : ''}
@@ -631,7 +631,7 @@ export function DeveloperExperience() {
           <Flex flexDirection="column" gap={6}>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Telemetry Blind Spots</Text>
             <Heading level={3} style={{ margin: 0, color: kpis.blindSpots > 0 ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
-              {loading ? '—' : kpis.blindSpots}
+              {loading ? 'ï¿½' : kpis.blindSpots}
             </Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               models with &lt;50% token coverage
@@ -643,7 +643,7 @@ export function DeveloperExperience() {
           <Flex flexDirection="column" gap={6}>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Model Routes</Text>
             <Heading level={3} style={{ margin: 0, color: routes.length > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default }}>
-              {loading ? '—' : routes.length}
+              {loading ? 'ï¿½' : routes.length}
             </Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               {routes.length > 0 ? `${formatNum(kpis.routeCount)} routed calls` : 'all models served as requested'}
@@ -671,7 +671,7 @@ export function DeveloperExperience() {
             <AiIcon style={{ width: 15, height: 15 }} />
             <Heading level={5} style={{ margin: 0 }}>Per-Model Telemetry Completeness</Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              Green = =80% · Yellow = partial · Red = none
+              Green = =80% ï¿½ Yellow = partial ï¿½ Red = none
             </Text>
           </Flex>
           {loading ? (
@@ -699,7 +699,7 @@ export function DeveloperExperience() {
             <WarningIcon style={{ width: 15, height: 15, color: Colors.Text.Warning.Default }} />
             <Heading level={5} style={{ margin: 0 }}>Model Routing Map</Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-              Where requested model ? served model — reveals gateways, proxies, and aliasing
+              Where requested model ? served model ï¿½ reveals gateways, proxies, and aliasing
             </Text>
           </Flex>
           {loading ? (
@@ -711,7 +711,7 @@ export function DeveloperExperience() {
               <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
               <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No model routing detected</Heading>
               <Text style={{ color: Colors.Text.Neutral.Subdued, textAlign: 'center', maxWidth: 400 }}>
-                All gen_ai.response.model values match gen_ai.request.model — no gateway aliasing or proxy routing detected.
+                All gen_ai.response.model values match gen_ai.request.model ï¿½ no gateway aliasing or proxy routing detected.
               </Text>
             </Flex>
           ) : (
@@ -728,7 +728,7 @@ export function DeveloperExperience() {
               <CodeIcon style={{ width: 16, height: 16 }} />
               <Heading level={5} style={{ margin: 0 }}>Actionable Recommendations</Heading>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                Auto-generated from your telemetry — prioritized by impact
+                Auto-generated from your telemetry ï¿½ prioritized by impact
               </Text>
             </Flex>
 
@@ -798,7 +798,7 @@ export function DeveloperExperience() {
                 <DavisAIIcon style={{ width: 20, height: 20, color: 'var(--dt-colors-text-accent-default)' }} />
                 <Heading level={4} style={{ margin: 0 }}>Dynatrace Intelligence</Heading>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Ask questions about your AI integration health — answers use real page data as context
+                  Ask questions about your AI integration health ï¿½ answers use real page data as context
                 </Text>
               </Flex>
               {davisMessages.length > 0 && (

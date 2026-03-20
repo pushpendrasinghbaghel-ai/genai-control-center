@@ -19,22 +19,113 @@ import {
 // AI Quality Scoring Types
 // ============================================
 
+/**
+ * Scoring Methodology — Industry Standards:
+ *
+ * 1. Reliability (25%) — DORA / SRE principles  
+ *    Maps error rate to an Apdex-style score. SRE best practice targets ≤ 0.1% error budget.
+ *    Formula: 100 × (1 − errorRate/100)^2  →  penalises errors quadratically.
+ *    Thresholds:  ≥95 Excellent | ≥85 Good | ≥70 Fair | <70 Poor
+ *
+ * 2. Latency Performance (20%) — Apdex-based (ISO/IEC 19157 timeliness)
+ *    Adapts the industry-standard Apdex formula for LLM response times.  
+ *    T (satisfied) = 1 000 ms for chat, 3 000 ms for completion.
+ *    Apdex = (satisfied + tolerating×0.5) / total  →  scaled to 0-100.
+ *    P95/avg ratio > 3 indicates tail-latency instability (−10 penalty).
+ *
+ * 3. Output Completeness (20%) — NIST AI RMF (Validity & Reliability)
+ *    Measures whether the model produces substantive output.  
+ *    – Low-output rate (<10 tokens) is a proxy for truncation / refusal.
+ *    – Coefficient of variation (CV) of output tokens signals consistency.
+ *    Score = base(avgTokens) − lowOutputPenalty − cvPenalty
+ *
+ * 4. Cost Efficiency (15%) — FinOps Foundation unit economics
+ *    Output-to-input token ratio indicates value generated per dollar.
+ *    Normalised with diminishing returns: score = 100 × (1 − e^(−ratio))
+ *
+ * 5. Groundedness / Hallucination Resilience (20%) — NIST AI 100-1 Trustworthiness
+ *    Composite proxy from observable signals (no ground-truth required):
+ *    – Low empty/truncated output rate
+ *    – Reasonable latency (not timeout-induced garbage)
+ *    – Low error rate
+ *    – Healthy output volume
+ *    Future: augmented by Davis AI deep analysis.
+ *
+ * Overall = weighted sum with above percentages.
+ * Grade mapping: A (≥90) | B (≥80) | C (≥70) | D (≥60) | F (<60)
+ */
+
 export interface AIQualityScore {
   serviceId: string;
   serviceName: string;
   model: string;
   provider: string;
   overallScore: number;  // 0-100
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
   dimensions: {
-    responseQuality: number;      // Based on output token consistency
-    latencyConsistency: number;   // Low variance = high score
-    errorResilience: number;      // Low error rate = high score
-    costEfficiency: number;       // Tokens per $ value
-    hallucationRisk: number;      // Detected via Dynatrace Intelligence Analysis
+    reliability: number;          // DORA/SRE error-rate scoring
+    latencyPerformance: number;   // Apdex-based latency scoring
+    outputCompleteness: number;   // NIST AI RMF validity
+    costEfficiency: number;       // FinOps unit economics
+    groundedness: number;         // NIST AI 100-1 trustworthiness proxy
+  };
+  rawMetrics: {
+    requestCount: number;
+    errorRate: number;
+    avgLatencyMs: number;
+    p95LatencyMs: number;
+    avgInputTokens: number;
+    avgOutputTokens: number;
+    lowOutputRate: number;
+    outputVariance: number;
   };
   flags: QualityFlag[];
   recommendations: string[];
   timestamp: string;
+}
+
+export const SCORING_WEIGHTS = {
+  reliability: 0.25,
+  latencyPerformance: 0.20,
+  outputCompleteness: 0.20,
+  costEfficiency: 0.15,
+  groundedness: 0.20,
+} as const;
+
+export const SCORING_STANDARDS: Record<string, { name: string; reference: string; description: string }> = {
+  reliability: {
+    name: 'Reliability (DORA / SRE)',
+    reference: 'Google DORA Metrics & SRE Error Budget',
+    description: 'Quadratic penalty on error rate. SRE targets ≤0.1% error budget. Score = 100 × (1 − errorRate/100)². ≥95 = Excellent, ≥85 = Good, ≥70 = Fair, <70 = Poor.',
+  },
+  latencyPerformance: {
+    name: 'Latency Performance (Apdex)',
+    reference: 'Apdex Standard (ISO/IEC 19157 Timeliness)',
+    description: 'Apdex-based score with T=1000ms (satisfied), 4T=4000ms (tolerating). Apdex = (satisfied + tolerating×0.5) / total, scaled 0-100. P95/avg ratio > 3 incurs −10 tail-latency penalty.',
+  },
+  outputCompleteness: {
+    name: 'Output Completeness (NIST AI RMF)',
+    reference: 'NIST AI Risk Management Framework — Validity & Reliability',
+    description: 'Measures substantive output production. Penalises high low-output rate (< 10 tokens = truncation/refusal proxy) and high coefficient of variation in output length.',
+  },
+  costEfficiency: {
+    name: 'Cost Efficiency (FinOps)',
+    reference: 'FinOps Foundation — Unit Economics',
+    description: 'Output-to-input token ratio as value proxy. Score = 100 × (1 − e^(−ratio)). Diminishing returns model — ratio ≥2 ≈ 86, ratio ≥3 ≈ 95.',
+  },
+  groundedness: {
+    name: 'Groundedness (NIST AI 100-1)',
+    reference: 'NIST AI 100-1 Trustworthy AI — Validity dimension',
+    description: 'Composite proxy for hallucination resilience from observable telemetry: low truncation rate, reasonable latency, low errors, healthy output volume. No ground-truth required.',
+  },
+};
+
+function scoreGrade(score: number): 'A' | 'B' | 'C' | 'D' | 'F' {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
 }
 
 export interface QualityFlag {
@@ -135,7 +226,7 @@ export function useAIQualityScoring() {
         const model = record['gen_ai.request.model'] || 'Unknown';
         const provider = record['gen_ai.provider.name'] || 'Unknown';
         
-        // Extract metrics
+        // Extract raw metrics
         const errorRate = Number(record.error_rate) || 0;
         const lowOutputRate = Number(record.low_output_rate) || 0;
         const avgOutputTokens = Number(record.avg_output_tokens) || 0;
@@ -143,62 +234,80 @@ export function useAIQualityScoring() {
         const p95Latency = Number(record.p95_latency) || avgLatency * 2;
         const avgInputTokens = Number(record.avg_input_tokens) || 1;
         const requestCount = Number(record.request_count) || 0;
+        const outputVariance = Number(record.output_variance) || 0;
         
-        // Response Quality (0-100): Based on output tokens and consistency
-        // Good: avg output > 50 tokens, Poor: < 10 tokens
-        // Also penalize high low_output_rate
-        let responseQuality = 70; // Base score
-        if (avgOutputTokens >= 100) responseQuality = 95;
-        else if (avgOutputTokens >= 50) responseQuality = 85;
-        else if (avgOutputTokens >= 20) responseQuality = 75;
-        else if (avgOutputTokens >= 10) responseQuality = 60;
-        else responseQuality = 40;
-        responseQuality = Math.max(0, responseQuality - lowOutputRate);
+        // ── 1. Reliability (DORA/SRE) ──
+        // Quadratic penalty: score = 100 × (1 − errorRate/100)²
+        const reliability = Math.round(Math.max(0, Math.min(100,
+          100 * Math.pow(1 - Math.min(errorRate, 100) / 100, 2)
+        )));
         
-        // Latency Consistency (0-100): Based on average latency thresholds
-        // Excellent: < 500ms, Good: < 1s, OK: < 2s, Poor: < 5s, Bad: > 5s
-        let latencyConsistency = 70; // Base score
-        if (avgLatency < 300) latencyConsistency = 95;
-        else if (avgLatency < 500) latencyConsistency = 88;
-        else if (avgLatency < 1000) latencyConsistency = 78;
-        else if (avgLatency < 2000) latencyConsistency = 65;
-        else if (avgLatency < 3000) latencyConsistency = 55;
-        else if (avgLatency < 5000) latencyConsistency = 40;
-        else latencyConsistency = 25;
-        // Penalize high P95 (indicates spikes)
-        if (p95Latency > avgLatency * 3) latencyConsistency -= 10;
-        latencyConsistency = Math.max(0, Math.min(100, latencyConsistency));
+        // ── 2. Latency Performance (Apdex-based) ──
+        // T = 1000ms (satisfied threshold), 4T = 4000ms (tolerating)
+        // Since we have aggregate stats, approximate Apdex from avg & p95:
+        const T = 1000;
+        let apdex: number;
+        if (avgLatency <= T) {
+          // Most requests are satisfied
+          apdex = p95Latency <= T ? 1.0 : (p95Latency <= 4 * T ? 0.85 : 0.7);
+        } else if (avgLatency <= 4 * T) {
+          // Most requests are tolerating
+          apdex = p95Latency <= 4 * T ? 0.6 : 0.4;
+        } else {
+          // Most requests are frustrated
+          apdex = avgLatency <= 10000 ? 0.25 : 0.1;
+        }
+        let latencyPerformance = Math.round(apdex * 100);
+        // Tail-latency instability penalty (P95/avg > 3)
+        if (avgLatency > 0 && p95Latency / avgLatency > 3) latencyPerformance = Math.max(0, latencyPerformance - 10);
+        latencyPerformance = Math.max(0, Math.min(100, latencyPerformance));
         
-        // Error Resilience (0-100): Based on error rate
-        // 0% errors = 100, 1% = 90, 5% = 50, 10% = 0
-        const errorResilience = Math.max(0, Math.min(100, 100 - errorRate * 10));
+        // ── 3. Output Completeness (NIST AI RMF) ──
+        let outputCompleteness = 80; // Base
+        if (avgOutputTokens >= 100) outputCompleteness = 95;
+        else if (avgOutputTokens >= 50) outputCompleteness = 85;
+        else if (avgOutputTokens >= 20) outputCompleteness = 75;
+        else if (avgOutputTokens >= 10) outputCompleteness = 60;
+        else outputCompleteness = 35;
+        // Penalize high low-output rate (truncation/refusal)
+        outputCompleteness = Math.max(0, outputCompleteness - lowOutputRate * 0.8);
+        // Penalize high CV (coefficient of variation) if we have variance
+        if (outputVariance > 0 && avgOutputTokens > 0) {
+          const cv = Math.sqrt(outputVariance) / avgOutputTokens;
+          if (cv > 1.5) outputCompleteness -= 15;
+          else if (cv > 1.0) outputCompleteness -= 8;
+        }
+        outputCompleteness = Math.round(Math.max(0, Math.min(100, outputCompleteness)));
         
-        // Cost Efficiency (0-100): Based on output/input token ratio
-        // Ratio > 2 = great, 1-2 = good, 0.5-1 = ok, < 0.5 = poor
+        // ── 4. Cost Efficiency (FinOps) ──
+        // Diminishing returns: score = 100 × (1 − e^(−ratio))
         const tokenRatio = avgOutputTokens / Math.max(avgInputTokens, 1);
-        let costEfficiency = 50; // Base score
-        if (tokenRatio >= 3) costEfficiency = 95;
-        else if (tokenRatio >= 2) costEfficiency = 85;
-        else if (tokenRatio >= 1) costEfficiency = 70;
-        else if (tokenRatio >= 0.5) costEfficiency = 55;
-        else costEfficiency = 35;
+        const costEfficiency = Math.round(Math.max(0, Math.min(100,
+          100 * (1 - Math.exp(-tokenRatio))
+        )));
         
-        // Hallucination Risk Score (0-100, higher = lower risk = better)
-        // Based on: consistent output length, reasonable latency, low error rate
-        let hallucinationRisk = 75; // Base assumption
-        if (lowOutputRate > 20) hallucinationRisk -= 25; // Many truncated responses
-        if (avgOutputTokens < 10 && avgLatency > 3000) hallucinationRisk -= 20; // Timeout pattern
-        if (errorRate > 5) hallucinationRisk -= 15;
-        if (avgOutputTokens > 50 && errorRate < 2) hallucinationRisk += 15; // Healthy pattern
-        hallucinationRisk = Math.max(0, Math.min(100, hallucinationRisk));
+        // ── 5. Groundedness / Hallucination Resilience (NIST AI 100-1) ──
+        let groundedness = 75;
+        // Truncation/empty responses suggest non-grounded output
+        if (lowOutputRate > 20) groundedness -= 20;
+        else if (lowOutputRate > 10) groundedness -= 10;
+        // Timeout-pattern: low output + high latency
+        if (avgOutputTokens < 10 && avgLatency > 3000) groundedness -= 20;
+        // High error rate degrades trust
+        if (errorRate > 5) groundedness -= 15;
+        else if (errorRate > 2) groundedness -= 8;
+        // Healthy pattern: good output, low errors
+        if (avgOutputTokens > 50 && errorRate < 1) groundedness += 15;
+        else if (avgOutputTokens > 30 && errorRate < 3) groundedness += 8;
+        groundedness = Math.round(Math.max(0, Math.min(100, groundedness)));
         
-        // Overall score (weighted average)
+        // ── Overall Score (weighted) ──
         const overallScore = Math.round(
-          responseQuality * 0.25 +
-          latencyConsistency * 0.2 +
-          errorResilience * 0.25 +
-          costEfficiency * 0.15 +
-          hallucinationRisk * 0.15
+          reliability * SCORING_WEIGHTS.reliability +
+          latencyPerformance * SCORING_WEIGHTS.latencyPerformance +
+          outputCompleteness * SCORING_WEIGHTS.outputCompleteness +
+          costEfficiency * SCORING_WEIGHTS.costEfficiency +
+          groundedness * SCORING_WEIGHTS.groundedness
         );
 
         // Generate flags
@@ -208,7 +317,7 @@ export function useAIQualityScoring() {
           flags.push({
             type: 'low_output',
             severity: lowOutputRate > 30 ? 'critical' : 'warning',
-            message: `${lowOutputRate.toFixed(1)}% of responses have unusually low output tokens`,
+            message: `${lowOutputRate.toFixed(1)}% of responses have < 10 output tokens (truncation/refusal)`,
             evidence: `Average output: ${avgOutputTokens.toFixed(0)} tokens`
           });
         }
@@ -217,48 +326,71 @@ export function useAIQualityScoring() {
           flags.push({
             type: 'degradation',
             severity: errorRate > 10 ? 'critical' : 'warning',
-            message: `Error rate at ${errorRate.toFixed(1)}%`,
-            evidence: `Above acceptable threshold of 5%`
+            message: `Error rate at ${errorRate.toFixed(1)}% — exceeds SRE budget`,
+            evidence: `SRE target: ≤0.1% (99.9% SLO)`
           });
         }
         
-        if (avgLatency > 5000) {
+        if (avgLatency > 4000) {
           flags.push({
             type: 'latency_spike',
             severity: avgLatency > 10000 ? 'critical' : 'warning',
-            message: `High average latency: ${avgLatency.toFixed(0)}ms`,
-            evidence: `P95 latency: ${record.p95_latency?.toFixed(0) || 'N/A'}ms`
+            message: `Avg latency ${avgLatency.toFixed(0)}ms exceeds Apdex frustration threshold (4000ms)`,
+            evidence: `P95: ${p95Latency.toFixed(0)}ms | Apdex: ${apdex.toFixed(2)}`
+          });
+        }
+
+        if (avgLatency > 0 && p95Latency / avgLatency > 3) {
+          flags.push({
+            type: 'latency_spike',
+            severity: 'warning',
+            message: `Tail-latency instability: P95/avg ratio = ${(p95Latency / avgLatency).toFixed(1)}×`,
+            evidence: `Avg: ${avgLatency.toFixed(0)}ms | P95: ${p95Latency.toFixed(0)}ms`
           });
         }
 
         // Generate recommendations
         const recommendations: string[] = [];
         
-        if (responseQuality < 70) {
-          recommendations.push('Consider adjusting prompts to get more consistent output lengths');
+        if (reliability < 85) {
+          recommendations.push('Error rate exceeds SRE targets — investigate error patterns and add retry/fallback logic');
         }
-        if (latencyConsistency < 60) {
-          recommendations.push('High latency variance detected - consider request queuing or load balancing');
+        if (latencyPerformance < 60) {
+          recommendations.push('Latency below Apdex "Good" threshold — consider caching, streaming, or model downsizing');
         }
-        if (costEfficiency < 40) {
-          recommendations.push('Low token efficiency - review prompt templates for optimization');
+        if (outputCompleteness < 70) {
+          recommendations.push('High truncation/refusal rate — review prompt templates and max_tokens configuration');
         }
-        if (flags.length > 0) {
-          recommendations.push('Address flagged issues to improve overall quality score');
+        if (costEfficiency < 50) {
+          recommendations.push('Low output/input ratio — optimize prompts to reduce input verbosity');
+        }
+        if (groundedness < 65) {
+          recommendations.push('Groundedness risk elevated — consider RAG integration or response validation');
         }
 
         return {
-          serviceId: record.entity_id || serviceName,
+          serviceId: entityId || serviceName,
           serviceName,
           model,
           provider,
           overallScore,
+          grade: scoreGrade(overallScore),
           dimensions: {
-            responseQuality: Math.round(responseQuality),
-            latencyConsistency: Math.round(latencyConsistency),
-            errorResilience: Math.round(errorResilience),
-            costEfficiency: Math.round(costEfficiency),
-            hallucationRisk: Math.round(hallucinationRisk)
+            reliability,
+            latencyPerformance,
+            outputCompleteness,
+            costEfficiency,
+            groundedness,
+          },
+          rawMetrics: {
+            requestCount,
+            errorRate,
+            avgLatencyMs: avgLatency,
+            p95LatencyMs: p95Latency,
+            avgInputTokens,
+            avgOutputTokens,
+            lowOutputRate,
+            outputVariance,
           },
           flags,
           recommendations,
@@ -342,6 +474,69 @@ Provide your analysis in a structured format.
     }
   }, []);
 
+  // Use Davis AI to analyze a quality score and provide actionable insights
+  const analyzeScoreWithDavis = useCallback(async (
+    service: AIQualityScore
+  ): Promise<string> => {
+    try {
+      const prompt = `Analyze this AI service quality score and provide actionable insights:
+
+Service: ${service.serviceName}
+Model: ${service.model} (Provider: ${service.provider})
+Overall Score: ${service.overallScore}/100 (Grade: ${service.grade})
+
+Dimension Scores:
+- Reliability (DORA/SRE Error Budget): ${service.dimensions.reliability}/100
+- Latency Performance (Apdex): ${service.dimensions.latencyPerformance}/100
+- Output Completeness (NIST AI RMF): ${service.dimensions.outputCompleteness}/100
+- Cost Efficiency (FinOps): ${service.dimensions.costEfficiency}/100
+- Groundedness (NIST AI 100-1): ${service.dimensions.groundedness}/100
+
+Raw Metrics:
+- Requests: ${service.rawMetrics.requestCount}
+- Error Rate: ${service.rawMetrics.errorRate.toFixed(2)}%
+- Avg Latency: ${service.rawMetrics.avgLatencyMs.toFixed(0)}ms (P95: ${service.rawMetrics.p95LatencyMs.toFixed(0)}ms)
+- Avg Input Tokens: ${service.rawMetrics.avgInputTokens.toFixed(0)}
+- Avg Output Tokens: ${service.rawMetrics.avgOutputTokens.toFixed(0)}
+- Low Output Rate: ${service.rawMetrics.lowOutputRate.toFixed(1)}%
+
+Quality Flags: ${service.flags.length > 0 ? service.flags.map(f => `[${f.severity}] ${f.message}`).join('; ') : 'None'}
+
+Please provide:
+1. A brief overall assessment (2-3 sentences)
+2. The top 3 most impactful improvements this team should make
+3. How this compares to industry benchmarks for ${service.model} deployments
+4. Any hidden risks or patterns you see in the metrics`;
+
+      const response = await publicClient.recommenderConversation({
+        body: {
+          text: prompt,
+          context: [{
+            type: 'supplementary',
+            value: 'You are an AI observability expert analyzing GenAI service quality using industry standards (NIST AI RMF, DORA SRE metrics, Apdex, FinOps). Provide specific, data-driven recommendations.'
+          }]
+        }
+      });
+
+      if (Array.isArray(response)) {
+        const tokens: string[] = [];
+        for (const event of response) {
+          const ev = event as { data?: { tokens?: string[]; answer?: string } };
+          if (ev.data?.tokens) tokens.push(...ev.data.tokens);
+          if (ev.data?.answer) return ev.data.answer;
+        }
+        if (tokens.length > 0) return tokens.join('');
+      }
+
+      return typeof response === 'string'
+        ? response
+        : (response as any).text || (response as any).answer || 'Analysis unavailable — Davis CoPilot did not return a response.';
+    } catch (err) {
+      console.error('[GCC] Davis score analysis failed:', err);
+      return 'Dynatrace Intelligence analysis is currently unavailable. Please try again later.';
+    }
+  }, []);
+
   // Summary statistics
   const summary = useMemo(() => {
     if (scores.length === 0) return null;
@@ -380,7 +575,8 @@ Provide your analysis in a structured format.
     error,
     summary,
     analyzeQuality,
-    analyzePromptWithDavis
+    analyzePromptWithDavis,
+    analyzeScoreWithDavis,
   };
 }
 

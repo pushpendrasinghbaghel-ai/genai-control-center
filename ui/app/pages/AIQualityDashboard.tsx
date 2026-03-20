@@ -1,15 +1,23 @@
 // AI Quality Dashboard
-// Unique quality scoring, hallucination detection, and Davis AI-powered forecasting
+// Industry-standard quality scoring (NIST AI RMF, DORA/SRE, Apdex, FinOps),
+// paginated DataTable, scoring methodology modal, and Davis AI analysis
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle, ProgressBar } from '@dynatrace/strato-components/content';
-import { WarningIcon, CriticalIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
+import { Modal } from '@dynatrace/strato-components/overlays';
+import { DataTable } from '@dynatrace/strato-components/tables';
+import { WarningIcon, CriticalIcon, CheckmarkIcon, HelpIcon, AiIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { useAIQualityScoring, useDavisForecasting, AIQualityScore, ForecastResult } from '../hooks/useAIQuality';
+import {
+  useAIQualityScoring, useDavisForecasting,
+  AIQualityScore, ForecastResult,
+  SCORING_WEIGHTS, SCORING_STANDARDS,
+} from '../hooks/useAIQuality';
+import { DavisResponse } from '../components/DavisResponse';
 
 // ============================================
 // Quality Score Ring Component
@@ -285,14 +293,169 @@ const ForecastChart: React.FC<{
 };
 
 // ============================================
+// Scoring Methodology Modal
+// ============================================
+
+const ScoringMethodologyModal: React.FC<{
+  show: boolean;
+  onDismiss: () => void;
+}> = ({ show, onDismiss }) => {
+  const dimensionKeys = Object.keys(SCORING_STANDARDS) as (keyof typeof SCORING_STANDARDS)[];
+
+  return (
+    <Modal title="AI Quality Scoring Methodology" show={show} onDismiss={onDismiss} size="large">
+      <Flex flexDirection="column" gap={20} style={{ padding: 16, maxHeight: '80vh', overflow: 'auto' }}>
+        {/* Overview */}
+        <Surface style={{ padding: 16, background: 'var(--dt-colors-background-container-neutral-subdued)' }}>
+          <Heading level={6} style={{ marginBottom: 8 }}>Overview</Heading>
+          <Text textStyle="small">
+            The AI Quality Score is a composite metric derived from industry-recognised frameworks.
+            Each service+model combination is scored 0–100 across five dimensions, then combined using
+            the weights below to produce an overall grade (A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, F &lt; 60).
+            All scores are computed from real-time OpenTelemetry gen_ai.* span telemetry — no synthetic benchmarks.
+          </Text>
+        </Surface>
+
+        {/* Weights Summary */}
+        <Surface style={{ padding: 16 }}>
+          <Heading level={6} style={{ marginBottom: 12 }}>Dimension Weights</Heading>
+          <Flex flexDirection="column" gap={8}>
+            {dimensionKeys.map((key) => {
+              const weight = SCORING_WEIGHTS[key as keyof typeof SCORING_WEIGHTS];
+              const info = SCORING_STANDARDS[key];
+              return (
+                <Flex key={key} justifyContent="space-between" alignItems="center">
+                  <Text style={{ fontWeight: 600 }}>{info.name}</Text>
+                  <Flex alignItems="center" gap={8}>
+                    <div style={{
+                      width: 120, height: 8, borderRadius: 4,
+                      background: 'var(--dt-colors-border-neutral-default)', overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%', width: `${weight * 100}%`, borderRadius: 4,
+                        background: 'var(--dt-colors-charts-categorical-default-09)',
+                      }} />
+                    </div>
+                    <Text textStyle="small" style={{ fontWeight: 600, minWidth: 40 }}>{(weight * 100).toFixed(0)}%</Text>
+                  </Flex>
+                </Flex>
+              );
+            })}
+          </Flex>
+        </Surface>
+
+        {/* Dimension Details */}
+        {dimensionKeys.map((key) => {
+          const info = SCORING_STANDARDS[key];
+          return (
+            <Surface key={key} style={{ padding: 16, borderLeft: '3px solid var(--dt-colors-charts-categorical-default-09)' }}>
+              <Flex flexDirection="column" gap={6}>
+                <Heading level={6}>{info.name}</Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontStyle: 'italic' }}>
+                  Reference: {info.reference}
+                </Text>
+                <Text textStyle="small">{info.description}</Text>
+              </Flex>
+            </Surface>
+          );
+        })}
+
+        {/* Grade Scale */}
+        <Surface style={{ padding: 16 }}>
+          <Heading level={6} style={{ marginBottom: 12 }}>Grade Scale</Heading>
+          <Flex gap={12} style={{ flexWrap: 'wrap' }}>
+            {[
+              { grade: 'A', range: '90 – 100', color: '#4CAF50' },
+              { grade: 'B', range: '80 – 89', color: '#8BC34A' },
+              { grade: 'C', range: '70 – 79', color: '#ff9800' },
+              { grade: 'D', range: '60 – 69', color: '#FF5722' },
+              { grade: 'F', range: '< 60', color: '#f44336' },
+            ].map(({ grade, range, color }) => (
+              <Flex key={grade} alignItems="center" gap={8} style={{ minWidth: 120 }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 28, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 14,
+                  background: `${color}20`, color,
+                }}>{grade}</span>
+                <Text textStyle="small">{range}</Text>
+              </Flex>
+            ))}
+          </Flex>
+        </Surface>
+      </Flex>
+    </Modal>
+  );
+};
+
+// ============================================
+// Davis AI Analysis Modal
+// ============================================
+
+const DavisAnalysisModal: React.FC<{
+  show: boolean;
+  onDismiss: () => void;
+  service: AIQualityScore | null;
+  analysisText: string;
+  loading: boolean;
+}> = ({ show, onDismiss, service, analysisText, loading }) => (
+  <Modal
+    title={`Dynatrace Intelligence Analysis: ${service?.serviceName || ''}`}
+    show={show}
+    onDismiss={onDismiss}
+    size="large"
+  >
+    <Flex flexDirection="column" gap={16} style={{ padding: 16, maxHeight: '80vh', overflow: 'auto' }}>
+      {service && (
+        <Surface style={{ padding: 12, background: 'var(--dt-colors-background-container-neutral-subdued)' }}>
+          <Flex gap={16} alignItems="center">
+            <QualityScoreRing score={service.overallScore} size={64} label={service.grade} />
+            <Flex flexDirection="column" gap={4}>
+              <Text style={{ fontWeight: 600 }}>{service.model} • {service.provider}</Text>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                {service.rawMetrics.requestCount.toLocaleString()} requests |
+                Error rate: {service.rawMetrics.errorRate.toFixed(2)}% |
+                Avg latency: {service.rawMetrics.avgLatencyMs.toFixed(0)}ms
+              </Text>
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
+
+      {loading ? (
+        <Flex flexDirection="column" alignItems="center" padding={32} gap={12}>
+          <ProgressCircle />
+          <Text textStyle="small">Dynatrace Intelligence is analysing this service...</Text>
+        </Flex>
+      ) : (
+        <Surface style={{ padding: 16 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <AiIcon style={{ width: 16, height: 16 }} />
+            <Text style={{ fontWeight: 600 }}>Dynatrace Intelligence Analysis</Text>
+          </Flex>
+          {analysisText ? (
+            <DavisResponse content={analysisText} />
+          ) : (
+            <Text>No analysis available.</Text>
+          )}
+        </Surface>
+      )}
+    </Flex>
+  </Modal>
+);
+
+// ============================================
 // Main Quality Dashboard Component
 // ============================================
 
 export const AIQualityDashboard: React.FC = () => {
-  const { scores, loading, error, summary, analyzeQuality } = useAIQualityScoring();
+  const { scores, loading, error, summary, analyzeQuality, analyzeScoreWithDavis } = useAIQualityScoring();
   const { forecasts, loading: forecastLoading, generateForecast } = useDavisForecasting();
   const [selectedService, setSelectedService] = useState<AIQualityScore | null>(null);
   const [budget, setBudget] = useState<number>(1000);
+  const [showMethodology, setShowMethodology] = useState(false);
+  const [davisModalOpen, setDavisModalOpen] = useState(false);
+  const [davisAnalysis, setDavisAnalysis] = useState('');
+  const [davisLoading, setDavisLoading] = useState(false);
 
   // Initial analysis
   useEffect(() => {
@@ -308,9 +471,159 @@ export const AIQualityDashboard: React.FC = () => {
     ]);
   }, [generateForecast, budget]);
 
+  // Davis AI analysis for a specific service
+  const handleDavisAnalysis = useCallback(async (service: AIQualityScore) => {
+    setSelectedService(service);
+    setDavisModalOpen(true);
+    setDavisLoading(true);
+    setDavisAnalysis('');
+    try {
+      const result = await analyzeScoreWithDavis(service);
+      setDavisAnalysis(result);
+    } finally {
+      setDavisLoading(false);
+    }
+  }, [analyzeScoreWithDavis]);
+
   const tokenForecast = forecasts.find(f => f.metric === 'tokens');
   const costForecast = forecasts.find(f => f.metric === 'cost');
   const requestForecast = forecasts.find(f => f.metric === 'requests');
+
+  // Grade badge renderer
+  const GradeBadge: React.FC<{ grade: string; score: number }> = ({ grade, score }) => {
+    const color = score >= 90 ? '#4CAF50' : score >= 80 ? '#8BC34A' : score >= 70 ? '#ff9800' : score >= 60 ? '#FF5722' : '#f44336';
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 28, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 14,
+        background: `${color}20`, color,
+      }}>{grade}</span>
+    );
+  };
+
+  // Dimension bar inline
+  const DimBar: React.FC<{ value: number; width?: number }> = ({ value, width = 60 }) => {
+    const color = value >= 80 ? '#4CAF50' : value >= 60 ? '#ff9800' : '#f44336';
+    return (
+      <Flex alignItems="center" gap={6}>
+        <div style={{
+          width, height: 6, borderRadius: 3,
+          background: 'var(--dt-colors-border-neutral-default)', overflow: 'hidden'
+        }}>
+          <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 3 }} />
+        </div>
+        <Text textStyle="small" style={{ fontWeight: 600, minWidth: 28, fontSize: 11 }}>{value}</Text>
+      </Flex>
+    );
+  };
+
+  // DataTable columns
+  const columns = useMemo(() => [
+    {
+      header: 'Service',
+      id: 'serviceName',
+      accessor: 'serviceName',
+      cell: ({ value, rowData }: { value: string; rowData: AIQualityScore }) => (
+        <Flex flexDirection="column" gap={2}>
+          <Text style={{ fontWeight: 600, fontSize: 12 }}>{String(value ?? '—')}</Text>
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontSize: 11 }}>
+            {rowData.model} • {rowData.provider}
+          </Text>
+        </Flex>
+      ),
+    },
+    {
+      header: 'Score',
+      id: 'overallScore',
+      accessor: 'overallScore',
+      width: 80,
+      cell: ({ value, rowData }: { value: number; rowData: AIQualityScore }) => (
+        <Flex alignItems="center" gap={6}>
+          <GradeBadge grade={rowData.grade} score={Number(value)} />
+          <Text style={{ fontWeight: 700, fontSize: 13 }}>{String(value)}</Text>
+        </Flex>
+      ),
+    },
+    {
+      header: 'Reliability',
+      id: 'reliability',
+      accessor: (row: AIQualityScore) => row.dimensions.reliability,
+      width: 110,
+      cell: ({ value }: any) => <DimBar value={Number(value)} />,
+    },
+    {
+      header: 'Latency',
+      id: 'latencyPerformance',
+      accessor: (row: AIQualityScore) => row.dimensions.latencyPerformance,
+      width: 110,
+      cell: ({ value }: any) => <DimBar value={Number(value)} />,
+    },
+    {
+      header: 'Completeness',
+      id: 'outputCompleteness',
+      accessor: (row: AIQualityScore) => row.dimensions.outputCompleteness,
+      width: 110,
+      cell: ({ value }: any) => <DimBar value={Number(value)} />,
+    },
+    {
+      header: 'Cost Eff.',
+      id: 'costEfficiency',
+      accessor: (row: AIQualityScore) => row.dimensions.costEfficiency,
+      width: 100,
+      cell: ({ value }: any) => <DimBar value={Number(value)} />,
+    },
+    {
+      header: 'Groundedness',
+      id: 'groundedness',
+      accessor: (row: AIQualityScore) => row.dimensions.groundedness,
+      width: 110,
+      cell: ({ value }: any) => <DimBar value={Number(value)} />,
+    },
+    {
+      header: 'Requests',
+      id: 'requestCount',
+      accessor: (row: AIQualityScore) => row.rawMetrics.requestCount,
+      width: 90,
+      cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>{Number(value).toLocaleString()}</Text>,
+    },
+    {
+      header: 'Flags',
+      id: 'flags',
+      accessor: (row: AIQualityScore) => row.flags.length,
+      width: 80,
+      cell: ({ rowData }: { rowData: AIQualityScore }) => {
+        const flags = rowData.flags;
+        if (flags.length === 0) return <CheckmarkIcon style={{ width: 14, height: 14, color: '#4CAF50' }} />;
+        const hasCritical = flags.some(f => f.severity === 'critical');
+        return (
+          <Flex alignItems="center" gap={4}>
+            {hasCritical
+              ? <CriticalIcon style={{ width: 14, height: 14, color: '#f44336' }} />
+              : <WarningIcon style={{ width: 14, height: 14, color: '#ff9800' }} />}
+            <Text textStyle="small" style={{ fontWeight: 600 }}>{flags.length}</Text>
+          </Flex>
+        );
+      },
+    },
+    {
+      header: '',
+      id: 'actions',
+      accessor: 'serviceName',
+      width: 100,
+      cell: ({ rowData }: { rowData: AIQualityScore }) => (
+        <Button
+          variant="default"
+          onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDavisAnalysis(rowData); }}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          <Flex alignItems="center" gap={4}>
+            <AiIcon style={{ width: 12, height: 12 }} />
+            Analyze
+          </Flex>
+        </Button>
+      ),
+    },
+  ], [handleDavisAnalysis]);
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -320,9 +633,15 @@ export const AIQualityDashboard: React.FC = () => {
           <CheckmarkIcon />
         </TitleBar.Prefix>
         <TitleBar.Title>AI Quality Dashboard</TitleBar.Title>
-        <TitleBar.Subtitle>Quality scoring & Dynatrace Intelligence Forecasting</TitleBar.Subtitle>
+        <TitleBar.Subtitle>Industry-standard scoring (NIST AI RMF, DORA/SRE, Apdex, FinOps)</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8}>
+            <Button variant="default" onClick={() => setShowMethodology(true)} aria-label="View scoring methodology">
+              <Flex alignItems="center" gap={4}>
+                <HelpIcon style={{ width: 14, height: 14 }} />
+                Scoring Logic
+              </Flex>
+            </Button>
             <Button variant="default" onClick={() => analyzeQuality('24h')} disabled={loading} aria-label="Refresh quality analysis">
               {loading ? 'Analyzing...' : 'Refresh Analysis'}
             </Button>
@@ -360,7 +679,7 @@ export const AIQualityDashboard: React.FC = () => {
               </Flex>
               <Flex flexDirection="column" alignItems="center" style={{ flex: 1 }}>
                 <div style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Success.Default }}>
-                  {summary.totalServices - summary.criticalCount - summary.warningCount}
+                  {summary.totalModels - summary.criticalCount - summary.warningCount}
                 </div>
                 <Text textStyle="small">Healthy</Text>
               </Flex>
@@ -407,91 +726,64 @@ export const AIQualityDashboard: React.FC = () => {
         </Surface>
       )}
 
-      {/* Service Quality Cards */}
+      {/* Service Quality — Paginated DataTable */}
       {!loading && scores.length > 0 && (
-        <Flex flexDirection="column" gap={12}>
-          <Heading level={5}>Service Quality Scores</Heading>
-          <Flex gap={12} style={{ flexWrap: 'wrap' }}>
-            {scores.map((service) => (
-              <Surface 
-                key={service.serviceId} 
-                style={{ 
-                  width: 'calc(50% - 6px)', 
-                  padding: 16,
-                  cursor: 'pointer',
-                  border: selectedService?.serviceId === service.serviceId 
-                    ? '2px solid var(--dt-colors-border-primary-default)' 
-                    : '1px solid transparent'
-                }}
-                onClick={() => setSelectedService(service)}
+        <Surface style={{ padding: 16 }}>
+          <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: 12 }}>
+            <Flex alignItems="center" gap={8}>
+              <Heading level={5}>Service Quality Scores</Heading>
+              <Button
+                variant="default"
+                onClick={() => setShowMethodology(true)}
+                style={{ fontSize: 11, padding: '2px 6px' }}
               >
-                <Flex gap={16}>
-                  <QualityScoreRing score={service.overallScore} size={80} />
-                  
-                  <Flex flexDirection="column" gap={8} style={{ flex: 1 }}>
-                    <Flex justifyContent="space-between" alignItems="flex-start">
-                      <div>
-                        <Text style={{ fontWeight: 600 }}>{service.serviceName}</Text>
-                        <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                          {service.model} • {service.provider}
-                        </Text>
-                      </div>
-                      {service.flags.length > 0 && (
-                        <Flex gap={4}>
-                          {service.flags.slice(0, 2).map((flag, idx) => (
-                            <span 
-                              key={idx}
-                              style={{
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                fontSize: 10,
-                                background: flag.severity === 'critical' 
-                                  ? 'rgba(244, 67, 54, 0.2)' 
-                                  : 'rgba(255, 152, 0, 0.2)',
-                                color: flag.severity === 'critical' ? '#f44336' : '#ff9800'
-                              }}
-                            >
-                              {flag.type}
-                            </span>
-                          ))}
-                        </Flex>
-                      )}
-                    </Flex>
-                    
-                    <Flex gap={12}>
-                      <DimensionBar label="Response" value={service.dimensions.responseQuality} />
-                      <DimensionBar label="Latency" value={service.dimensions.latencyConsistency} />
-                      <DimensionBar label="Reliability" value={service.dimensions.errorResilience} />
-                    </Flex>
-                  </Flex>
-                </Flex>
-              </Surface>
-            ))}
+                <HelpIcon style={{ width: 12, height: 12 }} /> How is this scored?
+              </Button>
+            </Flex>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              Click "Analyze" for Dynatrace Intelligence insights on any service
+            </Text>
           </Flex>
-        </Flex>
+          <DataTable
+            data={scores}
+            columns={columns}
+            sortable
+            resizable
+          >
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Surface>
       )}
 
-      {/* Selected Service Details */}
-      {selectedService && (
+      {/* Selected Service Details (inline expansion) */}
+      {selectedService && !davisModalOpen && (
         <Surface style={{ padding: 16 }}>
           <Flex justifyContent="space-between" alignItems="flex-start" style={{ marginBottom: 16 }}>
             <Heading level={5}>
               {selectedService.serviceName} - Detailed Analysis
             </Heading>
-            <Button variant="default" onClick={() => setSelectedService(null)}>
-              Close
-            </Button>
+            <Flex gap={8}>
+              <Button variant="emphasized" onClick={() => handleDavisAnalysis(selectedService)}>
+                <Flex alignItems="center" gap={4}>
+                  <AiIcon style={{ width: 14, height: 14 }} />
+                  Dynatrace Intelligence Analysis
+                </Flex>
+              </Button>
+              <Button variant="default" onClick={() => setSelectedService(null)}>
+                Close
+              </Button>
+            </Flex>
           </Flex>
 
           <Flex gap={24}>
             {/* Dimension Details */}
             <Flex flexDirection="column" gap={12} style={{ flex: 1 }}>
               <Text style={{ fontWeight: 600 }}>Quality Dimensions</Text>
-              <DimensionBar label="Response Quality" value={selectedService.dimensions.responseQuality} />
-              <DimensionBar label="Latency Consistency" value={selectedService.dimensions.latencyConsistency} />
-              <DimensionBar label="Reliability (0% errors)" value={selectedService.dimensions.errorResilience} />
-              <DimensionBar label="Cost Efficiency" value={selectedService.dimensions.costEfficiency} />
-              <DimensionBar label="Hallucination Risk" value={selectedService.dimensions.hallucationRisk} />
+              <DimensionBar label="Reliability (DORA/SRE)" value={selectedService.dimensions.reliability} />
+              <DimensionBar label="Latency Perf. (Apdex)" value={selectedService.dimensions.latencyPerformance} />
+              <DimensionBar label="Output Completeness (NIST)" value={selectedService.dimensions.outputCompleteness} />
+              <DimensionBar label="Cost Efficiency (FinOps)" value={selectedService.dimensions.costEfficiency} />
+              <DimensionBar label="Groundedness (NIST AI 100-1)" value={selectedService.dimensions.groundedness} />
             </Flex>
 
             {/* Flags */}
@@ -533,7 +825,7 @@ export const AIQualityDashboard: React.FC = () => {
               <Text style={{ fontWeight: 600 }}>Recommendations</Text>
               {selectedService.recommendations.map((rec, idx) => (
                 <Flex key={idx} alignItems="flex-start" gap={8}>
-                  <span>💡</span>
+                  <span style={{ fontSize: 14 }}>&#x1F4A1;</span>
                   <Text textStyle="small">{rec}</Text>
                 </Flex>
               ))}
@@ -564,6 +856,18 @@ export const AIQualityDashboard: React.FC = () => {
           </Text>
         </Surface>
       )}
+
+      {/* Scoring Methodology Modal */}
+      <ScoringMethodologyModal show={showMethodology} onDismiss={() => setShowMethodology(false)} />
+
+      {/* Davis AI Analysis Modal */}
+      <DavisAnalysisModal
+        show={davisModalOpen}
+        onDismiss={() => { setDavisModalOpen(false); setDavisAnalysis(''); }}
+        service={selectedService}
+        analysisText={davisAnalysis}
+        loading={davisLoading}
+      />
     </Flex>
   );
 };
