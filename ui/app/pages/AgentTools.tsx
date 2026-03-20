@@ -22,12 +22,13 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
+import { useAgenticDeepDive } from '../hooks/useAgenticDeepDive';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
 import { OptimizationAdvisor } from '../components/OptimizationAdvisor';
 import { getProviderIcon } from '../utils/providerIcons';
-import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
-import type { AgentRetryTrace, AgentRetrySummary } from '../types';
+import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentErrorRateTrend, AgentLatencyTrend, AgentTokenTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
+import type { AgentRetryTrace, AgentRetrySummary, AgentStepSummary, AgentExitCondition, MultiAgentTrace, CrossAgentTokens, ContextGrowthEntry, ContextWindowUtilization, CostBreachEntry, AgentTraceSpan } from '../types';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
 // ============================================
@@ -63,6 +64,13 @@ const FLOW_COLORS = [
 // Chart color palette for timeseries
 const CHART_COLORS = {
   toolCalls: '#14a8f5', // Dynatrace blue for tool activity
+  errorRate: '#e6457a', // Pink/red for errors
+  latencyAvg: '#14a8f5', // Blue for avg
+  latencyP50: '#73be28', // Green for p50
+  latencyP95: '#ef8b2f', // Orange for p95
+  tokenInput: '#2ab6f4', // Light blue for input tokens
+  tokenOutput: '#6f2da8', // Purple for output tokens
+  cost: '#e6457a', // Pink for cost
   agentActivity: [
     Colors.Charts.Categorical.Color01.Default,
     Colors.Charts.Categorical.Color02.Default,
@@ -87,6 +95,18 @@ const formatDuration = (ms: number): string => {
     return `${(ms / 1000).toFixed(1)}s`;
   }
   return `${Math.round(ms)}ms`;
+};
+
+const formatCost = (usd: number): string => {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+};
+
+const formatTokens = (n: number): string => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 };
 
 /**
@@ -1009,6 +1029,356 @@ const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolRelia
 };
 
 // ============================================
+// Deep Dive: Agent Step Tracing Tab
+// ============================================
+const AgentStepTracingTab: React.FC<{
+  agentSteps: AgentStepSummary[];
+  exitConditions: AgentExitCondition[];
+}> = ({ agentSteps, exitConditions }) => {
+  const stepColumns = useMemo(
+    () => [
+      { id: 'agentName', header: 'Agent', accessor: 'agentName', columnType: 'text' as const },
+      { id: 'totalSpans', header: 'Total Spans', accessor: 'totalSpans', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'stepsPerTrace', header: 'Avg Steps/Trace', accessor: 'stepsPerTrace', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(1)}</Text> },
+      {
+        id: 'stepBreakdown', header: 'Step Breakdown (T/Tl/W/L)',
+        accessor: (row: AgentStepSummary) => `${formatNumber(row.taskSteps)} / ${formatNumber(row.toolSteps)} / ${formatNumber(row.workflowSteps)} / ${formatNumber(row.llmSteps)}`,
+        columnType: 'text' as const,
+      },
+      {
+        id: 'tokens', header: 'Tokens (In / Out)',
+        accessor: (row: AgentStepSummary) => `${formatTokens(row.totalInputTokens)} / ${formatTokens(row.totalOutputTokens)}`,
+        columnType: 'text' as const,
+      },
+      { id: 'avgDurationMs', header: 'Avg Duration', accessor: 'avgDurationMs', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatDuration(value as number)}</Text> },
+      {
+        id: 'errorRate', header: 'Error Rate', accessor: 'errorRate', columnType: 'number' as const,
+        cell: ({ value }: any) => {
+          const rate = value as number;
+          return <Text style={{ color: rate > 5 ? STATUS_COLORS.critical : rate > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{rate.toFixed(1)}%</Text>;
+        },
+      },
+      { id: 'uniqueTraces', header: 'Traces', accessor: 'uniqueTraces', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+    ],
+    []
+  );
+
+  const exitColumns = useMemo(
+    () => [
+      { id: 'agentName', header: 'Agent', accessor: 'agentName', columnType: 'text' as const },
+      { id: 'total', header: 'Total', accessor: 'total', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'success', header: 'Success', accessor: 'success', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: STATUS_COLORS.ideal }}>{formatNumber(value)}</Text> },
+      { id: 'errors', header: 'Errors', accessor: 'errors', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal }}>{formatNumber(value)}</Text> },
+      { id: 'timeouts', header: 'Timeouts', accessor: 'timeouts', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{formatNumber(value)}</Text> },
+      { id: 'slow', header: 'Slow', accessor: 'slow', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{formatNumber(value)}</Text> },
+    ],
+    []
+  );
+
+  return (
+    <Flex flexDirection="column" gap={16} paddingTop={16}>
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Agent Step Counts</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            Steps per agent invocation with type breakdown: Task / Tool / Workflow / LLM
+          </Text>
+          <DataTable data={agentSteps} columns={stepColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Agent Exit Conditions</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            Inferred exit reasons: success, error, timeout (&gt;60s), or slow (&gt;30s)
+          </Text>
+          <DataTable data={exitConditions} columns={exitColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+    </Flex>
+  );
+};
+
+// ============================================
+// Deep Dive: Multi-Agent Depth Tab
+// ============================================
+const MultiAgentDepthTab: React.FC<{
+  multiAgentTraces: MultiAgentTrace[];
+  crossAgentTokens: CrossAgentTokens[];
+  parallelismStats: { totalTraces: number; parallel: number; sequential: number; mixed: number; avgParallelism: number } | null;
+}> = ({ multiAgentTraces, crossAgentTokens, parallelismStats }) => {
+  const traceColumns = useMemo(
+    () => [
+      { id: 'traceId', header: 'Trace ID', accessor: (r: MultiAgentTrace) => r.traceId.substring(0, 16) + '...', columnType: 'text' as const },
+      { id: 'agents', header: 'Agents', accessor: (r: MultiAgentTrace) => r.agents.join(' → '), columnType: 'text' as const },
+      { id: 'agentCount', header: 'Agent Count', accessor: 'agentCount', columnType: 'number' as const },
+      { id: 'totalSpans', header: 'Spans', accessor: 'totalSpans', columnType: 'number' as const },
+      { id: 'tokens', header: 'Tokens (In / Out)', accessor: (r: MultiAgentTrace) => `${formatTokens(r.totalInputTokens)} / ${formatTokens(r.totalOutputTokens)}`, columnType: 'text' as const },
+      { id: 'totalDurationMs', header: 'Duration', accessor: 'totalDurationMs', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatDuration(value as number)}</Text> },
+      { id: 'errorCount', header: 'Errors', accessor: 'errorCount', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal }}>{value as number}</Text> },
+    ],
+    []
+  );
+
+  const tokenColumns = useMemo(
+    () => [
+      { id: 'agentName', header: 'Agent', accessor: 'agentName', columnType: 'text' as const },
+      { id: 'llmCalls', header: 'LLM Calls', accessor: 'llmCalls', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'totalTokens', header: 'Total Tokens', accessor: 'totalTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatTokens(value as number)}</Text> },
+      { id: 'avgInputPerCall', header: 'Avg Input/Call', accessor: 'avgInputPerCall', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(Math.round(value as number))}</Text> },
+      { id: 'avgOutputPerCall', header: 'Avg Output/Call', accessor: 'avgOutputPerCall', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(Math.round(value as number))}</Text> },
+      { id: 'toolCallRate', header: 'Tool Call Rate', accessor: 'toolCallRate', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(1)}%</Text> },
+      { id: 'estCostUsd', header: 'Est. Cost', accessor: 'estCostUsd', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatCost(value as number)}</Text> },
+      { id: 'providers', header: 'Providers', accessor: (r: CrossAgentTokens) => r.providers.join(', '), columnType: 'text' as const },
+    ],
+    []
+  );
+
+  return (
+    <Flex flexDirection="column" gap={16} paddingTop={16}>
+      {parallelismStats && parallelismStats.totalTraces > 0 && (
+        <Surface>
+          <Flex flexDirection="column" gap={8} padding={16}>
+            <Heading level={5}>Agent Execution Patterns</Heading>
+            <Flex gap={16} flexWrap="wrap">
+              <MetricCard value={parallelismStats.totalTraces} label="Multi-Agent Traces" icon={<WorkflowsIcon />} />
+              <MetricCard value={parallelismStats.sequential} label="Sequential" icon={<ClockIcon />} color={STATUS_COLORS.ideal} />
+              <MetricCard value={parallelismStats.parallel} label="Parallel" icon={<AgentIcon />} color={STATUS_COLORS.good} />
+              <MetricCard value={parallelismStats.mixed} label="Mixed" icon={<BarChartIcon />} color={STATUS_COLORS.neutral} />
+              <MetricCard value={parallelismStats.avgParallelism.toFixed(2)} label="Avg Parallelism Ratio" icon={<BarChartIcon />} tooltip="Ratio > 1.5 = parallel, 1.0 = sequential" />
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Cross-Agent Token Attribution</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            Per-agent token consumption. Tokens from LLM spans only (task/tool spans have no tokens).
+          </Text>
+          <DataTable data={crossAgentTokens} columns={tokenColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Multi-Agent Traces</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            Traces involving 2+ agents. Hierarchy inferred from agent co-occurrence (parent_span_id is null in traceloop).
+          </Text>
+          <DataTable data={multiAgentTraces} columns={traceColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+    </Flex>
+  );
+};
+
+// ============================================
+// Deep Dive: Conversation State Tab
+// ============================================
+const ConversationStateTab: React.FC<{
+  contextGrowth: ContextGrowthEntry[];
+  conversationState: { total: number; singleTurn: number; multiTurn: number; errored: number; partialFailure: number; runaway: number; avgTurns: number; avgTokens: number; avgDurationMs: number } | null;
+}> = ({ contextGrowth, conversationState }) => {
+  const growthColumns = useMemo(
+    () => [
+      { id: 'traceId', header: 'Trace ID', accessor: (r: ContextGrowthEntry) => r.traceId.substring(0, 16) + '...', columnType: 'text' as const },
+      { id: 'turns', header: 'Turns', accessor: 'turns', columnType: 'number' as const },
+      {
+        id: 'contextGrowthRatio', header: 'Growth Ratio', accessor: 'contextGrowthRatio', columnType: 'number' as const,
+        cell: ({ value }: any) => {
+          const v = value as number;
+          return <Text style={{ color: v > 5 ? STATUS_COLORS.critical : v > 2 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{v.toFixed(1)}x</Text>;
+        },
+      },
+      { id: 'tokens', header: 'Min → Max Input', accessor: (r: ContextGrowthEntry) => `${formatTokens(r.minInput)} → ${formatTokens(r.maxInput)}`, columnType: 'text' as const },
+      { id: 'avgTokensPerTurn', header: 'Avg Tokens/Turn', accessor: 'avgTokensPerTurn', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(Math.round(value as number))}</Text> },
+      { id: 'agents', header: 'Agents', accessor: (r: ContextGrowthEntry) => r.agents.filter(Boolean).join(', ') || '—', columnType: 'text' as const },
+      { id: 'durationMs', header: 'Duration', accessor: 'durationMs', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatDuration(value as number)}</Text> },
+    ],
+    []
+  );
+
+  return (
+    <Flex flexDirection="column" gap={16} paddingTop={16}>
+      {conversationState && conversationState.total > 0 && (
+        <Surface>
+          <Flex flexDirection="column" gap={8} padding={16}>
+            <Heading level={5}>Conversation State Distribution</Heading>
+            <Flex gap={16} flexWrap="wrap">
+              <MetricCard value={formatNumber(conversationState.total)} label="Total Conversations" icon={<WorkflowsIcon />} />
+              <MetricCard value={formatNumber(conversationState.singleTurn)} label="Single-Turn" icon={<ClockIcon />} color={STATUS_COLORS.ideal} />
+              <MetricCard value={formatNumber(conversationState.multiTurn)} label="Multi-Turn" icon={<AgentIcon />} color={STATUS_COLORS.good} />
+              <MetricCard value={formatNumber(conversationState.runaway)} label="Runaway (>20 turns)" icon={<WarningIcon />} color={conversationState.runaway > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal} />
+              <MetricCard value={formatNumber(conversationState.errored)} label="Errored" icon={<CriticalIcon />} color={conversationState.errored > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal} />
+              <MetricCard value={conversationState.avgTurns.toFixed(1)} label="Avg Turns/Conversation" icon={<BarChartIcon />} />
+              <MetricCard value={formatTokens(conversationState.avgTokens)} label="Avg Tokens/Conv" icon={<MoneyIcon />} />
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Context Growth Analysis</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            Token escalation across conversation turns. High growth ratios indicate context accumulation.
+            Uses trace.id as conversation proxy (conversation_id not populated in traceloop).
+          </Text>
+          <DataTable data={contextGrowth} columns={growthColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+    </Flex>
+  );
+};
+
+// ============================================
+// Deep Dive: Context Window & Cost Tab
+// ============================================
+const ContextWindowCostTab: React.FC<{
+  contextWindowUtil: ContextWindowUtilization[];
+  costBreaches: CostBreachEntry[];
+}> = ({ contextWindowUtil, costBreaches }) => {
+  // Context Window columns
+  const windowColumns = useMemo(
+    () => [
+      { id: 'model', header: 'Model', accessor: 'model', columnType: 'text' as const },
+      { id: 'provider', header: 'Provider', accessor: 'provider', columnType: 'text' as const },
+      {
+        id: 'avgUtilization', header: 'Avg Utilization', accessor: 'avgUtilization', columnType: 'number' as const,
+        cell: ({ value }: any) => {
+          const v = value as number;
+          return <Text style={{ color: v > 90 ? STATUS_COLORS.critical : v > 80 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{v.toFixed(1)}%</Text>;
+        },
+      },
+      {
+        id: 'maxUtilization', header: 'Peak Utilization', accessor: 'maxUtilization', columnType: 'number' as const,
+        cell: ({ value }: any) => {
+          const v = value as number;
+          return <Text style={{ color: v > 90 ? STATUS_COLORS.critical : v > 80 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{v.toFixed(1)}%</Text>;
+        },
+      },
+      { id: 'requests', header: 'Requests', accessor: 'requests', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'avgInputTokens', header: 'Avg Input Tokens', accessor: 'avgInputTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(Math.round(value as number))}</Text> },
+      { id: 'nearCapacityCount', header: 'Near Capacity (>90%)', accessor: 'nearCapacityCount', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal }}>{formatNumber(value)}</Text> },
+      { id: 'highUtilPct', header: 'High Util %', accessor: 'highUtilPct', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(1)}%</Text> },
+    ],
+    []
+  );
+
+  // Cost breach calculations
+  const avgCost = costBreaches.length > 0 ? costBreaches.reduce((s, c) => s + c.hourlyCost, 0) / costBreaches.length : 0;
+  const maxCost = costBreaches.length > 0 ? Math.max(...costBreaches.map((c) => c.hourlyCost)) : 0;
+  const breachThreshold = avgCost * 2;
+  const breachCount = costBreaches.filter((c) => c.hourlyCost > breachThreshold).length;
+
+  const costColumns = useMemo(
+    () => [
+      {
+        id: 'timeBucket', header: 'Hour',
+        accessor: (r: CostBreachEntry) => {
+          const d = new Date(r.timeBucket);
+          return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        },
+        columnType: 'text' as const,
+      },
+      {
+        id: 'hourlyCost', header: 'Hourly Cost', accessor: 'hourlyCost', columnType: 'number' as const,
+        cell: ({ value }: any) => {
+          const v = value as number;
+          const isBreach = v > breachThreshold;
+          return <Text style={{ color: isBreach ? STATUS_COLORS.critical : STATUS_COLORS.ideal, fontWeight: isBreach ? 600 : 400 }}>{formatCost(v)} {isBreach ? '⚠️' : ''}</Text>;
+        },
+      },
+      { id: 'hourlyRequests', header: 'Requests', accessor: 'hourlyRequests', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'hourlyTokens', header: 'Tokens', accessor: 'hourlyTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatTokens(value as number)}</Text> },
+    ],
+    [breachThreshold]
+  );
+
+  return (
+    <Flex flexDirection="column" gap={16} paddingTop={16}>
+      {/* Context Window Utilization */}
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Context Window Utilization by Model</Heading>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            How much of each model's context window is being used. Model limits: GPT-4o (128K), Claude-3 (200K), Gemini (1M), Llama (8K).
+          </Text>
+          <DataTable data={contextWindowUtil} columns={windowColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Flex>
+      </Surface>
+
+      {/* Cost Breach Detection */}
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <Heading level={5}>Hourly Cost Trend</Heading>
+          <Flex gap={16} flexWrap="wrap">
+            <MetricCard value={formatCost(avgCost)} label="Avg Hourly Cost" icon={<MoneyIcon />} />
+            <MetricCard value={formatCost(maxCost)} label="Peak Hourly Cost" icon={<MoneyIcon />} color={STATUS_COLORS.warning} />
+            <MetricCard value={breachCount} label="Breach Hours (>2x avg)" icon={<CriticalIcon />} color={breachCount > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal} />
+            <MetricCard value={costBreaches.length} label="Data Points" icon={<BarChartIcon />} />
+          </Flex>
+        </Flex>
+      </Surface>
+      <Surface>
+        <Flex flexDirection="column" gap={8} padding={16}>
+          <DataTable data={costBreaches} columns={costColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={24} />
+          </DataTable>
+        </Flex>
+      </Surface>
+    </Flex>
+  );
+};
+
+// ============================================
+// Deep Dive: Trace Waterfall Modal
+// ============================================
+const DeepDiveTraceWaterfallModal: React.FC<{
+  traceId: string;
+  spans: AgentTraceSpan[];
+  onClose: () => void;
+}> = ({ traceId, spans, onClose }) => {
+  const columns = useMemo(
+    () => [
+      { id: 'startTime', header: 'Time', accessor: (r: AgentTraceSpan) => new Date(r.startTime).toLocaleTimeString(), columnType: 'text' as const },
+      { id: 'spanName', header: 'Span', accessor: 'spanName', columnType: 'text' as const },
+      { id: 'spanKind', header: 'Kind', accessor: 'spanKind', columnType: 'text' as const },
+      { id: 'agentName', header: 'Agent', accessor: 'agentName', columnType: 'text' as const },
+      { id: 'model', header: 'Model', accessor: 'model', columnType: 'text' as const },
+      { id: 'tokens', header: 'Tokens', accessor: (r: AgentTraceSpan) => r.inputTokens || r.outputTokens ? `${r.inputTokens} / ${r.outputTokens}` : '—', columnType: 'text' as const },
+      { id: 'durationMs', header: 'Duration', accessor: 'durationMs', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatDuration(value as number)}</Text> },
+      { id: 'statusCode', header: 'Status', accessor: 'statusCode', columnType: 'text' as const, cell: ({ value }: any) => <Text style={{ color: value === 'ERROR' ? STATUS_COLORS.critical : STATUS_COLORS.ideal }}>{value as string}</Text> },
+    ],
+    []
+  );
+
+  return (
+    <Modal title={`Trace Waterfall: ${traceId.substring(0, 24)}...`} onDismiss={onClose} show={true} size="large">
+      <Flex flexDirection="column" gap={8} padding={16}>
+        <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+          All spans in this trace ordered by start time. Parent-child relationships are unavailable (parent_span_id is null in traceloop).
+        </Text>
+        <DataTable data={spans} columns={columns} sortable resizable>
+          <DataTable.Pagination defaultPageSize={25} />
+        </DataTable>
+      </Flex>
+    </Modal>
+  );
+};
+
+// ============================================
 // Main Component
 // ============================================
 export const AgentTools: React.FC = () => {
@@ -1023,7 +1393,7 @@ export const AgentTools: React.FC = () => {
   const [selectedFlow, setSelectedFlow] = useState<AgentFlow | null>(null);
   
   // Tab navigation state
-  const [activeTab, setActiveTab] = useState<'overview' | 'optimizer' | 'flows' | 'reliability' | 'trends'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'optimizer' | 'flows' | 'reliability' | 'trends' | 'steps' | 'multiagent' | 'conversations' | 'context-cost'>('overview');
   
   // Section visibility toggles (persisted in localStorage)
   const [sectionToggles, setSectionToggles] = useState<Record<string, boolean>>(() => {
@@ -1043,6 +1413,10 @@ export const AgentTools: React.FC = () => {
         retryDetection: true,
         toolCallsTrend: true,
         agentActivityTrend: true,
+        errorRateTrend: true,
+        latencyTrend: true,
+        tokenTrend: true,
+        costTrend: true,
       };
     } catch { return {}; }
   });
@@ -1075,6 +1449,9 @@ export const AgentTools: React.FC = () => {
     toolCoOccurrence,
     toolCallsTrend,
     agentActivityTrend,
+    errorRateTrend,
+    latencyTrend,
+    tokenTrend,
     agentServiceDeps,
     agentLLMProviders,
     agentEntityMappings,
@@ -1086,10 +1463,36 @@ export const AgentTools: React.FC = () => {
     getToolHealth
   } = useAgentTools(queryFilters);
 
+  // Deep Dive hook for step tracing, multi-agent, conversations, context/cost tabs
+  const {
+    agentSteps,
+    exitConditions,
+    multiAgentTraces,
+    parallelismStats,
+    crossAgentTokens,
+    contextGrowth,
+    conversationState,
+    contextWindowUtil,
+    costBreaches,
+    traceWaterfall,
+    fetchTraceWaterfall,
+    totalAgentSpans,
+    totalTokens: deepDiveTotalTokens,
+    totalCostUsd: deepDiveTotalCost,
+    avgStepsPerTrace,
+    loading: deepDiveLoading,
+    error: deepDiveError,
+    fetchData: fetchDeepDiveData,
+  } = useAgenticDeepDive(queryFilters);
+
+  // State for trace waterfall modal
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+
   // Fetch data on mount and when filters change
   useEffect(() => {
     fetchAgentToolsData();
-  }, [fetchAgentToolsData, filters.timeframe]);
+    fetchDeepDiveData();
+  }, [fetchAgentToolsData, fetchDeepDiveData, filters.timeframe]);
 
   // Filter data based on local filters
   const filteredToolUsage = useMemo(() => {
@@ -1183,6 +1586,72 @@ export const AgentTools: React.FC = () => {
       datapoints
     }));
   }, [agentActivityTrend]);
+
+  // Error Rate Trend timeseries transformation
+  const errorRateTimeseriesData: Timeseries[] = useMemo(() => {
+    if (errorRateTrend.length === 0) return [];
+    return [{
+      name: 'Error Rate %',
+      datapoints: errorRateTrend.map(item => ({
+        start: new Date(item.timestamp),
+        value: item.errorRate
+      }))
+    }];
+  }, [errorRateTrend]);
+
+  // Latency Trend timeseries transformation (P50 + P95)
+  const latencyTimeseriesData: Timeseries[] = useMemo(() => {
+    if (latencyTrend.length === 0) return [];
+    return [
+      {
+        name: 'P50 Latency',
+        datapoints: latencyTrend.map(item => ({
+          start: new Date(item.timestamp),
+          value: item.p50Ms
+        }))
+      },
+      {
+        name: 'P95 Latency',
+        datapoints: latencyTrend.map(item => ({
+          start: new Date(item.timestamp),
+          value: item.p95Ms
+        }))
+      }
+    ];
+  }, [latencyTrend]);
+
+  // Token Consumption Trend (input vs output)
+  const tokenTimeseriesData: Timeseries[] = useMemo(() => {
+    if (tokenTrend.length === 0) return [];
+    return [
+      {
+        name: 'Input Tokens',
+        datapoints: tokenTrend.map(item => ({
+          start: new Date(item.timestamp),
+          value: item.inputTokens
+        }))
+      },
+      {
+        name: 'Output Tokens',
+        datapoints: tokenTrend.map(item => ({
+          start: new Date(item.timestamp),
+          value: item.outputTokens
+        }))
+      }
+    ];
+  }, [tokenTrend]);
+
+  // Cost Trend from deep dive data (costBreaches)
+  const costTimeseriesData: Timeseries[] = useMemo(() => {
+    if (costBreaches.length === 0) return [];
+    return [{
+      name: 'Hourly Cost ($)',
+      datapoints: costBreaches.map(item => ({
+        start: new Date(item.timeBucket),
+        value: item.hourlyCost
+      }))
+    }];
+  }, [costBreaches]);
 
   // ============================================
   // Agent Flow Efficiency Metrics - UNIQUE GCC
@@ -1870,6 +2339,10 @@ export const AgentTools: React.FC = () => {
             { key: 'flows' as const, label: 'Flows & Patterns', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
             { key: 'reliability' as const, label: 'Reliability', icon: <CheckmarkIcon style={{ width: 14, height: 14 }} /> },
             { key: 'trends' as const, label: 'Trends', icon: <BarChartIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'steps' as const, label: 'Step Tracing', icon: <ClockIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'multiagent' as const, label: 'Multi-Agent', icon: <AgentIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'conversations' as const, label: 'Conversations', icon: <AiIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'context-cost' as const, label: 'Context & Cost', icon: <MoneyIcon style={{ width: 14, height: 14 }} /> },
           ].map((tab) => (
             <Button
               key={tab.key}
@@ -1928,20 +2401,20 @@ export const AgentTools: React.FC = () => {
         )}
 
         {/* Loading State */}
-        {loading && (
+        {(loading || deepDiveLoading) && (
           <Flex justifyContent="center" alignItems="center" padding={40}>
             <ProgressCircle aria-label="Loading agent tools data" />
-            <Text style={{ marginLeft: 12 }}>Loading agent tools data...</Text>
+            <Text style={{ marginLeft: 12 }}>Loading agent data...</Text>
           </Flex>
         )}
 
         {/* Error State */}
-        {error && !loading && (
+        {(error || deepDiveError) && !loading && !deepDiveLoading && (
           <Surface padding={20}>
             <Flex alignItems="center" gap={8}>
               <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
-              <Text>Error loading data: {error.message}</Text>
-              <Button variant="default" onClick={() => fetchAgentToolsData()}>
+              <Text>Error loading data: {(error || deepDiveError)?.message}</Text>
+              <Button variant="default" onClick={() => { fetchAgentToolsData(); fetchDeepDiveData(); }}>
                 Retry
               </Button>
             </Flex>
@@ -1949,7 +2422,7 @@ export const AgentTools: React.FC = () => {
         )}
 
         {/* Main Content when loaded */}
-        {!loading && !error && (
+        {!loading && !deepDiveLoading && !error && !deepDiveError && (
           <>
             {/* Loop Detection Alert - Always visible */}
             <LoopAlertBanner loops={suspiciousLoops} />
@@ -3369,7 +3842,145 @@ export const AgentTools: React.FC = () => {
             {/* ============================================ */}
             {activeTab === 'trends' && (
               <>
-            {/* Agent Activity Trends */}
+            {/* Row 1: Error Rate + Latency */}
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {/* Error Rate Over Time */}
+              {sectionToggles.errorRateTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <CriticalIcon style={{ width: 16, height: 16, color: CHART_COLORS.errorRate }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Error Rate Over Time</Text>
+                      <Tooltip text="Hourly error rate across all agent and LLM spans. Sustained rates above 5% warrant investigation.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    {errorRateTrend.length > 0 && (
+                      <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.errorRate }}>
+                        {(errorRateTrend.reduce((s, i) => s + i.errorRate, 0) / errorRateTrend.length).toFixed(2)}% avg
+                      </Text>
+                    )}
+                  </Flex>
+                  {errorRateTimeseriesData.length > 0 ? (
+                    <TimeseriesChart data={errorRateTimeseriesData} variant="area" height={180} colorPalette={[CHART_COLORS.errorRate]}>
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend hidden />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      <CriticalIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No error data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+
+              {/* Latency Percentiles Over Time */}
+              {sectionToggles.latencyTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <ClockIcon style={{ width: 16, height: 16, color: CHART_COLORS.latencyP95 }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Agent Latency (P50 / P95)</Text>
+                      <Tooltip text="Hourly P50 and P95 agent span latency in ms. P95 spikes indicate tail latency degradation.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    {latencyTrend.length > 0 && (
+                      <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                        P95: {formatDuration(latencyTrend[latencyTrend.length - 1].p95Ms)}
+                      </Text>
+                    )}
+                  </Flex>
+                  {latencyTimeseriesData.length > 0 ? (
+                    <TimeseriesChart data={latencyTimeseriesData} variant="line" height={180} colorPalette={[CHART_COLORS.latencyP50, CHART_COLORS.latencyP95]}>
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend position="bottom" />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      <ClockIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No latency data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+            </Flex>
+
+            {/* Row 2: Cost + Token Consumption */}
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {/* Hourly Cost Trend */}
+              {sectionToggles.costTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <MoneyIcon style={{ width: 16, height: 16, color: CHART_COLORS.cost }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Hourly Cost Trend</Text>
+                      <Tooltip text="Estimated hourly spend based on token pricing. Cost spikes above 2x average are highlighted as breaches.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    {costBreaches.length > 0 && (
+                      <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.cost }}>
+                        {formatCost(costBreaches.reduce((s, c) => s + c.hourlyCost, 0))} total
+                      </Text>
+                    )}
+                  </Flex>
+                  {costTimeseriesData.length > 0 ? (
+                    <TimeseriesChart data={costTimeseriesData} variant="area" height={180} colorPalette={[CHART_COLORS.cost]}>
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend hidden />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      <MoneyIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No cost data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+
+              {/* Token Consumption Over Time */}
+              {sectionToggles.tokenTrend !== false && (
+              <Surface padding={16}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Flex alignItems="center" gap={8}>
+                      <AiIcon style={{ width: 16, height: 16, color: CHART_COLORS.tokenInput }} />
+                      <Text style={{ fontSize: 13, fontWeight: 600 }}>Token Consumption (Input vs Output)</Text>
+                      <Tooltip text="Hourly input vs output token usage. Rising input tokens may indicate context window bloat or prompt growth.">
+                        <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                      </Tooltip>
+                    </Flex>
+                    {tokenTrend.length > 0 && (
+                      <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                        {formatTokens(tokenTrend.reduce((s, i) => s + i.totalTokens, 0))} total
+                      </Text>
+                    )}
+                  </Flex>
+                  {tokenTimeseriesData.length > 0 ? (
+                    <TimeseriesChart data={tokenTimeseriesData} variant="bar" height={180} colorPalette={[CHART_COLORS.tokenInput, CHART_COLORS.tokenOutput]}>
+                      <TimeseriesChart.Tooltip variant="shared" />
+                      <TimeseriesChart.Legend position="bottom" />
+                    </TimeseriesChart>
+                  ) : (
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
+                      <Text style={{ fontSize: 12 }}>No token data in timeframe</Text>
+                    </Flex>
+                  )}
+                </Flex>
+              </Surface>
+              )}
+            </Flex>
+
+            {/* Row 3: Tool Calls + Agent Activity (volume context) */}
             <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
               {/* Tool Calls Over Time */}
               {sectionToggles.toolCallsTrend !== false && (
@@ -3379,7 +3990,7 @@ export const AgentTools: React.FC = () => {
                     <Flex alignItems="center" gap={8}>
                       <WorkflowsIcon style={{ width: 16, height: 16, color: CHART_COLORS.toolCalls }} />
                       <Text style={{ fontSize: 13, fontWeight: 600 }}>Tool Calls Over Time</Text>
-                      <Tooltip text="Hourly trend of tool invocations across all agents. Helps identify usage patterns and peak activity periods.">
+                      <Tooltip text="Hourly trend of tool invocations across all agents. Correlate with error and latency spikes.">
                         <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                       </Tooltip>
                     </Flex>
@@ -3387,25 +3998,13 @@ export const AgentTools: React.FC = () => {
                       {formatNumber(toolCallsTrend.reduce((sum, item) => sum + item.callCount, 0))} total
                     </Text>
                   </Flex>
-                  
                   {toolCallsTimeseriesData.length > 0 ? (
-                    <TimeseriesChart
-                      data={toolCallsTimeseriesData}
-                      variant="area"
-                      height={200}
-                      colorPalette={[CHART_COLORS.toolCalls]}
-                    >
+                    <TimeseriesChart data={toolCallsTimeseriesData} variant="area" height={180} colorPalette={[CHART_COLORS.toolCalls]}>
                       <TimeseriesChart.Tooltip variant="shared" />
                       <TimeseriesChart.Legend hidden />
                     </TimeseriesChart>
                   ) : (
-                    <Flex 
-                      justifyContent="center" 
-                      alignItems="center" 
-                      flexDirection="column" 
-                      gap={4}
-                      style={{ height: 200, color: 'var(--dt-colors-text-secondary-default)' }}
-                    >
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                       <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                       <Text style={{ fontSize: 12 }}>No tool call data in timeframe</Text>
                     </Flex>
@@ -3422,7 +4021,7 @@ export const AgentTools: React.FC = () => {
                     <Flex alignItems="center" gap={8}>
                       <AgentIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal }} />
                       <Text style={{ fontSize: 13, fontWeight: 600 }}>Agent Activity Over Time</Text>
-                      <Tooltip text="Hourly agent invocations (unique traces) per agent. Shows which agents are most active and when.">
+                      <Tooltip text="Hourly agent invocations per agent. Identify peak usage periods and inactive agents.">
                         <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                       </Tooltip>
                     </Flex>
@@ -3430,25 +4029,13 @@ export const AgentTools: React.FC = () => {
                       Top {Math.min(6, agentActivityTimeseriesData.length)} agents
                     </Text>
                   </Flex>
-                  
                   {agentActivityTimeseriesData.length > 0 ? (
-                    <TimeseriesChart
-                      data={agentActivityTimeseriesData}
-                      variant="line"
-                      height={200}
-                      colorPalette={CHART_COLORS.agentActivity}
-                    >
+                    <TimeseriesChart data={agentActivityTimeseriesData} variant="line" height={180} colorPalette={CHART_COLORS.agentActivity}>
                       <TimeseriesChart.Tooltip variant="shared" />
                       <TimeseriesChart.Legend position="bottom" />
                     </TimeseriesChart>
                   ) : (
-                    <Flex 
-                      justifyContent="center" 
-                      alignItems="center" 
-                      flexDirection="column" 
-                      gap={4}
-                      style={{ height: 200, color: 'var(--dt-colors-text-secondary-default)' }}
-                    >
+                    <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                       <AgentIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                       <Text style={{ fontSize: 12 }}>No agent activity in timeframe</Text>
                     </Flex>
@@ -3458,6 +4045,39 @@ export const AgentTools: React.FC = () => {
               )}
             </Flex>
               </>
+            )}
+
+            {/* ===== Steps Tab (Deep Dive) ===== */}
+            {activeTab === 'steps' && (
+              <AgentStepTracingTab
+                agentSteps={agentSteps}
+                exitConditions={exitConditions}
+              />
+            )}
+
+            {/* ===== Multi-Agent Tab (Deep Dive) ===== */}
+            {activeTab === 'multiagent' && (
+              <MultiAgentDepthTab
+                multiAgentTraces={multiAgentTraces}
+                crossAgentTokens={crossAgentTokens}
+                parallelismStats={parallelismStats}
+              />
+            )}
+
+            {/* ===== Conversations Tab (Deep Dive) ===== */}
+            {activeTab === 'conversations' && (
+              <ConversationStateTab
+                contextGrowth={contextGrowth}
+                conversationState={conversationState}
+              />
+            )}
+
+            {/* ===== Context & Cost Tab (Deep Dive) ===== */}
+            {activeTab === 'context-cost' && (
+              <ContextWindowCostTab
+                contextWindowUtil={contextWindowUtil}
+                costBreaches={costBreaches}
+              />
             )}
             
           </>
@@ -3469,6 +4089,15 @@ export const AgentTools: React.FC = () => {
         <FlowDetailModal 
           flow={selectedFlow} 
           onClose={() => setSelectedFlow(null)} 
+        />
+      )}
+
+      {/* Trace Waterfall Modal (Deep Dive) */}
+      {selectedTraceId && traceWaterfall.length > 0 && (
+        <DeepDiveTraceWaterfallModal
+          traceId={selectedTraceId}
+          spans={traceWaterfall}
+          onClose={() => setSelectedTraceId(null)}
         />
       )}
     </Flex>

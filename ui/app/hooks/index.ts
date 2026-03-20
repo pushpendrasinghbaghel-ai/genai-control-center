@@ -27,3 +27,4 @@ export * from './useAgenticWorkflows';
 export * from './useRateCardStorage';
 export * from './useMLOps';
 export * from './useAskAI';
+export * from './useAgenticDeepDive';

@@ -117,6 +117,7 @@ export const App = () => {
 
                 {/* MLOps - Model Registry, SLOs, Comparison, Cost Attribution */}
                 <Route path="/mlops" element={<MLOps />} />
+
                 
                 {/* Redirect old routes */}
                 <Route path="/davis" element={<Navigate to="/intelligence" replace />} />

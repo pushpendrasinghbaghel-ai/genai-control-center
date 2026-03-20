@@ -1885,3 +1885,280 @@ ${serviceFilter}
 | sort time_bucket asc
 `.trim();
 };
+
+
+// ============================================
+// Phase 12: Agentic AI Deep Observability
+// MCP-Validated: All queries run against real Grail data (March 2026)
+// ============================================
+
+/**
+ * 12.1 Agent Trace Waterfall — All spans in a single agent trace, ordered by time.
+ * MCP Finding: parent_span_id is NULL — use start_time ordering.
+ * MCP Finding: No traceloop.span.kind=="agent" — agents identified via gen_ai.agent.name.
+ */
+export const AGENT_TRACE_WATERFALL_QUERY = (traceId: string): string => {
+  return `
+fetch spans
+| filter trace.id == "${traceId}"
+| fields start_time, span.name, traceloop.span.kind, traceloop.entity.name,
+    gen_ai.agent.name, gen_ai.request.model, gen_ai.provider.name,
+    gen_ai.usage.input_tokens, gen_ai.usage.output_tokens,
+    gen_ai.completion.0.content, gen_ai.completion.0.tool_calls.0.name,
+    duration, otel.status_code, span.id, trace.id
+| sort start_time asc
+`.trim();
+};
+
+/**
+ * 12.1 Agent Step Counts — Steps per agent trace with type breakdown.
+ * MCP: Confirmed task(1M+), tool(78K), workflow(35K) span kinds exist.
+ * MCP: Tokens only on LLM spans (gen_ai.request.model != null).
+ */
+export const AGENT_STEP_COUNT_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.agent.name)
+| summarize
+    total_spans = count(),
+    task_steps = countIf(traceloop.span.kind == "task"),
+    tool_steps = countIf(traceloop.span.kind == "tool"),
+    workflow_steps = countIf(traceloop.span.kind == "workflow"),
+    llm_steps = countIf(isNotNull(gen_ai.request.model)),
+    total_input_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0))),
+    total_output_tokens = sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
+    avg_duration_ms = avg(duration) / 1000000,
+    error_count = countIf(otel.status_code == "ERROR"),
+    unique_traces = countDistinct(trace.id),
+    sample_trace_id = takeFirst(trace.id),
+    by: { agent_name = gen_ai.agent.name }
+| fieldsAdd steps_per_trace = if(unique_traces > 0, toDouble(total_spans) / toDouble(unique_traces), else: 0.0)
+| fieldsAdd error_rate = if(total_spans > 0, 100.0 * toDouble(error_count) / toDouble(total_spans), else: 0.0)
+| sort total_spans desc
+`.trim();
+};
+
+/**
+ * 12.1 Agent Exit Conditions — Infer why agents stop (success/error/timeout/slow).
+ * MCP: Zero errors in current env, but query is structurally sound.
+ */
+export const AGENT_EXIT_CONDITIONS_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.agent.name) AND isNotNull(gen_ai.request.model)
+| summarize
+    last_status = takeAny(otel.status_code),
+    max_duration_ns = max(duration),
+    total_spans = count(),
+    error_count = countIf(otel.status_code == "ERROR"),
+    by: { trace_id = trace.id, agent_name = gen_ai.agent.name }
+| fieldsAdd exit_condition = if(error_count > 0, "error",
+    else: if(max_duration_ns > 60000000000, "timeout",
+    else: if(max_duration_ns > 30000000000, "slow_completion", else: "success")))
+| summarize
+    total = count(),
+    success = countIf(exit_condition == "success"),
+    errors = countIf(exit_condition == "error"),
+    timeouts = countIf(exit_condition == "timeout"),
+    slow = countIf(exit_condition == "slow_completion"),
+    by: { agent_name }
+| sort total desc
+`.trim();
+};
+
+/**
+ * 12.3 Multi-Agent Hierarchy — Supervisor → worker delegation patterns.
+ * MCP: Confirmed supervisor(141K), FAQ_agent(99K), flight_state_and_weather_agent(57K).
+ * MCP: parent_span_id is NULL — infer hierarchy from gen_ai.agent.name co-occurrence in traces.
+ */
+export const MULTI_AGENT_HIERARCHY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.agent.name) AND isNotNull(gen_ai.request.model)
+| summarize
+    agents = collectDistinct(gen_ai.agent.name),
+    agent_count = countDistinct(gen_ai.agent.name),
+    total_spans = count(),
+    total_input_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0))),
+    total_output_tokens = sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
+    total_duration_ms = sum(duration) / 1000000,
+    error_count = countIf(otel.status_code == "ERROR"),
+    by: { trace_id = trace.id }
+| filter agent_count > 1
+| sort total_spans desc
+| limit 200
+`.trim();
+};
+
+/**
+ * 12.3 Agent Parallelism Detection — Are agents running sequentially or concurrently?
+ * MCP: Overlap detection via start_time + duration per agent within trace.
+ */
+export const AGENT_PARALLELISM_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.agent.name) AND traceloop.span.kind == "task" AND traceloop.entity.name == "agent"
+| summarize
+    agent_count = countDistinct(gen_ai.agent.name),
+    min_start = min(start_time),
+    max_end = max(start_time + duration),
+    total_agent_time_ms = sum(duration) / 1000000,
+    by: { trace_id = trace.id }
+| filter agent_count > 1
+| fieldsAdd wall_clock_ms = (max_end - min_start) / 1000000
+| fieldsAdd parallelism_ratio = if(wall_clock_ms > 0, toDouble(total_agent_time_ms) / toDouble(wall_clock_ms), else: 1.0)
+| fieldsAdd execution_mode = if(parallelism_ratio > 1.5, "parallel", else: if(parallelism_ratio > 1.1, "mixed", else: "sequential"))
+| summarize
+    total_traces = count(),
+    parallel = countIf(execution_mode == "parallel"),
+    sequential = countIf(execution_mode == "sequential"),
+    mixed = countIf(execution_mode == "mixed"),
+    avg_parallelism = avg(parallelism_ratio)
+`.trim();
+};
+
+/**
+ * 12.3 Cross-Agent Token Attribution — Per-agent token consumption within multi-agent traces.
+ * MCP: Tokens ONLY on LLM spans. Supervisor avg 307, Workers avg 196-245 input tokens/call.
+ */
+export const CROSS_AGENT_TOKEN_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.agent.name) AND isNotNull(gen_ai.usage.input_tokens)
+| summarize
+    llm_calls = count(),
+    total_input = sum(toLong(gen_ai.usage.input_tokens)),
+    total_output = sum(toLong(gen_ai.usage.output_tokens)),
+    avg_input_per_call = avg(toLong(gen_ai.usage.input_tokens)),
+    avg_output_per_call = avg(toLong(gen_ai.usage.output_tokens)),
+    unique_traces = countDistinct(trace.id),
+    unique_models = collectDistinct(gen_ai.request.model),
+    providers = collectDistinct(gen_ai.provider.name),
+    tool_calls_made = countIf(isNotNull(gen_ai.completion.0.tool_calls.0.name)),
+    by: { agent_name = gen_ai.agent.name }
+| fieldsAdd total_tokens = total_input + total_output
+| fieldsAdd est_cost_usd = (toDouble(total_input) * 0.000003) + (toDouble(total_output) * 0.000015)
+| fieldsAdd tool_call_rate = if(llm_calls > 0, 100.0 * toDouble(tool_calls_made) / toDouble(llm_calls), else: 0.0)
+| sort total_tokens desc
+`.trim();
+};
+
+/**
+ * 12.5 Conversation Context Growth — Token escalation across conversation turns.
+ * MCP: conversation_id is NULL everywhere — uses trace.id as conversation proxy.
+ */
+export const CONTEXT_GROWTH_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.input_tokens)
+| summarize
+    turns = count(),
+    min_input = min(toLong(gen_ai.usage.input_tokens)),
+    max_input = max(toLong(gen_ai.usage.input_tokens)),
+    total_input = sum(toLong(gen_ai.usage.input_tokens)),
+    total_output = sum(toLong(gen_ai.usage.output_tokens)),
+    total_tokens = sum(toLong(gen_ai.usage.input_tokens)) + sum(toLong(gen_ai.usage.output_tokens)),
+    duration_ms = (max(start_time) - min(start_time)) / 1000000,
+    agents = collectDistinct(gen_ai.agent.name),
+    by: { trace_id = trace.id }
+| filter turns > 1
+| fieldsAdd context_growth_ratio = if(min_input > 0, toDouble(max_input) / toDouble(min_input), else: 1.0)
+| fieldsAdd avg_tokens_per_turn = toDouble(total_tokens) / toDouble(turns)
+| sort context_growth_ratio desc
+| limit 100
+`.trim();
+};
+
+/**
+ * 12.5 Conversation State Classification — Active, completed, errored, runaway.
+ */
+export const CONVERSATION_STATE_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name)
+| summarize
+    turns = count(),
+    errors = countIf(otel.status_code == "ERROR"),
+    total_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0))) + sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
+    duration_ms = (max(start_time) - min(start_time)) / 1000000,
+    by: { trace_id = trace.id }
+| fieldsAdd state = if(errors > 0 AND errors == turns, "errored",
+    else: if(errors > 0, "partial_failure",
+    else: if(turns == 1, "single_turn",
+    else: if(turns > 20, "runaway", else: "multi_turn"))))
+| summarize
+    total = count(),
+    single_turn = countIf(state == "single_turn"),
+    multi_turn = countIf(state == "multi_turn"),
+    errored = countIf(state == "errored"),
+    partial_failure = countIf(state == "partial_failure"),
+    runaway = countIf(state == "runaway"),
+    avg_turns = avg(turns),
+    avg_tokens = avg(total_tokens),
+    avg_duration_ms = avg(duration_ms)
+`.trim();
+};
+
+/**
+ * 12.6 Context Window Utilization — How much of model context window is used per call.
+ * Model limits hardcoded (GPT-4: 128K, Claude: 200K, Gemini: 1M, etc.)
+ */
+export const CONTEXT_WINDOW_UTILIZATION_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.input_tokens) AND isNotNull(gen_ai.request.model)
+| fieldsAdd input_tokens = toLong(gen_ai.usage.input_tokens)
+| fieldsAdd model = toString(gen_ai.request.model)
+| fieldsAdd context_limit = if(contains(model, "gpt-4o"), 128000,
+    else: if(contains(model, "gpt-4-turbo"), 128000,
+    else: if(contains(model, "gpt-4"), 8192,
+    else: if(contains(model, "gpt-3.5"), 16385,
+    else: if(contains(model, "claude-3"), 200000,
+    else: if(contains(model, "claude-2"), 100000,
+    else: if(contains(model, "gemini"), 1000000,
+    else: if(contains(model, "llama"), 8192,
+    else: if(contains(model, "titan"), 8192,
+    else: if(contains(model, "genai-demo"), 128000, else: 4096))))))))))
+| fieldsAdd utilization_pct = toDouble(input_tokens) / toDouble(context_limit) * 100
+| summarize
+    avg_utilization = avg(utilization_pct),
+    max_utilization = max(utilization_pct),
+    requests = count(),
+    high_util_count = countIf(utilization_pct > 80),
+    near_capacity_count = countIf(utilization_pct > 90),
+    avg_input_tokens = avg(input_tokens),
+    by: { model, provider = gen_ai.provider.name }
+| fieldsAdd high_util_pct = if(requests > 0, 100.0 * toDouble(high_util_count) / toDouble(requests), else: 0.0)
+| sort avg_utilization desc
+`.trim();
+};
+
+/**
+ * 12.4 Cost Threshold Breach Detection — Per-hour cost spikes.
+ * MCP: Token data confirmed on 358K spans across 4 providers.
+ */
+export const COST_BREACH_DETECTION_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.prompt_tokens)
+| fieldsAdd
+    input_t = toLong(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_t = toLong(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+| fieldsAdd estimated_cost = (toDouble(input_t) * 0.000003) + (toDouble(output_t) * 0.000015)
+| summarize
+    hourly_cost = sum(estimated_cost),
+    hourly_requests = count(),
+    hourly_tokens = sum(input_t + output_t),
+    by: { time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc
+`.trim();
+};

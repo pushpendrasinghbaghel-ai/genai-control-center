@@ -1080,3 +1080,141 @@ export interface GitHubRepoInfo {
   topics: string[];
   url: string;
 }
+
+// ============================================
+// Phase 12 — Agentic AI Deep Observability Types
+// ============================================
+
+/** Single span within an agent trace waterfall */
+export interface AgentTraceSpan {
+  startTime: string;
+  spanName: string;
+  spanKind: string;
+  entityName: string;
+  agentName: string;
+  model: string;
+  provider: string;
+  inputTokens: number;
+  outputTokens: number;
+  completionContent: string;
+  toolCallName: string;
+  durationMs: number;
+  statusCode: string;
+  spanId: string;
+  traceId: string;
+}
+
+/** Agent step count summary per agent */
+export interface AgentStepSummary {
+  agentName: string;
+  totalSpans: number;
+  taskSteps: number;
+  toolSteps: number;
+  workflowSteps: number;
+  llmSteps: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  avgDurationMs: number;
+  errorCount: number;
+  uniqueTraces: number;
+  stepsPerTrace: number;
+  errorRate: number;
+  sampleTraceId: string;
+}
+
+/** Agent exit condition breakdown */
+export interface AgentExitCondition {
+  agentName: string;
+  total: number;
+  success: number;
+  errors: number;
+  timeouts: number;
+  slow: number;
+}
+
+/** Multi-agent trace with hierarchy info */
+export interface MultiAgentTrace {
+  traceId: string;
+  agents: string[];
+  agentCount: number;
+  totalSpans: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalDurationMs: number;
+  errorCount: number;
+}
+
+/** Agent parallelism detection result */
+export interface AgentParallelismStats {
+  totalTraces: number;
+  parallel: number;
+  sequential: number;
+  mixed: number;
+  avgParallelism: number;
+}
+
+/** Per-agent token attribution */
+export interface CrossAgentTokens {
+  agentName: string;
+  llmCalls: number;
+  totalInput: number;
+  totalOutput: number;
+  totalTokens: number;
+  avgInputPerCall: number;
+  avgOutputPerCall: number;
+  uniqueTraces: number;
+  uniqueModels: string[];
+  providers: string[];
+  toolCallsMade: number;
+  estCostUsd: number;
+  toolCallRate: number;
+}
+
+/** Conversation context growth entry */
+export interface ContextGrowthEntry {
+  traceId: string;
+  turns: number;
+  minInput: number;
+  maxInput: number;
+  totalInput: number;
+  totalOutput: number;
+  totalTokens: number;
+  durationMs: number;
+  agents: string[];
+  contextGrowthRatio: number;
+  avgTokensPerTurn: number;
+}
+
+/** Aggregated conversation state */
+export interface ConversationStateStats {
+  total: number;
+  singleTurn: number;
+  multiTurn: number;
+  errored: number;
+  partialFailure: number;
+  runaway: number;
+  avgTurns: number;
+  avgTokens: number;
+  avgDurationMs: number;
+}
+
+/** Context window utilization per model */
+export interface ContextWindowUtilization {
+  model: string;
+  provider: string;
+  avgUtilization: number;
+  maxUtilization: number;
+  requests: number;
+  highUtilCount: number;
+  nearCapacityCount: number;
+  avgInputTokens: number;
+  highUtilPct: number;
+}
+
+/** Hourly cost breach data point */
+export interface CostBreachEntry {
+  timeBucket: string;
+  hourlyCost: number;
+  hourlyRequests: number;
+  hourlyTokens: number;
+}

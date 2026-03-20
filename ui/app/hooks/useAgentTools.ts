@@ -126,6 +126,31 @@ export interface AgentActivityTrend {
   avgDurationMs: number;
 }
 
+// Error rate trend over time
+export interface AgentErrorRateTrend {
+  timestamp: string;
+  totalSpans: number;
+  errorCount: number;
+  errorRate: number;
+}
+
+// Latency percentile trend over time
+export interface AgentLatencyTrend {
+  timestamp: string;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+}
+
+// Token consumption trend over time (input vs output)
+export interface AgentTokenTrend {
+  timestamp: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
 // NEW: Agent → Backend Service Dependencies
 export interface AgentServiceDependency {
   agentName: string;
@@ -433,6 +458,48 @@ fetch spans, ${buildTimeFilter(filters)}
 | limit 500
 `;
 
+// Error Rate Trend - hourly error rate across all agent/LLM spans
+const AGENT_ERROR_RATE_TREND_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd is_error = if(otel.status_code == "ERROR" OR span.status.code == "ERROR", then: 1, else: 0)
+| summarize 
+    total_spans = count(),
+    error_count = sum(is_error),
+    by: { time_bucket = bin(start_time, 1h) }
+| fieldsAdd error_rate = if(total_spans > 0, then: 100.0 * toDouble(error_count) / toDouble(total_spans), else: 0.0)
+| sort time_bucket asc
+`;
+
+// Latency Trend - P50 and P95 agent latency over time
+const AGENT_LATENCY_TREND_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter traceloop.span.kind == "agent" OR gen_ai.operation.kind == "agent" OR isNotNull(gen_ai.agent.name)
+| fieldsAdd duration_ms = toDouble(duration) / 1000000.0
+| summarize 
+    avg_ms = avg(duration_ms),
+    p50_ms = percentile(duration_ms, 50),
+    p95_ms = percentile(duration_ms, 95),
+    by: { time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc
+`;
+
+// Token Consumption Trend - hourly input vs output tokens with cost
+const AGENT_TOKEN_TREND_QUERY = (filters?: QueryFilters) => `
+fetch spans, ${buildTimeFilter(filters)}
+| filter isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.prompt_tokens)
+| fieldsAdd
+    input_t = toLong(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_t = toLong(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+| summarize 
+    input_tokens = sum(input_t),
+    output_tokens = sum(output_t),
+    total_tokens = sum(input_t + output_t),
+    estimated_cost = sum((toDouble(input_t) * 0.000003) + (toDouble(output_t) * 0.000015)),
+    by: { time_bucket = bin(start_time, 1h) }
+| sort time_bucket asc
+`;
+
 // NEW: Agent → Backend Service Dependencies Query
 // Finds HTTP, database, and other service calls made within agent traces
 const AGENT_SERVICE_DEPENDENCIES_QUERY = (filters?: QueryFilters) => `
@@ -531,6 +598,9 @@ export function useAgentTools(filters?: QueryFilters) {
   const [toolCoOccurrence, setToolCoOccurrence] = useState<ToolCoOccurrence[]>([]);
   const [toolCallsTrend, setToolCallsTrend] = useState<ToolCallsTrend[]>([]);
   const [agentActivityTrend, setAgentActivityTrend] = useState<AgentActivityTrend[]>([]);
+  const [errorRateTrend, setErrorRateTrend] = useState<AgentErrorRateTrend[]>([]);
+  const [latencyTrend, setLatencyTrend] = useState<AgentLatencyTrend[]>([]);
+  const [tokenTrend, setTokenTrend] = useState<AgentTokenTrend[]>([]);
   const [agentServiceDeps, setAgentServiceDeps] = useState<AgentServiceDependency[]>([]);
   const [agentLLMProviders, setAgentLLMProviders] = useState<AgentLLMProvider[]>([]);
   const [agentEntityMappings, setAgentEntityMappings] = useState<AgentEntityMapping[]>([]);
@@ -555,7 +625,7 @@ export function useAgentTools(filters?: QueryFilters) {
 
     try {
       // Execute all queries in parallel
-      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse, serviceDepsResponse, llmProviderResponse, entityMappingResponse, agentRetryResponse, agentRetrySummaryResponse] = await Promise.all([
+      const [usageResponse, loopResponse, flowResponse, summaryResponse, agentCountResponse, agentListResponse, agentToolCallsResponse, tokenCostResponse, handoffResponse, latencyResponse, retryResponse, coOccurrenceResponse, toolCallsTrendResponse, agentActivityTrendResponse, errorRateTrendResponse, latencyTrendResponse, tokenTrendResponse, serviceDepsResponse, llmProviderResponse, entityMappingResponse, agentRetryResponse, agentRetrySummaryResponse] = await Promise.all([
         queryExecutionClient.queryExecute({
           body: {
             query: TOOL_USAGE_QUERY(currentFilters),
@@ -650,6 +720,30 @@ export function useAgentTools(filters?: QueryFilters) {
         queryExecutionClient.queryExecute({
           body: {
             query: AGENT_ACTIVITY_TREND_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // Error rate trend
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_ERROR_RATE_TREND_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // Latency percentile trend
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_LATENCY_TREND_QUERY(currentFilters),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        // Token consumption trend
+        queryExecutionClient.queryExecute({
+          body: {
+            query: AGENT_TOKEN_TREND_QUERY(currentFilters),
             requestTimeoutMilliseconds: 60000,
             fetchTimeoutSeconds: 60
           }
@@ -859,6 +953,37 @@ export function useAgentTools(filters?: QueryFilters) {
       }));
       setAgentActivityTrend(processedAgentActivity);
 
+      // Process error rate trend
+      const errorRateRecords = errorRateTrendResponse.result?.records || [];
+      const processedErrorRateTrend: AgentErrorRateTrend[] = errorRateRecords.map((record: any) => ({
+        timestamp: record.time_bucket ? new Date(record.time_bucket).toISOString() : new Date().toISOString(),
+        totalSpans: Number(record.total_spans) || 0,
+        errorCount: Number(record.error_count) || 0,
+        errorRate: Number(record.error_rate) || 0
+      }));
+      setErrorRateTrend(processedErrorRateTrend);
+
+      // Process latency trend
+      const latencyTrendRecords = latencyTrendResponse.result?.records || [];
+      const processedLatencyTrend: AgentLatencyTrend[] = latencyTrendRecords.map((record: any) => ({
+        timestamp: record.time_bucket ? new Date(record.time_bucket).toISOString() : new Date().toISOString(),
+        avgMs: Number(record.avg_ms) || 0,
+        p50Ms: Number(record.p50_ms) || 0,
+        p95Ms: Number(record.p95_ms) || 0
+      }));
+      setLatencyTrend(processedLatencyTrend);
+
+      // Process token consumption trend
+      const tokenTrendRecords = tokenTrendResponse.result?.records || [];
+      const processedTokenTrend: AgentTokenTrend[] = tokenTrendRecords.map((record: any) => ({
+        timestamp: record.time_bucket ? new Date(record.time_bucket).toISOString() : new Date().toISOString(),
+        inputTokens: Number(record.input_tokens) || 0,
+        outputTokens: Number(record.output_tokens) || 0,
+        totalTokens: Number(record.total_tokens) || 0,
+        estimatedCostUsd: Number(record.estimated_cost) || 0
+      }));
+      setTokenTrend(processedTokenTrend);
+
       // NEW: Process agent service dependencies
       const serviceDepsRecords = serviceDepsResponse.result?.records || [];
       const processedServiceDeps: AgentServiceDependency[] = serviceDepsRecords.map((record: any) => ({
@@ -960,6 +1085,9 @@ export function useAgentTools(filters?: QueryFilters) {
     toolCoOccurrence,
     toolCallsTrend,
     agentActivityTrend,
+    errorRateTrend,
+    latencyTrend,
+    tokenTrend,
     agentServiceDeps,
     agentLLMProviders,
     agentEntityMappings,
