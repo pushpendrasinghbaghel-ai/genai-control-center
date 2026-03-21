@@ -1,4 +1,4 @@
-# GenAI Control Center (GCC) v2.9.0
+# GenAI Control Center (GCC) v3.0.0
 
 <p align="center">
   <img src="https://img.shields.io/badge/Dynatrace-AppEngine-4CAF50?style=for-the-badge&logo=dynatrace" alt="Dynatrace AppEngine"/>
@@ -28,23 +28,35 @@ Navigation follows the **Observe → Analyze → Act** pattern, implemented in t
 | # | Nav Item | Route | Page Component | Purpose |
 |---|----------|-------|----------------|---------|
 | 1 | 🏠 **Home** | `/` | Home | Executive dashboard with key metrics, trends, and pillar navigation |
-| 2 | 💰 **FinOps** | `/finops` | FinOps | Real-time spend tracking, cost forecasting, budget monitoring, chargeback |
-| 3 | 📊 **Analytics** | `/analytics` | ResponseAnalytics | Token efficiency, model ranking, output consistency for ML Engineers |
-| 4 | 🔒 **Governance** | `/prompt-governance` | PromptGovernance | PII detection, injection risks, Davis AI scoring, cache candidates |
-| 5 | 🔗 **Topology** | `/topology` | AITopology | Interactive Smartscape-style flow diagram, service→provider→model |
-| 6 | 🖥️ **Services** | `/services` | HealthDashboard | Auto-discovered AI services, quality metrics, deep linking |
+| 2 | �️ **Services** | `/services` | HealthDashboard | Auto-discovered AI services, quality metrics, deep linking |
+| 3 | 💰 **FinOps** | `/finops` | FinOps | Real-time spend tracking, cost forecasting, budget monitoring, chargeback |
+| 4 | 📊 **Analytics** | `/analytics` | ResponseAnalytics | Token efficiency, model ranking, output consistency for ML Engineers |
+| 5 | 🔒 **Governance** | `/prompt-governance` | PromptGovernance | PII detection, injection risks, Davis AI scoring, cache candidates |
+| 6 | 🔗 **Topology** | `/topology` | AITopology | Interactive Smartscape-style flow diagram, service→provider→model |
 | 7 | 🤖 **Agents** | `/agents` | AgentTools | Tool usage tracking, agent flows, loop detection, efficiency metrics |
-| 8 | 🔬 **Drift** | `/drift` | ModelDrift | Drift scoring, version change alerts, baseline comparison, anomaly detection |
-| 9 | 🔍 **RAG** | `/vector-db` | VectorDB | Pinecone query volume, embedding trends, RAG pipeline E2E, response latency by model |
+| 8 | 🔍 **RAG** | `/vector-db` | VectorDB | Pinecone query volume, embedding trends, RAG pipeline E2E, response latency by model |
+| 9 | 🔬 **Drift** | `/drift` | ModelDrift | Drift scoring, version change alerts, baseline comparison, anomaly detection |
 | 10 | 🧠 **Intelligence** | `/intelligence` | Intelligence | Davis CoPilot integration, natural language queries, DQL generation |
-| 11 | ⚙️ **Operations** | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
-| 12 | 🔌 **Integrations** | `/integrations` | Integrations | MCP server integrations: Slack, PagerDuty, Prometheus, GitHub, Grafana |
+| 11 | 🔧 **MLOps** | `/mlops` | MLOps | Model registry, SLO tracking, model comparison, cost attribution |
+
+### Overflow Menu ("More" dropdown)
+
+| Section | Nav Item | Route | Page Component | Purpose |
+|---------|----------|-------|----------------|---------|
+| **Observe** | 📈 AI Quality | `/quality` | AIQualityDashboard | Industry-standard quality scoring, hallucination detection, Davis analysis |
+| **Observe** | 💬 Conversations | `/conversation` | ConversationIntelligence | Session-level AI observability, conversation flows |
+| **Observe** | 👨‍💻 Developer Experience | `/devex` | DeveloperExperience | Instrumentation coverage, shadow AI detection, code attribution |
+| **Observe** | 🏗️ Infrastructure | `/infrastructure` | Infrastructure | Service config snapshot, model version history, deployment tracking |
+| **Govern** | 📋 Policies & Compliance | `/governance` | Governance | Enterprise governance challenges overview |
+| **Act** | ⚙️ Operations | `/operations` | Operations | Runbooks, agentic workflow templates, quick actions |
+| **Act** | 🛡️ Security Audit | `/security` | SecurityAuditTrail | Prompt security, PII detection, incident response audit trail |
+| **Act** | 🔄 Provider Failover | `/provider-status` | ProviderStatus | Provider health monitoring, failover readiness assessment |
+| **Act** | 🔌 Integrations Hub | `/integrations` | Integrations | MCP server integrations: Slack, PagerDuty, Prometheus, GitHub, Grafana |
 
 ### Additional Routes (not in nav bar)
 
 | Route | Page Component | Purpose |
 |-------|----------------|---------|
-| `/governance` | Governance | Enterprise governance challenges overview |
 | `/providers` | ProviderComparison | Cross-provider analysis and comparison |
 | `/ai-architect` | AIArchitect | Pattern detection and architecture recommendations |
 | `/problems` | RealTimeAlerts | Live Davis problem monitoring for AI services |
@@ -237,6 +249,85 @@ End-to-end visibility into Retrieval-Augmented Generation pipelines and vector s
   - 📈 Scale up capacity
   - 🔔 Create alert for monitoring
 
+### 🔧 MLOps - Model Lifecycle Management
+**Four-tab dashboard** for ML operations and model governance:
+
+#### Registry Tab
+- **Model Registry** - All deployed models with version, provider, operation type, request volume, and status
+- **Model Health Indicators** - Error rate and latency-based health status (Healthy / Warning / Critical)
+- **Deep-link to Traces** - Click any model to view distributed traces
+
+#### SLOs Tab
+- **SLO Tracking** - Service-level objectives per model with target vs actual
+- **Compliance Status** - Real-time SLO compliance with visual indicators
+- **Burn Rate Tracking** - SLO budget consumption rate
+
+#### Comparison Tab
+- **Side-by-Side Model Comparison** - Compare models across latency, tokens, error rate, and efficiency
+- **Radar Charts** - Visual comparison across 5 dimensions
+- **Cost Efficiency Rankings** - Cost per 1K tokens across models
+
+#### Cost Attribution Tab
+- **Cost by Model** - Token-based cost calculation using configurable rate cards
+- **Provider Cost Breakdown** - Spend aggregation by provider
+- **Service Cost Attribution** - Cost allocation by consuming service
+
+### 🏗️ Infrastructure - Platform Health
+- **Service Configuration Snapshot** - Current deployment configs, runtime versions, and resource allocation
+- **Model Version History** - Track model version changes over time with deployment timeline
+- **Provider Availability** - Real-time provider status and health checks
+- **Davis Problems** - Active AI-related problems from Davis AI
+
+### 📈 AI Quality Dashboard - Quality Scoring
+- **Industry-Standard Scoring** - Multi-dimensional quality assessment (0-100):
+  - **Accuracy (25%)** - Error rate-based measurement
+  - **Latency (25%)** - Response time performance (Apdex-style)
+  - **Throughput (20%)** - Request volume and capacity utilization
+  - **Token Efficiency (15%)** - Output/input token ratio optimization
+  - **Reliability (15%)** - Uptime and consistency metrics
+- **Per-Service Quality Cards** - Visual quality breakdown per AI service
+- **Davis Intelligence Analysis** - One-click deep analysis with Davis CoPilot
+- **"How is this scored?" Modal** - Full methodology transparency with industry citations
+- **Paginated DataTable** - Sortable, searchable quality metrics table
+
+### 💬 Conversation Intelligence - Session Analytics
+- **Conversation Flow Tracking** - Session-level AI interaction patterns
+- **Multi-turn Analysis** - Track conversation depth and context retention
+- **User Satisfaction Signals** - Infer satisfaction from conversation patterns
+- **Session Duration Metrics** - Time-based conversation analytics
+
+### 👨‍💻 Developer Experience - Instrumentation Health
+- **Instrumentation Coverage** - Percentage of services with proper GenAI instrumentation
+- **Shadow AI Detection** - Identify uninstrumented AI usage
+- **Code Attribution** - Map AI calls to source code and teams
+- **SDK Version Tracking** - Monitor OTel SDK versions across services
+
+### 🛡️ Security Audit Trail - Compliance & Incident Response
+- **Prompt Security Analysis** - Real-time security scoring of AI interactions
+- **PII Detection Audit** - Historical log of PII exposure events
+- **Incident Response Timeline** - Security incident tracking and response workflow
+- **Compliance Reporting** - Audit-ready reports for regulatory requirements
+
+### 🔄 Provider Status & Failover - Resilience
+- **Provider Health Dashboard** - Real-time status of all AI providers
+- **Failover Readiness Assessment** - Score each provider's failover capability
+- **Latency Comparison** - Cross-provider response time benchmarking
+- **Redundancy Analysis** - Identify single points of failure in AI infrastructure
+
+## 🌐 Provider Data Completeness
+
+Validated via Dynatrace Grail MCP queries against live telemetry:
+
+| Provider | Tokens | Latency | Errors | Temperature | Prompt Content | Metrics | Business Events |
+|----------|--------|---------|--------|-------------|----------------|---------|-----------------|
+| **OpenAI** | ✅ Full | ✅ Full | ✅ Full | ✅ | ✅ via LangChain | ✅ 20 models | ✅ Auditing |
+| **Azure OpenAI** | ✅ Full | ✅ Full | ✅ Full | ✅ | ✅ via LangChain | ✅ (as "Azure") | ✅ Auditing |
+| **Amazon Bedrock** | ✅ Full | ✅ Full | ✅ Full | ✅ | ⚠️ null on direct | ✅ 3 models | ✅ Auditing |
+| **Google VertexAI** | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial | ❌ | ⚠️ LangChain only | ❌ None | ❌ None |
+| **Ollama** | ✅ Full | ✅ Full | ✅ Full | ✅ | ✅ via LangChain | ✅ 2 models | ✅ Auditing |
+
+> **Data Sources**: OpenTelemetry `gen_ai.*` spans, `gen_ai.client.token.usage` metrics, `gen_ai.auditing` business events
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -284,43 +375,63 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 | `storage:entities:read` | Read entities for filtering |
 | `automation:workflows:read` | Read workflow definitions |
 | `automation:workflows:run` | Execute remediation workflows |
+| `automation:workflows:write` | Create and update workflows |
 | `davis-copilot:nl2dql:execute` | Convert natural language to DQL queries |
 | `davis-copilot:dql2nl:execute` | Explain DQL queries in natural language |
-| `davis-copilot:conversations:execute` | Davis CoPilot conversation recommender |
+| `davis-copilot:conversations:execute` | Davis CoPilot conversational analysis |
+| `davis:analyzers:execute` | Execute Davis Intelligence analyzers |
+| `davis:analyzers:read` | List and inspect available analyzers |
+| `document:documents:read` | Read GCC configuration documents |
+| `document:documents:write` | Write GCC configuration documents |
+| `document:documents:delete` | Delete GCC configuration documents |
 
 ## 📊 Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     GenAI Control Center v2.6.0                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Observe          │  Analyze           │  Act                   │
-│  ───────          │  ───────           │  ───                   │
-│  Home             │  Analytics         │  Intelligence          │
-│  FinOps           │  Governance        │  Operations            │
-│  Services         │  Drift             │  Agentic Workflows     │
-│  Agents           │  AI Architect      │                        │
-│  Topology         │  Provider Compare  │                        │
-│  RAG / VectorDB   │                    │                        │
-│  Problems         │                    │                        │
-├─────────────────────────────────────────────────────────────────┤
-│                     Shared Components                            │
-│  Header │ Card │ FilterBar │ DavisResponse │ ErrorBoundary      │
-│  LoadingSkeleton │ SampleDataBadge                               │
-├─────────────────────────────────────────────────────────────────┤
-│                     Context & Config                             │
-│  FilterContext (time range, provider, model, service filters)    │
-│  ProviderProfiles (cost models, icons, capabilities)             │
-├─────────────────────────────────────────────────────────────────┤
-│                      Custom Hooks                                │
-│  useDQLQueries │ useDavisAI │ useAgentTools │ useModelDrift     │
-│  useAIArchitect │ useResponseAnalytics │ useAIQuality       │
-│  useRemediation │ useWorkflows │ useVectorDB                  │
-├─────────────────────────────────────────────────────────────────┤
-│                    Dynatrace SDKs                                │
-│  @dynatrace-sdk/client-query │ client-davis-copilot             │
-│  @dynatrace-sdk/navigation │ react-hooks │ app-environment      │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      GenAI Control Center v3.0.0                        │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Observe             │  Analyze            │  Act                       │
+│  ───────             │  ───────            │  ───                       │
+│  Home                │  Analytics          │  Intelligence              │
+│  FinOps              │  Governance         │  Operations                │
+│  Services            │  Drift              │  Security Audit            │
+│  Agents              │  AI Architect       │  Provider Failover         │
+│  Topology            │  Provider Compare   │  Integrations Hub          │
+│  RAG / VectorDB      │  AI Quality         │  Agentic Workflows         │
+│  MLOps               │  Conversations      │                            │
+│  Infrastructure      │  Developer Exp      │                            │
+│  Problems            │                     │                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│                       Shared Components (14)                            │
+│  Header │ Card │ FilterBar │ DavisResponse │ ErrorBoundary              │
+│  LoadingSkeleton │ SampleDataBadge │ AskAIButton │ AskAISheet           │
+│  OptimizationAdvisor │ RAGHealthPanel │ CostGuardrailPanel             │
+│  RateCardSettings                                                       │
+├──────────────────────────────────────────────────────────────────────────┤
+│                       Context & Config                                  │
+│  FilterContext (time range, provider, model, service filters)           │
+│  ProviderProfiles (cost models, icons, capabilities)                    │
+│  RateCardConfig (configurable token pricing)                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│                        Custom Hooks (32)                                 │
+│  useDQLQueries │ useDavisAI │ useAgentTools │ useModelDrift             │
+│  useAIArchitect │ useResponseAnalytics │ useAIQuality │ useMLOps       │
+│  useVectorDB │ useInfrastructure │ useProviderFailover                  │
+│  useRemediation │ useWorkflows │ useCostGuardrails │ useAskAI           │
+│  useAgentOptimization │ useFrameworkDetection │ useRAGHealthScore       │
+│  useDavisForecast │ useProviderDeepDive │ useSecurityAutoResponse      │
+│  useAWSBilling │ useAWSCloudWatch │ useSlackIntegration                 │
+│  usePagerDutyIntegration │ useGitHubIntegration │ useGrafanaIntegration │
+│  usePrometheusMCP │ useMCPGateway │ useRateCardStorage                  │
+│  useAgenticWorkflows │ useAgenticDeepDive                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│                      Dynatrace SDKs                                     │
+│  @dynatrace-sdk/client-query │ client-davis-copilot                     │
+│  @dynatrace-sdk/client-davis-analyzers │ client-automation              │
+│  @dynatrace-sdk/navigation │ react-hooks │ app-environment              │
+│  @dynatrace-sdk/user-preferences │ error-handlers                      │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Project Structure
@@ -331,68 +442,132 @@ gcc/
 ├── package.json                  # Dependencies & scripts
 ├── eslint.config.mjs             # ESLint flat config with security plugins
 ├── tsconfig.eslint.json          # TypeScript config for linting
+├── AGENTS.md                     # AI coding agent instructions
 ├── docs/
-│   ├── ROADMAP.md                # Product roadmap (Phases 0-7)
+│   ├── ROADMAP.md                # Product roadmap (Phases 0-12, 2400+ lines)
 │   ├── USER_GUIDE.md             # End-user documentation
 │   ├── DEMO_SCRIPT.md            # Demo walkthrough script
 │   ├── SE_DEMO_SCRIPT.md         # Sales Engineer demo guide
-│   └── DEMO_CHEATSHEET.md        # Quick demo reference card
+│   ├── DEMO_CHEATSHEET.md        # Quick demo reference card
+│   ├── COMPETITIVE_ASSESSMENT.md # Competitive analysis vs 7 alternatives
+│   ├── EVOLUTION_ROADMAP.md      # Product evolution path
+│   ├── PERMISSIONS_AND_SCOPES.md # Required OAuth scopes reference
+│   └── APAC_SE_TALK_TRACK.md    # Regional sales talk track
+├── mcp-server/                   # MCP server for external integrations
+│   ├── src/
+│   │   ├── index.ts              # MCP server entry point
+│   │   ├── tools.ts              # Tool definitions
+│   │   ├── dql-client.ts         # DQL query client
+│   │   ├── slack-integration.ts  # Slack MCP integration
+│   │   ├── pagerduty-integration.ts # PagerDuty MCP integration
+│   │   ├── prometheus-integration.ts # Prometheus MCP integration
+│   │   ├── github-integration.ts # GitHub MCP integration
+│   │   ├── grafana-integration.ts # Grafana MCP integration
+│   │   ├── aws-billing-integration.ts # AWS billing data
+│   │   ├── aws-cloudwatch-integration.ts # AWS CloudWatch metrics
+│   │   └── agentic-workflows.ts  # Agentic workflow orchestration
+│   └── package.json
+├── scripts/
+│   └── send_demo_bizevents.py    # Demo business events generator
 ├── ui/
 │   ├── main.tsx                  # App entry point
 │   ├── tsconfig.json             # TypeScript config
 │   ├── assets/                   # Static assets (logo SVG)
 │   └── app/
-│       ├── App.tsx               # Main app with routing (16 routes)
-│       ├── components/           # Reusable UI components
+│       ├── App.tsx               # Main app with routing (24 routes + 2 redirects)
+│       ├── agent/                # AI agent orchestration
+│       │   ├── orchestrator.ts       # Agent orchestration logic
+│       │   ├── tools.ts              # Agent tool definitions
+│       │   ├── aiToolSelector.ts     # AI-powered tool selection
+│       │   ├── types.ts              # Agent type definitions
+│       │   └── index.ts
+│       ├── components/           # Reusable UI components (14)
+│       │   ├── AskAIButton.tsx       # AI chat trigger button
+│       │   ├── AskAISheet.tsx        # AI chat side panel
 │       │   ├── Card.tsx              # Generic metric card
-│       │   ├── DavisResponse.tsx     # AI response renderer
+│       │   ├── CostGuardrailPanel.tsx # Cost guardrail management
+│       │   ├── DavisResponse.tsx     # AI response markdown renderer
 │       │   ├── ErrorBoundary.tsx     # React error boundary
 │       │   ├── FilterBar.tsx         # Time range & dimension filters
-│       │   ├── Header.tsx            # Navigation header (11 nav items)
+│       │   ├── Header.tsx            # Navigation header (11 primary + overflow)
 │       │   ├── LoadingSkeleton.tsx   # Loading state placeholder
+│       │   ├── OptimizationAdvisor.tsx # Optimization recommendations
+│       │   ├── RAGHealthPanel.tsx    # RAG health score display
+│       │   ├── RateCardSettings.tsx  # Rate card configuration
 │       │   ├── SampleDataBadge.tsx   # Sample data indicator
 │       │   └── index.ts             # Barrel export
 │       ├── config/               # Configuration
 │       │   ├── provider-profiles.ts  # Provider cost models & capabilities
-│       │   └── index.ts             # Barrel export
+│       │   ├── rate-card-config.ts   # Token pricing rate cards
+│       │   └── index.ts
 │       ├── context/              # React context providers
 │       │   ├── FilterContext.tsx     # Global filter state
-│       │   └── index.ts             # Barrel export
-│       ├── hooks/                # Data fetching & state hooks
+│       │   └── index.ts
+│       ├── hooks/                # Data fetching & state hooks (32)
 │       │   ├── useDQLQueries.ts     # Core DQL query execution (2200+ lines)
 │       │   ├── useDavisAI.ts        # Davis CoPilot integration
 │       │   ├── useAgentTools.ts     # Agent monitoring (17 parallel queries)
+│       │   ├── useAgentOptimization.ts # Agent optimization scoring
 │       │   ├── useModelDrift.ts     # Drift detection & baseline management
-│       │   ├── useVectorDB.ts       # RAG / vector store telemetry (makeTimeseries)
+│       │   ├── useVectorDB.ts       # RAG / vector store telemetry
 │       │   ├── useAIArchitect.ts    # Architecture pattern detection
 │       │   ├── useAIQuality.ts      # Quality scoring & Davis analysis
+│       │   ├── useMLOps.ts          # Model registry, SLOs, comparison
+│       │   ├── useInfrastructure.ts  # Infrastructure health monitoring
 │       │   ├── useResponseAnalytics.ts  # Token efficiency metrics
+│       │   ├── useProviderFailover.ts # Provider failover assessment
+│       │   ├── useProviderDeepDive.ts # Provider deep analytics
+│       │   ├── useCostGuardrails.ts  # Cost guardrail management
+│       │   ├── useDavisForecast.ts   # Davis forecasting
+│       │   ├── useFrameworkDetection.ts # OTel framework detection
+│       │   ├── useRAGHealthScore.ts  # RAG pipeline health scoring
+│       │   ├── useSecurityAutoResponse.ts # Security automation
+│       │   ├── useAskAI.ts          # AI chat interface
 │       │   ├── useRemediation.ts    # Workflow execution
 │       │   ├── useWorkflows.ts      # Workflow management
-│       │   └── index.ts            # Barrel export
-│       ├── pages/                # Application pages
+│       │   ├── useAgenticWorkflows.ts # Agentic workflow orchestration
+│       │   ├── useAgenticDeepDive.ts # Agentic deep analysis
+│       │   ├── useRateCardStorage.ts # Rate card persistence
+│       │   ├── useAWSBilling.ts     # AWS billing integration
+│       │   ├── useAWSCloudWatch.ts  # AWS CloudWatch integration
+│       │   ├── useSlackIntegration.ts # Slack MCP integration
+│       │   ├── usePagerDutyIntegration.ts # PagerDuty MCP integration
+│       │   ├── useGitHubIntegration.ts # GitHub MCP integration
+│       │   ├── useGrafanaIntegration.ts # Grafana MCP integration
+│       │   ├── usePrometheusMCP.ts   # Prometheus MCP integration
+│       │   ├── useMCPGateway.ts      # MCP gateway communication
+│       │   └── index.ts
+│       ├── pages/                # Application pages (28)
 │       │   ├── Home.tsx             # Executive dashboard
+│       │   ├── HealthDashboard.tsx  # Service health monitoring
 │       │   ├── FinOps.tsx           # Cost management
 │       │   ├── ResponseAnalytics.tsx # ML engineer insights
 │       │   ├── PromptGovernance.tsx  # PII/injection/Davis AI scoring
 │       │   ├── Governance.tsx       # Enterprise governance challenges
 │       │   ├── AITopology.tsx       # Interactive flow visualization
-│       │   ├── HealthDashboard.tsx  # Service health monitoring
-│       │   ├── AgentTools.tsx       # AI agent tool monitoring
+│       │   ├── AgentTools.tsx       # AI agent tool monitoring (5 tabs)
 │       │   ├── ModelDrift.tsx       # Drift detection & baseline
-│       │   ├── VectorDB.tsx         # RAG & vector store pipeline observability
+│       │   ├── VectorDB.tsx         # RAG & vector store pipeline
 │       │   ├── Intelligence.tsx     # Davis CoPilot AI
 │       │   ├── Operations.tsx       # Runbooks & quick actions
+│       │   ├── MLOps.tsx            # Model registry, SLOs, comparison
+│       │   ├── Infrastructure.tsx   # Platform health & config
+│       │   ├── AIQualityDashboard.tsx # Industry-standard quality scoring
+│       │   ├── ConversationIntelligence.tsx # Session analytics
+│       │   ├── DeveloperExperience.tsx # Instrumentation coverage
+│       │   ├── SecurityAuditTrail.tsx # Security audit & compliance
+│       │   ├── ProviderStatus.tsx    # Provider failover
+│       │   ├── Integrations.tsx     # MCP integrations hub
 │       │   ├── ProviderComparison.tsx # Provider analysis
 │       │   ├── AIArchitect.tsx      # Architecture recommendations
 │       │   ├── RealTimeAlerts.tsx   # Live problem monitoring
-│       │   ├── AIQualityDashboard.tsx # Quality metrics
+│       │   ├── AgenticDeepDive.tsx  # Agentic deep analysis
 │       │   ├── Data.tsx             # GenAI data explorer
 │       │   ├── DavisAssistant.tsx   # Direct Davis chat
 │       │   ├── RemediationLibrary.tsx # Workflow library
-│       │   └── index.ts            # Barrel export
+│       │   └── index.ts
 │       ├── queries/              # DQL query definitions
-│       │   └── dql-queries.ts       # All DQL queries (~490 lines)
+│       │   └── dql-queries.ts       # All DQL queries (~700 lines)
 │       ├── types/                # TypeScript type definitions
 │       │   └── index.ts
 │       ├── utils/                # Helper functions
@@ -432,7 +607,7 @@ gcc/
 | **AI Integration** | Davis CoPilot via @dynatrace-sdk/client-davis-copilot |
 | **Navigation** | @dynatrace-sdk/navigation (deep links to Services, Traces) |
 | **Routing** | react-router-dom v6 |
-| **Build Tool** | dt-app CLI v1.5.1 |
+| **Build Tool** | dt-app CLI v1.8.1 |
 
 ## 📈 Metrics Tracked
 
@@ -493,6 +668,33 @@ The Integrations page (`/integrations`) provides connections to external systems
 - Cost attribution
 
 ## 📋 Changelog
+
+### v3.0.0 (March 2026)
+- 🆕 **MLOps Dashboard**: Full model lifecycle management with 4 tabs
+  - Model Registry with health indicators and version tracking
+  - SLO tracking with compliance status and burn rate
+  - Side-by-side model comparison with radar charts
+  - Cost attribution by model, provider, and service
+- 🆕 **Infrastructure Page**: Service config snapshot and model version history
+- 🆕 **AI Quality Dashboard**: Industry-standard scoring (Accuracy/Latency/Throughput/Efficiency/Reliability)
+  - Paginated DataTable with sorting and search
+  - Davis Intelligence one-click analysis
+  - Full scoring methodology transparency modal
+- 🆕 **Conversation Intelligence**: Session-level AI observability
+- 🆕 **Developer Experience**: Instrumentation coverage and shadow AI detection
+- 🆕 **Security Audit Trail**: Prompt security analysis and compliance reporting
+- 🆕 **Provider Status & Failover**: Provider health and failover readiness
+- 📊 **VectorDB Enhancements**: Extended RAG pipeline with embedding provider breakdown and cache detection
+- 📊 **Agent Tools Refactoring**: Token usage, LLM cost, and LLM/Tool time split per agent
+- 📊 **MLOps SLO Tab**: SLO tracking with configurable targets and compliance monitoring
+- 📝 **Comprehensive Roadmap Audit**: 2,400+ line roadmap with MCP-validated data feasibility
+  - 8 features re-classified from Planned → Completed
+  - Per-provider data completeness matrix (5 providers validated)
+  - 10 untapped data sources identified (OTel GenAI metrics, business events)
+  - Competitive assessment vs 7 alternatives
+- 🔗 **24 Routes + 2 Redirects**: From 16 to 26 total routes
+- 🛡️ **32 Custom Hooks**: From 11 to 32 data fetching hooks
+- 🛠️ **14 Shared Components**: From 7 to 14 reusable components
 
 ### v2.9.0 (March 2026)
 - 🔌 **Integrations Page**: New MCP server integrations hub
@@ -591,7 +793,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by Pushpendra Singh Baghel and AI Assistant**
 
-*Version 2.9.0 | © 2026*
+*Version 3.0.0 | © 2026*
 
 ---
 
