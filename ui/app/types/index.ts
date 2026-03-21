@@ -420,6 +420,79 @@ export interface ContextRetrievalEffectiveness {
 }
 
 // ============================================
+// Phase 5.5 — Advanced RAG Visualization Types
+// ============================================
+
+/** Heatmap cell: latency by hour-of-day × day-of-week */
+export interface HeatmapCell {
+  hourOfDay: number;
+  dayOfWeek: number;
+  totalCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+}
+
+/** Pipeline flow stage aggregate */
+export interface PipelineFlowStage {
+  stage: 'Embed' | 'Retrieve' | 'Generate';
+  totalCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorCount: number;
+  errorRate: number;
+}
+
+/** Token distribution by provider + model (for TreeMap) */
+export interface TokenTreemapEntry {
+  provider: string;
+  model: string;
+  tokenSum: number;
+  requestCount: number;
+  avgLatencyMs: number;
+}
+
+/** Model grid tile (for Honeycomb) */
+export interface ModelHoneycombTile {
+  model: string;
+  provider: string;
+  requestCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  errorRate: number;
+  totalTokens: number;
+}
+
+/** Individual RAG event for animated stream */
+export interface RAGStreamEvent {
+  timestamp: string;
+  stage: 'Embed' | 'Retrieve' | 'Generate';
+  model: string;
+  provider: string;
+  latencyMs: number;
+  isSlow: boolean;
+  hasError: boolean;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** Cost estimation per model with separate input/output tokens */
+export interface CostByModel {
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  requestCount: number;
+  avgLatencyMs: number;
+  estimatedCost: number; // computed client-side from rate card
+}
+
+/** Latency distribution histogram bucket */
+export interface LatencyBucket {
+  bucket: string;
+  spanCount: number;
+}
+
+// ============================================
 // Phase 6 — Infrastructure Types
 // ============================================
 

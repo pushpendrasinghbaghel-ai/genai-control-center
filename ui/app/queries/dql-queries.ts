@@ -1015,6 +1015,209 @@ fetch spans, ${timeClause}
 `;
 };
 
+// ============================================
+// Phase 5.5 — Advanced RAG Visualizations
+// Heatmap, Pipeline Flow, Token TreeMap, Model Honeycomb, Event Stream
+// ============================================
+
+/**
+ * Heatmap data — latency by hour-of-day × day-of-week.
+ * Returns a grid of cells for XYChart.RectSeries heatmap.
+ * DQL getHour/getDayOfWeek work on timestamps.
+ */
+export const RAG_LATENCY_HEATMAP_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+| summarize
+    total_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000
+  , by: { hour_of_day = getHour(start_time), day_of_week = getDayOfWeek(start_time) }
+| sort day_of_week asc, hour_of_day asc
+`;
+};
+
+/**
+ * Pipeline stage aggregate — per-stage latency + volume for animated flow.
+ * Groups into Embed / Retrieve / Generate stages with avg latencies.
+ */
+export const RAG_PIPELINE_FLOW_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter matchesPhrase(span.name, "embedding")
+    OR matchesPhrase(span.name, "embed")
+    OR matchesValue(gen_ai.request.model, "*embedding*")
+    OR db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "retrieve")
+    OR isNotNull(db.vector.query.top_k)
+    OR (isNotNull(gen_ai.request.model) AND NOT matchesValue(gen_ai.request.model, "*embedding*"))
+| fieldsAdd stage = if(matchesPhrase(span.name, "embed") OR matchesValue(gen_ai.request.model, "*embedding*"), then: "Embed",
+    else: if(db.system == "pinecone" OR db.system == "chromadb" OR db.system == "qdrant" OR db.system == "weaviate" OR db.system == "milvus"
+      OR contains(lower(span.name), "retrieve") OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "pinecone"), then: "Retrieve",
+    else: "Generate"))
+| summarize
+    total_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0
+  , by: { stage }
+| sort stage asc
+`;
+};
+
+/**
+ * Token distribution by provider + model — for TreeMap.
+ * Two levels: provider (cluster) → model (leaf), sized by total tokens.
+ */
+export const RAG_TOKEN_TREEMAP_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.output_tokens)
+    OR isNotNull(gen_ai.usage.prompt_tokens) OR isNotNull(gen_ai.usage.completion_tokens)
+| fieldsAdd total_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| filter total_tokens > 0
+| summarize
+    token_sum = sum(total_tokens),
+    request_count = count(),
+    avg_latency_ms = avg(duration) / 1000000
+  , by: { provider = coalesce(gen_ai.provider.name, "unknown"), model = coalesce(gen_ai.request.model, "unknown") }
+| sort token_sum desc
+| limit 30
+`;
+};
+
+/**
+ * Model grid data — per-model latency + volume for Honeycomb chart.
+ * Each model = one tile, sized by request count, colored by avg latency.
+ */
+export const RAG_MODEL_HONEYCOMB_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.request.model)
+| summarize
+    request_count = count(),
+    avg_latency_ms = avg(duration) / 1000000,
+    p95_latency_ms = percentile(duration, 95) / 1000000,
+    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0) + coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
+  , by: { model = gen_ai.request.model, provider = coalesce(gen_ai.provider.name, "unknown") }
+| sort request_count desc
+| limit 30
+`;
+};
+
+/**
+ * Recent RAG events for animated event stream.
+ * Individual spans with key fields, ordered by time (latest first).
+ */
+export const RAG_EVENT_STREAM_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR matchesPhrase(span.name, "embedding")
+    OR matchesPhrase(span.name, "embed")
+    OR matchesValue(gen_ai.request.model, "*embedding*")
+    OR contains(lower(span.name), "retrieve")
+    OR contains(lower(span.name), "vectorstore")
+    OR (isNotNull(gen_ai.request.model) AND NOT matchesValue(gen_ai.request.model, "*embedding*"))
+| fieldsAdd stage = if(matchesPhrase(span.name, "embed") OR matchesValue(gen_ai.request.model, "*embedding*"), then: "Embed",
+    else: if(db.system == "pinecone" OR contains(lower(span.name), "retrieve") OR contains(lower(span.name), "vectorstore") OR contains(lower(span.name), "pinecone"), then: "Retrieve",
+    else: "Generate"))
+| fieldsAdd latency_ms = duration / 1000000
+| fieldsAdd is_slow = latency_ms > 2000
+| fieldsAdd has_error = span.status_code == "error" OR isNotNull(error.type)
+| fields
+    timestamp = start_time,
+    stage,
+    model = coalesce(gen_ai.request.model, db.system, span.name),
+    provider = coalesce(gen_ai.provider.name, db.system, "unknown"),
+    latency_ms,
+    is_slow,
+    has_error,
+    input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
+    output_tokens = coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)
+| sort timestamp desc
+| limit 50
+`;
+};
+
+/**
+ * Cost estimation by model — separate input/output token sums for rate card pricing.
+ */
+export const RAG_COST_BY_MODEL_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.usage.input_tokens) OR isNotNull(gen_ai.usage.output_tokens)
+    OR isNotNull(gen_ai.usage.prompt_tokens) OR isNotNull(gen_ai.usage.completion_tokens)
+| summarize
+    input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
+    output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
+    request_count = count(),
+    avg_latency_ms = avg(duration) / 1000000
+  , by: { provider = coalesce(gen_ai.provider.name, "unknown"), model = coalesce(gen_ai.request.model, "unknown") }
+| sort input_tokens desc
+| limit 30
+`;
+};
+
+/**
+ * Latency distribution histogram — bucket vector DB + LLM spans into latency bands.
+ */
+export const RAG_LATENCY_HISTOGRAM_QUERY = (filters?: QueryFilters) => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter db.system == "pinecone"
+    OR db.system == "chromadb"
+    OR db.system == "qdrant"
+    OR db.system == "weaviate"
+    OR db.system == "milvus"
+    OR contains(lower(span.name), "pinecone")
+    OR contains(lower(span.name), "vectorstore")
+    OR contains(lower(span.name), "vector_store")
+    OR contains(lower(span.name), "embedding")
+    OR contains(lower(span.name), "embed")
+    OR isNotNull(gen_ai.request.model)
+| fieldsAdd latency_ms = toDouble(duration) / 1000000
+| fieldsAdd bucket = if(latency_ms < 50, then: "0-50ms",
+    else: if(latency_ms < 100, then: "50-100ms",
+    else: if(latency_ms < 250, then: "100-250ms",
+    else: if(latency_ms < 500, then: "250-500ms",
+    else: if(latency_ms < 1000, then: "500ms-1s",
+    else: if(latency_ms < 2000, then: "1-2s",
+    else: if(latency_ms < 5000, then: "2-5s",
+    else: "5s+")))))))
+| summarize
+    spanCount = count()
+  , by: { bucket }
+| sort bucket asc
+`;
+};
+
 /**
  * Query for Audit Trail - Recent GenAI invocations for compliance tracking
  */

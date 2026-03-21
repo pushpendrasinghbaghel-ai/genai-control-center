@@ -4,6 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { getEffectiveRate, calculateCostFromRate, loadRateCardConfig } from '../config/rate-card-config';
 import {
   VECTOR_DB_LATENCY_QUERY,
   VECTOR_DB_VOLUME_QUERY,
@@ -23,6 +24,13 @@ import {
   TOKENIZATION_DRIFT_QUERY,
   RETRIEVAL_ANOMALIES_QUERY,
   CONTEXT_RETRIEVAL_EFFECTIVENESS_QUERY,
+  RAG_LATENCY_HEATMAP_QUERY,
+  RAG_PIPELINE_FLOW_QUERY,
+  RAG_TOKEN_TREEMAP_QUERY,
+  RAG_MODEL_HONEYCOMB_QUERY,
+  RAG_EVENT_STREAM_QUERY,
+  RAG_COST_BY_MODEL_QUERY,
+  RAG_LATENCY_HISTOGRAM_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from './useDQLQueries';
 import type {
@@ -42,6 +50,13 @@ import type {
   TokenizationDriftPoint,
   RetrievalAnomalyPoint,
   ContextRetrievalEffectiveness,
+  HeatmapCell,
+  PipelineFlowStage,
+  TokenTreemapEntry,
+  ModelHoneycombTile,
+  RAGStreamEvent,
+  CostByModel,
+  LatencyBucket,
 } from '../types';
 
 // ============================================
@@ -79,6 +94,17 @@ export interface UseVectorDBReturn {
   tokenizationDrift: TokenizationDriftPoint[];
   retrievalAnomalies: RetrievalAnomalyPoint[];
   contextEffectiveness: ContextRetrievalEffectiveness[];
+
+  // Phase 5.5 — Advanced Visualizations
+  heatmapCells: HeatmapCell[];
+  pipelineFlowStages: PipelineFlowStage[];
+  tokenTreemap: TokenTreemapEntry[];
+  modelHoneycomb: ModelHoneycombTile[];
+  eventStream: RAGStreamEvent[];
+
+  // Phase 5.6 — Tier 1 Analytics
+  costByModel: CostByModel[];
+  latencyBuckets: LatencyBucket[];
 
   loading: boolean;
   error: Error | null;
@@ -130,6 +156,15 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
   const [tokenizationDrift, setTokenizationDrift] = useState<TokenizationDriftPoint[]>([]);
   const [retrievalAnomalies, setRetrievalAnomalies] = useState<RetrievalAnomalyPoint[]>([]);
   const [contextEffectiveness, setContextEffectiveness] = useState<ContextRetrievalEffectiveness[]>([]);
+  // Phase 5.5 — Advanced Visualizations
+  const [heatmapCells, setHeatmapCells] = useState<HeatmapCell[]>([]);
+  const [pipelineFlowStages, setPipelineFlowStages] = useState<PipelineFlowStage[]>([]);
+  const [tokenTreemap, setTokenTreemap] = useState<TokenTreemapEntry[]>([]);
+  const [modelHoneycomb, setModelHoneycomb] = useState<ModelHoneycombTile[]>([]);
+  const [eventStream, setEventStream] = useState<RAGStreamEvent[]>([]);
+  // Phase 5.6 — Tier 1 Analytics
+  const [costByModel, setCostByModel] = useState<CostByModel[]>([]);
+  const [latencyBuckets, setLatencyBuckets] = useState<LatencyBucket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -160,6 +195,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         tokenDriftRecs,
         anomalyRecs,
         contextEffRecs,
+        heatmapRecs,
+        pipelineFlowRecs,
+        tokenTreemapRecs,
+        modelHoneycombRecs,
+        eventStreamRecs,
+        costByModelRecs,
+        latencyHistogramRecs,
       ] = await Promise.all([
         runQuery(VECTOR_DB_LATENCY_QUERY(filters)),
         runQuery(VECTOR_DB_VOLUME_QUERY(filters)),
@@ -179,6 +221,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         runQuery(TOKENIZATION_DRIFT_QUERY(filters)),
         runQuery(RETRIEVAL_ANOMALIES_QUERY(filters)),
         runQuery(CONTEXT_RETRIEVAL_EFFECTIVENESS_QUERY(filters)),
+        runQuery(RAG_LATENCY_HEATMAP_QUERY(filters)),
+        runQuery(RAG_PIPELINE_FLOW_QUERY(filters)),
+        runQuery(RAG_TOKEN_TREEMAP_QUERY(filters)),
+        runQuery(RAG_MODEL_HONEYCOMB_QUERY(filters)),
+        runQuery(RAG_EVENT_STREAM_QUERY(filters)),
+        runQuery(RAG_COST_BY_MODEL_QUERY(filters)),
+        runQuery(RAG_LATENCY_HISTOGRAM_QUERY(filters)),
       ]);
 
       // ---- Vector DB Latency ----
@@ -455,6 +504,95 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
       }));
       setContextEffectiveness(ctxEff);
 
+      // ---- Heatmap Cells ----
+      const heatmap: HeatmapCell[] = (heatmapRecs as any[]).map((r) => ({
+        hourOfDay: Number(r['hour_of_day'] ?? 0),
+        dayOfWeek: Number(r['day_of_week'] ?? 0),
+        totalCount: Number(r['total_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+      }));
+      setHeatmapCells(heatmap);
+
+      // ---- Pipeline Flow Stages ----
+      const flowStages: PipelineFlowStage[] = (pipelineFlowRecs as any[]).map((r) => ({
+        stage: String(r['stage'] ?? 'Generate') as PipelineFlowStage['stage'],
+        totalCount: Number(r['total_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        errorCount: Number(r['error_count'] ?? 0),
+        errorRate: Number(r['error_rate'] ?? 0),
+      }));
+      setPipelineFlowStages(flowStages);
+
+      // ---- Token Treemap ----
+      const treemap: TokenTreemapEntry[] = (tokenTreemapRecs as any[]).map((r) => ({
+        provider: String(r['provider'] ?? 'unknown'),
+        model: String(r['model'] ?? 'unknown'),
+        tokenSum: Number(r['token_sum'] ?? 0),
+        requestCount: Number(r['request_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+      }));
+      setTokenTreemap(treemap);
+
+      // ---- Model Honeycomb ----
+      const honeycomb: ModelHoneycombTile[] = (modelHoneycombRecs as any[]).map((r) => ({
+        model: String(r['model'] ?? 'unknown'),
+        provider: String(r['provider'] ?? 'unknown'),
+        requestCount: Number(r['request_count'] ?? 0),
+        avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+        p95LatencyMs: Number(r['p95_latency_ms'] ?? 0),
+        errorRate: Number(r['error_rate'] ?? 0),
+        totalTokens: Number(r['total_tokens'] ?? 0),
+      }));
+      setModelHoneycomb(honeycomb);
+
+      // ---- Event Stream ----
+      const events: RAGStreamEvent[] = (eventStreamRecs as any[]).map((r) => ({
+        timestamp: String(r['timestamp'] ?? ''),
+        stage: String(r['stage'] ?? 'Generate') as RAGStreamEvent['stage'],
+        model: String(r['model'] ?? 'unknown'),
+        provider: String(r['provider'] ?? 'unknown'),
+        latencyMs: Number(r['latency_ms'] ?? 0),
+        isSlow: Boolean(r['is_slow']),
+        hasError: Boolean(r['has_error']),
+        inputTokens: Number(r['input_tokens'] ?? 0),
+        outputTokens: Number(r['output_tokens'] ?? 0),
+      }));
+      setEventStream(events);
+
+      // ---- Cost by Model ----
+      const costModels: CostByModel[] = (costByModelRecs as any[]).map((r) => {
+        const inputTok = Number(r['input_tokens'] ?? 0);
+        const outputTok = Number(r['output_tokens'] ?? 0);
+        const prov = String(r['provider'] ?? 'unknown');
+        const mdl = String(r['model'] ?? 'unknown');
+        const rate = getEffectiveRate(loadRateCardConfig(), prov, mdl);
+        return {
+          provider: prov,
+          model: mdl,
+          inputTokens: inputTok,
+          outputTokens: outputTok,
+          requestCount: Number(r['request_count'] ?? 0),
+          avgLatencyMs: Number(r['avg_latency_ms'] ?? 0),
+          estimatedCost: calculateCostFromRate(rate, inputTok, outputTok),
+        };
+      });
+      costModels.sort((a, b) => b.estimatedCost - a.estimatedCost);
+      setCostByModel(costModels);
+
+      // ---- Latency Histogram ----
+      const BUCKET_ORDER = ['0-50ms', '50-100ms', '100-250ms', '250-500ms', '500ms-1s', '1-2s', '2-5s', '5s+'];
+      const bucketMap = new Map<string, number>();
+      BUCKET_ORDER.forEach((b) => bucketMap.set(b, 0));
+      (latencyHistogramRecs as any[]).forEach((r) => {
+        const b = String(r['bucket'] ?? '');
+        const c = Number(r['spanCount'] ?? 0);
+        bucketMap.set(b, (bucketMap.get(b) ?? 0) + c);
+      });
+      const buckets: LatencyBucket[] = BUCKET_ORDER.map((b) => ({ bucket: b, spanCount: bucketMap.get(b) ?? 0 }));
+      setLatencyBuckets(buckets);
+
       console.log('[GCC:VectorDB] Done. Pinecone queries:', totalPinecone, '| Embeddings:', totalEmbeddings);
     } catch (err) {
       console.error('[GCC:VectorDB] Error:', err);
@@ -484,6 +622,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
     tokenizationDrift,
     retrievalAnomalies,
     contextEffectiveness,
+    heatmapCells,
+    pipelineFlowStages,
+    tokenTreemap,
+    modelHoneycomb,
+    eventStream,
+    costByModel,
+    latencyBuckets,
     loading,
     error,
     refetch,

@@ -1,6 +1,6 @@
 ﻿# GenAI Control Center - Product Roadmap
 
-> **Last Updated:** February 25, 2026  
+> **Last Updated:** March 21, 2026  
 > **Version:** v3.0.0  
 > **Status:** Active Development
 
@@ -70,15 +70,15 @@ Transform GCC from an AI observability tool into a **strategic AI control plane*
 | **Infra + LLM Correlation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Auto Anomaly Detection (AI)** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ✅ |
 | **Workflow Automation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ | ✅ |
-| **RAG / Vector DB Observability** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ⚠️ | 📋 |
-| **LLM-as-a-Judge Evaluations** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Evaluation Datasets** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Experiment / A-B Model Testing** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Online Evaluation Rules** | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| **RAG / Vector DB Observability** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ⚠️ | ✅ |
+| **LLM-as-a-Judge Evaluations** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | 📋 |
+| **Evaluation Datasets** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | 📋 |
+| **Experiment / A-B Model Testing** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | 📋 |
+| **Online Evaluation Rules** | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | 📋 |
 | **Annotation Queues (Human Review)** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Evaluation Leaderboards** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Conversation / Session Tracking** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Conversation Clustering / Topics** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| **Evaluation Leaderboards** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | 📋 |
+| **Conversation / Session Tracking** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **Conversation Clustering / Topics** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | 📋 |
 | **Prompt Version Control + A/B** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | **Interactive Prompt Playground** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
 | **Hallucination Score (eval metric)** | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
@@ -89,23 +89,23 @@ Transform GCC from an AI observability tool into a **strategic AI control plane*
 | **Agent Optimizer (auto prompt opt.)** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | **Spend Alerts / Cost Budgets** | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | **RBAC / SSO / SCIM** | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| **Audit Logs** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Audit Logs** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Multi-modal (image/audio/code)** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Agent Visual Graph View** | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Data Export (blob / S3 / GCS)** | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 > ✅ = Available | ⚠️ = Partial | ❌ = Not Available | 📋 = On GCC Roadmap
 
-### GCC Competitive Gaps — Grouped by Priority
+### GCC Competitive Gaps — Grouped by Priority (Updated March 21, 2026)
 
-| Group | Description | Competitors that have it | GCC Priority |
-|-------|-------------|--------------------------|-------------|
-| **A — Evaluation Engine** | LLM-as-judge scoring, hallucination/toxicity/relevance evals, eval datasets, experiments, online rules, annotation queues | All 7 | 🔴 Critical |
-| **B — Conversation Intelligence** | Session/multi-turn tracking, conversation clustering, topic analysis, failure-to-answer | Arize, Opik, Langfuse, LangSmith, W&B, Datadog | 🔴 High |
-| **C — Prompt Engineering Tooling** | Prompt playground (interactive), version control, A/B testing | All 7 | 🟡 High |
-| **D — Modern Protocols** | MCP server tracing, CI/CD eval hooks | Langfuse, W&B, Datadog | 🟡 Medium |
-| **E — Spend Management** | Cost budget alerts, threshold notifications, per-team cost budgets | Langfuse, LangSmith, Helicone, Datadog | 🟡 Medium |
-| **F — Enterprise Governance** | RBAC, audit logs, data export, tenant isolation | Langfuse, LangSmith, W&B, Datadog | 🟠 Enterprise |
+| Group | Description | Competitors that have it | GCC Status | GCC Priority |
+|-------|-------------|--------------------------|------------|-------------|
+| **A — Evaluation Engine** | LLM-as-judge scoring, hallucination/toxicity/relevance evals, eval datasets, experiments, online rules, annotation queues | All 7 | 📋 Phase 8.1 | 🔴 Critical — #1 gap |
+| **B — Conversation Intelligence** | Session/multi-turn tracking, conversation clustering, topic analysis, failure-to-answer | Arize, Opik, Langfuse, LangSmith, W&B, Datadog | ✅ Core done, enhancements 📋 | 🟢 Mostly closed |
+| **C — Prompt Engineering Tooling** | Prompt playground (interactive), version control, A/B testing | All 7 | 📋 | 🟡 High |
+| **D — Modern Protocols** | MCP server tracing, CI/CD eval hooks | Langfuse, W&B, Datadog | 📋 | 🟡 Medium |
+| **E — Spend Management** | Cost budget alerts, threshold notifications, per-team cost budgets | Langfuse, LangSmith, Helicone, Datadog | ⚠️ Partial (guardrails exist) | 🟡 Medium |
+| **F — Enterprise Governance** | RBAC, audit logs, data export, tenant isolation | Langfuse, LangSmith, W&B, Datadog | ✅ Audit logs done | 🟠 Enterprise |
 
 ### GCC Unique Differentiators (vs ALL competitors)
 
@@ -121,23 +121,44 @@ These are capabilities that GCC has by virtue of being built on Dynatrace — **
 
 ---
 
-## ✅ Current Capabilities (v2.4.0)
+## ✅ Current Capabilities (v3.0.0 — March 21, 2026 Audit)
 
-| Page | Status | Description |
-|------|--------|-------------|
-| 🏠 Home | ✅ Complete | Executive dashboard with KPIs |
-| 💚 Health Dashboard | ✅ Complete | Service health monitoring |
-| 🔗 AI Topology | ✅ Complete | Service→Provider→Model visualization |
-| 🤖 Agent Tools | ✅ Complete | Agent/tool monitoring, loop detection |
-| 📉 Model Drift | ✅ Complete | Drift scoring, baseline comparison |
-| 💰 FinOps | ✅ Complete | Cost tracking, forecasting |
-| 🛡️ Governance | ✅ Complete | Compliance, provider risk |
-| 🔒 Prompt Governance | ✅ Complete | PII, injection detection |
-| 📊 Response Analytics | ✅ Complete | Token efficiency, model comparison |
-| 🤖 Intelligence | ✅ Complete | Davis CoPilot integration |
-| ⚙️ Operations | ✅ Complete | Runbooks, remediation |
-| 🚨 Real-Time Alerts | ✅ Complete | Davis problems for AI services |
-| 🔍 RAG / Vector DB | ✅ Complete | Pinecone + embedding + RAG pipeline + response latency by model |
+> **28 pages, 32 hooks, 13 reusable components, 8 MCP integrations** — all backed by real DQL queries against Dynatrace Grail. No mock data.
+
+### Core Pages (Original Pillars)
+
+| Page | Route | Status | Description |
+|------|-------|--------|-------------|
+| 🏠 Home | `/` | ✅ Complete | Executive dashboard with KPIs, maturity score ring, DonutChart, TimeseriesChart |
+| 💚 Health Dashboard | `/services` | ✅ Complete | Auto-discovery, FilterBar, service cards with latency/error/token metrics |
+| 🔗 AI Topology | `/topology` | ✅ Complete | Service→Provider→Model node graph visualization |
+| 🤖 Agent Tools | `/agents` | ✅ Complete | Tool calls DataTable, loop detection, HoneycombChart, agent cost analysis |
+| 📉 Model Drift | `/drift` | ✅ Complete | Drift scoring, version tracking, baseline comparison |
+| 💰 FinOps | `/finops` | ✅ Complete | Cost trends, provider split, Davis forecasting, cost guardrails, rate cards |
+| 🛡️ Governance | `/governance` | ✅ Complete | OWASP LLM Top-10, audit trail, compliance |
+| 🔒 Prompt Governance | `/prompt-governance` | ✅ Complete | PII/injection detection, Davis scoring, prompt pattern analysis |
+| 📊 Response Analytics | `/analytics` | ✅ Complete | Token efficiency, TTFT anomalies, model comparison DataTable |
+| 🤖 Intelligence | `/intelligence` | ✅ Complete | Full-width agentic chat, tool orchestration, NL→DQL |
+| ⚙️ Operations | `/operations` | ✅ Complete | Davis problems, workflow execution, incident timeline |
+| 🚨 Real-Time Alerts | `/problems` | ✅ Complete | Davis problems DataTable, severity badges, deep-links |
+| 🔍 RAG / Vector DB | `/vector-db` | ✅ Complete | Pinecone metrics, embeddings, pipeline health, RAGHealthPanel |
+| 🏗️ AI Architect | `/ai-architect` | ✅ Complete | Recommendation cards (cost/perf/reliability/security/best-practice) |
+
+### Extended Pages (Added v2.9.0–v3.0.0)
+
+| Page | Route | Status | Description |
+|------|-------|--------|-------------|
+| 📈 AI Quality Dashboard | `/quality` | ✅ Complete | NIST AI RMF / DORA / Apdex 5-dimension scoring, DataTable, Davis forecast |
+| 🏢 Infrastructure | `/infrastructure` | ✅ Complete | Deployment events, service config snapshot, model version history |
+| 🔄 Provider Comparison | `/providers` | ✅ Complete | Cross-provider cards, normalized metrics |
+| 🔀 Provider Status | `/provider-status` | ✅ Complete | Failover readiness, model health, error bursts, trend sparklines |
+| 🔧 MLOps | `/mlops` | ✅ Complete | Model registry, SLOs, comparison, cost attribution, deployments |
+| 🤖 Agentic Deep Dive | `/agentic` | ✅ Complete | Orchestration, handoffs, loops, decisions (MCP-validated 707M+ spans) |
+| 💬 Conversation Intelligence | `/conversation` | ✅ Complete | Session grouping by conversation_id, turn counts, token usage |
+| 👩‍💻 Developer Experience | `/devex` | ✅ Complete | Instrumentation coverage, model routing, DQLEditor, gap analysis |
+| 🔐 Security Audit Trail | `/security` | ✅ Complete | Security events, PII detection, incident timeline, compliance |
+| 🔌 Integrations Hub | `/integrations` | ✅ Complete | 8 MCP integrations (Slack, PagerDuty, Prometheus, AWS, Grafana, GitHub) |
+| 🧪 Data Playground | `/data` | ✅ Complete | DQL playground with GenAI-specific preset queries |
 
 ---
 
@@ -157,17 +178,19 @@ These are capabilities that GCC has by virtue of being built on Dynatrace — **
 ## Phase 1: Agentic AI & Cost Intelligence (Week 2)
 
 ### 1.1 Enhanced Agentic AI Governance
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented across `AgentTools.tsx` (tool calls, loop detection, HoneycombChart, cost analysis) and `AgenticDeepDive.tsx` (orchestration, handoffs, loops, decisions). MCP-validated against 1.18M spans.
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Agent Performance Dashboard | `traceloop.entity.name`, `traceloop.span.kind="task"` | 📋 | 62k supervisor calls available |
-| Tool Reliability Metrics | `traceloop.span.kind="tool"` | 📋 | 7 tools, 34k calls detected |
-| Workflow Tracking | `traceloop.span.kind="workflow"` | 📋 | LangGraph data exists |
-| Loop Detection Alerts | Task count per trace | 📋 | Max 103 tasks/trace detected |
-| Agent Handoff Visualization | `transfer_to_*` tools | 📋 | 9k+ handoff calls |
-| Supervisor Pattern Analysis | `traceloop.entity.name="supervisor"` | 📋 | 62k supervisor spans |
+| Agent Performance Dashboard | `traceloop.entity.name`, `traceloop.span.kind="task"` | ✅ | AgentTools + AgenticDeepDive pages |
+| Tool Reliability Metrics | `traceloop.span.kind="tool"` | ✅ | 7 tools, 77K+ calls |
+| Workflow Tracking | `traceloop.span.kind="workflow"` | ✅ | LangGraph data, 35K+ workflow spans |
+| Loop Detection Alerts | Task count per trace | ✅ | Suspicious loop detection in AgentTools |
+| Agent Handoff Visualization | `transfer_to_*` tools | ✅ | 35K+ handoff calls, delegation graph in AgenticDeepDive |
+| Supervisor Pattern Analysis | `traceloop.entity.name="supervisor"` | ✅ | 141K supervisor spans, cross-agent token attribution |
 
 #### DQL Queries Validated
 ```dql
@@ -252,33 +275,39 @@ Based on analysis of reference implementations, the following Davis Intelligence
 ## Phase 2: Quality & Incident Management (Week 3)
 
 ### 2.1 AI Quality & Reliability Metrics
-**Priority:** P2 | **Feasibility:** 🟡 PARTIAL | **Status:** 📋 Planned
+**Priority:** P2 | **Feasibility:** 🟡 PARTIAL | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented: `AIQualityDashboard.tsx` with NIST AI RMF / DORA / Apdex industry-standard 5-dimension scoring (Reliability, Latency, Efficiency, Error Resilience, Output Quality). Per-service DataTable with paginated scores, scoring methodology modal, Davis forecast integration. `ModelDrift.tsx` covers model version tracking.
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Model Version Tracking | `gen_ai.request.model` vs `gen_ai.response.model` | 📋 | 66k mismatches detected |
-| Response Variance Analysis | Completion grouping | 📋 | Possible via prompt groups |
-| Output Length Monitoring | Token counts | 📋 | Available |
-| Model A/B Comparison | 22 models with metrics | 📋 | Full data |
+| Model Version Tracking | `gen_ai.request.model` vs `gen_ai.response.model` | ✅ | ModelDrift page — 66k mismatches detected |
+| Response Variance Analysis | Completion grouping | ✅ | ResponseAnalytics page |
+| Output Length Monitoring | Token counts | ✅ | ResponseAnalytics + AIQuality |
+| Model A/B Comparison | 22 models with metrics | ✅ | MLOps Model Comparison tab |
+| 5-Dimension Quality Scoring | NIST/DORA/Apdex composite | ✅ | AIQualityDashboard |
+| Davis Forecast for Quality | `GenericForecastAnalyzer` | ✅ | Confidence band chart |
 
-#### Limitations
+#### Limitations (Still Apply)
 - ⚠️ No semantic similarity scoring (would need embeddings)
-- ⚠️ No groundedness metrics (no source citations)
-- ⚠️ No user feedback data (no thumbs up/down)
+- ⚠️ No groundedness metrics (no source citations) → Partially addressable via RAG context parsing (see §5.4)
+- ⚠️ No user feedback data (no thumbs up/down) → `/api/v1/thumbsUp|Down` endpoints detected but not enriched
 
 ---
 
 ### 2.2 Incident Correlation & RCA
-**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented across `Operations.tsx` (AnnotationsChart, Davis problems DataTable, workflow execution tracking) and `RealTimeAlerts.tsx` (live Davis problems, severity badges, deep-links to Dynatrace Problems app). `ProviderStatus.tsx` adds failover readiness and error burst detection.
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Davis Problems for AI | `dt.davis.problems` | 📋 | 10+ problems detected |
-| Affected Entity Mapping | `affected_entity_ids` | 📋 | Service correlation |
-| Blast Radius Calculation | Entity relationships | 📋 | Available |
-| Problem Timeline | `event.start`, `event.end` | 📋 | Full history |
+| Davis Problems for AI | `dt.davis.problems` | ✅ | Operations + RealTimeAlerts pages |
+| Affected Entity Mapping | `affected_entity_ids` | ✅ | Service correlation with deep-links |
+| Blast Radius Calculation | Entity relationships | ✅ | Provider failover readiness scoring |
+| Problem Timeline | `event.start`, `event.end` | ✅ | AnnotationsChart in Operations |
 
 #### DQL Validated
 ```dql
@@ -290,15 +319,17 @@ fetch dt.davis.problems, from: now()-7d
 ---
 
 ### 2.3 Security Posture (Basic)
-**Priority:** P2 | **Feasibility:** 🟡 PARTIAL | **Status:** 📋 Planned
+**Priority:** P2 | **Feasibility:** 🟡 PARTIAL | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented: `SecurityAuditTrail.tsx` (security events DataTable, severity badges, PII detection, incident timeline). `Governance.tsx` OWASP LLM Top-10 tab (prompt injection, PII leakage, unvalidated outputs, excessive permissions, outdated SDKs). `PromptGovernance.tsx` (Davis scoring of prompts for PII/injection/bias/hallucination).
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Prompt Injection Detection | Pattern matching | 📋 | Keywords available |
-| PII Detection (Enhanced) | Regex patterns | 📋 | Email, SSN, phone |
-| Large Response Flagging | Output token threshold | 📋 | Can detect |
-| Suspicious Pattern Alerting | Davis integration | 📋 | Possible |
+| Prompt Injection Detection | Pattern matching | ✅ | PromptGovernance + Governance OWASP tab |
+| PII Detection (Enhanced) | Regex patterns + Davis scoring | ✅ | Davis `scorePromptsBatchWithDavis()` classifies PII |
+| Large Response Flagging | Output token threshold | ✅ | ResponseAnalytics page |
+| Suspicious Pattern Alerting | Davis integration | ✅ | SecurityAuditTrail page |
 
 #### Not Feasible
 - ❌ API key hygiene tracking (no credential data)
@@ -328,15 +359,17 @@ fetch dt.davis.problems, from: now()-7d
 ---
 
 ### 3.2 Developer Experience Improvements
-**Priority:** P3 | **Feasibility:** 🟡 PARTIAL | **Status:** 📋 Planned
+**Priority:** P3 | **Feasibility:** 🟡 PARTIAL | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented: `DeveloperExperience.tsx` with Lighthouse-style instrumentation coverage per model, model routing patterns, DQLEditor for ad-hoc queries, Davis AI for instrumentation gap analysis, and actionable recommendations.
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Deep Link to Traces | `trace.id`, `span.id` | 📋 | Available |
-| Service Entity Linking | `dt.entity.service` | 📋 | Works |
-| Model Selection Guide | Performance comparison | 📋 | 22 models |
-| Instrumentation Coverage | Span field analysis | 📋 | Can calculate |
+| Deep Link to Traces | `trace.id`, `span.id` | ✅ | Distributed Traces integration |
+| Service Entity Linking | `dt.entity.service` | ✅ | All pages |
+| Model Selection Guide | Performance comparison | ✅ | MLOps Model Comparison tab |
+| Instrumentation Coverage | Span field analysis | ✅ | DeveloperExperience page |
 
 ---
 
@@ -352,21 +385,21 @@ fetch dt.davis.problems, from: now()-7d
 | Domain | Total Metrics | Already Built | Buildable Now | Blocked (No Data) | On Roadmap |
 |---|---|---|---|---|---|
 | **1. App & Model Inference Telemetry** | 22 | **20 (91%)** | 1 | 1 | 1 |
-| **2. Agent & Workflow Tracing** | 22 | **13 (59%)** | 3 | 3 | 3 |
-| **3. RAG / Retrieval & Vector DB** | 18 | **0 (0%)** | 6 | 12 | — |
-| **4. Quality, Safety & Policy** | 22 | **4 (18%)** | 1 | 17 | Phase 0 |
-| **5. Governance, Audit & Compliance** | 19 | **5 (26%)** | 4 | 10 | Phase 0/4 |
-| **6. Platform & Dependency Health** | 31 | **12 (39%)** | 10 | 3 | — |
-| **TOTAL** | **134** | **54 (40%)** | **25 (19%)** | **46 (34%)** | **9 (7%)** |
+| **2. Agent & Workflow Tracing** | 22 | **18 (82%)** | 1 | 3 | 0 |
+| **3. RAG / Retrieval & Vector DB** | 18 | **8 (44%)** | 4 | 6 | — |
+| **4. Quality, Safety & Policy** | 22 | **8 (36%)** | 1 | 13 | Phase 0 |
+| **5. Governance, Audit & Compliance** | 19 | **10 (53%)** | 4 | 5 | Phase 0/4 |
+| **6. Platform & Dependency Health** | 31 | **16 (52%)** | 8 | 3 | — |
+| **TOTAL** | **134** | **80 (60%)** | **19 (14%)** | **31 (23%)** | **4 (3%)** |
 
 ### Key Findings
 
 1. **Domain 1 (Model Inference)** — Near-complete. Only TTFT display and precision/recall remain.
-2. **Domain 3 (RAG/Vector DB)** — **Biggest gap.** Zero built despite ~115K Pinecone + ~113K embedding spans available. → **New Phase 5**
-3. **Domain 6 (Platform Health)** — Dynatrace has all the infra data (GPU, CPU, K8s, SLO). GCC just doesn't surface it. → **New Phase 6**
-4. **Domain 4 (Quality/Safety)** — 17 of 22 metrics blocked on instrumentation (guardrail events, eval scores, bias/toxicity). → **Phase 0 dependency**
-5. **Domain 2 (Agent Tracing)** — Good coverage, but retries, intermediate outputs, and chain perf views are missing. → **Phase 5 enhancements**
-6. **Domain 5 (Governance)** — Deployment events, SLO integration, AppSec linking are buildable now. → **New Phase 7**
+2. **Domain 3 (RAG/Vector DB)** — **Now 44% coverage** (was 0%). VectorDB page with Pinecone metrics, embeddings, pipeline health built. Remaining: retrieval relevance scores, semantic cache, embedding drift.
+3. **Domain 6 (Platform Health)** — **Now 52% coverage** (was 39%). Infrastructure page live with deployment events + service config. Remaining: GPU/CPU/K8s cards.
+4. **Domain 4 (Quality/Safety)** — **Now 36% coverage** (was 18%). AIQualityDashboard + SecurityAuditTrail + PromptGovernance built. 13 metrics still blocked on Phase 0.
+5. **Domain 2 (Agent Tracing)** — **Now 82% coverage** (was 59%). AgentTools + AgenticDeepDive + ConversationIntelligence built. Only agent memory/A2A remain.
+6. **Domain 5 (Governance)** — **Now 53% coverage** (was 26%). Governance OWASP tab + SecurityAuditTrail + audit trail. 5 metrics blocked on Phase 0.
 
 ### Metrics NOT on Current Roadmap (New Additions)
 
@@ -408,21 +441,23 @@ The following **25 buildable metrics** have Dynatrace data available but were no
 > **DATA STATUS:** 🟢 HIGH — Pinecone + embedding spans available in Grail today
 
 ### 5.1 RAG / Vector DB Observability Page
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v3.0.0)
 
-**New Page:** `/vector-db` | **New Hook:** `useVectorDB.ts`
+> Implemented: `VectorDB.tsx` with HoneycombChart (vector store), TreeMap (latency distribution), TimeseriesChart (pipeline health), RAGHealthPanel composite scoring. `useVectorDB.ts` hook with Pinecone + embedding pipeline queries. `useRAGHealthScore.ts` for composite RAG health scoring.
+
+**Page:** `/vector-db` | **Hook:** `useVectorDB.ts`
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Pinecone Query Volume (timeseries) | `pinecone.query` spans | 📋 | ~115K/week available |
-| Query Latency (avg, p50, p95, p99) | `duration` on `db.system=pinecone` | 📋 | Standard percentile query |
-| Embedding Volume by Provider | `openai.embeddings`, `ollama.embeddings`, `vertexai` embedding spans | 📋 | ~113K/week across 4 providers |
-| Embedding Model Comparison | Provider × model × latency × volume | 📋 | 9 embedding models detected |
-| RAG Pipeline Trace View | `trace.id` correlation: embed→pinecone→LLM | 📋 | Full E2E trace available |
-| Retrieval Anomaly Detection | Davis `AutoAdaptiveAnomalyDetectionAnalyzer` | 📋 | Analyzer available |
-| Vector Store Health | Pinecone error rate, availability | 📋 | `span.status_code` on pinecone spans |
-| Duplicate Query Detection (Cache Opportunity) | Prompt grouping heuristic | 📋 | Identifies cache candidates |
+| Pinecone Query Volume (timeseries) | `pinecone.query` spans | ✅ | ~141K/week (MCP-validated) |
+| Query Latency (avg, p50, p95, p99) | `duration` on `db.system=pinecone` | ✅ | Avg 505ms, 0 errors |
+| Embedding Volume by Provider | `openai.embeddings`, `ollama.embeddings`, `vertexai` embedding spans | ✅ | ~113K/week across 4 providers |
+| Embedding Model Comparison | Provider × model × latency × volume | ✅ | 9 embedding models detected |
+| RAG Pipeline Trace View | `trace.id` correlation: embed→pinecone→LLM | ✅ | Full E2E trace available |
+| Vector Store Health | Pinecone error rate, availability | ✅ | RAGHealthPanel composite score |
+| Retrieval Anomaly Detection | Davis `AutoAdaptiveAnomalyDetectionAnalyzer` | 📋 | Analyzer available, not yet wired |
+| Duplicate Query Detection (Cache Opportunity) | Prompt grouping heuristic | 📋 | Hook ready, UI partial |
 
 #### DQL Queries (Validated)
 ```dql
@@ -471,15 +506,198 @@ fetch spans, from:now()-24h
 - ❌ Data ingestion metrics (no write-side instrumentation)
 - ❌ Index performance (Pinecone infrastructure metrics not exposed)
 
+---
+
+### 5.4 RAG Advanced Observability — Data Feasibility Assessment (March 2026)
+
+> **DRIVER:** Community research (Reddit r/LangChain, r/Rag, r/LLMDevs, OpenAI forums) identified 7 critical RAG observability gaps that real users struggle with.
+> **METHODOLOGY:** Each gap was validated against **live Dynatrace Grail data** via MCP DQL queries against the `ai-travel-advisor-agent-test` service (Pinecone + multi-provider LLMs). No mocks or stubs — only real telemetry.
+> **STATUS:** 🔵 DEFERRED — Will reassess when upstream instrumentation adds the missing attributes.
+
+#### Live Data Inventory (Validated via MCP — March 2026)
+
+##### A. Standard OpenLLMetry Spans (`gen_ai.*`)
+
+| Signal | Available? | Source / Details |
+|--------|-----------|------------------|
+| Full RAG pipeline trace (11 spans/request) | ✅ | `trace.id` correlation via `matchesPhrase(toString(trace.id), ...)` |
+| Duration per pipeline step | ✅ | `duration` on every span (e.g., embed 146ms → Pinecone 645ms → LLM 1938ms) |
+| Model name & provider | ✅ | `gen_ai.request.model`, `gen_ai.provider.name` — 20 model/provider combos |
+| Input/output tokens (Azure, OpenAI) | ✅ | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` |
+| Prompt content (user query) | ✅ | `gen_ai.prompt.0.content` on LLM spans (e.g., "chicago") |
+| Completion content (LLM response) | ✅ | `gen_ai.completion.0.content` on LLM & ChatGemini spans |
+| Pinecone `top_k` & `read_units` | ✅ | `pinecone.query.top_k` = "4", `pinecone.usage.read_units` = "6" |
+| Embedding model used | ✅ | e.g., `textembedding-gecko@001`, `text-embedding-3-large`, `text-embedding-ada-002` |
+| Retrieval similarity scores | ❌ | `pinecone.query.score` = null |
+| Retrieved document content | ❌ | Not captured in any span attribute |
+| Embedding vectors/dimensions | ❌ | `embedding.dimension` = null |
+| Quality/accuracy metrics | ❌ | `model.accuracy`, `model.quality`, `model.score` = null |
+| Cost in dollars | ❌ | `gen_ai.usage.cost` = null (computable from tokens × rate card) |
+| Span events for eval scores | ❌ | 0 events matching pinecone/retrieval/gen_ai/llm patterns |
+
+##### B. Provider-Native Span Attributes (Non-OpenLLMetry)
+
+> **Discovery (March 21, 2026):** Additional data exists in Grail that comes directly from cloud AI providers and LangChain, NOT in the standard `gen_ai.*` namespace.
+
+| Signal | Available? | Span / Source | Details |
+|--------|-----------|---------------|---------|
+| `llm.request.type` | ✅ | `bedrock.invoke_model`, `openai.chat`, `vertexai.generate_content`, `ollama.chat` | Values: `"chat"`, `"completion"`, `"embeddings"` — distinguishes call type |
+| `llm.is_streaming` | ✅ | `bedrock.invoke_model`, `openai.chat`, `vertexai.generate_content`, `ollama.chat` | Values: `"true"` / `"false"` — streaming vs batch |
+| `gen_ai.request.temperature` | ✅ | `bedrock.invoke_model`, `openai.chat` | e.g., `"1.8"` — model temperature setting. NULL on Vertex/Ollama chat spans. |
+| `gen_ai.prompt.0.role` | ✅ | `openai.chat`, `ollama.chat` | Values: `"user"` — message role. NULL on Bedrock/Vertex. |
+| `gen_ai.completion.0.role` | ✅ | `openai.chat`, `vertexai.generate_content` | Values: `"assistant"` — response role. NULL on Bedrock/Ollama. |
+| **Full RAG context in prompt** | ✅ | `openai.chat`, `ollama.chat` spans | `gen_ai.prompt.0.content` contains `"Context: [retrieved documents]\nQuestion: [user query]"` — **retrieved documents ARE embedded in the prompt** |
+| `ChatBedrock.langchain.task` | ✅ | LangChain wrapper spans | Prompt + completion content on LangChain task spans (266 spans/2h) |
+| `ChatOpenAI.langchain.task` | ✅ | LangChain wrapper spans | Prompt + completion (263 spans/2h) |
+| `ChatGemini.langchain.task` | ✅ | LangChain wrapper spans | Prompt + completion (262 spans/2h) |
+| `ChatOllama.langchain.task` | ✅ | LangChain wrapper spans | Prompt + completion (259 spans/2h) |
+| `report_model_metrics` | ⚠️ | Custom span (742 spans/2h) | Span exists but all custom attributes are null |
+| `/api/v1/thumbsUp` | ⚠️ | HTTP endpoint span | **User feedback endpoints exist** (2 spans each/2h) — spans have no attributes yet but the signal is present |
+| `/api/v1/thumbsDown` | ⚠️ | HTTP endpoint span | Same as thumbsUp — feedback intent exists in the app |
+
+##### B.1 Per-Provider Attribute Matrix (All 5 Providers — Validated March 21, 2026)
+
+> **KEY FINDING:** Provider names differ between data sources — spans use lowercase (`"openai"`) while metrics use capitalized (`"Azure"`). The `openai` provider in spans covers BOTH Azure OpenAI (deployment names like `genai-demo` → `gpt-35-turbo`) and native OpenAI (`gpt-4o`). VertexAI appears in spans but NOT in metrics.
+
+**Span Providers** (4 in `gen_ai.provider.name`): `openai` (535/2h), `amazon` (530/2h), `VertexAI` (528/2h), `ollama` (517/2h) + 10,656 null-provider spans
+
+**Metric Providers** (4 in `gen_ai.provider.name`): `Azure`, `amazon`, `ollama`, `openai` — note: `VertexAI` absent from metrics, `Azure` absent from spans
+
+**Bizevent Providers** (3 in `gen_ai.system`): `openai` (256 input/262 output), `amazon` (263/263), `ollama` (251/250) — VertexAI and Azure absent from bizevents
+
+| Attribute | OpenAI (native) | Azure OpenAI | Amazon Bedrock | Google VertexAI | Ollama |
+|-----------|:---:|:---:|:---:|:---:|:---:|
+| **Span Names** | `openai.chat`, `openai.embeddings` | `openai.chat`, `openai.embeddings` | `bedrock.invoke_model` | `vertexai.generate_content` | `ollama.chat`, `ollama.embeddings` |
+| **LangChain Task Span** | `ChatOpenAI.langchain.task` | `ChatOpenAI.langchain.task` | `ChatBedrock.langchain.task` | `ChatGemini.langchain.task` | `ChatOllama.langchain.task` |
+| **Models (chat)** | `gpt-4o` → `gpt-4-turbo-2024-04-09` | `genai-demo` → `gpt-35-turbo`, `genai-model` | `claude-2.1`, `claude-opus-4-1`, `deepseek-llm-r1:7b`, `gpt-oss-20b-1:0`, `amazon.titan-text-premier-v1:0`, `titan-text-lite-v1` | `gemini-2.5-pro-preview-03-25`, `gemini-2.0-flash-001`, `gemini-1.5-flash-002` | `orca-mini:3b`, `llama3.1:405b`, `llama3.1:8b`, `mistral-small:22b` |
+| **Models (embeddings)** | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` → `ada` | same | `titan-embed-text-v1` | `textembedding-gecko@001` | `llama3.1:8b`, `llama3.1:405b`, `mistral-small:22b`, `orca-mini:3b` |
+| `gen_ai.usage.input_tokens` | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `gen_ai.usage.output_tokens` | ✅ | ✅ | ✅ (chat only) | ❌ | ✅ |
+| `gen_ai.prompt.0.content` | ✅ (with RAG context) | ✅ (with RAG context) | ❌ (null on `bedrock.*`) | ❌ (null) | ✅ (with RAG context) |
+| `gen_ai.completion.0.content` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `gen_ai.prompt.0.role` | ✅ `"user"` | ✅ `"user"` | ❌ | ❌ | ✅ `"user"` |
+| `gen_ai.completion.0.role` | ✅ `"assistant"` | ✅ `"assistant"` | ❌ | ✅ `"assistant"` | ❌ |
+| `gen_ai.request.temperature` | ✅ `"1.8"` | ✅ `"1.8"` | ✅ `"1.8"` | ❌ | ❌ |
+| `llm.request.type` | ✅ `"chat"` / `"embeddings"` | ✅ | ✅ `"completion"` / `"embeddings"` | ✅ `"completion"` / `"embeddings"` | ✅ `"chat"` / `"embeddings"` |
+| `llm.is_streaming` | ✅ `"false"` | ✅ `"false"` | ✅ `"false"` | ✅ `"false"` | ✅ `"false"` |
+| `gen_ai.response.finish_reason` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `gen_ai.response.id` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `server.address` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **OTel Metric: token.usage** | ✅ | ✅ (separate `"Azure"` provider) | ✅ | ❌ | ✅ |
+| **OTel Metric: operation.duration** | ✅ | ✅ (separate `"Azure"` provider) | ✅ | ❌ | ✅ |
+| **Bizevent: prompt I/O** | ✅ | ✅ (within `"openai"` system) | ✅ | ❌ | ✅ |
+| **Bizevent: training** | ❌ | ❌ | ✅ (CloudTrail) | ❌ | ❌ |
+
+##### B.2 Key Provider-Specific Observations
+
+1. **VertexAI is the least instrumented** — No tokens, no prompt content, no OTel metrics, no business events. Only has completion content, response role, and `llm.*` attributes. Possible fix: Vertex AI Python SDK may need explicit Traceloop/OpenLLMetry configuration.
+
+2. **Azure OpenAI vs OpenAI** — Share the same span names (`openai.chat`/`openai.embeddings`) and provider `"openai"`. Distinguished only by deployment-style model names (`genai-demo`, `genai-model`). In OTel metrics, Azure is correctly separated as provider `"Azure"` with model `gpt-4o-mini-2024-07-18`.
+
+3. **Amazon Bedrock** — Richest training data (CloudTrail fine-tuning events). Missing prompt content on direct `bedrock.invoke_model` spans, but LangChain `ChatBedrock.langchain.task` wrapper spans DO have prompts. Has unique models: `claude-opus-4-1`, `deepseek-llm-r1:7b`, `gpt-oss-20b-1:0`.
+
+4. **Ollama** — Full prompt/completion/tokens despite being local. Interesting model mismatch: `gen_ai.request.model` = `"llama3.1:405b"` but `gen_ai.response.model` = `"orca-mini:3b"` (likely load-balanced or model-swapped).
+
+5. **RAG context availability** — Retrieved documents embedded in prompt for OpenAI, Azure OpenAI, and Ollama chat spans. NOT available for Bedrock or VertexAI direct spans (but available on their LangChain task wrappers).
+
+##### C. OTel GenAI Semantic Convention Metrics (Native)
+
+> **Discovery:** Besides spans, the environment has **OTel GenAI metrics** flowing into Grail, following the [OpenTelemetry GenAI Semantic Conventions for Metrics](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/).
+
+| Metric | Available? | Providers | Models | Details |
+|--------|-----------|-----------|--------|---------|
+| `gen_ai.client.token.usage` | ✅ | `Azure` (1), `amazon` (7), `ollama` (4), `openai` (8) = **20 model/provider combos** | gpt-4o, gpt-35-turbo, claude-2.1, claude-opus-4-1, deepseek-r1, titan-embed, llama3.1, orca-mini, mistral-small, ada, etc. | Token usage timeseries. ⚠️ VertexAI NOT present in metrics. |
+| `gen_ai.client.operation.duration` | ✅ | `Azure` (1), `amazon` (7), `ollama` (4), `openai` (3) = **15 model combos** | Same minus some embedding models | LLM operation latency timeseries. ⚠️ VertexAI NOT present. |
+| `gen_ai.client.time_to_first_token` | ❌ | — | — | Not present in this environment |
+| `gen_ai.client.time_per_output_token` | ❌ | — | — | Not present |
+| `gen_ai.server.request.duration` | ❌ | — | — | Not present (server-side metric) |
+| `gen_ai.server.time_to_first_token` | ❌ | — | — | Not present |
+
+##### D. Business Events (`gen_ai.auditing`)
+
+> **Discovery:** 1,849 business events in 2h from the `gen_ai.auditing` event type — structured prompt I/O and AWS Bedrock training events.
+
+| Event Type | `gen_ai.type` | Count (2h) | Providers (`gen_ai.system`) | Key Fields | Details |
+|-----------|---------------|------------|----------------------------|------------|---------|
+| Prompt Input | `prompt.input` | 776 | `openai` (262), `amazon` (263), `ollama` (251) | `gen_ai.prompt`, `trace.id`, `span.id` | User prompt text correlated to trace. ⚠️ VertexAI NOT present. |
+| Prompt Output | `prompt.output` | 775 | `openai` (262), `amazon` (263), `ollama` (250) | `gen_ai.prompt` (output text), `trace.id`, `span.id` | LLM response text correlated to trace. ⚠️ VertexAI NOT present. |
+| Training | `training` | 327 | `null` (AWS Bedrock CloudTrail) | `eventName`, `eventSource`, `awsRegion`, `jobName`, `jobStatus`, `baseModelArn`, `outputModelArn`, `hyperParameters` | AWS Bedrock `CreateModelCustomizationJob` events — IAM audit, S3 URIs, hyperparameters, job status (InProgress/Completed) |
+
+##### E. Log Data (Validated March 21, 2026)
+
+> **Discovery:** Grail logs were investigated for additional provider-specific telemetry, especially for VertexAI which is under-instrumented in spans/metrics/bizevents.
+
+| Signal | Available? | Source / Details |
+|--------|-----------|------------------|
+| Azure OpenAI HTTP call logs | ✅ | Container output: `POST https://travel-advisor-demo.openai.azure.com/openai/deployments/genai-demo/chat/completions?api-version=2024-07-01-preview` — reveals actual endpoint URLs and deployment names |
+| AWS Bedrock training events in logs | ✅ | CloudTrail `CreateModelCustomizationJob` events logged as container output — includes `jobName`, `jobStatus` (InProgress → Completed), `baseModelArn` (`amazon.titan-text-lite-v1:0:4k`), S3 URIs, hyperparameters (`batchSize`, `epochCount`, `learningRate`), IAM audit trail |
+| K6 load test metrics | ✅ | Container output from K6 running against `travel-advisor-demo.travel-advisor-demo.svc.cluster.local:80` — endpoints `/api/v1/completion?prompt=berlin\|new_york\|bali`, `/api/v1/agent` — avg 2.92s latency, p95=5.38s, 4.34% error rate |
+| GKE infrastructure context | ✅ | Cluster `gke-playground-dev` in `us-central1-a`, project `dynatrace-demoability`, OTel Collector DaemonSet (`otel-collector-agent`) v0.142.0 in namespace `otel-demo`, exporting via `otlphttp/dynatrace` |
+| VertexAI-specific logs | ❌ | **0 results** across all search patterns: `vertex`, `gemini`, `vertexai`, `VertexAI`, `generate_content`, `textembedding-gecko`, `googleapis.com/aiplatform`, `generativelanguage` — confirms VertexAI is completely absent from logs |
+| OpenAI-specific logs (beyond HTTP) | ❌ | No structured LLM request/response logging found |
+| Ollama-specific logs | ❌ | No Ollama-specific container logs |
+
+**Key Log Insight:** Logs add infrastructure context (GKE cluster, OTel Collector config, Azure endpoint URLs, load test baselines) but do NOT contain additional LLM telemetry beyond what's already in spans/metrics/bizevents. VertexAI's instrumentation gap extends to all four data sources (spans/metrics/bizevents/logs).
+
+#### Gap-by-Gap Feasibility Verdict (REVISED — March 21, 2026)
+
+| # | Gap | Previous Verdict | **Revised Verdict** | New Rationale |
+|---|-----|:---:|:---:|-----------|
+| 1 | **Retrieval Relevance Scores** | ❌ | ❌ NOT FEASIBLE | Still no `pinecone.query.score`. However, retrieved documents ARE available inside `gen_ai.prompt.0.content` on `openai.chat` spans (embedded in the RAG prompt template as `Context: ...`). Could parse these for basic context analysis. |
+| 2 | **Hallucination / Answer Quality** | ⚠️ | ⬆️ **PARTIALLY FEASIBLE** | **UPGRADED:** `openai.chat` spans contain both the retrieved context (in prompt) AND the LLM completion. Can now compare completion against actual retrieved context for basic faithfulness checking. Business events (`prompt.input` + `prompt.output`) provide additional input/output pairs correlated to traces. |
+| 3 | **Chunk Quality & Embedding Drift** | ❌ | ❌ NOT FEASIBLE | No change — no embedding dimensions or vectors. |
+| 4 | **End-to-End RAG Quality Score** | ⚠️ | ⬆️ **PARTIALLY FEASIBLE** | **UPGRADED:** OTel metrics (`gen_ai.client.token.usage`, `gen_ai.client.operation.duration`) provide native timeseries for token efficiency and latency. Combined with pipeline trace completion rate → stronger proxy for RAG quality. |
+| 5 | **Cost Attribution** | ✅ | ✅ **FULLY FEASIBLE** | No change — tokens, model, provider all present. Native metric `gen_ai.client.token.usage` adds timeseries dimension. |
+| 6 | **Silent Failure Detection** | ⚠️ | ⚠️ PARTIAL | No change. |
+| 7 | **User Feedback Loop** | ❌ | ⬆️ **SIGNAL EXISTS** | **UPGRADED:** `/api/v1/thumbsUp` and `/api/v1/thumbsDown` endpoint spans exist (4 spans seen). Span attributes are empty but the **feedback intent is instrumented** — app is already calling these endpoints. Business events with `prompt.input`/`prompt.output` provide the content correlation. Feasibility depends on enriching these spans with feedback metadata. |
+
+#### What Can Be Built Today (No Mocks) — REVISED
+
+| Feature | Data Backing | Priority | NEW? |
+|---------|-------------|----------|------|
+| **Cost Attribution per RAG Pipeline** | Tokens × rate card per model/provider/trace | P1 | |
+| **Pipeline Latency Waterfall** | Full trace: embed (146ms) → Pinecone (645ms) → LLM gen (1938ms) | P1 | |
+| **Pipeline Completion Monitoring** | Detect broken/incomplete pipelines via trace span analysis | P1 | |
+| **Prompt/Completion Inspector** | Display actual prompt & completion pairs for manual quality review | P2 | |
+| **Pipeline Health Score (proxy)** | Composite from latency SLOs, pipeline completion %, error rate | P2 | |
+| **RAG Context Viewer** | Parse retrieved documents from `openai.chat` prompt content (`Context: ...`) | P2 | ✅ NEW |
+| **Streaming vs Batch Analysis** | `llm.is_streaming` + `llm.request.type` attributes on provider spans | P2 | ✅ NEW |
+| **Token Usage Timeseries (native metrics)** | `gen_ai.client.token.usage` metric, ~20 models, per-provider | P1 | ✅ NEW |
+| **Operation Duration Timeseries (native metrics)** | `gen_ai.client.operation.duration` metric, 15 models | P1 | ✅ NEW |
+| **Model Training Job Monitoring** | AWS Bedrock `gen_ai.auditing` business events — job status, hyperparameters, model ARNs | P2 | ✅ NEW |
+| **Prompt I/O Audit Trail** | `gen_ai.auditing` bizevents with `prompt.input`/`prompt.output` per trace, 3 providers | P1 | ✅ NEW |
+| **Basic Faithfulness Check** | Compare retrieved context (in prompt) vs completion (in response) on `openai.chat` spans | P3 | ✅ NEW |
+
+#### What Requires Instrumentation Changes (Deferred)
+
+| Feature | Missing Data | Instrumentation Needed |
+|---------|-------------|----------------------|
+| Retrieval relevance scores | `pinecone.query.score` | Pinecone SDK / Traceloop to emit per-result similarity scores |
+| Embedding drift detection | Embedding dimensions & vectors | Instrumentation to capture `embedding.dimension`, vector norms |
+| Automated hallucination detection (full) | Structured retrieved docs as separate attribute | Retrieved context as structured span attribute (not embedded in prompt text) |
+| RAGAS-style quality scores | Eval framework outputs | LLM-as-judge eval pipeline emitting `gen_ai.eval.*` attributes |
+| User feedback enrichment | Feedback attributes on thumbsUp/Down spans | Add `feedback.rating`, `feedback.score`, `trace.id` correlation to `/api/v1/thumbsUp|Down` endpoints |
+
+#### Decision
+
+> **We will reassess the remaining deferred items once upstream instrumentation adds the missing span attributes.** However, the March 21 provider-native data discovery significantly expands what can be built today — **12 features are now feasible** (up from 5), including OTel GenAI metrics, business event audit trails, RAG context parsing, and model training monitoring. All four Grail data sources (spans, metrics, bizevents, logs) have been audited across all 5 providers. VertexAI remains under-instrumented across all data sources — the only reliable VertexAI data comes via `ChatGemini.langchain.task` LangChain wrapper spans.
+
+#### DQL Notes
+- **Trace correlation quirk:** `trace.id == "..."` returns 0 results. Must use `matchesPhrase(toString(trace.id), "...")` for trace-level correlation.
+- **Grail budget consumed during assessment:** ~701 GB / 1000 GB total (70.1%) across ~30 DQL queries (spans, metrics, bizevents, logs).
+- **OTel GenAI metrics** consume 0 GB to query (metric timeseries are pre-aggregated).
+- **Business events** are in the `bizevents` table, not `spans` — query with `fetch bizevents`.
+- **Log queries** are expensive (~6 GB per broad `contains()` scan) — use targeted filters.
+
 #### Implementation Checklist
 | Component | Effort | Status |
 |-----------|--------|--------|
-| DQL queries in `dql-queries.ts` | 2h | 📋 |
-| Types in `types/index.ts` | 1h | 📋 |
-| `useVectorDB.ts` hook | 3h | 📋 |
-| `VectorDB.tsx` page | 4h | 📋 |
-| Route + navigation | 0.5h | 📋 |
-| **Total** | **~10.5h** | |
+| DQL queries in `dql-queries.ts` | 2h | ✅ |
+| Types in `types/index.ts` | 1h | ✅ |
+| `useVectorDB.ts` hook | 3h | ✅ |
+| `VectorDB.tsx` page | 4h | ✅ |
+| Route + navigation | 0.5h | ✅ |
+| **Total** | **~10.5h** | ✅ |
 
 ---
 
@@ -539,11 +757,12 @@ fetch spans, from:now()-24h
 > **DATA STATUS:** 🟢 HIGH — Standard Dynatrace metrics, just not surfaced in GCC
 
 ### 6.1 AI Infrastructure Dashboard
-**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0)
+**Priority:** P2 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v2.9.0) — Core page live, GPU/K8s items pending
 
-> Implemented: New `/infrastructure` page with provider availability progress bars, AI service workload table (span volume, error rate, latency, models used), Davis problems table, and deployment events.
+> Implemented: `/infrastructure` page with provider availability progress bars, AI service workload table (span volume, error rate, latency, models used), Davis problems table, deployment events, service config snapshot, and model version history.
+> **MCP Log Finding (March 21, 2026):** GKE cluster `gke-playground-dev` in `us-central1-a` confirmed, OTel Collector v0.142.0 DaemonSet in `otel-demo` namespace — infrastructure context available.
 
-**New Page:** `/infrastructure` or section in existing Health page
+**Page:** `/infrastructure` | **Hook:** `useInfrastructure.ts`
 
 #### Features
 | Feature | Data Source | Status | Notes |
@@ -1350,21 +1569,54 @@ ai-travel-advisor-pro/
 
 ## 📈 Data Availability Summary
 
-### Current Grail Data (Feb 2026)
+### Current Grail Data (March 21, 2026 — MCP-Validated)
 
-| Data Type | Volume | Fields Available |
-|-----------|--------|------------------|
-| GenAI Spans | 572,660 (7d) | provider, model, tokens, latency, errors |
-| Agent Tasks | 142,580 (7d) | entity.name, span.kind, duration |
-| Tool Calls | 74,376 (7d) | tool name, duration, error rate |
-| Workflows | 15,796 (7d) | LangGraph executions |
-| Prompts | 284,146 (7d) | Full prompt content |
-| Completions | 209,998 (7d) | Full response content |
-| Davis Problems | 10+ (7d) | AI service correlated |
-| BizEvents | 109,537 (7d) | `gen_ai.auditing` type |
-| **Pinecone (Vector DB)** | **115,303 (7d)** | `db.system=pinecone`, `pinecone.query` spans |
-| **Embedding Spans** | **~113,000 (7d)** | OpenAI/Ollama/VertexAI/Bedrock embedding models |
-| **Infrastructure Metrics** | Continuous | GPU, CPU, memory, network via OneAgent |
+| Data Type | Volume | Fields Available | GCC Usage |
+|-----------|--------|------------------|-----------|
+| GenAI Spans | 572K+ (7d) | provider, model, tokens, latency, errors, prompt, completion | **20+ pages** |
+| Agent Spans (traceloop) | 1.18M (7d) | entity.name, span.kind (task/tool/workflow), agent.name | **AgentTools, AgenticDeepDive** |
+| Tool Calls | 77,820 (7d) | 7 unique tools, transfer_to_* handoffs | **AgentTools** |
+| Workflows | 35,401 (7d) | LangGraph executions | **AgenticDeepDive** |
+| Prompts | 288K (7d) | Full prompt content incl. RAG context | **PromptGovernance** |
+| Completions | 176K (7d) | Full response content | **ResponseAnalytics** |
+| Davis Problems | 10+ (7d) | AI service correlated | **Operations, RealTimeAlerts** |
+| Pinecone (Vector DB) | 141K (7d) | `db.system=pinecone`, avg 505ms, 0 errors | **VectorDB** |
+| Embedding Spans | ~113K (7d) | OpenAI/Ollama/VertexAI/Bedrock embedding models | **VectorDB** |
+| Infrastructure Metrics | Continuous | GPU, CPU, memory, network via OneAgent | **Infrastructure (partial)** |
+| **OTel GenAI Metrics** | **20 model combos** | `gen_ai.client.token.usage`, `gen_ai.client.operation.duration` | **⚠️ NOT USED — 0 GB query cost** |
+| **BizEvents (`gen_ai.auditing`)** | **1,849/2h** | prompt.input (776), prompt.output (775), training (327) | **⚠️ NOT USED** |
+| **Logs (provider-specific)** | Varies | Azure OpenAI HTTP calls, Bedrock CloudTrail, K6 load tests, GKE infra | **⚠️ NOT USED** |
+
+### ⚠️ Untapped Data Sources — Quick Wins
+
+> **Discovery (March 21, 2026):** The following data sources exist in Grail but are NOT consumed by any GCC page or hook. These represent free performance and capability wins.
+
+| Data Source | What It Contains | Potential Use | Effort |
+|---|---|---|---|
+| **`gen_ai.client.token.usage` metric** | Pre-aggregated token timeseries for 20 model/provider combos (Azure, Amazon, Ollama, OpenAI). 0 GB query cost. | Replace span-derived token counts in FinOps/ResponseAnalytics with native metrics | 3h |
+| **`gen_ai.client.operation.duration` metric** | Pre-aggregated latency timeseries for 15 model combos. 0 GB query cost. | Native latency timeseries in HealthDashboard, ResponseAnalytics | 2h |
+| **`gen_ai.auditing` bizevents — prompt I/O** | 776 input + 775 output prompts/2h with `trace.id` correlation across 3 providers | Prompt I/O audit trail in Governance, compliance evidence | 4h |
+| **`gen_ai.auditing` bizevents — training** | 327 Bedrock CloudTrail events/2h: `CreateModelCustomizationJob`, hyperparameters, job status, model ARNs | Model training job monitoring in MLOps | 4h |
+| **Azure OpenAI HTTP logs** | Endpoint URLs: `travel-advisor-demo.openai.azure.com/openai/deployments/genai-demo/chat/completions` | Endpoint URL tracking in ProviderComparison | 2h |
+| **K6 load test logs** | Performance baselines: avg 2.92s latency, p95=5.38s, 4.34% error rate | Load test baseline display in DeveloperExperience | 3h |
+| **GKE infrastructure logs** | Cluster `gke-playground-dev`, OTel Collector v0.142.0, namespace `otel-demo` | Infrastructure context in Infrastructure page | 2h |
+| **Provider-native span attributes** | `llm.request.type`, `llm.is_streaming`, `gen_ai.request.temperature` on provider spans | Streaming vs batch analysis, temperature visibility | 3h |
+| **LangChain wrapper spans** | `ChatBedrock/OpenAI/Gemini/Ollama.langchain.task` with prompt + completion (~260 spans/2h each) | VertexAI data recovery (only reliable source), cross-provider prompt comparison | 4h |
+| **User feedback endpoints** | `/api/v1/thumbsUp` and `/api/v1/thumbsDown` span signals (sparse) | Feedback intent detection, enrichment candidate | 2h |
+
+### Per-Provider Data Completeness (MCP-Validated March 21, 2026)
+
+| Data Source | OpenAI | Azure OpenAI | Amazon Bedrock | Google VertexAI | Ollama |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Spans (tokens)** | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **Spans (prompt)** | ✅ + RAG context | ✅ + RAG context | ❌ (via LangChain ✅) | ❌ (via LangChain ✅) | ✅ + RAG context |
+| **Spans (completion)** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **OTel Metrics** | ✅ | ✅ (as "Azure") | ✅ | ❌ | ✅ |
+| **BizEvents** | ✅ | ✅ (within "openai") | ✅ + training | ❌ | ✅ |
+| **Logs** | — | ✅ HTTP calls | ✅ CloudTrail | ❌ | — |
+| **Overall Coverage** | 🟢 Complete | 🟢 Complete | 🟡 Good | 🔴 Sparse | 🟢 Complete |
+
+> **VertexAI Gap:** Under-instrumented across ALL 4 data sources. Only reliable data via `ChatGemini.langchain.task` LangChain wrapper spans. Multi-provider features should handle VertexAI's sparse data gracefully.
 
 ### Data Gaps (To Be Filled by Demo App)
 
@@ -1417,83 +1669,59 @@ ai-travel-advisor-pro/
 
 ---
 
-## 📅 Visual Timeline (AI-Accelerated - 10 Weeks)
+## 📅 Visual Timeline (Updated March 21, 2026)
 
 ```
 FEBRUARY 2026                MARCH 2026                          APRIL 2026                  MAY 2026
 Wk1   Wk2   Wk3   Wk4   Wk5   Wk6   Wk7   Wk8   Wk9   Wk10
  |     |     |     |     |     |     |     |     |     |
-[P0]->[P1]->[P2]->[P3]->[P5]->[P6+P7]->[P4]->[P8]->[P8]->[DONE]
-Demo  Agent Qual  Mat   RAG   Plat    Adv   Eval  Conv  Release
-5d    5d    5d    3d    5d    5d      5d    5d    5d    v3.0
+[P1]→[P2]→[P3]→[P5]→[P11]→[P12]→[P6+7]→[P8]→[P4]→[DONE]
+Agent Qual  Mat  RAG  MLOps AgDive Plat   Eval  Adv  Release
+ ✅    ✅   ✅   ✅    ✅    ✅    PART   📋   📋   v3.0
 
-AI-ASSISTED DEVELOPMENT (GitHub Copilot) = 70% faster
+COMPLETED PHASES (as of March 21, 2026):
+  ✅ Phase 1  — Agentic AI Governance + Cost Forecasting + Prompt Engineering
+  ✅ Phase 2  — AI Quality + Incident Correlation + Security Posture
+  ✅ Phase 3  — AI Maturity Score + Developer Experience
+  ✅ Phase 5  — RAG/Vector DB page (core features)
+  ✅ Phase 6  — Infrastructure Dashboard (core page, GPU/K8s items pending)
+  ✅ Phase 7  — AppSec Integration + Security Audit Trail
+  ✅ Phase 8.2 — Conversation Intelligence (core page, enhancements pending)
+  ✅ Phase 11 — MLOps (Model Registry, SLOs, Comparison, Cost Attribution)
+  ✅ Phase 12 — Agentic AI Deep Observability (Orchestration, Handoffs, Loops)
 
-10-WEEK SPRINT PLAN (Updated for Viatris Coverage + Competitive Parity):
+REMAINING (Priority Order):
+  🔴 Phase 8.1 — LLM Evaluation Engine (#1 competitive gap — all 7 competitors have this)
+     Phase A: Heuristic span-based scoring (~8.5h)
+     Phase B: Davis CoPilot as LLM judge + golden datasets (~21.5h)
+     Phase C: Scheduled eval workflows + CI/CD gates (~9h)
+  🟡 Phase 6 enhancements — GPU/CPU/K8s/SLO cards (~12h)
+  🟡 Untapped Data Sources — OTel metrics + bizevents + logs integration (~27h)
+  🟡 Phase 4 — Advanced Features (blocked on Phase 0 demo app)
+  🟡 Phase 0 — Reference Demo App (unblocks Business ROI, Feedback, Sovereign AI)
 
-WEEK 1: Demo App Foundation
-  - Day 1-2: FastAPI + React skeleton
-  - Day 3: OpenTelemetry + Multi-provider setup
-  - Day 4-5: Supervisor + 3 agents
-  Milestone: Basic AI Travel Advisor working
+VIATRIS COVERAGE: 40% → 60% (80 of 134 metrics addressed)
+COMPETITIVE GAPS REMAINING: 6 of 22 (Evaluation Engine is the #1 gap)
+```
 
-WEEK 2: GCC Phase 1 - Agentic + Cost
-  - Day 1-2: Enhanced Agent Dashboard
-  - Day 3-4: Davis Cost Forecasting
-  - Day 5: Prompt Engineering Insights
-  Milestone: Agent governance + cost forecasting live
+WEEK 9: GCC Phase 8.1 - Evaluation Engine [NEXT PRIORITY]
+  - Day 1-2: Heuristic span-based scoring (Phase A)
+  - Day 3: Davis CoPilot as LLM judge integration
+  - Day 4: Golden dataset CRUD via Document Service
+  - Day 5: Evaluation results dashboard + bizevents persistence
+  Milestone: LLM evaluation parity with Arize/LangSmith/Opik
+  Competitive Impact: Closes #1 competitive gap
 
-WEEK 3: GCC Phase 2 - Quality + RCA
-  - Day 1-2: Model Quality Dashboard
-  - Day 3-4: Incident Correlation
-  - Day 5: Security Posture (basic)
-  Milestone: Quality monitoring + problem correlation
+WEEK 10: Quick Wins + Polish
+  - Day 1: OTel GenAI native metrics integration (FinOps/ResponseAnalytics)
+  - Day 2: Bizevent prompt I/O audit trail (Governance)
+  - Day 3: GPU/K8s infrastructure cards
+  - Day 4: Conversation Intelligence enhancements (topic clustering, failure-to-answer)
+  - Day 5: Bug fixes, documentation, release v3.1.0
 
-WEEK 4: GCC Phase 3 - Maturity
-  - Day 1-2: AI Maturity Score
-  - Day 3: Developer Experience + TTFT metric
-  Milestone: Maturity scoring live
-
-WEEK 5: GCC Phase 5 - RAG / Vector DB + Agent Enhancements  [NEW-VIATRIS]
-  - Day 1-2: Vector DB page (Pinecone + embeddings)
-  - Day 3: RAG pipeline trace correlation
-  - Day 4: Agent retry monitoring + chain perf view
-  - Day 5: Retrieval anomaly detection + duplicate query detection
-  Milestone: RAG observability + enhanced agent tracing live
-  Viatris Impact: Domain 3 coverage 0% → 33%, Domain 2 coverage 59% → 73%
-
-WEEK 6: GCC Phase 6 + 7 - Platform Health + Governance  [NEW-VIATRIS]
-  - Day 1-2: AI Infrastructure cards (GPU, CPU, memory, K8s)
-  - Day 3: SLO/availability integration + provider health
-  - Day 4: AppSec vulnerability linking + deployment events
-  - Day 5: Compliance enhancements (retention, regulatory templates)
-  Milestone: Full-stack AI observability + security posture
-  Viatris Impact: Domain 6 coverage 39% → 74%, Domain 5 coverage 26% → 47%
-
-WEEK 8: GCC Phase 4 - Advanced Features (Requires Demo App)
-  - Day 1-2: Business ROI Dashboard
-  - Day 3: User Feedback Analytics (RLHF)
-  - Day 4: Sovereign AI Compliance
-  - Day 5: Source Code Linking
-  Milestone: All enterprise features complete
-
-WEEK 9: GCC Phase 8 - Competitive Parity [NEW-COMPETITOR GAP]
-  - Day 1: LLM Evaluation Engine (heuristic tier) + Evaluations page
-  - Day 2: Conversation Intelligence + Sessions page
-  - Day 3: Prompt Playground + Version History (enhance PromptGovernance)
-  - Day 4: MCP Protocol tracing (enhance AgentTools) + Spend Alerts (enhance FinOps)
-  - Day 5: Enterprise Access Controls (enhance Governance) + polish
-  Milestone: Competitive parity with Arize, Opik, Langfuse on evaluation + conversation layers
-  Competitive Impact: Closes 16 of top competitor feature gaps
-
-WEEK 10: Polish + Documentation
-  - Day 1-2: Bug fixes, UI polish
-  - Day 3-4: Demo scripts, documentation
-  - Day 5: Release v3.0.0
-
-TOTAL: 10 weeks -> Full Enterprise AI Control Center + Competitive Parity
-VIATRIS COVERAGE: 40% → 72% (97 of 134 metrics addressed)
-COMPETITIVE GAPS CLOSED: 16 of 22 identified gaps (73%)
+TOTAL: 10 weeks → Full Enterprise AI Control Center
+VIATRIS COVERAGE: 40% → 60% (80 of 134 metrics addressed, up from 54)
+COMPETITIVE GAPS CLOSED: 16 of 22 identified gaps (73%) after Phase 8.1
 ```
 
 ---
@@ -1503,8 +1731,9 @@ COMPETITIVE GAPS CLOSED: 16 of 22 identified gaps (73%)
 ## Phase 8: Competitive Parity — Evaluation, Conversation Intelligence & Prompt Tooling (NEW — Competitor Gap)
 
 > **DRIVER:** Competitive Analysis (Feb 25, 2026) — Deep research into Arize AX/Phoenix, Opik (Comet), Langfuse, LangSmith, Helicone, W&B Weave, and Datadog LLM Observability revealed that GCC's biggest gap vs. all 7 competitors is the **evaluation & experimentation layer** and **conversation intelligence**. These are the #1 features customers from the AI observability space ask for when evaluating tools.
+> **UPDATE (March 21, 2026):** Conversation Intelligence (Phase 8.2) is now ✅ LIVE. Phase 8.1 (Evaluation Engine) is the #1 remaining priority.
 >
-> **DATA STATUS:** 🟢 HIGH for Groups B, E — conversation IDs, token costs already in Grail. 🟡 PARTIAL for Group A — basic heuristic evals now; true LLM-as-judge requires Phase 0. Phase 0 unlocks the full layer.
+> **DATA STATUS:** 🟢 HIGH for Groups B, E — conversation IDs, token costs already in Grail. 🟡 PARTIAL for Group A — basic heuristic evals now; true LLM-as-judge requires Phase 0. Phase 0 unlocks the full layer.\n> **PROGRESS (March 21, 2026):** Phase 8.2 (Conversation Intelligence) ✅ COMPLETED. Phase 8.1 (Evaluation Engine) remains the #1 competitive priority.
 
 ### 8.1 LLM Evaluation Engine
 **Priority:** P1 | **Feasibility:** � HIGH (Davis CoPilot as LLM-judge + Document Service + Bizevents) | **Status:** 📋 Planned
@@ -1741,24 +1970,26 @@ fetch spans, from:now()-1h
 ---
 
 ### 8.2 Conversation Intelligence & Session Tracking
-**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** 📋 Planned
+**Priority:** P1 | **Feasibility:** 🟢 HIGH | **Status:** ✅ Completed (v3.0.0)
+
+> Implemented: `ConversationIntelligence.tsx` with DataTable showing conversation summaries grouped by conversation_id/trace_id, turn counts, token usage per conversation, long-dialogue alerts, handoff detection. Enhancement opportunities remain for topic clustering and failure-to-answer detection.
 
 **Why:** Arize, Opik, Langfuse, LangSmith, W&B, and Datadog all offer session/conversation tracking — grouping individual LLM calls into multi-turn conversation views. GCC currently shows individual spans but has no concept of a conversation. The data is **already available in Grail**: `traceloop.association.properties.conversation_id` is populated on agent spans.
 
-**Enhancement target:** Add `/conversations` page OR conversation tab on HealthDashboard.
+**Page:** `/conversation` | **Hook:** Direct DQL via QueryClient
 
 #### Features
 | Feature | Data Source | Status | Notes |
 |---------|-------------|--------|-------|
-| Conversation list (grouped by conversation_id) | `traceloop.association.properties.conversation_id` | 📋 | Already in Grail data |
-| Conversation turn count | Span count per conversation_id | 📋 | Simple groupby |
-| Conversation duration (start → end) | min/max timestamp per conversation_id | 📋 | Session length |
-| Multi-turn token usage | Sum tokens per conversation_id | 📋 | Total cost per session |
-| Agent involved per conversation | Distinct `traceloop.entity.name` per conversation_id | 📋 | Which agents participated |
-| Error rate per conversation | Error spans / total spans per conversation_id | 📋 | Session-level SLA |
-| Conversation topic clustering (heuristic) | Group by `gen_ai.prompt` keyword patterns | 📋 | Auto-tag: question, booking, complaint |
-| Failure-to-answer rate | Flag responses < 50 tokens or containing "I cannot" patterns | 📋 | Quality signal |
-| Long conversation detection (agent loops) | conversation turn count > threshold | 📋 | Agentic loop warning |
+| Conversation list (grouped by conversation_id) | `traceloop.association.properties.conversation_id` | ✅ | ConversationIntelligence page |
+| Conversation turn count | Span count per conversation_id | ✅ | DataTable column |
+| Conversation duration (start → end) | min/max timestamp per conversation_id | ✅ | Session length |
+| Multi-turn token usage | Sum tokens per conversation_id | ✅ | Total cost per session |
+| Agent involved per conversation | Distinct `traceloop.entity.name` per conversation_id | ✅ | Which agents participated |
+| Error rate per conversation | Error spans / total spans per conversation_id | ✅ | Session-level SLA |
+| Conversation topic clustering (heuristic) | Group by `gen_ai.prompt` keyword patterns | 📋 Enhance | Auto-tag: question, booking, complaint |
+| Failure-to-answer rate | Flag responses < 50 tokens or containing "I cannot" patterns | 📋 Enhance | Quality signal |
+| Long conversation detection (agent loops) | conversation turn count > threshold | ✅ | Agentic loop warning |
 
 #### DQL Queries (Validated — Data Exists in Grail)
 ```dql
@@ -1814,7 +2045,8 @@ fetch spans, from:now()-24h
 
 > **Status:** ✅ LIVE  
 > **Route:** `/mlops`  
-> **Added:** March 2026
+> **Added:** March 2026  
+> **Hook:** `useMLOps.ts` | **Page:** `MLOps.tsx`
 
 ### What It Does
 Unified MLOps observability page with 5 tabs — all backed by real DQL queries against gen_ai.* spans in Grail. No mock data, no arbitrary composite scores.
@@ -1850,13 +2082,14 @@ Unified MLOps observability page with 5 tabs — all backed by real DQL queries 
 
 ---
 
-## Phase 12 — Agentic AI Deep Observability (Holistic Assessment)
+## Phase 12 — Agentic AI Deep Observability (Implemented)
 
-> **Status:** 📋 PLANNED  
+> **Status:** ✅ LIVE  
 > **Driver:** Holistic Agentic AI Observability Gap Analysis (March 2026)  
 > **Goal:** Elevate GCC from "GenAI monitoring" to "full Agentic AI observability platform"  
 > **Methodology:** Assessed against OpenTelemetry GenAI Semantic Conventions, enterprise agentic frameworks (LangGraph, CrewAI, AutoGen, OpenAI Agents SDK), and competitive platforms  
-> **Data Validation:** ✅ Validated against live Dynatrace Grail data via MCP Server (March 20, 2026)
+> **Data Validation:** ✅ Validated against live Dynatrace Grail data via MCP Server (March 20, 2026)  
+> **Implementation:** `AgenticDeepDive.tsx` page with orchestration, handoffs, loops, decisions tabs. `useAgenticDeepDive.ts` hook.
 
 ### MCP-Validated Data Inventory (Live Grail — 7-day window)
 

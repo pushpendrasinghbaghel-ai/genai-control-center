@@ -12,6 +12,7 @@ import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { DataTable } from '@dynatrace/strato-components/tables';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import { XYChart, HoneycombChart, TreeMap } from '@dynatrace/strato-components/charts';
 import { Tabs, Tab } from '@dynatrace/strato-components/navigation';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import type { Timeframe } from '@dynatrace/strato-components/core';
@@ -26,7 +27,7 @@ import { useVectorDB } from '../hooks/useVectorDB';
 import { RAGHealthPanel } from '../components/RAGHealthPanel';
 import { createDefaultTimeframe } from '../context';
 import type { QueryFilters } from '../hooks/useDQLQueries';
-import type { RAGPipelineTrace } from '../types';
+import type { RAGPipelineTrace, PipelineFlowStage, CostByModel, LatencyBucket } from '../types';
 
 // ============================================
 // Constants
@@ -316,6 +317,173 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
 };
 
 // ============================================
+// Advanced Visualization Sub-Components (Phase 5.5)
+// ============================================
+
+// ─── Animated Pipeline Flow ───
+const STAGE_ORDER: PipelineFlowStage['stage'][] = ['Embed', 'Retrieve', 'Generate'];
+
+const STAGE_META: Record<string, { color: string; icon: string; label: string }> = {
+  Embed:    { color: Colors.Charts.Categorical.Color06.Default, icon: 'E', label: 'Embedding' },
+  Retrieve: { color: Colors.Charts.Categorical.Color01.Default, icon: 'R', label: 'Vector Retrieve' },
+  Generate: { color: Colors.Charts.Categorical.Color02.Default, icon: 'G', label: 'LLM Generate' },
+};
+
+const PipelineFunnel: React.FC<{ stages: PipelineFlowStage[] }> = ({ stages }) => {
+  const stageMap = useMemo(() => {
+    const map: Record<string, PipelineFlowStage> = {};
+    stages.forEach((s) => { map[s.stage] = s; });
+    return map;
+  }, [stages]);
+
+  const maxCount = useMemo(() => Math.max(...stages.map((s) => s.totalCount), 1), [stages]);
+
+  return (
+    <Flex flexDirection="column" gap={4}>
+      {STAGE_ORDER.map((stageName, idx) => {
+        const stage = stageMap[stageName];
+        const meta = STAGE_META[stageName];
+        const count = stage?.totalCount ?? 0;
+        const latency = stage?.avgLatencyMs ?? 0;
+        const errRate = stage?.errorRate ?? 0;
+        const widthPct = maxCount > 0 ? Math.max((count / maxCount) * 100, 8) : 8;
+        const prevCount = idx > 0 ? (stageMap[STAGE_ORDER[idx - 1]]?.totalCount ?? 0) : 0;
+        const dropOff = idx > 0 && prevCount > 0 ? ((prevCount - count) / prevCount * 100) : 0;
+
+        return (
+          <Flex key={stageName} alignItems="center" gap={12} style={{ padding: '6px 0' }}>
+            {/* Stage label */}
+            <Flex alignItems="center" gap={6} style={{ minWidth: 130 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                background: `${meta.color}15`, border: `2px solid ${meta.color}`,
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: 700, color: meta.color }}>{meta.icon}</Text>
+              </div>
+              <Text style={{ fontSize: 12, fontWeight: 600 }}>{meta.label}</Text>
+            </Flex>
+
+            {/* Funnel bar */}
+            <div style={{ flex: 1, position: 'relative', height: 36 }}>
+              <div style={{
+                width: `${widthPct}%`, height: '100%', borderRadius: 6,
+                background: `linear-gradient(90deg, ${meta.color}30, ${meta.color}60)`,
+                border: `1px solid ${meta.color}`,
+                display: 'flex', alignItems: 'center', paddingLeft: 12,
+                transition: 'width 0.6s ease-out',
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: 700 }}>{fmt(count)}</Text>
+                <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
+                  {fmtMs(latency)} avg
+                </Text>
+              </div>
+            </div>
+
+            {/* Drop-off + error rate */}
+            <Flex flexDirection="column" alignItems="flex-end" style={{ minWidth: 80 }}>
+              {idx > 0 && dropOff > 0 && (
+                <Text style={{ fontSize: 10, color: STATUS_COLORS.warning }}>
+                  ▼ {dropOff.toFixed(1)}% drop
+                </Text>
+              )}
+              {errRate > 0 && (
+                <Text style={{ fontSize: 10, color: STATUS_COLORS.critical }}>
+                  {errRate.toFixed(1)}% err
+                </Text>
+              )}
+            </Flex>
+          </Flex>
+        );
+      })}
+    </Flex>
+  );
+};
+
+// ─── Latency Heatmap (XYChart.RectSeries) ───
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+interface HeatmapCellImport {
+  hourOfDay: number;
+  dayOfWeek: number;
+  totalCount: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+}
+
+const LatencyHeatmap: React.FC<{ cells: HeatmapCellImport[] }> = ({ cells }) => {
+  const heatmapData = useMemo(() =>
+    cells.map((c) => ({
+      vertical: { start: DAY_LABELS[c.dayOfWeek] ?? `Day${c.dayOfWeek}` },
+      horizontal: { start: `${String(c.hourOfDay).padStart(2, '0')}:00`, end: `${String(c.hourOfDay + 1).padStart(2, '0')}:00` },
+      cell: { latency: Math.round(c.avgLatencyMs) },
+    })),
+    [cells],
+  );
+
+  if (heatmapData.length === 0) return null;
+
+  return (
+    <XYChart data={heatmapData} style={{ height: 240 }}>
+      <XYChart.RectSeries
+        xAxisId="x-axis"
+        yAxisId="y-axis"
+        x0Accessor="horizontal.start"
+        x1Accessor="horizontal.end"
+        y0Accessor="vertical.start"
+        valueAccessor="cell.latency"
+        valueAccessorLabel="Avg Latency (ms)"
+        colorPalette="categorical"
+      />
+      <XYChart.XAxis id="x-axis" type="categorical" position="bottom" label="Hour of Day" />
+      <XYChart.YAxis id="y-axis" type="categorical" position="left" label="Day" />
+    </XYChart>
+  );
+};
+
+// ─── Token Distribution TreeMap ───
+interface TreemapEntryImport {
+  provider: string;
+  model: string;
+  tokenSum: number;
+  requestCount: number;
+  avgLatencyMs: number;
+}
+
+const TokenDistributionTreeMap: React.FC<{ entries: TreemapEntryImport[] }> = ({ entries }) => {
+  const treeData = useMemo(() => {
+    const byProvider: Record<string, { name: string; value: number; nodes: Array<{ name: string; value: number }> }> = {};
+    entries.forEach((e) => {
+      if (!byProvider[e.provider]) {
+        byProvider[e.provider] = { name: e.provider, value: 0, nodes: [] };
+      }
+      byProvider[e.provider].value += e.tokenSum;
+      byProvider[e.provider].nodes.push({ name: e.model, value: e.tokenSum });
+    });
+    const clusters = Object.values(byProvider).sort((a, b) => b.value - a.value);
+    const totalTokens = clusters.reduce((s, c) => s + c.value, 0);
+    return {
+      tree: {
+        name: 'All Providers',
+        value: totalTokens,
+        nodes: clusters,
+      },
+    };
+  }, [entries]);
+
+  return (
+    <TreeMap
+      data={treeData}
+      height={280}
+      labelsDisplay="all"
+      colorPalette="categorical"
+    >
+      <TreeMap.Legend />
+    </TreeMap>
+  );
+};
+
+// ============================================
 // Main Page
 // ============================================
 
@@ -343,6 +511,8 @@ export const VectorDB: React.FC = () => {
     indexPerformance, ingestionTimeseries,
     resultSetSizes, sourceDocMetadata,
     tokenizationDrift, retrievalAnomalies, contextEffectiveness,
+    heatmapCells, pipelineFlowStages, tokenTreemap, modelHoneycomb, eventStream,
+    costByModel, latencyBuckets,
     loading, error, refetch,
   } = useVectorDB(filters);
 
@@ -1354,6 +1524,235 @@ export const VectorDB: React.FC = () => {
           </Text>
         )}
       </Surface>
+          </Flex>
+        </Tab>
+
+        <Tab title="Live View">
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+
+      {/* ─── Pipeline Funnel ─── */}
+      <Surface style={{ padding: 20 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 16 }}>
+          <AiIcon />
+          <Heading level={4}>RAG Pipeline Funnel</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>stage throughput · drop-off rates</Text>
+          <Tooltip text="Shows how many requests flow through each RAG stage. Drop-off % indicates requests that didn't reach the next stage — useful for identifying pipeline breaks.">
+            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        </Flex>
+        {pipelineFlowStages.length > 0 ? (
+          <PipelineFunnel stages={pipelineFlowStages} />
+        ) : (
+          <Flex alignItems="center" justifyContent="center" style={{ height: 160 }}>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No pipeline flow data'}</Text>
+          </Flex>
+        )}
+      </Surface>
+
+      {/* ─── Estimated Cost by Model ─── */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <BarChartIcon />
+          <Heading level={4}>Estimated Cost by Model</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>based on rate card pricing</Text>
+          <Tooltip text="Cost estimates use your configured rate card (Settings → Rate Cards). Default rates are public list prices. Customize with your negotiated/contract rates for accurate billing projections.">
+            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        </Flex>
+        {costByModel.length > 0 ? (
+          <>
+            {/* Cost KPI summary */}
+            <Flex gap={8} flexWrap="wrap" style={{ marginBottom: 16 }}>
+              <MetricCard
+                value={`$${costByModel.reduce((s, m) => s + m.estimatedCost, 0).toFixed(2)}`}
+                label="Total Estimated Cost"
+                icon={<BarChartIcon style={{ color: STATUS_COLORS.warning }} />}
+                color={STATUS_COLORS.warning}
+                tooltip="Sum of all model costs in selected timeframe"
+              />
+              <MetricCard
+                value={costByModel.length.toString()}
+                label="Active Models"
+                icon={<AiIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />}
+              />
+              <MetricCard
+                value={`$${costByModel[0]?.estimatedCost.toFixed(2) ?? '0'}`}
+                label={`Top: ${costByModel[0]?.model ?? '—'}`}
+                icon={<ResearchIcon style={{ color: STATUS_COLORS.critical }} />}
+                color={STATUS_COLORS.critical}
+                tooltip="Most expensive model in the selected timeframe"
+              />
+            </Flex>
+            <DataTable
+              data={costByModel}
+              columns={[
+                {
+                  header: 'Model', id: 'model', accessor: 'model',
+                  cell: ({ value }) => <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>,
+                },
+                {
+                  header: 'Provider', id: 'provider', accessor: 'provider', width: 100,
+                  cell: ({ value }) => <Text style={{ fontSize: 11 }}>{String(value ?? '—')}</Text>,
+                },
+                {
+                  header: 'Input Tokens', id: 'inputTokens', accessor: 'inputTokens', width: 110,
+                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Output Tokens', id: 'outputTokens', accessor: 'outputTokens', width: 110,
+                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Requests', id: 'requestCount', accessor: 'requestCount', width: 90,
+                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
+                },
+                {
+                  header: 'Est. Cost', id: 'estimatedCost', accessor: 'estimatedCost', width: 100,
+                  cell: ({ value }) => {
+                    const cost = Number(value ?? 0);
+                    return (
+                      <Text style={{ fontWeight: 700, color: cost > 10 ? STATUS_COLORS.critical : cost > 1 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>
+                        ${cost.toFixed(2)}
+                      </Text>
+                    );
+                  },
+                },
+                {
+                  header: 'Avg Latency', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 100,
+                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={10} />
+            </DataTable>
+          </>
+        ) : (
+          <Flex alignItems="center" justifyContent="center" style={{ height: 120 }}>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No token usage data — requires gen_ai.usage.* attributes'}</Text>
+          </Flex>
+        )}
+      </Surface>
+
+      {/* ─── Latency Histogram ─── */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <BarChartIcon />
+          <Heading level={4}>Latency Distribution</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>all RAG spans · histogram by latency band</Text>
+          <Tooltip text="Distribution of span durations across latency bands. Bimodal distributions (fast cache hits + slow misses) are invisible in percentile tables but clearly visible here.">
+            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+          </Tooltip>
+        </Flex>
+        {latencyBuckets.some((b) => b.spanCount > 0) ? (() => {
+          const maxBucket = Math.max(...latencyBuckets.map((b) => b.spanCount), 1);
+          const totalSpans = latencyBuckets.reduce((s, b) => s + b.spanCount, 0);
+          return (
+            <Flex flexDirection="column" gap={4}>
+              {latencyBuckets.map((b) => {
+                const pct = totalSpans > 0 ? (b.spanCount / totalSpans * 100) : 0;
+                const widthPct = maxBucket > 0 ? (b.spanCount / maxBucket * 100) : 0;
+                const isHigh = b.bucket.includes('2-5s') || b.bucket.includes('5s+');
+                const barColor = isHigh ? STATUS_COLORS.critical
+                  : b.bucket.includes('1-2s') || b.bucket.includes('500ms') ? STATUS_COLORS.warning
+                  : Colors.Charts.Categorical.Color01.Default;
+                return (
+                  <Flex key={b.bucket} alignItems="center" gap={8}>
+                    <Text style={{ fontSize: 11, minWidth: 80, textAlign: 'right', color: 'var(--dt-colors-text-secondary-default)' }}>
+                      {b.bucket}
+                    </Text>
+                    <div style={{ flex: 1, height: 24, position: 'relative' }}>
+                      <div style={{
+                        width: `${Math.max(widthPct, 1)}%`, height: '100%', borderRadius: 4,
+                        background: barColor, opacity: 0.7,
+                        transition: 'width 0.4s ease-out',
+                      }} />
+                    </div>
+                    <Text style={{ fontSize: 12, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
+                      {fmt(b.spanCount)}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)', minWidth: 45, textAlign: 'right' }}>
+                      {pct.toFixed(1)}%
+                    </Text>
+                  </Flex>
+                );
+              })}
+              <Flex gap={8} style={{ marginTop: 8, paddingLeft: 88 }}>
+                <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  Total: {fmt(totalSpans)} spans
+                </Text>
+              </Flex>
+            </Flex>
+          );
+        })() : (
+          <Flex alignItems="center" justifyContent="center" style={{ height: 160 }}>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No latency data'}</Text>
+          </Flex>
+        )}
+      </Surface>
+
+      {/* ─── Row: Heatmap + TreeMap ─── */}
+      <Flex gap={16} flexWrap="wrap">
+        {/* Latency Heatmap */}
+        <Surface style={{ flex: '1 1 55%', padding: 16, minWidth: 420 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <BarChartIcon />
+            <Heading level={4}>Retrieval Latency Heatmap</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>avg latency · hour of day × day of week</Text>
+          </Flex>
+          {heatmapCells.length > 0 ? (
+            <LatencyHeatmap cells={heatmapCells} />
+          ) : (
+            <Flex alignItems="center" justifyContent="center" style={{ height: 240 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No heatmap data'}</Text>
+            </Flex>
+          )}
+        </Surface>
+
+        {/* Token Distribution TreeMap */}
+        <Surface style={{ flex: '1 1 40%', padding: 16, minWidth: 320 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <ResearchIcon />
+            <Heading level={4}>Token Distribution</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>by provider → model</Text>
+          </Flex>
+          {tokenTreemap.length > 0 ? (
+            <TokenDistributionTreeMap entries={tokenTreemap} />
+          ) : (
+            <Flex alignItems="center" justifyContent="center" style={{ height: 240 }}>
+              <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No token data'}</Text>
+            </Flex>
+          )}
+        </Surface>
+      </Flex>
+
+      {/* ─── Model Honeycomb Grid ─── */}
+      <Surface style={{ padding: 16 }}>
+        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+          <DatabaseIcon />
+          <Heading level={4}>AI Model Landscape</Heading>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>each tile = one model · color = avg latency · hover for details</Text>
+        </Flex>
+        {modelHoneycomb.length > 0 ? (
+          <HoneycombChart
+            data={modelHoneycomb.map((m) => ({
+              name: m.model,
+              value: m.avgLatencyMs,
+              provider: m.provider,
+              requestCount: m.requestCount,
+              totalTokens: m.totalTokens,
+              errorRate: m.errorRate,
+            }))}
+            height={300}
+          >
+            <HoneycombChart.Legend />
+          </HoneycombChart>
+        ) : (
+          <Flex alignItems="center" justifyContent="center" style={{ height: 200 }}>
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No model data'}</Text>
+          </Flex>
+        )}
+      </Surface>
+
           </Flex>
         </Tab>
       </Tabs>

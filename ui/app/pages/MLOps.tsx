@@ -9,6 +9,8 @@ import { Tab, Tabs } from '@dynatrace/strato-components/navigation';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { DataTable } from '@dynatrace/strato-components/tables';
+import { DonutChart, TimeseriesChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import { TextInput } from '@dynatrace/strato-components/forms';
@@ -31,7 +33,7 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { useMLOps } from '../hooks/useMLOps';
 import { useInfrastructure } from '../hooks';
 import { createDefaultTimeframe } from '../components/FilterBar';
-import type { MLOpsModelEntry, MLOpsSLOEntry, MLOpsModelComparison, MLOpsCostEntry } from '../types';
+import type { MLOpsModelEntry, MLOpsSLOEntry, MLOpsSLOTrendPoint, MLOpsModelComparison, MLOpsCostEntry } from '../types';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -77,7 +79,32 @@ const MetricCard = ({ label, value, icon, color }: { label: string; value: strin
 // Tab 1: Model Registry
 // ═══════════════════════════════════════════════════════════
 
-const ModelRegistryTab = ({ data }: { data: MLOpsModelEntry[] }) => {
+const ModelRegistryTab = ({ data, usageTrend }: { data: MLOpsModelEntry[]; usageTrend: Array<{ model: string; timeBucket: string; requests: number; totalTokens: number }> }) => {
+  // Build timeseries data for model usage trend
+  const usageTimeseriesData = useMemo((): Timeseries[] => {
+    if (!usageTrend.length) return [];
+    const byModel = new Map<string, Array<{ timestamp: Date; value: number }>>();
+    for (const pt of usageTrend) {
+      if (!byModel.has(pt.model)) byModel.set(pt.model, []);
+      byModel.get(pt.model)!.push({ timestamp: new Date(pt.timeBucket), value: pt.requests });
+    }
+    // Top 6 models by total requests
+    const modelTotals = [...byModel.entries()].map(([m, pts]) => ({ model: m, total: pts.reduce((s, p) => s + p.value, 0), pts }));
+    modelTotals.sort((a, b) => b.total - a.total);
+    return modelTotals.slice(0, 6).map((m) => ({
+      name: m.model,
+      datapoints: m.pts.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()).map((p) => ({ start: p.timestamp, value: p.value })),
+    }));
+  }, [usageTrend]);
+
+  // DonutChart: requests by provider
+  const providerDonutData = useMemo(() => {
+    const byProvider = new Map<string, number>();
+    for (const m of data) {
+      byProvider.set(m.provider, (byProvider.get(m.provider) ?? 0) + m.requests);
+    }
+    return { slices: [...byProvider.entries()].map(([category, value]) => ({ category, value })) };
+  }, [data]);
   const columns = useMemo(() => [
     {
       id: 'model',
@@ -151,7 +178,42 @@ const ModelRegistryTab = ({ data }: { data: MLOpsModelEntry[] }) => {
       <Text style={{ opacity: 0.7 }}>
         All model+provider combinations discovered from gen_ai.* spans. Sorted by request volume.
       </Text>
-      <DataTable data={data} columns={columns} sortable resizable />
+
+      {/* Visual row: Provider donut + Usage trend */}
+      <Flex gap={16} flexWrap="wrap">
+        {providerDonutData.slices.length > 0 && (
+          <Surface style={{ flex: '1 1 280px', padding: 16 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <ServicesIcon style={{ width: 14, height: 14 }} />
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Requests by Provider</Text>
+              </Flex>
+              <DonutChart data={providerDonutData} height={200}>
+                <DonutChart.Legend position="right" />
+                <DonutChart.Toolbar hidden />
+              </DonutChart>
+            </Flex>
+          </Surface>
+        )}
+        {usageTimeseriesData.length > 0 && (
+          <Surface style={{ flex: '2 1 400px', padding: 16 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <BarChartIcon style={{ width: 14, height: 14 }} />
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Model Usage Trend (Top 6)</Text>
+              </Flex>
+              <TimeseriesChart data={usageTimeseriesData} variant="bar" height={200}>
+                <TimeseriesChart.Legend position="bottom" />
+                <TimeseriesChart.Tooltip variant="shared" />
+              </TimeseriesChart>
+            </Flex>
+          </Surface>
+        )}
+      </Flex>
+
+      <DataTable data={data} columns={columns} sortable resizable>
+        <DataTable.Pagination defaultPageSize={10} />
+      </DataTable>
     </Flex>
   );
 };
@@ -164,10 +226,12 @@ const SLOTab = ({
   data,
   sloConfig,
   onConfigChange,
+  sloTrend,
 }: {
   data: MLOpsSLOEntry[];
   sloConfig: { latencyThresholdMs: number; errorBudgetPct: number };
   onConfigChange: (cfg: { latencyThresholdMs: number; errorBudgetPct: number }) => void;
+  sloTrend: MLOpsSLOTrendPoint[];
 }) => {
   const passing = data.filter((e) => e.meetsLatencySlo && e.meetsErrorSlo).length;
   const failing = data.filter((e) => !e.meetsLatencySlo || !e.meetsErrorSlo).length;
@@ -296,9 +360,36 @@ const SLOTab = ({
         />
       </Flex>
 
+      {/* SLO Trend Chart */}
+      {sloTrend.length > 0 && (
+        <Surface style={{ padding: 16 }}>
+          <Flex flexDirection="column" gap={8}>
+            <Flex alignItems="center" gap={6}>
+              <ClockIcon style={{ width: 14, height: 14 }} />
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>SLO Compliance Trend</Text>
+              <Text style={{ fontSize: 11, opacity: 0.6 }}>(hourly latency compliance %)</Text>
+            </Flex>
+            <TimeseriesChart
+              data={[{
+                name: 'Latency Compliance',
+                datapoints: sloTrend.map((p) => ({ start: new Date(p.timeBucket), value: p.latencyCompliance })),
+              }]}
+              variant="area"
+              height={180}
+              colorPalette={[STATUS_COLORS.pass]}
+            >
+              <TimeseriesChart.Tooltip variant="shared" />
+              <TimeseriesChart.Legend hidden />
+            </TimeseriesChart>
+          </Flex>
+        </Surface>
+      )}
+
       {data.length === 0
         ? <Text>No SLO data available in the selected timeframe.</Text>
-        : <DataTable data={data} columns={columns} sortable resizable />
+        : <DataTable data={data} columns={columns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
       }
     </Flex>
   );
@@ -383,12 +474,52 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
 
   if (!data.length) return <Text>No model data found in the selected timeframe.</Text>;
 
+  // Sort by latency for horizontal bar chart
+  const sortedByLatency = [...data].sort((a, b) => a.avgLatencyMs - b.avgLatencyMs).slice(0, 10);
+  const maxLatency = Math.max(...sortedByLatency.map((m) => m.avgLatencyMs), 1);
+
   return (
     <Flex flexDirection="column" gap={12}>
       <Text style={{ opacity: 0.7 }}>
         Side-by-side performance comparison of all models. Latency percentiles, token usage, and error rates are computed directly from span data.
       </Text>
-      <DataTable data={data} columns={columns} sortable resizable />
+
+      {/* Latency comparison bar chart */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={8}>
+          <Flex alignItems="center" gap={6}>
+            <ClockIcon style={{ width: 14, height: 14 }} />
+            <Text style={{ fontWeight: 600, fontSize: 13 }}>Model Latency Comparison (Avg)</Text>
+          </Flex>
+          <Flex flexDirection="column" gap={6}>
+            {sortedByLatency.map((m) => {
+              const barColor = m.avgLatencyMs < 1000 ? STATUS_COLORS.pass : m.avgLatencyMs < 3000 ? STATUS_COLORS.warning : STATUS_COLORS.fail;
+              return (
+                <Flex key={`${m.model}-${m.provider}`} flexDirection="column" gap={2}>
+                  <Flex justifyContent="space-between" alignItems="center">
+                    <Text style={{ fontSize: 11, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.model} <span style={{ opacity: 0.5 }}>({m.provider})</span>
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: 600, color: barColor }}>{fmt(m.avgLatencyMs)}ms</Text>
+                  </Flex>
+                  <div style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(m.avgLatencyMs / maxLatency) * 100}%`, borderRadius: 4, background: barColor, transition: 'width 0.3s ease' }} />
+                  </div>
+                </Flex>
+              );
+            })}
+            <Flex gap={12} style={{ marginTop: 4 }}>
+              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.pass }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&lt;1s</Text></Flex>
+              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>1-3s</Text></Flex>
+              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.fail }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&gt;3s</Text></Flex>
+            </Flex>
+          </Flex>
+        </Flex>
+      </Surface>
+
+      <DataTable data={data} columns={columns} sortable resizable>
+        <DataTable.Pagination defaultPageSize={10} />
+      </DataTable>
     </Flex>
   );
 };
@@ -515,6 +646,26 @@ const CostAttributionTab = ({
   const totalTokens = costByService.reduce((s, r) => s + r.totalTokens, 0);
   const totalReqs = costByService.reduce((s, r) => s + r.requests, 0);
 
+  // DonutChart data: token share by model (top 8 + Other)
+  const modelDonutData = useMemo(() => {
+    const sorted = [...costByModel].sort((a, b) => b.totalTokens - a.totalTokens);
+    const top = sorted.slice(0, 8);
+    const otherTokens = sorted.slice(8).reduce((s, r) => s + r.totalTokens, 0);
+    const slices = top.map((m) => ({ category: m.model || 'unknown', value: m.totalTokens }));
+    if (otherTokens > 0) slices.push({ category: 'Other', value: otherTokens });
+    return { slices };
+  }, [costByModel]);
+
+  // DonutChart data: token share by service
+  const serviceDonutData = useMemo(() => {
+    const sorted = [...costByService].sort((a, b) => b.totalTokens - a.totalTokens);
+    const top = sorted.slice(0, 8);
+    const otherTokens = sorted.slice(8).reduce((s, r) => s + r.totalTokens, 0);
+    const slices = top.map((s) => ({ category: s.serviceName || 'unknown', value: s.totalTokens }));
+    if (otherTokens > 0) slices.push({ category: 'Other', value: otherTokens });
+    return { slices };
+  }, [costByService]);
+
   return (
     <Flex flexDirection="column" gap={16}>
       <Flex gap={12}>
@@ -522,6 +673,38 @@ const CostAttributionTab = ({
         <MetricCard label="Total Requests" value={fmtInt(totalReqs)} icon={<ServicesIcon style={{ width: 16 }} />} />
         <MetricCard label="Services" value={costByService.length} icon={<ServicesIcon style={{ width: 16 }} />} />
         <MetricCard label="Models" value={costByModel.length} icon={<AiIcon style={{ width: 16 }} />} />
+      </Flex>
+
+      {/* Token Distribution Donuts */}
+      <Flex gap={16} flexWrap="wrap">
+        {modelDonutData.slices.length > 0 && (
+          <Surface style={{ flex: '1 1 300px', padding: 16 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <AiIcon style={{ width: 14, height: 14 }} />
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Share by Model</Text>
+              </Flex>
+              <DonutChart data={modelDonutData} height={220}>
+                <DonutChart.Legend position="right" />
+                <DonutChart.Toolbar hidden />
+              </DonutChart>
+            </Flex>
+          </Surface>
+        )}
+        {serviceDonutData.slices.length > 0 && (
+          <Surface style={{ flex: '1 1 300px', padding: 16 }}>
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={6}>
+                <ServicesIcon style={{ width: 14, height: 14 }} />
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Share by Service</Text>
+              </Flex>
+              <DonutChart data={serviceDonutData} height={220}>
+                <DonutChart.Legend position="right" />
+                <DonutChart.Toolbar hidden />
+              </DonutChart>
+            </Flex>
+          </Surface>
+        )}
       </Flex>
 
       <Text style={{ opacity: 0.7 }}>
@@ -532,13 +715,17 @@ const CostAttributionTab = ({
       <Tabs>
         <Tab title="By Service" prefixIcon={<ServicesIcon />}>
           {costByService.length
-            ? <DataTable data={costByService} columns={svcColumns} sortable resizable />
+            ? <DataTable data={costByService} columns={svcColumns} sortable resizable>
+                <DataTable.Pagination defaultPageSize={10} />
+              </DataTable>
             : <Text>No service cost data available.</Text>
           }
         </Tab>
         <Tab title="By Model" prefixIcon={<AiIcon />}>
           {costByModel.length
-            ? <DataTable data={costByModel} columns={modelColumns} sortable resizable />
+            ? <DataTable data={costByModel} columns={modelColumns} sortable resizable>
+                <DataTable.Pagination defaultPageSize={10} />
+              </DataTable>
             : <Text>No model cost data available.</Text>
           }
         </Tab>
@@ -646,13 +833,17 @@ const DeploymentTrackerTab = ({
 
       <Heading level={5}>Current Service Configuration</Heading>
       {serviceConfigs.length
-        ? <DataTable data={serviceConfigs} columns={configColumns} sortable resizable />
+        ? <DataTable data={serviceConfigs} columns={configColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
         : <Text>No configuration data available.</Text>
       }
 
       <Heading level={5}>Model Version History (7 days)</Heading>
       {modelHistory.length
-        ? <DataTable data={modelHistory} columns={historyColumns} sortable resizable />
+        ? <DataTable data={modelHistory} columns={historyColumns} sortable resizable>
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
         : <Text>No model history data available.</Text>
       }
     </Flex>
@@ -669,9 +860,11 @@ export const MLOps = () => {
   const {
     registry,
     sloEntries,
+    sloTrend,
     comparison,
     costByService,
     costByModel,
+    usageTrend,
     sloConfig,
     setSloConfig,
     loading,
@@ -761,10 +954,10 @@ export const MLOps = () => {
       {!loading && (
         <Tabs>
           <Tab title="Model Registry" prefixIcon={<AiIcon />}>
-            <ModelRegistryTab data={registry} />
+            <ModelRegistryTab data={registry} usageTrend={usageTrend} />
           </Tab>
           <Tab title="AI SLOs" prefixIcon={<CheckmarkIcon />}>
-            <SLOTab data={sloEntries} sloConfig={sloConfig} onConfigChange={setSloConfig} />
+            <SLOTab data={sloEntries} sloConfig={sloConfig} onConfigChange={setSloConfig} sloTrend={sloTrend} />
           </Tab>
           <Tab title="Model Comparison" prefixIcon={<BarChartIcon />}>
             <ModelComparisonTab data={comparison} />

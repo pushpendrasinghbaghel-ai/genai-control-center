@@ -9,7 +9,7 @@ import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { DataTable } from '@dynatrace/strato-components/tables';
-import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { TextInput } from '@dynatrace/strato-components/forms';
@@ -1212,14 +1212,36 @@ const ConversationStateTab: React.FC<{
         <Surface>
           <Flex flexDirection="column" gap={8} padding={16}>
             <Heading level={5}>Conversation State Distribution</Heading>
-            <Flex gap={16} flexWrap="wrap">
-              <MetricCard value={formatNumber(conversationState.total)} label="Total Conversations" icon={<WorkflowsIcon />} />
-              <MetricCard value={formatNumber(conversationState.singleTurn)} label="Single-Turn" icon={<ClockIcon />} color={STATUS_COLORS.ideal} />
-              <MetricCard value={formatNumber(conversationState.multiTurn)} label="Multi-Turn" icon={<AgentIcon />} color={STATUS_COLORS.good} />
-              <MetricCard value={formatNumber(conversationState.runaway)} label="Runaway (>20 turns)" icon={<WarningIcon />} color={conversationState.runaway > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal} />
-              <MetricCard value={formatNumber(conversationState.errored)} label="Errored" icon={<CriticalIcon />} color={conversationState.errored > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal} />
-              <MetricCard value={conversationState.avgTurns.toFixed(1)} label="Avg Turns/Conversation" icon={<BarChartIcon />} />
-              <MetricCard value={formatTokens(conversationState.avgTokens)} label="Avg Tokens/Conv" icon={<MoneyIcon />} />
+            <Flex gap={24} flexWrap="wrap" alignItems="center">
+              {/* DonutChart for conversation state breakdown */}
+              <div style={{ width: 180, height: 180, flexShrink: 0 }}>
+                <DonutChart
+                  data={{
+                    slices: [
+                      { category: 'Single-Turn', value: conversationState.singleTurn },
+                      { category: 'Multi-Turn', value: conversationState.multiTurn },
+                      { category: 'Runaway (>20)', value: conversationState.runaway },
+                      { category: 'Errored', value: conversationState.errored },
+                    ].filter(s => s.value > 0),
+                  }}
+                  height={180}
+                  width={180}
+                  colorPalette={[STATUS_COLORS.ideal, STATUS_COLORS.good, STATUS_COLORS.warning, STATUS_COLORS.critical]}
+                >
+                  <DonutChart.Legend hidden />
+                  <DonutChart.Toolbar hidden />
+                </DonutChart>
+              </div>
+              {/* Metric cards alongside the donut */}
+              <Flex gap={12} flexWrap="wrap" style={{ flex: 1 }}>
+                <MetricCard value={formatNumber(conversationState.total)} label="Total Conversations" icon={<WorkflowsIcon />} />
+                <MetricCard value={formatNumber(conversationState.singleTurn)} label="Single-Turn" icon={<ClockIcon />} color={STATUS_COLORS.ideal} />
+                <MetricCard value={formatNumber(conversationState.multiTurn)} label="Multi-Turn" icon={<AgentIcon />} color={STATUS_COLORS.good} />
+                <MetricCard value={formatNumber(conversationState.runaway)} label="Runaway (>20 turns)" icon={<WarningIcon />} color={conversationState.runaway > 0 ? STATUS_COLORS.warning : STATUS_COLORS.ideal} />
+                <MetricCard value={formatNumber(conversationState.errored)} label="Errored" icon={<CriticalIcon />} color={conversationState.errored > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal} />
+                <MetricCard value={conversationState.avgTurns.toFixed(1)} label="Avg Turns/Conversation" icon={<BarChartIcon />} />
+                <MetricCard value={formatTokens(conversationState.avgTokens)} label="Avg Tokens/Conv" icon={<MoneyIcon />} />
+              </Flex>
             </Flex>
           </Flex>
         </Surface>
@@ -2427,48 +2449,48 @@ export const AgentTools: React.FC = () => {
             {/* Loop Detection Alert - Always visible */}
             <LoopAlertBanner loops={suspiciousLoops} />
 
-            {/* Summary Metrics - Always visible on all tabs */}
-            {summary && (
-              <Flex gap={12} flexWrap="wrap">
-                <MetricCard
-                  value={formatNumber(summary.totalToolCalls)}
-                  label="Total Tool Calls"
-                  icon={<WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />}
-                  tooltip="Total number of tool invocations across all agents"
-                />
-                <MetricCard
-                  value={summary.uniqueTools}
-                  label="Unique Tools"
-                  icon={<SettingIcon style={{ color: Colors.Charts.Categorical.Color02.Default }} />}
-                  tooltip="Number of distinct tools being used"
-                />
-                <MetricCard
-                  value={summary.avgCallsPerTrace.toFixed(1)}
-                  label="Avg Calls/Trace"
-                  icon={<BarChartIcon style={{ color: Colors.Charts.Categorical.Color03.Default }} />}
-                  tooltip="Average number of tool calls per agent trace"
-                />
-                <MetricCard
-                  value={summary.totalAgents}
-                  label="Active Agents"
-                  icon={<AgentIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />}
-                  tooltip="Number of distinct agents making tool calls"
-                />
-                <MetricCard
-                  value={summary.suspiciousLoopCount}
-                  label="Loop Warnings"
-                  icon={<WarningIcon style={{ color: summary.suspiciousLoopCount > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal }} />}
-                  color={summary.suspiciousLoopCount > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal}
-                  tooltip="Traces with >10 calls to the same tool (potential infinite loops)"
-                />
-              </Flex>
-            )}
-
             {/* ============================================ */}
             {/* OVERVIEW TAB */}
             {/* ============================================ */}
             {activeTab === 'overview' && (
               <>
+                {/* Summary Metrics - Overview tab only */}
+                {summary && (
+                  <Flex gap={12} flexWrap="wrap">
+                    <MetricCard
+                      value={formatNumber(summary.totalToolCalls)}
+                      label="Total Tool Calls"
+                      icon={<WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />}
+                      tooltip="Total number of tool invocations across all agents"
+                    />
+                    <MetricCard
+                      value={summary.uniqueTools}
+                      label="Unique Tools"
+                      icon={<SettingIcon style={{ color: Colors.Charts.Categorical.Color02.Default }} />}
+                      tooltip="Number of distinct tools being used"
+                    />
+                    <MetricCard
+                      value={summary.avgCallsPerTrace.toFixed(1)}
+                      label="Avg Calls/Trace"
+                      icon={<BarChartIcon style={{ color: Colors.Charts.Categorical.Color03.Default }} />}
+                      tooltip="Average number of tool calls per agent trace"
+                    />
+                    <MetricCard
+                      value={summary.totalAgents}
+                      label="Active Agents"
+                      icon={<AgentIcon style={{ color: Colors.Charts.Categorical.Color04.Default }} />}
+                      tooltip="Number of distinct agents making tool calls"
+                    />
+                    <MetricCard
+                      value={summary.suspiciousLoopCount}
+                      label="Loop Warnings"
+                      icon={<WarningIcon style={{ color: summary.suspiciousLoopCount > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal }} />}
+                      color={summary.suspiciousLoopCount > 0 ? STATUS_COLORS.critical : STATUS_COLORS.ideal}
+                      tooltip="Traces with >10 calls to the same tool (potential infinite loops)"
+                    />
+                  </Flex>
+                )}
+
                 {/* Industry-Standard Agent Performance Metrics */}
                 <Surface padding={16}>
                   <Flex flexDirection="column" gap={12}>
@@ -2492,29 +2514,49 @@ export const AgentTools: React.FC = () => {
                       </Tooltip>
                     </Flex>
                     
-                    {/* Row 1: Success Rate, Token Efficiency, Cost, Response Time */}
+                    {/* Row 1: Success Rate (with Donut), Token Efficiency, Cost, Response Time */}
                     <Flex gap={16} flexWrap="wrap">
-                      {/* Agent Success Rate */}
+                      {/* Agent Success Rate — DonutChart visual */}
                       {(() => {
                         const totalTraces = agentList.reduce((sum, a) => sum + a.traceCount, 0);
                         const errorTraces = agentList.reduce((sum, a) => sum + Math.ceil(a.traceCount * (a.errorRate / 100)), 0);
                         const successRate = totalTraces > 0 ? ((totalTraces - errorTraces) / totalTraces) * 100 : 100;
                         const successColor = successRate >= 95 ? STATUS_COLORS.ideal : successRate >= 85 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                        const successDonutData = {
+                          slices: [
+                            { category: 'Succeeded', value: totalTraces - errorTraces },
+                            { category: 'Failed', value: errorTraces },
+                          ],
+                        };
                         return (
                           <Surface style={{ 
-                            flex: '1 1 200px', 
+                            flex: '1 1 280px', 
                             padding: 16,
                             borderLeft: `4px solid ${successColor}`
                           }}>
-                            <Flex flexDirection="column" gap={4}>
-                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Agent Success Rate</Text>
-                              <Heading level={2} style={{ color: successColor }}>{successRate.toFixed(1)}%</Heading>
-                              <Text textStyle="small">{totalTraces - errorTraces} / {totalTraces} traces succeeded</Text>
-                              <Tooltip text="Industry benchmark: >95% is excellent, 85-95% acceptable, <85% needs attention">
-                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }}>
-                                  Benchmark: &gt;95% excellent
-                                </Text>
-                              </Tooltip>
+                            <Flex alignItems="center" gap={16}>
+                              <div style={{ width: 110, height: 110, flexShrink: 0 }}>
+                                <DonutChart
+                                  data={successDonutData}
+                                  height={110}
+                                  width={110}
+                                  colorPalette={[successColor, STATUS_COLORS.critical]}
+                                >
+                                  <DonutChart.Legend hidden />
+                                  <DonutChart.Labels hidden />
+                                  <DonutChart.Toolbar hidden />
+                                </DonutChart>
+                              </div>
+                              <Flex flexDirection="column" gap={4}>
+                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Agent Success Rate</Text>
+                                <Heading level={2} style={{ color: successColor }}>{successRate.toFixed(1)}%</Heading>
+                                <Text textStyle="small">{totalTraces - errorTraces} / {totalTraces} traces</Text>
+                                <Tooltip text="Industry benchmark: >95% is excellent, 85-95% acceptable, <85% needs attention">
+                                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }}>
+                                    Benchmark: &gt;95% excellent
+                                  </Text>
+                                </Tooltip>
+                              </Flex>
                             </Flex>
                           </Surface>
                         );
@@ -2611,104 +2653,112 @@ export const AgentTools: React.FC = () => {
                               </Tooltip>
                             </Flex>
                             
-                            {/* Stacked bar showing LLM vs Tool time */}
+                            {/* DonutChart showing LLM vs Tool time */}
                             {(() => {
                               const totalLLMTime = agentLatency.reduce((sum, a) => sum + a.llmTimeMs, 0);
                               const totalToolTime = agentLatency.reduce((sum, a) => sum + a.toolTimeMs, 0);
                               const totalTime = totalLLMTime + totalToolTime;
                               const llmPct = totalTime > 0 ? (totalLLMTime / totalTime) * 100 : 50;
                               const toolPct = totalTime > 0 ? (totalToolTime / totalTime) * 100 : 50;
+                              const timeDonutData = {
+                                slices: [
+                                  { category: `LLM (${formatDuration(totalLLMTime)})`, value: totalLLMTime },
+                                  { category: `Tool (${formatDuration(totalToolTime)})`, value: totalToolTime },
+                                ],
+                              };
                               
                               return (
-                                <>
-                                  <Flex style={{ height: 32, borderRadius: 4, overflow: 'hidden' }}>
-                                    <div style={{ 
-                                      width: `${llmPct}%`, 
-                                      background: Colors.Charts.Categorical.Color01.Default,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: 'white',
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      minWidth: llmPct > 10 ? 'auto' : 0
-                                    }}>
-                                      {llmPct > 15 && `LLM ${llmPct.toFixed(0)}%`}
-                                    </div>
-                                    <div style={{ 
-                                      width: `${toolPct}%`, 
-                                      background: Colors.Charts.Categorical.Color02.Default,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: 'white',
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      minWidth: toolPct > 10 ? 'auto' : 0
-                                    }}>
-                                      {toolPct > 15 && `Tool ${toolPct.toFixed(0)}%`}
-                                    </div>
-                                  </Flex>
-                                  <Flex gap={16}>
+                                <Flex alignItems="center" gap={16}>
+                                  <div style={{ width: 130, height: 130, flexShrink: 0 }}>
+                                    <DonutChart
+                                      data={timeDonutData}
+                                      height={130}
+                                      width={130}
+                                      colorPalette={[Colors.Charts.Categorical.Color01.Default, Colors.Charts.Categorical.Color02.Default]}
+                                    >
+                                      <DonutChart.Legend hidden />
+                                      <DonutChart.Labels hidden />
+                                      <DonutChart.Toolbar hidden />
+                                    </DonutChart>
+                                  </div>
+                                  <Flex flexDirection="column" gap={6}>
                                     <Flex alignItems="center" gap={6}>
                                       <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
-                                      <Text textStyle="small">LLM Time: {formatDuration(totalLLMTime)} ({llmPct.toFixed(1)}%)</Text>
+                                      <Text textStyle="small">LLM: {formatDuration(totalLLMTime)} ({llmPct.toFixed(1)}%)</Text>
                                     </Flex>
                                     <Flex alignItems="center" gap={6}>
                                       <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
-                                      <Text textStyle="small">Tool Time: {formatDuration(totalToolTime)} ({toolPct.toFixed(1)}%)</Text>
+                                      <Text textStyle="small">Tool: {formatDuration(totalToolTime)} ({toolPct.toFixed(1)}%)</Text>
                                     </Flex>
+                                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginTop: 4 }}>
+                                      Total: {formatDuration(totalTime)}
+                                    </Text>
                                   </Flex>
-                                </>
+                                </Flex>
                               );
                             })()}
                           </Flex>
                         </Surface>
 
-                        {/* Top/Bottom Performers */}
-                        <Surface style={{ flex: '1 1 300px', padding: 16 }}>
+                        {/* Agent Leaderboard — Horizontal Bar Chart */}
+                        <Surface style={{ flex: '1 1 400px', padding: 16 }}>
                           <Flex flexDirection="column" gap={12}>
                             <Flex alignItems="center" gap={6}>
                               <CheckmarkIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color03.Default }} />
                               <Text style={{ fontWeight: 600 }}>Agent Leaderboard</Text>
                             </Flex>
                             {(() => {
-                              const sortedBySuccess = [...agentList].sort((a, b) => a.errorRate - b.errorRate);
-                              const topAgent = sortedBySuccess[0];
-                              const bottomAgent = sortedBySuccess[sortedBySuccess.length - 1];
-                              const mostExpensive = [...agentTokenCosts].sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd)[0];
+                              const sortedBySuccess = [...agentList].sort((a, b) => a.errorRate - b.errorRate).slice(0, 8);
+                              
+                              if (sortedBySuccess.length === 0) {
+                                return (
+                                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                                    No agent data available
+                                  </Text>
+                                );
+                              }
                               
                               return (
-                                <Flex flexDirection="column" gap={8}>
-                                  {topAgent && (
-                                    <Flex alignItems="center" gap={8}>
-                                      <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.ideal }} />
-                                      <Text textStyle="small">
-                                        <strong>Most Reliable:</strong> {topAgent.agentName} ({(100 - topAgent.errorRate).toFixed(1)}% success)
-                                      </Text>
+                                <Flex flexDirection="column" gap={6}>
+                                  {sortedBySuccess.map((agent) => {
+                                    const successRate = 100 - agent.errorRate;
+                                    const barColor = successRate >= 95 ? STATUS_COLORS.ideal : successRate >= 85 ? STATUS_COLORS.warning : STATUS_COLORS.critical;
+                                    return (
+                                      <Flex key={agent.agentName} flexDirection="column" gap={2}>
+                                        <Flex justifyContent="space-between" alignItems="center">
+                                          <Text style={{ fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {agent.agentName}
+                                          </Text>
+                                          <Text style={{ fontSize: 11, fontWeight: 600, color: barColor }}>
+                                            {successRate.toFixed(1)}%
+                                          </Text>
+                                        </Flex>
+                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
+                                          <div style={{ 
+                                            height: '100%', 
+                                            width: `${successRate}%`, 
+                                            borderRadius: 4, 
+                                            background: barColor,
+                                            transition: 'width 0.3s ease'
+                                          }} />
+                                        </div>
+                                      </Flex>
+                                    );
+                                  })}
+                                  <Flex gap={12} style={{ marginTop: 4 }}>
+                                    <Flex alignItems="center" gap={4}>
+                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
+                                      <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>&ge;95%</Text>
                                     </Flex>
-                                  )}
-                                  {bottomAgent && bottomAgent.errorRate > 5 && (
-                                    <Flex alignItems="center" gap={8}>
-                                      <WarningIcon style={{ width: 14, height: 14, color: STATUS_COLORS.warning }} />
-                                      <Text textStyle="small">
-                                        <strong>Needs Attention:</strong> {bottomAgent.agentName} ({bottomAgent.errorRate.toFixed(1)}% errors)
-                                      </Text>
+                                    <Flex alignItems="center" gap={4}>
+                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+                                      <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>85-95%</Text>
                                     </Flex>
-                                  )}
-                                  {mostExpensive && mostExpensive.estimatedCostUsd > 0 && (
-                                    <Flex alignItems="center" gap={8}>
-                                      <MoneyIcon style={{ width: 14, height: 14, color: Colors.Charts.Categorical.Color05.Default }} />
-                                      <Text textStyle="small">
-                                        <strong>Highest Spend:</strong> {mostExpensive.agentName} (${mostExpensive.estimatedCostUsd.toFixed(2)})
-                                      </Text>
+                                    <Flex alignItems="center" gap={4}>
+                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+                                      <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>&lt;85%</Text>
                                     </Flex>
-                                  )}
-                                  {agentList.length === 0 && (
-                                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-                                      No agent data available
-                                    </Text>
-                                  )}
+                                  </Flex>
                                 </Flex>
                               );
                             })()}
