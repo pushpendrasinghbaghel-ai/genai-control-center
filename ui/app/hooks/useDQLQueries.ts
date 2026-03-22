@@ -2179,10 +2179,11 @@ export function useSemanticCacheSavings(filters?: QueryFilters) {
     // Query for repeated prompts grouped by normalized content
     return `
       fetch spans, ${timeClause}
-      | filter isNotNull(gen_ai.prompt.0.content) OR isNotNull(gen_ai.request.model)
-      | filter span.kind == "CLIENT" OR span.kind == "INTERNAL"
+      | filter isNotNull(gen_ai.request.model)
+      | fieldsAdd prompt_text = coalesce(gen_ai.prompt.0.content, "")
+      | filter prompt_text != ""
       ${filterClause}
-      | fieldsAdd prompt_normalized = lower(trim(substring(coalesce(gen_ai.prompt.0.content, ""), 0, 150)))
+      | fieldsAdd prompt_normalized = lower(trim(substring(prompt_text, from:0, to:150)))
       | summarize {
           request_count = count(),
           total_input_tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),

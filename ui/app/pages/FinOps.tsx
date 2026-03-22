@@ -24,7 +24,7 @@ import type { AskAIContext } from '../hooks/useAskAI';
 import { refreshRateCardCache } from '../utils';
 import { useGlobalFilters } from '../context';
 import { formatRequestCount, formatCostPer1K } from '../utils';
-import { useBudgetBurnRate } from '../hooks/useCostGuardrails';
+import { useBudgetBurnRate, useCostVelocity } from '../hooks/useCostGuardrails';
 import { 
   useProviderComparison, 
   useDistinctServices, 
@@ -90,6 +90,9 @@ export const FinOps: React.FC = () => {
 
   // Budget burn rate — used by the hero card for $/hr, projection, ETA
   const { data: burnRate } = useBudgetBurnRate(budgetLimit);
+
+  // Cost velocity — $/min with trend & spike detection
+  const { data: costVelocity, timeseries: velocityTimeseries } = useCostVelocity();
   
   // Get available service options (with entity IDs)
   const { data: availableServiceOptions } = useDistinctServices();
@@ -127,10 +130,7 @@ export const FinOps: React.FC = () => {
   const { data: serviceCosts, loading: serviceCostsLoading } = useCostByService(queryFilters);
   const { data: embeddingVsCompletion, loading: embeddingLoading } = useEmbeddingVsCompletion(queryFilters);
   const { data: tokenEfficiency, loading: efficiencyLoading } = useTokenEfficiency(queryFilters);
-  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
-  // const { data: cacheSavings, loading: cacheSavingsLoading } = useSemanticCacheSavings(queryFilters);
-  const cacheSavings: any = null;  // typed as any to avoid TS errors in hidden code
-  const cacheSavingsLoading = false;
+  const { data: cacheSavings, loading: cacheSavingsLoading } = useSemanticCacheSavings(queryFilters);
 
   // Cross-provider deep observability — prompt caching + OTel token metrics
   const {
@@ -505,6 +505,108 @@ export const FinOps: React.FC = () => {
           </Flex>
         </Surface>
       </Flex>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Cost Velocity — $/min with trend detection */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {costVelocity && (
+        <>
+          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+            <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
+            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Velocity</Text>
+          </Flex>
+
+          <Flex gap={16}>
+            {/* Current $/min */}
+            <Surface style={{
+              flex: 1,
+              padding: 16,
+              borderLeft: `4px solid ${costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good}`,
+            }}>
+              <Flex flexDirection="column" gap={6}>
+                <Flex alignItems="center" gap={4}>
+                  <MoneyIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Current $/min</Text>
+                  <Tooltip text="Real-time cost velocity based on the latest 5-minute window. Compares against baseline to detect runaway spend.">
+                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <Heading level={4} style={{ color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : undefined }}>
+                  ${costVelocity.currentCostPerMinute.toFixed(4)}
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Baseline: ${costVelocity.baselineCostPerMinute.toFixed(4)}/min
+                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Velocity Ratio */}
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Velocity Ratio</Text>
+                <Heading level={4}>
+                  {costVelocity.velocityRatio.toFixed(1)}x
+                </Heading>
+                <Text textStyle="small" style={{
+                  fontWeight: 600,
+                  color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good,
+                }}>
+                  {costVelocity.status === 'critical' ? '🔴 CRITICAL' : costVelocity.status === 'warning' ? '🟠 WARNING' : costVelocity.status === 'elevated' ? '🟡 ELEVATED' : '🟢 NORMAL'}
+                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Trend */}
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Trend</Text>
+                <Heading level={4}>
+                  {costVelocity.trendDirection === 'spike' ? '⚡ Spike' : costVelocity.trendDirection === 'rising' ? '📈 Rising' : costVelocity.trendDirection === 'falling' ? '📉 Falling' : '→ Stable'}
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Max: ${costVelocity.maxCostPerMinute.toFixed(4)}/min
+                </Text>
+              </Flex>
+            </Surface>
+
+            {/* Token Velocity */}
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Token Velocity</Text>
+                <Heading level={4}>
+                  {costVelocity.byProvider.reduce((sum, p) => sum + p.tokenVelocity, 0).toFixed(0)}/min
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Across {costVelocity.byProvider.length} providers
+                </Text>
+              </Flex>
+            </Surface>
+          </Flex>
+
+          {/* Velocity Timeseries Chart */}
+          {velocityTimeseries.length > 0 && (
+            <Surface style={{ padding: 16 }}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ width: 14, height: 14 }} />
+                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Cost Velocity Over Time ($/min)</Text>
+                </Flex>
+                <div style={{ height: 200 }}>
+                  <TimeseriesChart data={[{
+                    name: 'Cost $/min',
+                    datapoints: velocityTimeseries.map(p => ({
+                      start: new Date(p.timestamp),
+                      value: p.costPerMinute,
+                    })),
+                  }]}>
+                    <TimeseriesChart.Legend hidden />
+                  </TimeseriesChart>
+                </div>
+              </Flex>
+            </Surface>
+          )}
+        </>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       {/* SECTION: Cost Trends & Forecasting */}
@@ -1001,10 +1103,8 @@ export const FinOps: React.FC = () => {
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
-      {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator - TEMPORARILY HIDDEN */}
-      {/* Pending DQL validation with Demo Dynatrace MCP server */}
+      {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator */}
       {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
-      {false && (
       <Surface style={{ padding: 16, borderLeft: `4px solid ${STATUS_COLORS.ideal}` }}>
         <Flex flexDirection="column" gap={16}>
           <Flex justifyContent="space-between" alignItems="center">
@@ -1158,7 +1258,6 @@ export const FinOps: React.FC = () => {
           )}
         </Flex>
       </Surface>
-      )}
 
       {/* Token Efficiency Analysis - Find Waste */}
       <Surface style={{ padding: 16 }}>

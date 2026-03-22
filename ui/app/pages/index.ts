@@ -23,8 +23,7 @@ export { ResponseAnalytics } from './ResponseAnalytics';
 // NEW: Prompt Governance (dedicated page)
 export { PromptGovernance } from './PromptGovernance';
 
-// NEW: Real-Time Alerts
-export { RealTimeAlerts } from './RealTimeAlerts';
+// RealTimeAlerts removed — duplicate of Operations problems section
 
 // NEW: Agent Tools (AI agent workflow monitoring)
 export { AgentTools } from './AgentTools';
@@ -58,6 +57,9 @@ export { Integrations } from './Integrations';
 
 // NEW: MLOps (Model Registry, AI SLOs, Model Comparison, Cost Attribution)
 export { MLOps } from './MLOps';
+
+// NEW: Agentic Deep Dive (multi-agent trace analysis, step-by-step breakdown)
+export { AgenticDeepDive } from './AgenticDeepDive';
 
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';

@@ -293,17 +293,19 @@ export const Governance: React.FC = () => {
       recommendation: slowServices.length > 0 ? 'Consider smaller models or caching for slow endpoints' : 'All services within SLA',
     });
 
-    // Data residency policy (simulated based on provider)
+    // Data residency policy — derived from actual provider data
     const hasUSProviders = providers.some((p: any) => ['openai', 'anthropic'].includes(p.provider?.toLowerCase()));
     const hasEUProviders = providers.some((p: any) => ['azure'].includes(p.provider?.toLowerCase()));
     policies.push({
       id: 'data-residency',
-      name: 'Data Residency Compliance',
+      name: 'Data Residency Awareness',
       category: 'data-privacy',
       status: hasEUProviders || !hasUSProviders ? 'compliant' : 'warning',
-      description: hasUSProviders ? 'Data may be processed in US-based providers' : 'Data residency requirements met',
+      description: hasUSProviders 
+        ? `${providers.filter((p: any) => ['openai', 'anthropic'].includes(p.provider?.toLowerCase())).length} provider(s) may process data in US regions. Review provider agreements for data residency terms.`
+        : 'All active providers are outside US-hosted services',
       affectedServices: services.length,
-      recommendation: hasUSProviders && !hasEUProviders ? 'Consider EU-based alternatives for GDPR compliance' : 'Data residency policy satisfied',
+      recommendation: hasUSProviders && !hasEUProviders ? 'Consider EU-based alternatives (Azure OpenAI EU, Bedrock eu-west-1) for GDPR compliance' : 'Data residency policy satisfied',
     });
 
     // Model versioning policy
@@ -315,17 +317,6 @@ export const Governance: React.FC = () => {
       description: 'All model versions are being tracked via OpenTelemetry spans.',
       affectedServices: services.length,
       recommendation: 'Continue monitoring for model deprecation notices',
-    });
-
-    // PII Detection policy (simulated)
-    policies.push({
-      id: 'pii-detection',
-      name: 'PII in Prompts Detection',
-      category: 'data-privacy',
-      status: 'warning',
-      description: 'PII scanning not yet implemented. Prompts may contain sensitive data.',
-      affectedServices: services.length,
-      recommendation: 'Enable prompt content analysis to detect PII leakage',
     });
 
     return policies;

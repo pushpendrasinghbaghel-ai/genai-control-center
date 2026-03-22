@@ -12,6 +12,7 @@ import {
   convertToTimeseries,
 } from "@dynatrace/strato-components/charts";
 import { DQLEditor } from "@dynatrace/strato-components/editors";
+import { DataTable } from "@dynatrace/strato-components-preview/tables";
 import Colors from "@dynatrace/strato-design-tokens/colors";
 import { CriticalIcon } from "@dynatrace/strato-icons";
 import { useDql } from "@dynatrace-sdk/react-hooks";
@@ -149,15 +150,48 @@ export const Data = () => {
       </Flex>
 
       {/* Results */}
-      {data?.records && data.records.length > 0 && (
-        <Surface style={{ padding: 16 }}>
-          <TimeseriesChart
-            data={convertToTimeseries(data.records, data.types)}
-            gapPolicy="connect"
-            variant="line"
-          />
-        </Surface>
-      )}
+      {data?.records && data.records.length > 0 && (() => {
+        // Check if data has timeseries-compatible fields (timeframe or timestamp)
+        const firstRecord = data.records[0] as Record<string, unknown> | null;
+        const hasTimefield = firstRecord && (
+          'timeframe' in firstRecord ||
+          'timestamp' in firstRecord ||
+          Object.keys(firstRecord).some(k => k.startsWith('bin('))
+        );
+
+        if (hasTimefield) {
+          try {
+            const tsData = convertToTimeseries(data.records, data.types);
+            return (
+              <Surface style={{ padding: 16 }}>
+                <TimeseriesChart data={tsData} gapPolicy="connect" variant="line" />
+              </Surface>
+            );
+          } catch {
+            // Fall through to table if conversion fails
+          }
+        }
+
+        // Tabular fallback
+        const keys = Object.keys(firstRecord || {});
+        const columns = keys.map(key => ({
+          id: key,
+          header: key,
+          accessor: key,
+        }));
+        return (
+          <Surface style={{ padding: 16 }}>
+            <DataTable
+              data={data.records as Record<string, unknown>[]}
+              columns={columns}
+              sortable
+              resizable
+            >
+              <DataTable.Pagination defaultPageSize={20} />
+            </DataTable>
+          </Surface>
+        );
+      })()}
 
       {data?.records && data.records.length === 0 && (
         <Surface style={{ padding: 24, textAlign: 'center' }}>

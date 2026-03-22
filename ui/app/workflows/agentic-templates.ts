@@ -257,12 +257,19 @@ Analyze this problem and provide:
   isPrivate: false
 };
 
-// Workflow deployment helper (requires @dynatrace-sdk/client-automation)
+// Workflow deployment using @dynatrace-sdk/client-automation
 export async function deployWorkflow(workflow: typeof FINOPS_DIGEST_WORKFLOW): Promise<string> {
-  // Placeholder - implement when automation SDK is added
-  console.log('[GCC] Workflow deployment requires @dynatrace-sdk/client-automation');
-  console.log('[GCC] Use getWorkflowDeployUrl() for manual import instead');
-  return 'manual-deploy-required';
+  try {
+    const { workflowsClient } = await import('@dynatrace-sdk/client-automation');
+    const response = await workflowsClient.createWorkflow({
+      body: workflow as any
+    });
+    return response.id || 'deployed';
+  } catch (err: any) {
+    console.error('[GCC] Workflow deployment failed:', err?.message || err);
+    // Fall back to manual import URL
+    throw new Error(`Deployment failed: ${err?.message || 'Unknown error'}. Use manual import instead.`);
+  }
 }
 
 // Get workflow deployment URL for manual import

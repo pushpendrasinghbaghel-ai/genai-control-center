@@ -2365,3 +2365,83 @@ fetch spans, ${timeClause}
 | sort time_bucket asc
 `.trim();
 };
+
+// ============================================
+// Streaming vs Batch Analysis
+// ============================================
+
+/**
+ * Streaming vs Batch breakdown — uses llm.is_streaming attribute
+ * Available on all 5 providers (openai, amazon, VertexAI, ollama, azure)
+ */
+export const STREAMING_VS_BATCH_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd is_streaming = if(llm.is_streaming == "true", then: "Streaming", else: "Batch")
+| summarize
+    request_count = count(),
+    avg_latency_ms = avg(toDouble(duration)) / 1000000,
+    p50_latency_ms = percentile(toDouble(duration), 50) / 1000000,
+    p95_latency_ms = percentile(toDouble(duration), 95) / 1000000,
+    avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, 0)),
+    avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, 0)),
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+    by: { is_streaming, gen_ai.provider.name, gen_ai.request.model }
+| fieldsAdd error_rate = if(request_count > 0, then: toDouble(error_count) / toDouble(request_count) * 100, else: 0.0)
+| sort request_count desc
+`.trim();
+};
+
+/**
+ * Streaming vs Batch summary — aggregate totals for KPI cards
+ */
+export const STREAMING_BATCH_SUMMARY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch spans, ${timeClause}
+| filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+| fieldsAdd is_streaming = if(llm.is_streaming == "true", then: "Streaming", else: "Batch")
+| summarize
+    total = count(),
+    avg_latency_ms = avg(toDouble(duration)) / 1000000,
+    total_tokens = sum(coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0)),
+    by: { is_streaming }
+| sort total desc
+`.trim();
+};
+
+// ============================================
+// Prompt I/O Audit Trail (Business Events)
+// ============================================
+
+/**
+ * Prompt I/O audit trail from gen_ai.auditing business events
+ * Returns individual prompt input/output pairs correlated to traces
+ */
+export const PROMPT_AUDIT_TRAIL_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch bizevents, ${timeClause}
+| filter event.type == "gen_ai.auditing"
+| fields timestamp, gen_ai.type, gen_ai.system, gen_ai.prompt, trace.id, span.id
+| sort timestamp desc
+| limit 500
+`.trim();
+};
+
+/**
+ * Prompt audit summary — count by type and provider
+ */
+export const PROMPT_AUDIT_SUMMARY_QUERY = (filters?: QueryFilters): string => {
+  const timeClause = getTimeClause(filters);
+  return `
+fetch bizevents, ${timeClause}
+| filter event.type == "gen_ai.auditing"
+| summarize
+    event_count = count(),
+    by: { gen_ai.type, gen_ai.system }
+| sort event_count desc
+`.trim();
+};

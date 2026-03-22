@@ -3,7 +3,7 @@
  * Standard Dynatrace app with FilterBar and deep linking to Services app
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
@@ -11,6 +11,8 @@ import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { TimeseriesChart } from '@dynatrace/strato-components/charts';
+import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon, AIModelIcon, LargeLanguageModelIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -18,6 +20,7 @@ import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useD
 import { FilterBar } from '../components/FilterBar';
 import { useGlobalFilters } from '../context';
 import { calculateOverallHealth, formatNumber, formatCurrency, getHealthStatusColor } from '../utils';
+import { detectTokenAnomalyAdaptive, detectErrorRateAnomaly, detectLatencyNovelty, detectRequestVolumeSeasonalAnomaly, type AnomalyResult } from '../utils/davisAnalyzers';
 import type { AIService, HealthStatus } from '../types';
 
 // Strato Design Tokens for status colors
@@ -252,6 +255,101 @@ export const HealthDashboard: React.FC = () => {
   // Data hooks with filters
   const { data: services, loading, error, refetch } = useAIServicesDiscovery(queryFilters);
 
+  // Davis Anomaly Detection
+  const [anomalies, setAnomalies] = useState<AnomalyResult[]>([]);
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+
+  const runAnomalyDetection = useCallback(async () => {
+    setAnomalyLoading(true);
+    try {
+      const [tokenAnomaly, errorAnomaly, latencyNovelty, seasonalAnomaly] = await Promise.all([
+        detectTokenAnomalyAdaptive(2).catch(() => null),
+        detectErrorRateAnomaly(2).catch(() => null),
+        detectLatencyNovelty(2).catch(() => null),
+        detectRequestVolumeSeasonalAnomaly(2).catch(() => null),
+      ]);
+      const results: AnomalyResult[] = [];
+      if (tokenAnomaly?.success && tokenAnomaly.hasAnomaly) results.push(tokenAnomaly);
+      if (errorAnomaly?.success && errorAnomaly.hasAnomaly) results.push(errorAnomaly);
+      if (latencyNovelty?.success && latencyNovelty.noveltyType !== 'NONE') {
+        results.push({
+          success: true,
+          metric: latencyNovelty.metric,
+          hasAnomaly: true,
+          severity: latencyNovelty.noveltyScore > 0.8 ? 'critical' : latencyNovelty.noveltyScore > 0.5 ? 'high' : 'medium',
+          description: latencyNovelty.description,
+        });
+      }
+      if (seasonalAnomaly?.success && seasonalAnomaly.hasAnomaly) results.push(seasonalAnomaly);
+      setAnomalies(results);
+    } catch {
+      // Analyzers unavailable — silently ignore
+    } finally {
+      setAnomalyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    runAnomalyDetection();
+  }, [runAnomalyDetection]);
+
+  // OTel Native Metrics (pre-aggregated, 0 GB cost)
+  const [otelTokens, setOtelTokens] = useState<Timeseries[]>([]);
+  const [otelDuration, setOtelDuration] = useState<Timeseries[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { queryExecutionClient } = await import('@dynatrace-sdk/client-query');
+        const [tokResp, durResp] = await Promise.all([
+          queryExecutionClient.queryExecute({
+            body: { query: 'timeseries avg(gen_ai.client.token.usage), from:now()-2h', requestTimeoutMilliseconds: 30000, fetchTimeoutSeconds: 30 }
+          }),
+          queryExecutionClient.queryExecute({
+            body: { query: 'timeseries avg(gen_ai.client.operation.duration), from:now()-2h', requestTimeoutMilliseconds: 30000, fetchTimeoutSeconds: 30 }
+          }),
+        ]);
+        const toTimeseries = (records: any[], metricKey: string, name: string): Timeseries[] => {
+          if (!records?.length) return [];
+          const rec = records[0];
+          const tf = rec.timeframe;
+          const vals = rec[metricKey] as (number | null)[];
+          if (!tf || !vals) return [];
+          const interval = Number(rec.interval) || 60000000000;
+          const start = new Date(tf.start).getTime();
+          return [{
+            name,
+            datapoints: vals.map((v, i) => ({ start: new Date(start + i * (interval / 1000000)), value: v ?? 0 }))
+          }];
+        };
+        setOtelTokens(toTimeseries(tokResp.result?.records || [], 'avg(gen_ai.client.token.usage)', 'Avg Token Usage'));
+        setOtelDuration(toTimeseries(durResp.result?.records || [], 'avg(gen_ai.client.operation.duration)', 'Avg Duration (s)'));
+      } catch { /* OTel metrics not available */ }
+    })();
+  }, []);
+
+  // Request Type Breakdown (chat/completion/embeddings)
+  const [requestTypes, setRequestTypes] = useState<{ type: string; count: number; avgDuration: number }[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { queryExecutionClient } = await import('@dynatrace-sdk/client-query');
+        const resp = await queryExecutionClient.queryExecute({
+          body: {
+            query: `fetch spans, from:now()-2h | filter isNotNull(llm.request.type) | summarize cnt = count(), avg_dur = avg(duration), by: { llm.request.type } | sort cnt desc`,
+            requestTimeoutMilliseconds: 30000, fetchTimeoutSeconds: 30,
+          },
+        });
+        const records = resp.result?.records || [];
+        setRequestTypes(records.map((r: any) => ({
+          type: String(r['llm.request.type'] || 'unknown'),
+          count: Number(r.cnt) || 0,
+          avgDuration: (Number(r.avg_dur) || 0) / 1e6, // ns → ms
+        })));
+      } catch { /* request type data not available */ }
+    })();
+  }, []);
+
   const handleInvestigate = (serviceName: string) => {
     navigate(`/davis?service=${encodeURIComponent(serviceName)}`);
   };
@@ -424,6 +522,63 @@ export const HealthDashboard: React.FC = () => {
         />
       </Flex>
 
+      {/* Davis Anomaly Alerts */}
+      {anomalies.length > 0 && (
+        <Surface style={{ padding: 12, borderLeft: `4px solid ${STATUS_COLORS.critical}` }}>
+          <Flex flexDirection="column" gap={8}>
+            <Flex alignItems="center" gap={6}>
+              <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.critical }} />
+              <Text style={{ fontWeight: 600, fontSize: 13 }}>Davis AI Anomaly Detection</Text>
+              <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+            </Flex>
+            {anomalies.map((a, i) => (
+              <Flex key={i} alignItems="center" gap={8} style={{ padding: '4px 0' }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: a.severity === 'critical' ? STATUS_COLORS.critical : a.severity === 'high' ? STATUS_COLORS.warning : STATUS_COLORS.neutral
+                }} />
+                <Text style={{ fontSize: 12 }}>
+                  <strong>{a.metric === 'token_usage' ? 'Token Usage' : a.metric === 'error_rate' ? 'Error Rate' : a.metric === 'latency' ? 'Latency' : a.metric === 'request_volume' ? 'Request Volume' : a.metric}:</strong> {a.description}
+                </Text>
+                {a.severity !== 'none' && (
+                  <span style={{
+                    fontSize: 9, padding: '1px 5px', borderRadius: 4, fontWeight: 600,
+                    backgroundColor: a.severity === 'critical' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                    color: a.severity === 'critical' ? '#ef4444' : '#f59e0b'
+                  }}>
+                    {a.severity.toUpperCase()}
+                  </span>
+                )}
+              </Flex>
+            ))}
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Request Type Breakdown (chat/completion/embeddings) */}
+      {requestTypes.length > 0 && (
+        <Flex gap={16} flexWrap="wrap">
+          {requestTypes.map(rt => {
+            const totalReqs = requestTypes.reduce((s, r) => s + r.count, 0);
+            const pct = totalReqs > 0 ? ((rt.count / totalReqs) * 100).toFixed(1) : '0';
+            return (
+              <Surface key={rt.type} style={{ flex: '1 1 180px', padding: 16 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Flex alignItems="center" gap={6}>
+                    <LargeLanguageModelIcon style={{ width: 14, height: 14 }} />
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{rt.type}</Text>
+                  </Flex>
+                  <Heading level={4}>{rt.count.toLocaleString()}</Heading>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                    {pct}% &bull; avg {rt.avgDuration.toFixed(0)}ms
+                  </Text>
+                </Flex>
+              </Surface>
+            );
+          })}
+        </Flex>
+      )}
+
       {/* Top Consumers - Quick insight into highest usage services */}
       {services.length > 1 && (
         <Surface>
@@ -482,6 +637,48 @@ export const HealthDashboard: React.FC = () => {
             </Flex>
           </Flex>
         </Surface>
+      )}
+
+      {/* OTel Native Metrics — Pre-aggregated, 0 GB query cost */}
+      {(otelTokens.length > 0 || otelDuration.length > 0) && (
+        <Flex gap={16} flexWrap="wrap">
+          {otelTokens.length > 0 && (
+            <Surface style={{ flex: '1 1 400px', padding: 16 }}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={6}>
+                  <BarChartIcon style={{ width: 14, height: 14 }} />
+                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Usage (OTel Metric)</Text>
+                  <Tooltip text="Pre-aggregated gen_ai.client.token.usage metric — zero query cost">
+                    <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <div style={{ height: 180 }}>
+                  <TimeseriesChart data={otelTokens}>
+                    <TimeseriesChart.Legend hidden />
+                  </TimeseriesChart>
+                </div>
+              </Flex>
+            </Surface>
+          )}
+          {otelDuration.length > 0 && (
+            <Surface style={{ flex: '1 1 400px', padding: 16 }}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={6}>
+                  <ClockIcon style={{ width: 14, height: 14 }} />
+                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Operation Duration (OTel Metric)</Text>
+                  <Tooltip text="Pre-aggregated gen_ai.client.operation.duration metric — zero query cost">
+                    <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <div style={{ height: 180 }}>
+                  <TimeseriesChart data={otelDuration}>
+                    <TimeseriesChart.Legend hidden />
+                  </TimeseriesChart>
+                </div>
+              </Flex>
+            </Surface>
+          )}
+        </Flex>
       )}
 
       {/* Service List - Table Style */}

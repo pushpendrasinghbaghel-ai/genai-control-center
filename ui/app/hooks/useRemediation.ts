@@ -137,16 +137,23 @@ export function useRemediation(): UseRemediationResult {
     setError(null);
 
     try {
-      // Real execution requires @dynatrace-sdk/client-automation
-      // const response = await automationClient.runWorkflow({
-      //   id: action.workflowId,
-      //   body: { params: { ...action.parameters, ...params } }
-      // });
-      
-      const errorMsg = `Workflow execution requires @dynatrace-sdk/client-automation. ` +
-        `Deploy workflow "${action.workflowId}" in the Dynatrace Workflows app first.`;
-      
-      throw new Error(errorMsg);
+      const { workflowsClient } = await import('@dynatrace-sdk/client-automation');
+      const response = await workflowsClient.runWorkflow({
+        id: action.workflowId,
+        body: { input: {}, params: { ...action.parameters, ..._params } }
+      });
+
+      const completedExecution: WorkflowExecution = {
+        ...execution,
+        status: 'running',
+        endTime: new Date(),
+      };
+
+      setExecutions(prev =>
+        prev.map(e => e.id === executionId ? completedExecution : e)
+      );
+
+      return completedExecution;
 
     } catch (err) {
       const failedExecution: WorkflowExecution = {

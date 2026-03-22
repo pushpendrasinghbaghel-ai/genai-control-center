@@ -9,7 +9,7 @@ import { Tab, Tabs } from '@dynatrace/strato-components/navigation';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { DataTable } from '@dynatrace/strato-components/tables';
-import { DonutChart, TimeseriesChart } from '@dynatrace/strato-components/charts';
+import { DonutChart, TimeseriesChart, XYChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
@@ -517,6 +517,68 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
         </Flex>
       </Surface>
 
+      {/* Model Efficiency Frontier — Scatter: Latency vs Token Efficiency */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={8}>
+          <Flex alignItems="center" gap={6}>
+            <AiIcon style={{ width: 14, height: 14 }} />
+            <Text style={{ fontWeight: 600, fontSize: 13 }}>Model Efficiency Frontier</Text>
+            <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+          </Flex>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>
+            Models in the bottom-right quadrant (high efficiency, low latency) are on the efficiency frontier — optimal performance per token.
+          </Text>
+          {(() => {
+            // Only show completion models (filter out embedding models with 0 output)
+            const completionModels = data.filter(m => m.tokenEfficiency > 0 && m.avgLatencyMs > 0);
+            if (completionModels.length < 2) return <Text textStyle="small" style={{ opacity: 0.5, padding: 16 }}>Need at least 2 completion models to display efficiency frontier.</Text>;
+
+            const scatterData = completionModels.map(m => ({
+              seriesName: m.model,
+              x0: m.avgLatencyMs,
+              y0: m.tokenEfficiency,
+            }));
+
+            return (
+              <div style={{ height: 300 }}>
+                <XYChart data={scatterData} colorPalette="categorical">
+                  <XYChart.DotSeries
+                    xAxisId="latency-axis"
+                    yAxisId="efficiency-axis"
+                    x0Accessor="x0"
+                    y0Accessor="y0"
+                    nameAccessor="seriesName"
+                  />
+                  <XYChart.XAxis id="latency-axis" type="numerical" position="bottom" label="Avg Latency (ms)" />
+                  <XYChart.YAxis id="efficiency-axis" type="numerical" position="left" label="Token Efficiency (output/input)" />
+                </XYChart>
+              </div>
+            );
+          })()}
+          {/* Frontier summary — top 3 most efficient models */}
+          {(() => {
+            const completionModels = data.filter(m => m.tokenEfficiency > 0 && m.avgLatencyMs > 0);
+            if (completionModels.length === 0) return null;
+            // Efficiency frontier score: higher efficiency + lower latency = better
+            const sorted = [...completionModels].sort((a, b) => (a.avgLatencyMs / Math.max(a.tokenEfficiency, 0.01)) - (b.avgLatencyMs / Math.max(b.tokenEfficiency, 0.01)));
+            const frontier = sorted.slice(0, 3);
+            return (
+              <Flex gap={8} style={{ marginTop: 4 }}>
+                {frontier.map((m, i) => (
+                  <Surface key={m.model} style={{ flex: 1, padding: 10, borderLeft: `3px solid ${i === 0 ? STATUS_COLORS.pass : STATUS_COLORS.neutral}` }}>
+                    <Flex flexDirection="column" gap={2}>
+                      <Text style={{ fontSize: 10, opacity: 0.5 }}>{i === 0 ? '🏆 Best' : `#${i + 1}`}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: 600 }}>{m.model}</Text>
+                      <Text style={{ fontSize: 10, opacity: 0.6 }}>{fmt(m.avgLatencyMs)}ms · {m.tokenEfficiency.toFixed(2)} eff · {fmtInt(m.requests)} req</Text>
+                    </Flex>
+                  </Surface>
+                ))}
+              </Flex>
+            );
+          })()}
+        </Flex>
+      </Surface>
+
       <DataTable data={data} columns={columns} sortable resizable>
         <DataTable.Pagination defaultPageSize={10} />
       </DataTable>
@@ -747,6 +809,38 @@ const DeploymentTrackerTab = ({
   serviceConfigs: Array<{ serviceName: string; model: string; provider: string; modelVersions: number; requestCount: number; lastSeen: string }>;
   infraLoading: boolean;
 }) => {
+  const [trainingJobs, setTrainingJobs] = useState<Array<{ timestamp: string; jobName: string; baseModel: string; region: string; eventName: string }>>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { queryExecutionClient } = await import('@dynatrace-sdk/client-query');
+        const resp = await queryExecutionClient.queryExecute({
+          body: {
+            query: `fetch bizevents, from:now()-7d
+| filter event.type == "gen_ai.auditing" AND gen_ai.type == "training"
+| fieldsAdd jobName = record(requestParameters)["jobName"]
+| fieldsAdd baseModel = record(requestParameters)["baseModelIdentifier"]
+| fields timestamp, jobName, baseModel, awsRegion, eventName
+| sort timestamp desc
+| limit 20`,
+            requestTimeoutMilliseconds: 30000,
+            fetchTimeoutSeconds: 30
+          }
+        });
+        const records = resp.result?.records || [];
+        setTrainingJobs(records.map((r: any) => ({
+          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : '',
+          jobName: r.jobName || r.eventName || 'Unknown',
+          baseModel: r.baseModel || 'N/A',
+          region: r.awsRegion || 'N/A',
+          eventName: r.eventName || 'N/A',
+        })));
+      } catch {
+        // Training events not available
+      }
+    })();
+  }, []);
   const historyColumns = useMemo(() => [
     {
       id: 'service',
@@ -846,6 +940,35 @@ const DeploymentTrackerTab = ({
           </DataTable>
         : <Text>No model history data available.</Text>
       }
+
+      {/* AWS Bedrock Training Jobs from bizevents */}
+      {trainingJobs.length > 0 && (
+        <>
+          <Flex alignItems="center" gap={6} style={{ marginTop: 8 }}>
+            <WorkflowsIcon style={{ width: 14, height: 14 }} />
+            <Heading level={5}>Model Training Jobs</Heading>
+            <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+          </Flex>
+          <Text textStyle="small" style={{ opacity: 0.6 }}>
+            AWS Bedrock fine-tuning and customization jobs detected from CloudTrail bizevents.
+          </Text>
+          <Flex flexDirection="column" gap={6}>
+            {trainingJobs.map((job, idx) => (
+              <Surface key={idx} style={{ padding: 12 }}>
+                <Flex justifyContent="space-between" alignItems="center">
+                  <Flex flexDirection="column" gap={2}>
+                    <Text style={{ fontWeight: 600, fontSize: 12 }}>{job.jobName}</Text>
+                    <Text textStyle="small" style={{ opacity: 0.6 }}>
+                      Base model: {job.baseModel} · Region: {job.region} · Event: {job.eventName}
+                    </Text>
+                  </Flex>
+                  <Text textStyle="small" style={{ opacity: 0.5 }}>{relTime(job.timestamp)}</Text>
+                </Flex>
+              </Surface>
+            ))}
+          </Flex>
+        </>
+      )}
     </Flex>
   );
 };

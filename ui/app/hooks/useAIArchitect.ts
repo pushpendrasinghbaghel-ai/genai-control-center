@@ -176,13 +176,10 @@ export function useAIArchitect(services: AIService[]): UseAIArchitectResult {
     setError(null);
 
     try {
-      // Simulate slight delay for analysis
-      setTimeout(() => {
-        const result = analyzePatterns(services);
-        setRecommendations(result.recommendations);
-        setPatterns(result.patterns);
-        setIsLoading(false);
-      }, 500);
+      const result = analyzePatterns(services);
+      setRecommendations(result.recommendations);
+      setPatterns(result.patterns);
+      setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Analysis failed'));
       setIsLoading(false);

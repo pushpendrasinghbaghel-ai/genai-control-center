@@ -310,69 +310,39 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
     fetchImpactedAgents();
   }, [summary.model, summary.provider]);
 
-  // Generate DRIFT SCORE trend (primary chart) - split by severity for color coding
+  // Drift score shown as a single KPI — no simulated trend chart needed
+  // The main page's driftTrendData chart shows the real timeseries for this model
   const driftScoreTrend = useMemo((): Timeseries[] => {
+    // Use the current drift score as a simple reference line
     const now = Date.now();
-    // Simulate drift score progression over 7 days (daily points)
-    const baselineDrift = 10; // Started at low drift
     const currentDrift = summary.overallDriftScore;
+    const severityName = currentDrift >= 70 ? '🔴 Critical Drift' : currentDrift >= 40 ? '🟡 Warning Drift' : '🟢 Normal Drift';
     
-    // Generate datapoints first
-    const datapoints = Array.from({ length: 7 }, (_, i) => {
-      const timestamp = new Date(now - (6 - i) * 86400000); // 7 days
-      const progress = i / 6;
-      // Non-linear progression with some variance
-      const value = baselineDrift + (currentDrift - baselineDrift) * Math.pow(progress, 0.7) + (Math.random() - 0.5) * 8;
-      return { 
-        start: timestamp, 
-        end: new Date(timestamp.getTime() + 86400000), 
-        value: Math.max(0, Math.min(100, value)) 
-      };
-    });
-    
-    // Determine overall severity for single-color display
-    const lastValue = datapoints[datapoints.length - 1].value;
-    const severityName = lastValue >= 70 ? '🔴 Critical Drift' : lastValue >= 40 ? '🟡 Warning Drift' : '🟢 Normal Drift';
-    
-    return [
-      { name: severityName, datapoints },
-    ] as Timeseries[];
-  }, [summary.overallDriftScore]);
+    return [{
+      name: severityName,
+      datapoints: summary.metrics.map((m, i) => ({
+        start: new Date(now - (summary.metrics.length - 1 - i) * 3600000),
+        end: new Date(now - (summary.metrics.length - 2 - i) * 3600000),
+        value: m.driftScore
+      }))
+    }] as Timeseries[];
+  }, [summary]);
 
-  // Detailed metrics trend (optional, on-demand)
+  // Detailed metrics trend — display actual metric change percentages from real baseline comparison
   const detailedTrendData = useMemo((): Timeseries[] => {
     if (!showDetailedMetrics) return [];
     
+    // Show actual baseline vs current as 2-point comparison (real data, no simulation)
     const now = Date.now();
-    const latencyMetric = summary.metrics.find(m => m.metricName === 'Average Latency');
-    const qualityMetric = summary.metrics.find(m => m.metricName === 'Avg Output Tokens');
-    const efficiencyMetric = summary.metrics.find(m => m.metricName === 'Token Efficiency');
-    
-    const trends: Timeseries[] = [];
-    
-    if (latencyMetric) {
-      trends.push({
-        name: 'Latency Δ%',
-        datapoints: Array.from({ length: 7 }, (_, i) => {
-          const timestamp = new Date(now - (6 - i) * 86400000);
-          const progress = i / 6;
-          const value = latencyMetric.changePercent * progress + (Math.random() - 0.5) * 5;
-          return { start: timestamp, end: new Date(timestamp.getTime() + 86400000), value };
-        })
-      });
-    }
-    
-    if (qualityMetric) {
-      trends.push({
-        name: 'Quality Δ%',
-        datapoints: Array.from({ length: 7 }, (_, i) => {
-          const timestamp = new Date(now - (6 - i) * 86400000);
-          const progress = i / 6;
-          const value = qualityMetric.changePercent * progress + (Math.random() - 0.5) * 5;
-          return { start: timestamp, end: new Date(timestamp.getTime() + 86400000), value };
-        })
-      });
-    }
+    const trends: Timeseries[] = summary.metrics
+      .filter(m => ['Average Latency', 'Avg Output Tokens', 'Token Efficiency', 'Error Rate'].includes(m.metricName))
+      .map(m => ({
+        name: `${m.metricName} (Δ${m.changePercent >= 0 ? '+' : ''}${m.changePercent.toFixed(1)}%)`,
+        datapoints: [
+          { start: new Date(now - 7 * 86400000), end: new Date(now - 6 * 86400000), value: m.baselineValue },
+          { start: new Date(now), end: new Date(now + 86400000), value: m.currentValue }
+        ]
+      }));
     
     return trends as Timeseries[];
   }, [summary, showDetailedMetrics]);
@@ -760,6 +730,7 @@ export const ModelDrift: React.FC = () => {
     versions,
     driftSummaries,
     anomalies,
+    trendData,
     loading,
     error,
     lastRefresh,
@@ -808,26 +779,29 @@ export const ModelDrift: React.FC = () => {
     }
   }, [filteredSummaries]);
 
-  // Generate trend data for selected models
+  // Build trend data from real DQL timeseries — filter to selected models
   const driftTrendData = useMemo((): Timeseries[] => {
-    if (filteredSummaries.length === 0 || selectedTrendModels.length === 0) return [];
+    if (selectedTrendModels.length === 0) return [];
     
-    // Filter to only selected models
-    const modelsToShow = filteredSummaries.filter(s => selectedTrendModels.includes(s.model));
-    const now = Date.now();
+    // Group trendData points by model
+    const modelPointsMap = new Map<string, { start: Date; end: Date; value: number }[]>();
+    trendData
+      .filter(tp => selectedTrendModels.includes(tp.model))
+      .forEach(tp => {
+        if (!modelPointsMap.has(tp.model)) modelPointsMap.set(tp.model, []);
+        const ts = new Date(tp.timestamp);
+        modelPointsMap.get(tp.model)!.push({
+          start: ts,
+          end: new Date(ts.getTime() + 3600000),
+          value: tp.driftScore
+        });
+      });
     
-    return modelsToShow.map((summary) => ({
-      name: summary.model,
-      datapoints: Array.from({ length: 24 }, (_, i) => {
-        const timestamp = new Date(now - (23 - i) * 3600000);
-        return {
-          start: timestamp,
-          end: new Date(timestamp.getTime() + 3600000),
-          value: Math.max(0, summary.overallDriftScore + (Math.random() - 0.5) * 20)
-        };
-      })
+    return Array.from(modelPointsMap.entries()).map(([model, datapoints]) => ({
+      name: model,
+      datapoints: datapoints.sort((a, b) => a.start.getTime() - b.start.getTime())
     })) as Timeseries[];
-  }, [filteredSummaries, selectedTrendModels]);
+  }, [trendData, selectedTrendModels]);
 
   // DataTable columns for drift summaries (using any[] type for flexibility)
   const driftTableColumns: any[] = [

@@ -371,29 +371,6 @@ export function useBudgetBurnRate(dailyBudget: number = 1000) {
 }
 
 // ============================================
-// Hook: useGuardrailEvents (simulated for now, 
-// will be backed by bizevents once scopes are granted)
-// ============================================
-
-export function useGuardrailEvents() {
-  const [events, setEvents] = useState<GuardrailEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const addEvent = useCallback((event: Omit<GuardrailEvent, 'id' | 'timestamp'>) => {
-    const newEvent: GuardrailEvent = {
-      ...event,
-      id: `ge-${Date.now()}`,
-      timestamp: Date.now(),
-    };
-    setEvents(prev => [newEvent, ...prev]);
-    console.log('[GCC:CostGuardrails] Guardrail event:', newEvent);
-    return newEvent;
-  }, []);
-
-  return { events, loading, addEvent };
-}
-
-// ============================================
 // Default guardrail configuration
 // ============================================
 

@@ -18,9 +18,12 @@ import {
   WorkflowsIcon,
   CodeIcon,
   AiIcon,
+  WarningIcon,
+  CriticalIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useInfrastructure, useProviderDeepDive } from '../hooks';
+import type { K8sEvent, ProcessRestart, RateLimitError } from '../hooks/useInfrastructure';
 import type { ServiceConfig, ModelHistoryEntry, DeploymentEvent } from '../types';
 
 
@@ -117,7 +120,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, sub, color 
 
 export const Infrastructure: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>(() => createDefaultTimeframe());
-  const { deployments, serviceConfigs, modelHistory, loading, error, refetch } = useInfrastructure();
+  const { deployments, serviceConfigs, modelHistory, k8sEvents, processRestarts, rateLimitErrors, loading, error, refetch } = useInfrastructure();
   const {
     crossProviderSummary,
     refetch: deepDiveRefetch,
@@ -195,6 +198,20 @@ export const Infrastructure: React.FC = () => {
           label="Deployments"
           value={kpis.deployments}
           sub="in selected time range"
+        />
+        <MetricCard
+          icon={<CriticalIcon style={{ color: rateLimitErrors.length > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy }} />}
+          label="Rate Limit Errors"
+          value={rateLimitErrors.reduce((s, r) => s + r.errorCount, 0)}
+          sub={rateLimitErrors.length > 0 ? `${rateLimitErrors.length} service/model combos` : 'no 429s detected'}
+          color={rateLimitErrors.length > 0 ? STATUS_COLORS.critical : STATUS_COLORS.healthy}
+        />
+        <MetricCard
+          icon={<WarningIcon style={{ color: processRestarts.length > 0 ? STATUS_COLORS.warning : STATUS_COLORS.healthy }} />}
+          label="Process Restarts"
+          value={processRestarts.reduce((s, r) => s + r.restarts, 0)}
+          sub={processRestarts.length > 0 ? `${processRestarts.length} process groups` : 'all stable'}
+          color={processRestarts.length > 0 ? STATUS_COLORS.warning : STATUS_COLORS.healthy}
         />
       </Flex>
 
@@ -497,6 +514,204 @@ export const Infrastructure: React.FC = () => {
                     </Text>
                   );
                 },
+              },
+            ]}
+          >
+            <DataTable.Pagination defaultPageSize={10} />
+          </DataTable>
+        </Surface>
+      )}
+
+      {/* ─── Rate Limit Errors & Process Restarts (side by side) ─── */}
+      <Flex gap={16} flexWrap="wrap">
+        {/* Rate Limit Errors (429s) */}
+        <Surface style={{ flex: '1 1 50%', padding: 16, minWidth: 340 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
+            <Heading level={4}>Rate Limit Errors (429)</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>services hitting provider rate limits</Text>
+          </Flex>
+          {rateLimitErrors.length > 0 ? (
+            <DataTable
+              data={rateLimitErrors}
+              columns={[
+                {
+                  header: 'Service',
+                  id: 'service',
+                  accessor: 'service',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Model',
+                  id: 'model',
+                  accessor: 'model',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', color: STATUS_COLORS.purple }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Errors',
+                  id: 'errorCount',
+                  accessor: 'errorCount',
+                  width: 80,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontWeight: 700, color: STATUS_COLORS.critical }}>
+                      {fmt(Number(value))}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Last Seen',
+                  id: 'lastOccurrence',
+                  accessor: 'lastOccurrence',
+                  width: 120,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      {relTime(String(value ?? ''))}
+                    </Text>
+                  ),
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 16 }}>
+              No rate limit (429) errors detected. All providers within quota.
+            </Text>
+          )}
+        </Surface>
+
+        {/* Process Restarts */}
+        <Surface style={{ flex: '1 1 45%', padding: 16, minWidth: 300 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <WarningIcon style={{ color: STATUS_COLORS.warning }} />
+            <Heading level={4}>Process Restarts</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>AI service process group restarts</Text>
+          </Flex>
+          {processRestarts.length > 0 ? (
+            <DataTable
+              data={processRestarts}
+              columns={[
+                {
+                  header: 'Process Group',
+                  id: 'processGroup',
+                  accessor: 'processGroup',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Host',
+                  id: 'host',
+                  accessor: 'host',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Restarts',
+                  id: 'restarts',
+                  accessor: 'restarts',
+                  width: 80,
+                  cell: ({ value }: { value: unknown }) => {
+                    const n = Number(value);
+                    return (
+                      <Text style={{ fontWeight: 700, color: n > 3 ? STATUS_COLORS.critical : n > 1 ? STATUS_COLORS.warning : 'inherit' }}>
+                        {fmt(n)}
+                      </Text>
+                    );
+                  },
+                },
+              ]}
+            >
+              <DataTable.Pagination defaultPageSize={5} />
+            </DataTable>
+          ) : (
+            <Text style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 16 }}>
+              No process restarts detected. All services stable.
+            </Text>
+          )}
+        </Surface>
+      </Flex>
+
+      {/* ─── K8s & Platform Events ─── */}
+      {k8sEvents.length > 0 && (
+        <Surface style={{ padding: 16 }}>
+          <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
+            <HostsIcon />
+            <Heading level={4}>Platform Events</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>K8s events, errors, and process restarts</Text>
+          </Flex>
+          <DataTable
+            data={k8sEvents}
+            columns={[
+              {
+                header: 'Time',
+                id: 'timestamp',
+                accessor: 'timestamp',
+                width: 130,
+                cell: ({ value }: { value: unknown }) => (
+                  <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    {shortDate(String(value ?? ''))}
+                  </Text>
+                ),
+              },
+              {
+                header: 'Kind',
+                id: 'eventKind',
+                accessor: 'eventKind',
+                width: 120,
+                cell: ({ value }: { value: unknown }) => {
+                  const kind = String(value ?? '');
+                  const isError = kind.includes('ERROR');
+                  return (
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 8,
+                      background: isError ? `${STATUS_COLORS.critical}20` : `${STATUS_COLORS.neutral}20`,
+                      color: isError ? STATUS_COLORS.critical : STATUS_COLORS.neutral,
+                    }}>
+                      {kind || '—'}
+                    </span>
+                  );
+                },
+              },
+              {
+                header: 'Type',
+                id: 'eventType',
+                accessor: 'eventType',
+                width: 140,
+                cell: ({ value }: { value: unknown }) => (
+                  <Text style={{ fontSize: 11 }}>{String(value ?? '—')}</Text>
+                ),
+              },
+              {
+                header: 'Entity',
+                id: 'entityName',
+                accessor: 'entityName',
+                cell: ({ value }: { value: unknown }) => (
+                  <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>
+                ),
+              },
+              {
+                header: 'Details',
+                id: 'content',
+                accessor: 'content',
+                cell: ({ value }: { value: unknown }) => (
+                  <Text style={{ fontSize: 11, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {String(value ?? '—')}
+                  </Text>
+                ),
               },
             ]}
           >

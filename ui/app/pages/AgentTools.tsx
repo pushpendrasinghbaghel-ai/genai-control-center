@@ -22,12 +22,13 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAgentTools } from '../hooks/useAgentTools';
-import { useAgenticDeepDive } from '../hooks/useAgenticDeepDive';
+import { useFrameworkDetection } from '../hooks/useFrameworkDetection';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
 import { OptimizationAdvisor } from '../components/OptimizationAdvisor';
 import { getProviderIcon } from '../utils/providerIcons';
 import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentErrorRateTrend, AgentLatencyTrend, AgentTokenTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
+import { useAgenticDeepDive } from '../hooks/useAgenticDeepDive';
 import type { AgentRetryTrace, AgentRetrySummary, AgentStepSummary, AgentExitCondition, MultiAgentTrace, CrossAgentTokens, ContextGrowthEntry, ContextWindowUtilization, CostBreachEntry, AgentTraceSpan } from '../types';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 
@@ -1416,6 +1417,7 @@ export const AgentTools: React.FC = () => {
   
   // Tab navigation state
   const [activeTab, setActiveTab] = useState<'overview' | 'optimizer' | 'flows' | 'reliability' | 'trends' | 'steps' | 'multiagent' | 'conversations' | 'context-cost'>('overview');
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   
   // Section visibility toggles (persisted in localStorage)
   const [sectionToggles, setSectionToggles] = useState<Record<string, boolean>>(() => {
@@ -1485,7 +1487,10 @@ export const AgentTools: React.FC = () => {
     getToolHealth
   } = useAgentTools(queryFilters);
 
-  // Deep Dive hook for step tracing, multi-agent, conversations, context/cost tabs
+  // Framework detection (LangChain, CrewAI, Bedrock Agents, etc.)
+  const { detections: frameworkDetections } = useFrameworkDetection();
+
+  // Deep dive data (merged from AgenticDeepDive page)
   const {
     agentSteps,
     exitConditions,
@@ -1498,23 +1503,21 @@ export const AgentTools: React.FC = () => {
     costBreaches,
     traceWaterfall,
     fetchTraceWaterfall,
-    totalAgentSpans,
-    totalTokens: deepDiveTotalTokens,
-    totalCostUsd: deepDiveTotalCost,
-    avgStepsPerTrace,
     loading: deepDiveLoading,
     error: deepDiveError,
     fetchData: fetchDeepDiveData,
   } = useAgenticDeepDive(queryFilters);
-
-  // State for trace waterfall modal
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
 
   // Fetch data on mount and when filters change
   useEffect(() => {
     fetchAgentToolsData();
     fetchDeepDiveData();
   }, [fetchAgentToolsData, fetchDeepDiveData, filters.timeframe]);
+
+  const handleViewTrace = (traceId: string) => {
+    setSelectedTraceId(traceId);
+    fetchTraceWaterfall(traceId);
+  };
 
   // Filter data based on local filters
   const filteredToolUsage = useMemo(() => {
@@ -1676,12 +1679,9 @@ export const AgentTools: React.FC = () => {
   }, [costBreaches]);
 
   // ============================================
-  // Agent Flow Efficiency Metrics - UNIQUE GCC
-  // TEMPORARILY DISABLED - Pending DQL validation with Demo Dynatrace MCP server
+  // Agent Flow Efficiency Metrics
   // Calculates conversation efficiency, back-and-forth waste, handoff success
   // ============================================
-  const flowEfficiencyMetrics: any = null; // Temporarily disabled - typed as any to avoid TS errors
-  /* ORIGINAL CODE - Uncomment when ready:
   const flowEfficiencyMetrics = useMemo(() => {
     if (agentFlows.length === 0 && agentHandoffs.length === 0 && agentLatency.length === 0) {
       return null;
@@ -1698,7 +1698,6 @@ export const AgentTools: React.FC = () => {
       flow.toolSequence.forEach(tool => {
         toolCounts.set(tool, (toolCounts.get(tool) || 0) + 1);
       });
-      // If any tool appears more than twice, it's repetitive
       return Array.from(toolCounts.values()).some(count => count > 2);
     });
     const repetitiveRate = agentFlows.length > 0 
@@ -1728,14 +1727,12 @@ export const AgentTools: React.FC = () => {
       : 0;
 
     // Calculate efficiency score (0-100)
-    // Lower is worse: high repetition, high complexity, slow handoffs
     const repetitionPenalty = Math.min(repetitiveRate * 2, 30);
     const complexityPenalty = Math.min(complexFlowRate * 1.5, 25);
     const handoffPenalty = avgHandoffLatency > 2000 ? Math.min((avgHandoffLatency - 2000) / 100, 25) : 0;
-    const llmHeavyPenalty = llmTimeRatio > 80 ? (llmTimeRatio - 80) * 0.5 : 0; // Penalty if LLM dominates
+    const llmHeavyPenalty = llmTimeRatio > 80 ? (llmTimeRatio - 80) * 0.5 : 0;
     const efficiencyScore = Math.max(0, Math.round(100 - repetitionPenalty - complexityPenalty - handoffPenalty - llmHeavyPenalty));
 
-    // Determine trend/status
     const status: 'excellent' | 'good' | 'warning' | 'critical' = 
       efficiencyScore >= 80 ? 'excellent' :
       efficiencyScore >= 60 ? 'good' :
@@ -1755,14 +1752,10 @@ export const AgentTools: React.FC = () => {
       complexFlowRate,
       complexFlowCount: complexFlows.length,
       totalFlows: agentFlows.length,
-      recommendations: [] as string[]
     };
   }, [agentFlows, agentHandoffs, agentLatency, agentTokenCosts]);
-  END OF COMMENTED CODE */
 
   // Generate recommendations based on efficiency metrics
-  const efficiencyRecommendations: string[] = []; // Temporarily disabled
-  /* ORIGINAL CODE - Uncomment when ready:
   const efficiencyRecommendations = useMemo(() => {
     if (!flowEfficiencyMetrics) return [];
     
@@ -1773,7 +1766,7 @@ export const AgentTools: React.FC = () => {
     }
     
     if (flowEfficiencyMetrics.complexFlowRate > 20) {
-      recommendations.push(`[COMPLEXITY] ${flowEfficiencyMetrics.complexFlowCount} flows have >5 tools. Break down complex tasks into specialized sub-agents.`);
+      recommendations.push(`${flowEfficiencyMetrics.complexFlowCount} flows have >5 tools. Break down complex tasks into specialized sub-agents.`);
     }
     
     if (flowEfficiencyMetrics.avgHandoffLatency > 3000) {
@@ -1781,20 +1774,19 @@ export const AgentTools: React.FC = () => {
     }
     
     if (flowEfficiencyMetrics.llmTimeRatio > 70) {
-      recommendations.push(`[LLM] LLM calls consume ${flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% of flow time. Optimize prompts or cache similar requests.`);
+      recommendations.push(`LLM calls consume ${flowEfficiencyMetrics.llmTimeRatio.toFixed(0)}% of flow time. Optimize prompts or cache similar requests.`);
     }
     
     if (flowEfficiencyMetrics.wastedTokensEstimate > 10000) {
-      recommendations.push(`[COST] ~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
+      recommendations.push(`~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
     }
     
     if (recommendations.length === 0) {
-      recommendations.push('[OK] Agent flows are operating efficiently. No immediate optimizations needed.');
+      recommendations.push('Agent flows are operating efficiently. No immediate optimizations needed.');
     }
     
     return recommendations;
   }, [flowEfficiencyMetrics]);
-  END OF COMMENTED RECOMMENDATIONS CODE */
 
   // Prepare table columns for tool usage - using proper cell renderers
   const toolColumns: any[] = useMemo(() => [
@@ -2314,6 +2306,27 @@ export const AgentTools: React.FC = () => {
         </TitleBar.Suffix>
       </TitleBar>
 
+      {/* Detected Agentic Frameworks */}
+      {frameworkDetections.length > 0 && (
+        <Flex gap={8} padding={16} paddingBottom={0} flexWrap="wrap" alignItems="center">
+          <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontWeight: 600 }}>Detected Frameworks:</Text>
+          {frameworkDetections.map(fd => (
+            <Tooltip key={fd.framework.id} text={`${fd.framework.description} — ${fd.evidence.length} evidence signals, ${fd.serviceCount} service(s), confidence: ${fd.confidence}`}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+                backgroundColor: `${fd.framework.color}20`,
+                color: fd.framework.color,
+                border: `1px solid ${fd.framework.color}40`,
+              }}>
+                {fd.framework.icon} {fd.framework.displayName}
+                <span style={{ fontSize: 10, opacity: 0.7 }}>({fd.confidence})</span>
+              </span>
+            </Tooltip>
+          ))}
+        </Flex>
+      )}
+
       {/* Main Content */}
       <Flex 
         flexDirection="column" 
@@ -2361,9 +2374,9 @@ export const AgentTools: React.FC = () => {
             { key: 'flows' as const, label: 'Flows & Patterns', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
             { key: 'reliability' as const, label: 'Reliability', icon: <CheckmarkIcon style={{ width: 14, height: 14 }} /> },
             { key: 'trends' as const, label: 'Trends', icon: <BarChartIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'steps' as const, label: 'Step Tracing', icon: <ClockIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'steps' as const, label: 'Step Tracing', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
             { key: 'multiagent' as const, label: 'Multi-Agent', icon: <AgentIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'conversations' as const, label: 'Conversations', icon: <AiIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'conversations' as const, label: 'Conversations', icon: <ClockIcon style={{ width: 14, height: 14 }} /> },
             { key: 'context-cost' as const, label: 'Context & Cost', icon: <MoneyIcon style={{ width: 14, height: 14 }} /> },
           ].map((tab) => (
             <Button
@@ -2923,9 +2936,8 @@ export const AgentTools: React.FC = () => {
             </Surface>
             )}
 
-            {/* Agent Flow Efficiency - UNIQUE GCC: TEMPORARILY HIDDEN */}
-            {/* Pending DQL validation with Demo Dynatrace MCP server */}
-            {false && (
+            {/* Agent Flow Efficiency */}
+            {
             <Surface padding={16} style={{ borderLeft: flowEfficiencyMetrics ? 
               `4px solid ${flowEfficiencyMetrics.status === 'excellent' ? STATUS_COLORS.ideal : 
                           flowEfficiencyMetrics.status === 'good' ? STATUS_COLORS.good :
@@ -3125,10 +3137,10 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
-            )}
+            }
 
-            {/* Agent → Backend Service Dependencies - UNIQUE GCC - HIDDEN: Pending DQL validation with Demo MCP */}
-            {false && (
+            {/* Agent → Service Dependencies */}
+            {
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
@@ -3282,7 +3294,7 @@ export const AgentTools: React.FC = () => {
                 )}
               </Flex>
             </Surface>
-            )}
+            }
 
             {/* Agent → Dynatrace Entity Mapping - UNIQUE GCC */}
             {sectionToggles.entityMapping !== false && (
@@ -4097,39 +4109,26 @@ export const AgentTools: React.FC = () => {
               </>
             )}
 
-            {/* ===== Steps Tab (Deep Dive) ===== */}
+            {/* Step Tracing Tab (from Deep Dive) */}
             {activeTab === 'steps' && (
-              <AgentStepTracingTab
-                agentSteps={agentSteps}
-                exitConditions={exitConditions}
-              />
+              <AgentStepTracingTab agentSteps={agentSteps} exitConditions={exitConditions} />
             )}
 
-            {/* ===== Multi-Agent Tab (Deep Dive) ===== */}
+            {/* Multi-Agent Depth Tab (from Deep Dive) */}
             {activeTab === 'multiagent' && (
-              <MultiAgentDepthTab
-                multiAgentTraces={multiAgentTraces}
-                crossAgentTokens={crossAgentTokens}
-                parallelismStats={parallelismStats}
-              />
+              <MultiAgentDepthTab multiAgentTraces={multiAgentTraces} crossAgentTokens={crossAgentTokens} parallelismStats={parallelismStats} />
             )}
 
-            {/* ===== Conversations Tab (Deep Dive) ===== */}
+            {/* Conversation State Tab (from Deep Dive) */}
             {activeTab === 'conversations' && (
-              <ConversationStateTab
-                contextGrowth={contextGrowth}
-                conversationState={conversationState}
-              />
+              <ConversationStateTab contextGrowth={contextGrowth} conversationState={conversationState} />
             )}
 
-            {/* ===== Context & Cost Tab (Deep Dive) ===== */}
+            {/* Context Window & Cost Tab (from Deep Dive) */}
             {activeTab === 'context-cost' && (
-              <ContextWindowCostTab
-                contextWindowUtil={contextWindowUtil}
-                costBreaches={costBreaches}
-              />
+              <ContextWindowCostTab contextWindowUtil={contextWindowUtil} costBreaches={costBreaches} />
             )}
-            
+
           </>
         )}
       </Flex>
@@ -4142,8 +4141,8 @@ export const AgentTools: React.FC = () => {
         />
       )}
 
-      {/* Trace Waterfall Modal (Deep Dive) */}
-      {selectedTraceId && traceWaterfall.length > 0 && (
+      {/* Trace Waterfall Modal */}
+      {selectedTraceId && (
         <DeepDiveTraceWaterfallModal
           traceId={selectedTraceId}
           spans={traceWaterfall}

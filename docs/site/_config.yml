@@ -1,0 +1,33 @@
+theme: jekyll-theme-cayman
+title: GenAI Control Center
+description: Unified GenAI Observability for the Enterprise
+baseurl: "/genai-control-center"
+url: "https://pushpendrasinghbaghel-ai.github.io"
+
+# Navigation
+header_pages:
+  - docs/site/index.md
+  - docs/site/getting-started.md
+
+# Markdown rendering
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Exclude from build
+exclude:
+  - node_modules
+  - dist
+  - .dt-app
+  - mcp-server
+  - mcp-gateway
+  - scripts
+  - ui
+  - "*.json"
+  - "*.mjs"
+  - "*.ts"
+
+# Include docs site
+include:
+  - docs/site

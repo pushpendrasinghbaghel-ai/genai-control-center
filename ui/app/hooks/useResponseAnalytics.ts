@@ -179,6 +179,7 @@ export function useResponseAnalytics() {
           costPerRequest: requestCount > 0 ? estimatedCost / requestCount : 0,
           avgLatency: Number(record.avg_latency) || 0,
           p95Latency: Number(record.p95_latency) || 0,
+          errorCount: Number(record.error_count) || 0,
           // Flags based on observable metrics only
           inefficient: tokenRatio < 0.5 && avgInput > 100, // High input, low output
           inconsistent: outputVariance > 10000 || lowOutputRate > 20, // High variance
@@ -224,6 +225,7 @@ export function useResponseAnalytics() {
         entry.totalTokenRatio += m.tokenRatio;
         entry.totalOutputTokens += m.avgOutputTokens;
         entry.totalLatency += m.avgLatency;
+        entry.totalErrors += (m as any).errorCount || 0;
         entry.count++;
         entry.totalCost += m.estimatedCost;
       });
@@ -250,7 +252,7 @@ export function useResponseAnalytics() {
           avgTokenRatio,
           avgOutputTokens,
           avgLatency,
-          errorRate: 0, // TODO: track from metrics
+          errorRate: entry.totalRequests > 0 ? (entry.totalErrors / entry.totalRequests) * 100 : 0,
           estimatedCostPer1K: costPer1K,
           efficiencyScore: Math.max(0, Math.min(100, efficiencyScore))
         };
@@ -543,4 +545,225 @@ export function useResponseQualityTrends() {
   }, []);
 
   return { trendData, summary, loading, error, analyzeQualityTrends };
+}
+
+// ============================================
+// Streaming vs Batch Analysis Hook
+// ============================================
+
+export interface StreamingBatchEntry {
+  mode: 'Streaming' | 'Batch';
+  provider: string;
+  model: string;
+  requestCount: number;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+  errorRate: number;
+}
+
+export interface StreamingBatchSummary {
+  streamingCount: number;
+  batchCount: number;
+  streamingPct: number;
+  streamingAvgLatency: number;
+  batchAvgLatency: number;
+  streamingTokens: number;
+  batchTokens: number;
+}
+
+export function useStreamingAnalysis() {
+  const [entries, setEntries] = useState<StreamingBatchEntry[]>([]);
+  const [summary, setSummary] = useState<StreamingBatchSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const analyze = useCallback(async (timeframe: string = '24h') => {
+    setLoading(true);
+    try {
+      const [detailRes, summaryRes] = await Promise.all([
+        queryExecutionClient.queryExecute({
+          body: {
+            query: `
+              fetch spans, from: now()-${timeframe}, to: now()
+              | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+              | fieldsAdd is_streaming = if(llm.is_streaming == "true", then: "Streaming", else: "Batch")
+              | summarize
+                  request_count = count(),
+                  avg_latency_ms = avg(toDouble(duration)) / 1000000,
+                  p50_latency_ms = percentile(toDouble(duration), 50) / 1000000,
+                  p95_latency_ms = percentile(toDouble(duration), 95) / 1000000,
+                  avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, 0)),
+                  avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, 0)),
+                  error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
+                  by: { is_streaming, gen_ai.provider.name, gen_ai.request.model }
+              | fieldsAdd error_rate = if(request_count > 0, then: toDouble(error_count) / toDouble(request_count) * 100, else: 0.0)
+              | sort request_count desc
+            `,
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        }),
+        queryExecutionClient.queryExecute({
+          body: {
+            query: `
+              fetch spans, from: now()-${timeframe}, to: now()
+              | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
+              | fieldsAdd is_streaming = if(llm.is_streaming == "true", then: "Streaming", else: "Batch")
+              | summarize
+                  total = count(),
+                  avg_latency_ms = avg(toDouble(duration)) / 1000000,
+                  total_tokens = sum(coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0)),
+                  by: { is_streaming }
+              | sort total desc
+            `,
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        })
+      ]);
+
+      const detailRecords = detailRes.result?.records || [];
+      const parsed: StreamingBatchEntry[] = detailRecords.map((r: any) => ({
+        mode: r.is_streaming === 'Streaming' ? 'Streaming' : 'Batch',
+        provider: r['gen_ai.provider.name'] || 'unknown',
+        model: r['gen_ai.request.model'] || 'unknown',
+        requestCount: Number(r.request_count) || 0,
+        avgLatencyMs: Number(r.avg_latency_ms) || 0,
+        p50LatencyMs: Number(r.p50_latency_ms) || 0,
+        p95LatencyMs: Number(r.p95_latency_ms) || 0,
+        avgInputTokens: Number(r.avg_input_tokens) || 0,
+        avgOutputTokens: Number(r.avg_output_tokens) || 0,
+        errorRate: Number(r.error_rate) || 0,
+      }));
+      setEntries(parsed);
+
+      const summaryRecords = summaryRes.result?.records || [];
+      const streaming = summaryRecords.find((r: any) => r.is_streaming === 'Streaming');
+      const batch = summaryRecords.find((r: any) => r.is_streaming === 'Batch');
+      const sCount = Number(streaming?.total) || 0;
+      const bCount = Number(batch?.total) || 0;
+      const total = sCount + bCount;
+      setSummary({
+        streamingCount: sCount,
+        batchCount: bCount,
+        streamingPct: total > 0 ? (sCount / total) * 100 : 0,
+        streamingAvgLatency: Number(streaming?.avg_latency_ms) || 0,
+        batchAvgLatency: Number(batch?.avg_latency_ms) || 0,
+        streamingTokens: Number(streaming?.total_tokens) || 0,
+        batchTokens: Number(batch?.total_tokens) || 0,
+      });
+    } catch (err) {
+      console.error('[GCC] Streaming analysis failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { entries, summary, loading, analyze };
+}
+
+// ============================================
+// Prompt Audit Trail Hook
+// ============================================
+
+export interface AuditTrailEntry {
+  timestamp: string;
+  traceId: string;
+  spanId: string;
+  provider: string;
+  model: string;
+  serviceName: string;
+  promptPreview: string;
+  completionPreview: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  finishReason: string;
+}
+
+export interface AuditTrailSummary {
+  totalEvents: number;
+  uniqueProviders: number;
+  uniqueModels: number;
+  uniqueServices: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+}
+
+export function usePromptAuditTrail() {
+  const [entries, setEntries] = useState<AuditTrailEntry[]>([]);
+  const [summary, setSummary] = useState<AuditTrailSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAuditTrail = useCallback(async (timeframe: string = '24h') => {
+    setLoading(true);
+    try {
+      const result = await queryExecutionClient.queryExecute({
+        body: {
+          query: `
+            fetch spans, from: now()-${timeframe}, to: now()
+            | filter isNotNull(gen_ai.request.model)
+            | filter isNotNull(gen_ai.prompt.0.content) OR isNotNull(gen_ai.completion.0.content)
+            | fields
+                timestamp,
+                trace_id = trace.id,
+                span_id = span.id,
+                provider = gen_ai.system,
+                model = gen_ai.request.model,
+                service_name = dt.entity.service,
+                prompt = gen_ai.prompt.0.content,
+                completion = gen_ai.completion.0.content,
+                input_tokens = gen_ai.usage.input_tokens,
+                output_tokens = gen_ai.usage.output_tokens,
+                latency_ns = duration,
+                finish_reason = gen_ai.response.finish_reason
+            | sort timestamp desc
+            | limit 200
+          `,
+          requestTimeoutMilliseconds: 60000,
+          fetchTimeoutSeconds: 60
+        }
+      });
+
+      const records = result.result?.records || [];
+      const parsed: AuditTrailEntry[] = records.map((r: any) => ({
+        timestamp: r.timestamp || '',
+        traceId: r.trace_id || '',
+        spanId: r.span_id || '',
+        provider: r.provider || 'unknown',
+        model: r.model || 'unknown',
+        serviceName: r.service_name || 'unknown',
+        promptPreview: r.prompt ? String(r.prompt).substring(0, 500) : '',
+        completionPreview: r.completion ? String(r.completion).substring(0, 500) : '',
+        inputTokens: Number(r.input_tokens) || 0,
+        outputTokens: Number(r.output_tokens) || 0,
+        latencyMs: Number(r.latency_ns) / 1_000_000 || 0,
+        finishReason: r.finish_reason || '',
+      }));
+      setEntries(parsed);
+
+      // Compute summary from the data
+      const providers = new Set(parsed.map(e => e.provider));
+      const models = new Set(parsed.map(e => e.model));
+      const services = new Set(parsed.map(e => e.serviceName));
+      const totalIn = parsed.reduce((s, e) => s + e.inputTokens, 0);
+      const totalOut = parsed.reduce((s, e) => s + e.outputTokens, 0);
+      setSummary({
+        totalEvents: parsed.length,
+        uniqueProviders: providers.size,
+        uniqueModels: models.size,
+        uniqueServices: services.size,
+        avgInputTokens: parsed.length > 0 ? Math.round(totalIn / parsed.length) : 0,
+        avgOutputTokens: parsed.length > 0 ? Math.round(totalOut / parsed.length) : 0,
+      });
+    } catch (err) {
+      console.error('[GCC] Audit trail fetch failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { entries, summary, loading, fetchAuditTrail };
 }

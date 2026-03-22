@@ -51,7 +51,7 @@ export const Header = () => {
   });
 
   // Check if any "More" page is currently active
-  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/problems', '/security', '/provider-status', '/providers', '/governance', '/ai-architect', '/integrations'];
+  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/security', '/provider-status', '/governance', '/ai-architect', '/integrations', '/data'];
   const isMoreActive = morePages.some(p => isActive(p));
 
   // Navigation follows Observe → Analyze → Act pattern
@@ -157,6 +157,7 @@ export const Header = () => {
               Infrastructure
             </Menu.Item>
 
+
             <Menu.Label>Govern</Menu.Label>
             <Menu.Item
               onSelect={() => navigate('/governance')}
@@ -194,6 +195,13 @@ export const Header = () => {
             >
               <Menu.Prefix><AutomationEngineIcon /></Menu.Prefix>
               Integrations Hub
+            </Menu.Item>
+            <Menu.Item
+              onSelect={() => navigate('/data')}
+              style={isActive('/data') ? { fontWeight: 600 } : {}}
+            >
+              <Menu.Prefix><CodeIcon /></Menu.Prefix>
+              Data Playground
             </Menu.Item>
 
           </Menu.Content>

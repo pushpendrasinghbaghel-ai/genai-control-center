@@ -19,6 +19,7 @@ import {
   INSTRUMENTATION_COVERAGE_QUERY,
   INTEGRATION_REPORT_QUERY,
   MODEL_VERSION_MISMATCH_QUERY,
+  SHADOW_AI_DETECTION_QUERY,
 } from '../queries/dql-queries';
 import type { QueryFilters } from '../queries/dql-queries';
 import { FilterBar } from '../components/FilterBar';
@@ -72,6 +73,17 @@ interface CoverageSummary {
   withAgent: number;
   withConversation: number;
   withResponseModel: number;
+}
+
+interface ShadowAIEntry {
+  service: string;
+  provider: string;
+  model: string;
+  spanCount: number;
+  errorRate: number;
+  totalTokens: number;
+  firstSeen: string;
+  lastSeen: string;
 }
 
 // ============================================
@@ -150,7 +162,8 @@ export function DeveloperExperience() {
   const [coverage, setCoverage] = useState<CoverageSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'report' | 'routing' | 'recommendations'>('report');
+  const [activeTab, setActiveTab] = useState<'report' | 'routing' | 'recommendations' | 'shadow'>('report');
+  const [shadowAI, setShadowAI] = useState<ShadowAIEntry[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const [showDavis, setShowDavis] = useState(false);
   const [davisQuery, setDavisQuery] = useState('');
@@ -174,7 +187,7 @@ export function DeveloperExperience() {
     };
 
     try {
-      const [reportRes, routeRes, covRes] = await Promise.all([
+      const [reportRes, routeRes, covRes, shadowRes] = await Promise.all([
         queryExecutionClient.queryExecute({
           body: { query: INTEGRATION_REPORT_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
@@ -183,6 +196,9 @@ export function DeveloperExperience() {
         }),
         queryExecutionClient.queryExecute({
           body: { query: INSTRUMENTATION_COVERAGE_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
+        }),
+        queryExecutionClient.queryExecute({
+          body: { query: SHADOW_AI_DETECTION_QUERY(qf), requestTimeoutMilliseconds: 60000, fetchTimeoutSeconds: 60 },
         }),
       ]);
 
@@ -236,6 +252,20 @@ export function DeveloperExperience() {
           withResponseModel: Number(cr['with_response_model'] || 0),
         });
       }
+
+      // Shadow AI — all service+provider+model combos
+      setShadowAI(
+        (shadowRes.result?.records || []).map((r: any) => ({
+          service: String(r['service'] ?? r['dt.entity.service'] ?? ''),
+          provider: String(r['gen_ai.provider.name'] ?? ''),
+          model: String(r['gen_ai.request.model'] ?? ''),
+          spanCount: Number(r['span_count'] || 0),
+          errorRate: Number(r['error_rate'] || 0),
+          totalTokens: Number(r['total_tokens'] || 0),
+          firstSeen: String(r['first_seen'] ?? ''),
+          lastSeen: String(r['last_seen'] ?? ''),
+        }))
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load integration health data');
     } finally {
@@ -657,6 +687,7 @@ export function DeveloperExperience() {
         {([
           ['report', `Integration Report (${report.length})`],
           ['routing', `Model Routing (${routes.length})`],
+          ['shadow', `Shadow AI (${shadowAI.length})`],
           ['recommendations', `Recommendations (${recommendations.length})`],
         ] as [string, string][]).map(([id, label]) => (
           <Button key={id} variant={activeTab === id ? 'emphasized' : 'default'}
@@ -716,6 +747,127 @@ export function DeveloperExperience() {
             </Flex>
           ) : (
             <DataTable data={routes} columns={routeColumns} fullWidth />
+          )}
+        </Surface>
+      )}
+
+      {/* Tab: Shadow AI Detection */}
+      {activeTab === 'shadow' && (
+        <Surface style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Flex alignItems="center" gap={8} style={{ padding: '12px 16px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', flexShrink: 0 }}>
+            <WarningIcon style={{ width: 15, height: 15, color: Colors.Text.Warning.Default }} />
+            <Heading level={5} style={{ margin: 0 }}>Shadow AI Detection</Heading>
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+              All service+provider+model combos — audit for unauthorized AI usage
+            </Text>
+          </Flex>
+          {loading ? (
+            <Flex alignItems="center" justifyContent="center" style={{ flex: 1 }} gap={12}>
+              <ProgressCircle /><Text>Scanning for shadow AI usage...</Text>
+            </Flex>
+          ) : shadowAI.length === 0 ? (
+            <Flex alignItems="center" justifyContent="center" flexDirection="column" style={{ flex: 1, padding: 32 }} gap={12}>
+              <CheckmarkIcon style={{ width: 32, height: 32, color: Colors.Text.Success.Default }} />
+              <Heading level={5} style={{ color: Colors.Text.Success.Default }}>No AI usage detected</Heading>
+              <Text style={{ color: Colors.Text.Neutral.Subdued, textAlign: 'center', maxWidth: 400 }}>
+                No gen_ai spans found in this timeframe. Either no AI services are instrumented, or no calls occurred.
+              </Text>
+            </Flex>
+          ) : (
+            <DataTable
+              data={shadowAI}
+              columns={[
+                {
+                  header: 'Service',
+                  id: 'service',
+                  accessor: 'service',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600 }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Provider',
+                  id: 'provider',
+                  accessor: 'provider',
+                  width: 120,
+                  cell: ({ value }: { value: unknown }) => (
+                    <StatusPill label={String(value ?? '—')} color={Colors.Text.Neutral.Default} />
+                  ),
+                },
+                {
+                  header: 'Model',
+                  id: 'model',
+                  accessor: 'model',
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-accent-default)' }}>
+                      {String(value ?? '—')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Calls',
+                  id: 'spanCount',
+                  accessor: 'spanCount',
+                  width: 80,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontWeight: 700 }}>{formatNum(Number(value))}</Text>
+                  ),
+                },
+                {
+                  header: 'Error %',
+                  id: 'errorRate',
+                  accessor: 'errorRate',
+                  width: 80,
+                  cell: ({ value }: { value: unknown }) => {
+                    const v = Number(value);
+                    return (
+                      <Text style={{
+                        fontWeight: 600,
+                        color: v > 5 ? Colors.Text.Critical.Default : v > 1 ? Colors.Text.Warning.Default : Colors.Text.Success.Default,
+                      }}>
+                        {v.toFixed(1)}%
+                      </Text>
+                    );
+                  },
+                },
+                {
+                  header: 'Tokens',
+                  id: 'totalTokens',
+                  accessor: 'totalTokens',
+                  width: 90,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 11 }}>{formatNum(Number(value))}</Text>
+                  ),
+                },
+                {
+                  header: 'First Seen',
+                  id: 'firstSeen',
+                  accessor: 'firstSeen',
+                  width: 140,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>
+                      {String(value ?? '—').slice(0, 19).replace('T', ' ')}
+                    </Text>
+                  ),
+                },
+                {
+                  header: 'Last Seen',
+                  id: 'lastSeen',
+                  accessor: 'lastSeen',
+                  width: 140,
+                  cell: ({ value }: { value: unknown }) => (
+                    <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>
+                      {String(value ?? '—').slice(0, 19).replace('T', ' ')}
+                    </Text>
+                  ),
+                },
+              ]}
+              fullWidth
+            >
+              <DataTable.Pagination defaultPageSize={15} />
+            </DataTable>
           )}
         </Surface>
       )}

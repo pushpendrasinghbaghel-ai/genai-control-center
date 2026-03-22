@@ -12,12 +12,10 @@ import {
   Governance,
   Intelligence,
   Operations,
-  ProviderComparison,
   AIArchitect,
   AITopology,
   ResponseAnalytics,
   PromptGovernance,
-  RealTimeAlerts,
   AgentTools,
   ModelDrift,
   VectorDB,
@@ -29,7 +27,9 @@ import {
   ProviderStatus,
   Integrations,
   MLOps,
+  Data,
 } from "./pages";
+// RealTimeAlerts removed — duplicate of Operations problems section
 
 export const App = () => {
   // Sync rate card config from Grail on startup
@@ -61,8 +61,8 @@ export const App = () => {
                 {/* Governance: Compliance, Risk, and Policy Management */}
                 <Route path="/governance" element={<Governance />} />
                 
-                {/* Provider Comparison: Cross-provider analysis */}
-                <Route path="/providers" element={<ProviderComparison />} />
+                {/* Provider Comparison: Redirect to Provider Status */}
+                <Route path="/providers" element={<Navigate to="/provider-status" replace />} />
                 
                 {/* AI Architect: Pattern Detection & Recommendations */}
                 <Route path="/ai-architect" element={<AIArchitect />} />
@@ -82,8 +82,8 @@ export const App = () => {
                 {/* Prompt Governance - PII, injection, Davis AI scoring */}
                 <Route path="/prompt-governance" element={<PromptGovernance />} />
                 
-                {/* GenAI Problems - Problems affecting AI services */}
-                <Route path="/problems" element={<RealTimeAlerts />} />
+                {/* GenAI Problems - redirect to Operations (consolidated) */}
+                <Route path="/problems" element={<Navigate to="/operations" replace />} />
                 
                 {/* Agent Tools - AI agent workflow monitoring */}
                 <Route path="/agents" element={<AgentTools />} />
@@ -117,6 +117,12 @@ export const App = () => {
 
                 {/* MLOps - Model Registry, SLOs, Comparison, Cost Attribution */}
                 <Route path="/mlops" element={<MLOps />} />
+
+                {/* Agentic Deep Dive - Merged into Agent Tools */}
+                <Route path="/agentic" element={<Navigate to="/agents" replace />} />
+
+                {/* Data Playground - DQL editor and preset queries */}
+                <Route path="/data" element={<Data />} />
 
                 
                 {/* Redirect old routes */}

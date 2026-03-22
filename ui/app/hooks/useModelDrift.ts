@@ -650,8 +650,51 @@ export function useModelDrift(timeframe?: Timeframe | null): UseModelDriftResult
       setDriftSummaries(summaries.sort((a, b) => b.overallDriftScore - a.overallDriftScore));
       setAnomalies(detectedAnomalies);
       setBaselines(computedBaselines);
-      setLastRefresh(new Date());
 
+      // Fetch real trend data for drift timeseries charts
+      try {
+        const trendResponse = await queryExecutionClient.queryExecute({
+          body: {
+            query: DRIFT_TREND_QUERY(timeframe),
+            requestTimeoutMilliseconds: 60000,
+            fetchTimeoutSeconds: 60
+          }
+        });
+        const trendRecords = trendResponse.result?.records || [];
+        const parsedTrend: DriftTrendPoint[] = trendRecords
+          .filter((r: any) => r['gen_ai.request.model'] && r['gen_ai.request.model'] !== 'null')
+          .map((r: any) => {
+            const model = r['gen_ai.request.model'] || 'unknown';
+            const provider = r['gen_ai.provider.name'] || 'unknown';
+            const summary = summaries.find(s => s.model === model && s.provider === provider);
+            const baselineMetrics = summary?.metrics || [];
+            // Compute per-timepoint drift using actual metric values vs baseline
+            const avgLat = Number(r.avg_latency) || 0;
+            const avgOut = Number(r.avg_output_tokens) || 0;
+            const avgIn = Number(r.avg_input_tokens) || 0;
+            const baselineLat = baselineMetrics.find(m => m.metricName === 'Average Latency')?.baselineValue || avgLat;
+            const baselineOut = baselineMetrics.find(m => m.metricName === 'Avg Output Tokens')?.baselineValue || avgOut;
+            const baselineIn = baselineMetrics.find(m => m.metricName === 'Avg Input Tokens')?.baselineValue || avgIn;
+            const latDrift = calculateDriftScore(baselineLat, avgLat, 0.3);
+            const outDrift = calculateDriftScore(baselineOut, avgOut, 0.25);
+            const inDrift = calculateDriftScore(baselineIn, avgIn, 0.25);
+            const driftScore = Math.round(latDrift * 0.4 + outDrift * 0.3 + inDrift * 0.3);
+            return {
+              timestamp: r.timeframe?.start || r.interval?.start || new Date().toISOString(),
+              model,
+              driftScore,
+              latencyDrift: latDrift,
+              qualityDrift: outDrift,
+              tokenDrift: inDrift
+            };
+          });
+        setTrendData(parsedTrend);
+        console.log('[ModelDrift] Loaded', parsedTrend.length, 'trend data points');
+      } catch (trendErr) {
+        console.warn('[ModelDrift] Trend data fetch failed (non-critical):', trendErr);
+      }
+
+      setLastRefresh(new Date());
       console.log('[ModelDrift] Loaded', summaries.length, 'model summaries,', detectedAnomalies.length, 'anomalies');
 
     } catch (err) {

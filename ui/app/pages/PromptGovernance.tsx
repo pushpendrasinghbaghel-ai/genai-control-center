@@ -1,7 +1,7 @@
 // GenAI Control Center - Prompt Governance Page
 // Dedicated page for prompt analysis, PII detection, injection risks, and Davis AI scoring
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
@@ -27,6 +27,7 @@ import { useGlobalFilters } from '../context';
 import { usePromptAnalysis, useGenAIErrors, AnalyzedPrompt, GenAIError, PromptFlag, QueryFilters } from '../hooks/useDQLQueries';
 import { useDavisPromptScoring, DavisPromptScore } from '../hooks/useDavisAI';
 import { useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
+import { usePromptAuditTrail } from '../hooks/useResponseAnalytics';
 
 // Status colors matching Dynatrace design system
 const STATUS_COLORS = {
@@ -538,6 +539,9 @@ export function PromptGovernance() {
   // Fetch GenAI errors separately (these are error spans that may not have prompt content)
   const { data: genaiErrors, loading: errorsLoading, refetch: refetchErrors } = useGenAIErrors(queryFilters);
 
+  // Prompt Audit Trail
+  const { entries: auditEntries, summary: auditSummary, loading: auditLoading, fetchAuditTrail } = usePromptAuditTrail();
+
   // Davis AI scoring
   const { 
     scores: davisScores, 
@@ -630,6 +634,30 @@ export function PromptGovernance() {
     };
   }, [prompts, genaiErrors]);
 
+  // Composite Risk Score — weighted formula from governance flags
+  // PII (40%) + Injection (30%) + Expensive/Cost (15%) + Hallucination (10%) + Errors (5%)
+  const compositeRiskScore = useMemo(() => {
+    const total = governanceStats.total || 1; // avoid division by zero
+    const piiRate = governanceStats.pii / total;
+    const injectionRate = governanceStats.injection / total;
+    const expensiveRate = governanceStats.expensive / total;
+    const hallucinationRate = governanceStats.hallucination / total;
+    const errorRate = (governanceStats.error || 0) / total;
+
+    // Weighted risk score: 0 = no risk, 100 = maximum risk
+    const rawScore = (piiRate * 0.40 + injectionRate * 0.30 + expensiveRate * 0.15 + hallucinationRate * 0.10 + errorRate * 0.05) * 100;
+    const score = Math.min(100, Math.round(rawScore * 10)); // Scale up for visibility (multiply by 10, cap at 100)
+
+    let level: 'low' | 'medium' | 'high' | 'critical';
+    let color: string;
+    if (score <= 10) { level = 'low'; color = STATUS_COLORS.excellent; }
+    else if (score <= 30) { level = 'medium'; color = STATUS_COLORS.fair; }
+    else if (score <= 60) { level = 'high'; color = STATUS_COLORS.poor; }
+    else { level = 'critical'; color = STATUS_COLORS.poor; }
+
+    return { score, level, color, piiRate, injectionRate, expensiveRate, hallucinationRate, errorRate };
+  }, [governanceStats]);
+
   // Run Davis AI scoring
   const runDavisScoring = async () => {
     if (prompts.length === 0) return;
@@ -680,7 +708,17 @@ export function PromptGovernance() {
   const handleRefresh = useCallback(() => {
     refetchPrompts();
     refetchErrors();
-  }, [refetchPrompts]);
+    const tf = globalFilters.timeframe;
+    const timeStr = tf?.from?.value ? tf.from.value.replace('now()-', '') : '24h';
+    fetchAuditTrail(timeStr);
+  }, [refetchPrompts, refetchErrors, fetchAuditTrail, globalFilters.timeframe]);
+
+  // Initial fetch audit trail
+  useEffect(() => {
+    const tf = globalFilters.timeframe;
+    const timeStr = tf?.from?.value ? tf.from.value.replace('now()-', '') : '24h';
+    fetchAuditTrail(timeStr);
+  }, [globalFilters.timeframe]);
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
@@ -788,6 +826,45 @@ export function PromptGovernance() {
           </Flex>
         </Surface>
       </Flex>
+
+      {/* Composite Risk Score */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${compositeRiskScore.color}` }}>
+        <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={16}>
+          <Flex alignItems="center" gap={12}>
+            <Flex flexDirection="column" alignItems="center" style={{ minWidth: 60 }}>
+              <Heading level={2} style={{ color: compositeRiskScore.color }}>{compositeRiskScore.score}</Heading>
+              <Text textStyle="small" style={{ fontSize: 9, textTransform: 'uppercase', fontWeight: 600, color: compositeRiskScore.color }}>
+                {compositeRiskScore.level} risk
+              </Text>
+            </Flex>
+            <Flex flexDirection="column" gap={2}>
+              <Flex alignItems="center" gap={4}>
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Composite Risk Score</Text>
+                <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+              </Flex>
+              <Text textStyle="small" style={{ opacity: 0.6 }}>
+                Weighted: PII (40%) + Injection (30%) + Cost (15%) + Hallucination (10%) + Errors (5%)
+              </Text>
+            </Flex>
+          </Flex>
+          <Flex gap={16} flexWrap="wrap">
+            {[
+              { label: 'PII', rate: compositeRiskScore.piiRate, weight: '40%' },
+              { label: 'Injection', rate: compositeRiskScore.injectionRate, weight: '30%' },
+              { label: 'Cost', rate: compositeRiskScore.expensiveRate, weight: '15%' },
+              { label: 'Halluc.', rate: compositeRiskScore.hallucinationRate, weight: '10%' },
+              { label: 'Errors', rate: compositeRiskScore.errorRate, weight: '5%' },
+            ].map(item => (
+              <Flex key={item.label} flexDirection="column" alignItems="center" gap={2}>
+                <Text style={{ fontSize: 10, opacity: 0.5 }}>{item.label} ({item.weight})</Text>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: item.rate > 0.05 ? STATUS_COLORS.poor : item.rate > 0 ? STATUS_COLORS.fair : STATUS_COLORS.excellent }}>
+                  {(item.rate * 100).toFixed(1)}%
+                </Text>
+              </Flex>
+            ))}
+          </Flex>
+        </Flex>
+      </Surface>
 
       {/* Flag Type Filter & Davis AI Actions */}
       <Surface style={{ padding: '16px' }}>
@@ -1066,6 +1143,156 @@ export function PromptGovernance() {
           </Flex>
         </Surface>
       )}
+
+      {/* ─── Prompt I/O Audit Trail ─── */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex alignItems="center" gap={8}>
+            <LockIcon style={{ color: STATUS_COLORS.good }} />
+            <Heading level={4}>Prompt I/O Audit Trail</Heading>
+            <Text textStyle="small" style={{ opacity: 0.6 }}>
+              Trace-correlated prompt inputs &amp; completions for compliance
+            </Text>
+          </Flex>
+
+          {/* Audit Summary KPIs */}
+          {auditSummary && (
+            <Flex gap={16} flexWrap="wrap">
+              <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
+                <Flex flexDirection="column" gap={2}>
+                  <Text textStyle="small" style={{ opacity: 0.6 }}>Total Traces</Text>
+                  <Heading level={4}>{auditSummary.totalEvents.toLocaleString()}</Heading>
+                </Flex>
+              </Surface>
+              <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
+                <Flex flexDirection="column" gap={2}>
+                  <Text textStyle="small" style={{ opacity: 0.6 }}>Providers</Text>
+                  <Heading level={4}>{auditSummary.uniqueProviders}</Heading>
+                </Flex>
+              </Surface>
+              <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
+                <Flex flexDirection="column" gap={2}>
+                  <Text textStyle="small" style={{ opacity: 0.6 }}>Models</Text>
+                  <Heading level={4}>{auditSummary.uniqueModels}</Heading>
+                </Flex>
+              </Surface>
+              <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
+                <Flex flexDirection="column" gap={2}>
+                  <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Input Tokens</Text>
+                  <Heading level={4}>{auditSummary.avgInputTokens.toLocaleString()}</Heading>
+                </Flex>
+              </Surface>
+              <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
+                <Flex flexDirection="column" gap={2}>
+                  <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Output Tokens</Text>
+                  <Heading level={4}>{auditSummary.avgOutputTokens.toLocaleString()}</Heading>
+                </Flex>
+              </Surface>
+            </Flex>
+          )}
+
+          {/* Audit Trail Entries */}
+          {auditLoading && (
+            <Flex justifyContent="center" padding={32}>
+              <ProgressCircle />
+            </Flex>
+          )}
+
+          {!auditLoading && auditEntries.length === 0 && (
+            <Flex alignItems="center" gap={8} style={{ padding: 16 }}>
+              <InformationIcon />
+              <Text style={{ opacity: 0.7 }}>
+                No prompt I/O data found. Ensure gen_ai.prompt.*.content and gen_ai.completion.*.content attributes are captured in spans.
+              </Text>
+            </Flex>
+          )}
+
+          {auditEntries.slice(0, 50).map((entry, idx) => (
+            <Surface key={`${entry.traceId}-${entry.spanId}-${idx}`} style={{
+              padding: 14,
+              borderLeft: `3px solid ${STATUS_COLORS.good}`,
+            }}>
+              <Flex flexDirection="column" gap={8}>
+                {/* Header row */}
+                <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
+                  <Flex gap={12} alignItems="center" flexWrap="wrap">
+                    <Text style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
+                      background: 'var(--dt-colors-background-base-default)' }}>
+                      {entry.provider}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{entry.model}</Text>
+                    <Text textStyle="small" style={{ opacity: 0.5 }}>{entry.serviceName}</Text>
+                  </Flex>
+                  <Flex gap={8} alignItems="center">
+                    <Text textStyle="small" style={{ opacity: 0.5 }}>
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </Text>
+                    {entry.traceId && (
+                      <Button variant="default" onClick={() => openTraceInDistributedTraces(entry.traceId, entry.timestamp)}>
+                        <ExternalLinkIcon /> Trace
+                      </Button>
+                    )}
+                  </Flex>
+                </Flex>
+
+                {/* Metrics row */}
+                <Flex gap={16} flexWrap="wrap">
+                  <Flex gap={4} alignItems="center">
+                    <Text textStyle="small" style={{ opacity: 0.5 }}>Input:</Text>
+                    <Text textStyle="small-emphasized">{entry.inputTokens.toLocaleString()} tokens</Text>
+                  </Flex>
+                  <Flex gap={4} alignItems="center">
+                    <Text textStyle="small" style={{ opacity: 0.5 }}>Output:</Text>
+                    <Text textStyle="small-emphasized">{entry.outputTokens.toLocaleString()} tokens</Text>
+                  </Flex>
+                  <Flex gap={4} alignItems="center">
+                    <Text textStyle="small" style={{ opacity: 0.5 }}>Latency:</Text>
+                    <Text textStyle="small-emphasized">
+                      {entry.latencyMs >= 1000 ? `${(entry.latencyMs / 1000).toFixed(1)}s` : `${Math.round(entry.latencyMs)}ms`}
+                    </Text>
+                  </Flex>
+                  {entry.finishReason && (
+                    <Flex gap={4} alignItems="center">
+                      <Text textStyle="small" style={{ opacity: 0.5 }}>Finish:</Text>
+                      <Text textStyle="small-emphasized">{entry.finishReason}</Text>
+                    </Flex>
+                  )}
+                </Flex>
+
+                {/* Prompt content */}
+                {entry.promptPreview && (
+                  <Surface style={{ padding: 10, backgroundColor: 'rgba(0,0,0,0.03)' }}>
+                    <Flex flexDirection="column" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.5, fontWeight: 600 }}>PROMPT</Text>
+                      <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                        {entry.promptPreview}{entry.promptPreview.length >= 500 ? '…' : ''}
+                      </pre>
+                    </Flex>
+                  </Surface>
+                )}
+
+                {/* Completion content */}
+                {entry.completionPreview && (
+                  <Surface style={{ padding: 10, backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                    <Flex flexDirection="column" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.5, fontWeight: 600 }}>COMPLETION</Text>
+                      <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                        {entry.completionPreview}{entry.completionPreview.length >= 500 ? '…' : ''}
+                      </pre>
+                    </Flex>
+                  </Surface>
+                )}
+              </Flex>
+            </Surface>
+          ))}
+
+          {auditEntries.length > 50 && (
+            <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
+              Showing 50 of {auditEntries.length} audit trail entries. Use timeframe filters to narrow results.
+            </Text>
+          )}
+        </Flex>
+      </Surface>
     </Flex>
   );
 }

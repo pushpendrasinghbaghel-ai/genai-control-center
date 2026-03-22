@@ -6,8 +6,8 @@ import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { Timeframe } from '@dynatrace/strato-components/core';
 import { getTimeframeDqlClause } from '../components/FilterBar';
 
-// Note: @dynatrace-sdk/client-automation should be added for production workflow execution
-// For now, we query workflow data from Grail and simulate execution
+// Note: @dynatrace-sdk/client-automation is used for workflow execution
+// Workflow data is also queried from Grail for execution history
 
 export interface WorkflowDefinition {
   id: string;
@@ -141,35 +141,61 @@ export function useWorkflows(): UseWorkflowsResult {
     }
   }, []);
 
-  // Workflow execution requires @dynatrace-sdk/client-automation
+  // Execute workflow using Dynatrace Automation SDK
   const runWorkflow = useCallback(async (
     workflowId: string, 
     _params?: Record<string, unknown>
   ): Promise<WorkflowExecution> => {
     setExecutionsLoading(true);
     
-    const executionId = `exec-${Date.now()}`;
-    const execution: WorkflowExecution = {
-      id: executionId,
-      workflowId,
-      status: 'ERROR',
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString(),
-      error: `Workflow execution requires @dynatrace-sdk/client-automation. Deploy workflow "${workflowId}" in the Dynatrace Workflows app.`
-    };
-    
-    setExecutions(prev => [...prev, execution]);
-    setExecutionsLoading(false);
-    
-    return execution;
+    try {
+      const { workflowsClient } = await import('@dynatrace-sdk/client-automation');
+      const response = await workflowsClient.runWorkflow({
+        id: workflowId,
+        body: { input: {}, params: _params || {} }
+      });
+
+      const execution: WorkflowExecution = {
+        id: response?.id || `exec-${Date.now()}`,
+        workflowId,
+        status: 'RUNNING',
+        startTime: new Date().toISOString(),
+      };
+
+      setExecutions(prev => [...prev, execution]);
+      return execution;
+    } catch (err: any) {
+      const execution: WorkflowExecution = {
+        id: `exec-${Date.now()}`,
+        workflowId,
+        status: 'ERROR',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        error: err?.message || 'Workflow execution failed'
+      };
+      setExecutions(prev => [...prev, execution]);
+      return execution;
+    } finally {
+      setExecutionsLoading(false);
+    }
   }, []);
 
-  // Create a GenAI-specific workflow — requires @dynatrace-sdk/client-automation
-  const createGenAIWorkflow = useCallback(async (_config: GenAIWorkflowConfig): Promise<string> => {
-    throw new Error(
-      'Workflow creation requires @dynatrace-sdk/client-automation. ' +
-      'Use the Dynatrace Workflows app to create workflows manually.'
-    );
+  // Create a GenAI-specific workflow using Dynatrace Automation SDK
+  const createGenAIWorkflow = useCallback(async (config: GenAIWorkflowConfig): Promise<string> => {
+    try {
+      const { workflowsClient } = await import('@dynatrace-sdk/client-automation');
+      const response = await workflowsClient.createWorkflow({
+        body: {
+          title: config.name,
+          description: `GenAI workflow: ${config.name}`,
+          isPrivate: false,
+          tasks: {},
+        } as any
+      });
+      return response?.id || 'created';
+    } catch (err: any) {
+      throw new Error(`Workflow creation failed: ${err?.message || 'Unknown error'}`);
+    }
   }, []);
 
   // Auto-fetch workflows on mount
