@@ -325,6 +325,7 @@ export interface AgentRetryTrace {
   retryCount: number;
   totalDurationMs: number;
   agentsList: string[];
+  startTime?: string;
 }
 
 export interface AgentRetrySummary {
@@ -1215,6 +1216,7 @@ export interface MultiAgentTrace {
   totalOutputTokens: number;
   totalDurationMs: number;
   errorCount: number;
+  startTime?: string;
 }
 
 /** Agent parallelism detection result */
@@ -1256,6 +1258,7 @@ export interface ContextGrowthEntry {
   agents: string[];
   contextGrowthRatio: number;
   avgTokensPerTurn: number;
+  startTime?: string;
 }
 
 /** Aggregated conversation state */

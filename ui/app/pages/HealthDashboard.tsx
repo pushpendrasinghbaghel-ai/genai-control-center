@@ -10,7 +10,7 @@ import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { ProgressCircle } from '@dynatrace/strato-components/content';
-import { Tooltip } from '@dynatrace/strato-components/overlays';
+import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon, AIModelIcon, LargeLanguageModelIcon } from '@dynatrace/strato-icons';
@@ -18,7 +18,12 @@ import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
 import { FilterBar } from '../components/FilterBar';
+import { DavisResponse } from '../components/DavisResponse';
 import { useGlobalFilters } from '../context';
+import { useAskAI } from '../hooks/useAskAI';
+import type { AskAIContext, AskAIMessage } from '../hooks/useAskAI';
+import { TextInput } from '@dynatrace/strato-components/forms';
+import { AiIcon } from '@dynatrace/strato-icons';
 import { calculateOverallHealth, formatNumber, formatCurrency, getHealthStatusColor } from '../utils';
 import { detectTokenAnomalyAdaptive, detectErrorRateAnomaly, detectLatencyNovelty, detectRequestVolumeSeasonalAnomaly, type AnomalyResult } from '../utils/davisAnalyzers';
 import type { AIService, HealthStatus } from '../types';
@@ -259,6 +264,57 @@ export const HealthDashboard: React.FC = () => {
   const [anomalies, setAnomalies] = useState<AnomalyResult[]>([]);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
 
+  // Health Details Modal
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
+
+  // Conversational AI follow-up in health modal
+  const [healthChatInput, setHealthChatInput] = useState('');
+  const healthAIContext = useMemo<AskAIContext>(() => {
+    const svcList = services ?? [];
+    const healthInfo = svcList.length > 0 ? calculateOverallHealth(svcList) : null;
+    const criticalSvcs = svcList.filter(s => s.healthStatus === 'critical');
+    const warningSvcs = svcList.filter(s => s.healthStatus === 'warning');
+    const dataSnapshot: Record<string, string | number | boolean | null> = {
+      overallHealth: healthInfo?.overallHealth ?? 'unknown',
+      totalServices: svcList.length,
+      criticalCount: criticalSvcs.length,
+      warningCount: warningSvcs.length,
+      avgErrorRate: healthInfo?.avgErrorRate ?? 0,
+      avgLatency: healthInfo?.avgLatency ?? 0,
+    };
+    // Add top critical/warning service details
+    criticalSvcs.slice(0, 3).forEach((s, i) => {
+      dataSnapshot[`critical_${i + 1}`] = `${s.serviceName} (errorRate=${s.errorRate.toFixed(1)}% latency=${s.avgLatency.toFixed(0)}ms)`;
+    });
+    warningSvcs.slice(0, 3).forEach((s, i) => {
+      dataSnapshot[`warning_${i + 1}`] = `${s.serviceName} (errorRate=${s.errorRate.toFixed(1)}% latency=${s.avgLatency.toFixed(0)}ms)`;
+    });
+    return {
+      domain: 'Health Dashboard',
+      itemLabel: healthInfo ? `Overall: ${healthInfo.overallHealth}` : undefined,
+      data: dataSnapshot,
+      suggestedPrompts: [
+        'Why is the overall health critical? Which services need immediate attention?',
+        'What is causing high error rates across my AI services?',
+        'Analyze latency patterns and recommend optimizations',
+        'Compare the health of different AI providers',
+        'What should I investigate first to improve overall health?',
+      ],
+    };
+  }, [services]);
+  const { messages: healthChatMessages, isLoading: healthChatLoading, error: healthChatError, ask: askHealthAI, clearMessages: clearHealthChat } = useAskAI(healthAIContext);
+
+  // Inject blink keyframes for streaming cursor
+  useEffect(() => {
+    const id = 'health-modal-blink';
+    if (!document.getElementById(id)) {
+      const style = document.createElement('style');
+      style.id = id;
+      style.textContent = '@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}';
+      document.head.appendChild(style);
+    }
+  }, []);
+
   const runAnomalyDetection = useCallback(async () => {
     setAnomalyLoading(true);
     try {
@@ -458,16 +514,21 @@ export const HealthDashboard: React.FC = () => {
 
       {/* Health Status + Metrics Row - Compact inline */}
       <Flex gap={12} alignItems="stretch" flexWrap="wrap">
-        {/* Health Status */}
+        {/* Health Status — clickable to open details modal */}
         <Flex 
           alignItems="center" 
           gap={12} 
           padding={12}
+          role="button"
+          tabIndex={0}
+          onClick={() => setHealthModalOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setHealthModalOpen(true); }}
           style={{ 
             background: 'var(--dt-colors-surface-default)',
             borderRadius: 6,
             border: '1px solid var(--dt-colors-border-neutral-default)',
-            minWidth: 180
+            minWidth: 180,
+            cursor: 'pointer',
           }}
         >
           <HealthStatusBadge status={healthMetrics.overallHealth} size="large" />
@@ -748,6 +809,295 @@ export const HealthDashboard: React.FC = () => {
             ))}
         </Flex>
       </Surface>
+
+      {/* Health Details Modal */}
+      {healthModalOpen && (
+        <Modal
+          title="Health Score Breakdown"
+          onDismiss={() => { setHealthModalOpen(false); clearHealthChat(); }}
+          show={true}
+          size="large"
+        >
+          <Flex flexDirection="column" gap={16} padding={16}>
+            {/* Overall Health Summary */}
+            <Surface style={{ padding: 16, borderLeft: `4px solid ${getHealthStatusColor(healthMetrics.overallHealth)}` }}>
+              <Flex alignItems="center" gap={12}>
+                <HealthStatusBadge status={healthMetrics.overallHealth} size="large" />
+                <Flex flexDirection="column" gap={2}>
+                  <Text style={{ fontWeight: 600 }}>
+                    {healthMetrics.criticalCount} critical, {healthMetrics.warningCount} warning, {healthMetrics.healthyCount} healthy
+                  </Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                    out of {healthMetrics.totalServices} services &bull; Avg Error Rate: {healthMetrics.avgErrorRate.toFixed(1)}% &bull; Avg Latency: {healthMetrics.avgLatency.toFixed(0)}ms
+                  </Text>
+                </Flex>
+              </Flex>
+            </Surface>
+
+            {/* Thresholds Reference */}
+            <Surface style={{ padding: 12 }}>
+              <Text textStyle="small" style={{ fontWeight: 600, marginBottom: 8, display: 'block' }}>Health Thresholds</Text>
+              <Flex gap={16} flexWrap="wrap">
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+                  <Text style={{ fontSize: 11 }}>Critical: error &gt;10% OR latency &gt;6s OR issueScore &gt;30</Text>
+                </Flex>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+                  <Text style={{ fontSize: 11 }}>Warning: error &gt;5% OR latency &gt;3s OR issueScore &gt;15</Text>
+                </Flex>
+                <Flex alignItems="center" gap={4}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
+                  <Text style={{ fontSize: 11 }}>Healthy: all below thresholds</Text>
+                </Flex>
+              </Flex>
+              <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)', marginTop: 6, display: 'block' }}>
+                issueScore = errorRate&times;2 + slowRequestRate&times;1 + lowOutputRate&times;0.5
+              </Text>
+            </Surface>
+
+            {/* Per-Service Health Breakdown */}
+            <Text style={{ fontWeight: 600 }}>Per-Service Breakdown</Text>
+            <Flex flexDirection="column" gap={6}>
+              {services
+                .sort((a, b) => {
+                  const order: Record<HealthStatus, number> = { critical: 0, warning: 1, healthy: 2, unknown: 3 };
+                  return (order[a.healthStatus] ?? 3) - (order[b.healthStatus] ?? 3);
+                })
+                .map((svc, i) => {
+                  const slowRate = svc.slowRequestRate ?? 0;
+                  const lowOut = svc.lowOutputRate ?? 0;
+                  const issueScore = svc.errorRate * 2 + slowRate * 1 + lowOut * 0.5;
+                  const factors: string[] = [];
+                  if (svc.errorRate > 10) factors.push(`error rate ${svc.errorRate.toFixed(1)}% (>10%)`);
+                  else if (svc.errorRate > 5) factors.push(`error rate ${svc.errorRate.toFixed(1)}% (>5%)`);
+                  if (svc.avgLatency > 6000) factors.push(`latency ${svc.avgLatency.toFixed(0)}ms (>6s)`);
+                  else if (svc.avgLatency > 3000) factors.push(`latency ${svc.avgLatency.toFixed(0)}ms (>3s)`);
+                  if (issueScore > 30) factors.push(`issueScore ${issueScore.toFixed(1)} (>30)`);
+                  else if (issueScore > 15) factors.push(`issueScore ${issueScore.toFixed(1)} (>15)`);
+                  if (slowRate > 20) factors.push(`slow requests ${slowRate.toFixed(1)}% (>20%)`);
+                  if (factors.length === 0) factors.push('all within thresholds');
+
+                  return (
+                    <Surface key={`health-${i}`} style={{ padding: 10, borderLeft: `3px solid ${getHealthStatusColor(svc.healthStatus)}` }}>
+                      <Flex justifyContent="space-between" alignItems="center">
+                        <Flex alignItems="center" gap={8} style={{ flex: 2 }}>
+                          <HealthStatusBadge status={svc.healthStatus} />
+                          <Text style={{ fontSize: 12, fontWeight: 600 }}>{svc.serviceName}</Text>
+                        </Flex>
+                        <Flex gap={12} style={{ flex: 3 }} flexWrap="wrap">
+                          <Text style={{ fontSize: 11, minWidth: 80 }}>
+                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Error: </span>
+                            <span style={{ color: svc.errorRate > 10 ? STATUS_COLORS.critical : svc.errorRate > 5 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.errorRate.toFixed(1)}%</span>
+                          </Text>
+                          <Text style={{ fontSize: 11, minWidth: 80 }}>
+                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Latency: </span>
+                            <span style={{ color: svc.avgLatency > 6000 ? STATUS_COLORS.critical : svc.avgLatency > 3000 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.avgLatency.toFixed(0)}ms</span>
+                          </Text>
+                          <Text style={{ fontSize: 11, minWidth: 80 }}>
+                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Slow: </span>
+                            <span style={{ color: slowRate > 20 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{slowRate.toFixed(1)}%</span>
+                          </Text>
+                          <Text style={{ fontSize: 11, minWidth: 80 }}>
+                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Low Output: </span>
+                            <span>{lowOut.toFixed(1)}%</span>
+                          </Text>
+                        </Flex>
+                        <Flex style={{ flex: 2 }}>
+                          <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                            {svc.healthStatus !== 'healthy' ? factors.join(' | ') : ''}
+                          </Text>
+                        </Flex>
+                      </Flex>
+                    </Surface>
+                  );
+                })}
+            </Flex>
+
+            {/* Dynatrace Intelligence — Context-Aware Analysis + Conversation */}
+            <Surface style={{ padding: 16, borderTop: '2px solid var(--dt-colors-border-neutral-default)' }}>
+              <Flex flexDirection="column" gap={12}>
+                {/* Header */}
+                <Flex alignItems="center" justifyContent="space-between">
+                  <Flex alignItems="center" gap={8}>
+                    <AiIcon style={{ width: 18, height: 18, color: '#6366f1' }} />
+                    <Text style={{ fontWeight: 600 }}>Dynatrace Intelligence</Text>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>context-aware AI analysis</Text>
+                  </Flex>
+                  <Flex gap={8}>
+                    {healthChatMessages.length > 0 && (
+                      <Button variant="default" onClick={clearHealthChat} disabled={healthChatLoading}>
+                        Clear
+                      </Button>
+                    )}
+                    <Button
+                      variant="accent"
+                      onClick={() => {
+                        const criticalSvcs = services.filter(s => s.healthStatus === 'critical');
+                        const warningSvcs = services.filter(s => s.healthStatus === 'warning');
+                        const hm = calculateOverallHealth(services);
+
+                        // Build a context-rich analysis prompt with actual data
+                        let prompt = `Analyze the health of my ${services.length} AI services. Overall health is ${hm.overallHealth.toUpperCase()}.`;
+                        prompt += ` Average error rate: ${hm.avgErrorRate.toFixed(1)}%, average latency: ${hm.avgLatency.toFixed(0)}ms.`;
+
+                        if (criticalSvcs.length > 0) {
+                          prompt += `\n\nCRITICAL services (${criticalSvcs.length}):`;
+                          criticalSvcs.forEach(s => {
+                            const sr = s.slowRequestRate ?? 0;
+                            const lo = s.lowOutputRate ?? 0;
+                            prompt += `\n- ${s.serviceName}: error rate ${s.errorRate.toFixed(1)}%, latency ${s.avgLatency.toFixed(0)}ms, slow requests ${sr.toFixed(1)}%, low output ${lo.toFixed(1)}%, ${s.requestCount} requests`;
+                          });
+                        }
+                        if (warningSvcs.length > 0) {
+                          prompt += `\n\nWARNING services (${warningSvcs.length}):`;
+                          warningSvcs.forEach(s => {
+                            const sr = s.slowRequestRate ?? 0;
+                            const lo = s.lowOutputRate ?? 0;
+                            prompt += `\n- ${s.serviceName}: error rate ${s.errorRate.toFixed(1)}%, latency ${s.avgLatency.toFixed(0)}ms, slow requests ${sr.toFixed(1)}%, low output ${lo.toFixed(1)}%, ${s.requestCount} requests`;
+                          });
+                        }
+
+                        prompt += '\n\nFor each unhealthy service, explain the most likely root cause, which specific thresholds are breached, and what immediate actions should be taken. Prioritize by severity.';
+
+                        void askHealthAI(prompt);
+                      }}
+                      disabled={healthChatLoading}
+                    >
+                      {healthChatLoading && healthChatMessages.length <= 1 ? 'Analyzing...' : 'Run Dynatrace Intelligence Analysis'}
+                    </Button>
+                  </Flex>
+                </Flex>
+
+                {/* Context badge */}
+                <Surface style={{ padding: 8, borderLeft: '3px solid #6366f1', borderRadius: 4 }}>
+                  <Flex alignItems="center" gap={6}>
+                    <AiIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)' }} />
+                    <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                      Context: {services.length} services &bull; {services.filter(s => s.healthStatus === 'critical').length} critical &bull; {services.filter(s => s.healthStatus === 'warning').length} warning &bull; Avg error {healthMetrics.avgErrorRate.toFixed(1)}% &bull; Avg latency {healthMetrics.avgLatency.toFixed(0)}ms
+                    </Text>
+                  </Flex>
+                </Surface>
+
+                {/* Suggested prompts — shown only before first message */}
+                {healthChatMessages.length === 0 && healthAIContext.suggestedPrompts && (
+                  <Flex flexDirection="column" gap={6}>
+                    <Text style={{ fontSize: 11, fontWeight: 600, color: 'var(--dt-colors-text-secondary-default)' }}>Suggested Questions</Text>
+                    <Flex gap={6} flexWrap="wrap">
+                      {healthAIContext.suggestedPrompts.map((prompt, i) => (
+                        <button
+                          key={i}
+                          onClick={() => { void askHealthAI(prompt); }}
+                          disabled={healthChatLoading}
+                          style={{
+                            background: 'var(--dt-colors-surface-default-default)',
+                            border: '1px solid var(--dt-colors-border-neutral-default)',
+                            borderRadius: 16,
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            cursor: healthChatLoading ? 'not-allowed' : 'pointer',
+                            color: 'var(--dt-colors-text-primary-default)',
+                            transition: 'background 0.15s',
+                            opacity: healthChatLoading ? 0.5 : 1,
+                          }}
+                          onMouseEnter={e => { if (!healthChatLoading) (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-primary-default)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-default-default)'; }}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </Flex>
+                  </Flex>
+                )}
+
+                {/* Conversation thread */}
+                {healthChatMessages.length > 0 && (
+                  <div style={{ maxHeight: 350, overflowY: 'auto', padding: '4px 0' }}>
+                    <Flex flexDirection="column" gap={8}>
+                      {healthChatMessages.map((msg) => (
+                        msg.role === 'user' ? (
+                          <Flex key={msg.id} justifyContent="flex-end">
+                            <Surface style={{ padding: '6px 12px', borderRadius: 12, borderBottomRightRadius: 4, maxWidth: '80%', background: 'var(--dt-colors-surface-primary-default)' }}>
+                              <Text style={{ fontSize: 12 }}>{msg.content}</Text>
+                            </Surface>
+                          </Flex>
+                        ) : (
+                          <Flex key={msg.id} justifyContent="flex-start" gap={6}>
+                            <AiIcon style={{ width: 14, height: 14, color: '#6366f1', marginTop: 4, flexShrink: 0 }} />
+                            <Surface style={{ padding: '8px 12px', borderRadius: 12, borderBottomLeftRadius: 4, maxWidth: '90%' }}>
+                              {msg.isLoading && !msg.content ? (
+                                <Flex alignItems="center" gap={6}>
+                                  <ProgressCircle size="small" />
+                                  <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>Analyzing your AI services...</Text>
+                                </Flex>
+                              ) : (
+                                <>
+                                  <DavisResponse content={msg.content} />
+                                  {msg.isStreaming && (
+                                    <span style={{ display: 'inline-block', width: 6, height: 14, background: '#6366f1', marginLeft: 2, animation: 'blink 1s step-end infinite' }} />
+                                  )}
+                                </>
+                              )}
+                            </Surface>
+                          </Flex>
+                        )
+                      ))}
+                    </Flex>
+                  </div>
+                )}
+
+                {/* Error state */}
+                {healthChatError && (
+                  <Flex alignItems="center" gap={8} style={{ padding: '6px 10px', backgroundColor: 'rgba(255,165,0,0.1)', borderRadius: 6 }}>
+                    <Text textStyle="small" style={{ flex: 1, color: 'var(--dt-colors-text-warning-default)' }}>Dynatrace Intelligence is temporarily unavailable.</Text>
+                  </Flex>
+                )}
+
+                {/* Chat input — always visible for follow-up questions */}
+                <Flex gap={8} alignItems="center">
+                  <div style={{ flex: 1 }}>
+                    <TextInput
+                      placeholder={healthChatMessages.length === 0 ? 'Ask about your AI service health...' : 'Ask a follow-up question...'}
+                      value={healthChatInput}
+                      onChange={(val) => setHealthChatInput(val ?? '')}
+                      onKeyDown={(e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          const trimmed = healthChatInput.trim();
+                          if (trimmed && !healthChatLoading) {
+                            setHealthChatInput('');
+                            void askHealthAI(trimmed);
+                          }
+                        }
+                      }}
+                      disabled={healthChatLoading}
+                    />
+                  </div>
+                  <Button
+                    variant="emphasized"
+                    onClick={() => {
+                      const trimmed = healthChatInput.trim();
+                      if (trimmed && !healthChatLoading) {
+                        setHealthChatInput('');
+                        void askHealthAI(trimmed);
+                      }
+                    }}
+                    disabled={healthChatLoading || !healthChatInput.trim()}
+                  >
+                    {healthChatLoading ? <ProgressCircle size="small" /> : 'Ask'}
+                  </Button>
+                </Flex>
+
+                {healthChatMessages.length === 0 && !healthChatLoading && (
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center' }}>
+                    Click "Run Dynatrace Intelligence Analysis" for a context-aware deep dive, or ask any question about your AI services.
+                  </Text>
+                )}
+              </Flex>
+            </Surface>
+          </Flex>
+        </Modal>
+      )}
     </Flex>
   );
 };

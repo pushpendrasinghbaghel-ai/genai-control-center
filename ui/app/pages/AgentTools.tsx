@@ -11,7 +11,7 @@ import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { DataTable } from '@dynatrace/strato-components/tables';
 import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
-import { getIntentLink } from '@dynatrace-sdk/navigation';
+import { openTraceInDistributedTraces, TraceLink } from '../utils/traceLink';
 import { TextInput } from '@dynatrace/strato-components/forms';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import { 
@@ -110,30 +110,7 @@ const formatTokens = (n: number): string => {
   return String(n);
 };
 
-/**
- * Navigate directly to Distributed Traces app for a specific trace
- * Uses Governance-style pattern with view-trace intent
- */
-const openTraceInDistributedTraces = (traceId: string, timestamp?: string): void => {
-  // Calculate the window around the timestamp if provided
-  const timeDate = timestamp ? new Date(timestamp) : new Date();
-  const startTime = new Date(timeDate.getTime() - 10 * 60 * 1000).toISOString();
-  const endTime = new Date(timeDate.getTime() + 10 * 60 * 1000).toISOString();
 
-  const intentUrl = getIntentLink(
-    { 
-      'trace_id': traceId,
-      'dt.timeframe': {
-        from: startTime,
-        to: endTime
-      }
-    },
-    'dynatrace.distributedtracing',
-    'view-trace'
-  );
-  
-  window.open(intentUrl, '_blank', 'noopener,noreferrer');
-};
 
 // ============================================
 // Metric Card Component (consistent styling)
@@ -1114,7 +1091,7 @@ const MultiAgentDepthTab: React.FC<{
 }> = ({ multiAgentTraces, crossAgentTokens, parallelismStats }) => {
   const traceColumns = useMemo(
     () => [
-      { id: 'traceId', header: 'Trace ID', accessor: (r: MultiAgentTrace) => r.traceId.substring(0, 16) + '...', columnType: 'text' as const },
+      { id: 'traceId', header: 'Trace ID', accessor: 'traceId', columnType: 'text' as const, cell: ({ value, rowData }: any) => <TraceLink traceId={String(value ?? '')} timestamp={rowData.startTime} /> },
       { id: 'agents', header: 'Agents', accessor: (r: MultiAgentTrace) => r.agents.join(' → '), columnType: 'text' as const },
       { id: 'agentCount', header: 'Agent Count', accessor: 'agentCount', columnType: 'number' as const },
       { id: 'totalSpans', header: 'Spans', accessor: 'totalSpans', columnType: 'number' as const },
@@ -1190,7 +1167,7 @@ const ConversationStateTab: React.FC<{
 }> = ({ contextGrowth, conversationState }) => {
   const growthColumns = useMemo(
     () => [
-      { id: 'traceId', header: 'Trace ID', accessor: (r: ContextGrowthEntry) => r.traceId.substring(0, 16) + '...', columnType: 'text' as const },
+      { id: 'traceId', header: 'Trace ID', accessor: 'traceId', columnType: 'text' as const, cell: ({ value, rowData }: any) => <TraceLink traceId={String(value ?? '')} timestamp={rowData.startTime} /> },
       { id: 'turns', header: 'Turns', accessor: 'turns', columnType: 'number' as const },
       {
         id: 'contextGrowthRatio', header: 'Growth Ratio', accessor: 'contextGrowthRatio', columnType: 'number' as const,
@@ -3827,12 +3804,8 @@ export const AgentTools: React.FC = () => {
                         header: 'Trace ID',
                         id: 'traceId',
                         accessor: 'traceId',
-                        width: 160,
-                        cell: ({ value }) => (
-                          <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-secondary-default)' }}>
-                            {String(value ?? '').slice(0, 16)}…
-                          </Text>
-                        ),
+                        width: 180,
+                        cell: ({ value, rowData }: any) => <TraceLink traceId={String(value ?? '')} timestamp={rowData.startTime} />,
                       },
                       {
                         header: 'Retries',

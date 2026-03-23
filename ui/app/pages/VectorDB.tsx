@@ -16,7 +16,7 @@ import { XYChart, HoneycombChart, TreeMap } from '@dynatrace/strato-components/c
 import { Tabs, Tab } from '@dynatrace/strato-components/navigation';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import type { Timeframe } from '@dynatrace/strato-components/core';
-import { getIntentLink } from '@dynatrace-sdk/navigation';
+import { openTraceInDistributedTraces, TraceLink } from '../utils/traceLink';
 import {
   RefreshIcon, DatabaseIcon, BarChartIcon, WarningIcon,
   CheckmarkIcon, HelpIcon, CriticalIcon, AiIcon,
@@ -27,7 +27,7 @@ import { useVectorDB } from '../hooks/useVectorDB';
 import { RAGHealthPanel } from '../components/RAGHealthPanel';
 import { createDefaultTimeframe } from '../context';
 import type { QueryFilters } from '../hooks/useDQLQueries';
-import type { RAGPipelineTrace, PipelineFlowStage, CostByModel, LatencyBucket } from '../types';
+import type { RAGPipelineTrace, PipelineFlowStage, LatencyBucket } from '../types';
 
 // ============================================
 // Constants
@@ -83,24 +83,7 @@ const latencyColor = (ms: number) => {
   return STATUS_COLORS.critical;
 };
 
-/**
- * Open a specific trace in the Dynatrace Distributed Tracing app
- * Uses the same intent-based navigation pattern as AgentTools / Governance pages
- */
-const openTraceInDistributedTraces = (traceId: string, timestamp?: string): void => {
-  const timeDate = timestamp ? new Date(timestamp) : new Date();
-  const startTime = new Date(timeDate.getTime() - 10 * 60 * 1000).toISOString();
-  const endTime = new Date(timeDate.getTime() + 10 * 60 * 1000).toISOString();
-  const intentUrl = getIntentLink(
-    {
-      'trace_id': traceId,
-      'dt.timeframe': { from: startTime, to: endTime },
-    },
-    'dynatrace.distributedtracing',
-    'view-trace'
-  );
-  window.open(intentUrl, '_blank', 'noopener,noreferrer');
-};
+
 
 // ============================================
 // MetricCard — matches AgentTools / ModelDrift canonical pattern
@@ -238,7 +221,7 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
           <Flex flexDirection="column" gap={8}>
             <Flex alignItems="flex-start" gap={12}>
               <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', width: 80, flexShrink: 0, paddingTop: 2 }}>Trace ID</Text>
-              <Text style={{ fontSize: 11, fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>{trace.traceId || '—'}</Text>
+              <TraceLink traceId={trace.traceId || ''} timestamp={trace.traceStart} truncate={32} />
             </Flex>
             {trace.traceStart && (
               <Flex alignItems="center" gap={12}>
@@ -512,7 +495,7 @@ export const VectorDB: React.FC = () => {
     resultSetSizes, sourceDocMetadata,
     tokenizationDrift, retrievalAnomalies, contextEffectiveness,
     heatmapCells, pipelineFlowStages, tokenTreemap, modelHoneycomb, eventStream,
-    costByModel, latencyBuckets,
+    latencyBuckets,
     loading, error, refetch,
   } = useVectorDB(filters);
 
@@ -855,10 +838,8 @@ export const VectorDB: React.FC = () => {
                 id: 'traceId',
                 accessor: 'traceId',
                 minWidth: 240,
-                cell: ({ value }) => (
-                  <Text style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.02em' }}>
-                    {String(value ?? '')}
-                  </Text>
+                cell: ({ value, rowData }: any) => (
+                  <TraceLink traceId={String(value ?? '')} timestamp={rowData?.traceStart} truncate={24} />
                 ),
               },
               {
@@ -1545,90 +1526,6 @@ export const VectorDB: React.FC = () => {
         ) : (
           <Flex alignItems="center" justifyContent="center" style={{ height: 160 }}>
             <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No pipeline flow data'}</Text>
-          </Flex>
-        )}
-      </Surface>
-
-      {/* ─── Estimated Cost by Model ─── */}
-      <Surface style={{ padding: 16 }}>
-        <Flex alignItems="center" gap={8} style={{ marginBottom: 12 }}>
-          <BarChartIcon />
-          <Heading level={4}>Estimated Cost by Model</Heading>
-          <Text textStyle="small" style={{ opacity: 0.6 }}>based on rate card pricing</Text>
-          <Tooltip text="Cost estimates use your configured rate card (Settings → Rate Cards). Default rates are public list prices. Customize with your negotiated/contract rates for accurate billing projections.">
-            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
-          </Tooltip>
-        </Flex>
-        {costByModel.length > 0 ? (
-          <>
-            {/* Cost KPI summary */}
-            <Flex gap={8} flexWrap="wrap" style={{ marginBottom: 16 }}>
-              <MetricCard
-                value={`$${costByModel.reduce((s, m) => s + m.estimatedCost, 0).toFixed(2)}`}
-                label="Total Estimated Cost"
-                icon={<BarChartIcon style={{ color: STATUS_COLORS.warning }} />}
-                color={STATUS_COLORS.warning}
-                tooltip="Sum of all model costs in selected timeframe"
-              />
-              <MetricCard
-                value={costByModel.length.toString()}
-                label="Active Models"
-                icon={<AiIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />}
-              />
-              <MetricCard
-                value={`$${costByModel[0]?.estimatedCost.toFixed(2) ?? '0'}`}
-                label={`Top: ${costByModel[0]?.model ?? '—'}`}
-                icon={<ResearchIcon style={{ color: STATUS_COLORS.critical }} />}
-                color={STATUS_COLORS.critical}
-                tooltip="Most expensive model in the selected timeframe"
-              />
-            </Flex>
-            <DataTable
-              data={costByModel}
-              columns={[
-                {
-                  header: 'Model', id: 'model', accessor: 'model',
-                  cell: ({ value }) => <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{String(value ?? '—')}</Text>,
-                },
-                {
-                  header: 'Provider', id: 'provider', accessor: 'provider', width: 100,
-                  cell: ({ value }) => <Text style={{ fontSize: 11 }}>{String(value ?? '—')}</Text>,
-                },
-                {
-                  header: 'Input Tokens', id: 'inputTokens', accessor: 'inputTokens', width: 110,
-                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
-                },
-                {
-                  header: 'Output Tokens', id: 'outputTokens', accessor: 'outputTokens', width: 110,
-                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
-                },
-                {
-                  header: 'Requests', id: 'requestCount', accessor: 'requestCount', width: 90,
-                  cell: ({ value }) => <Text>{fmt(Number(value ?? 0))}</Text>,
-                },
-                {
-                  header: 'Est. Cost', id: 'estimatedCost', accessor: 'estimatedCost', width: 100,
-                  cell: ({ value }) => {
-                    const cost = Number(value ?? 0);
-                    return (
-                      <Text style={{ fontWeight: 700, color: cost > 10 ? STATUS_COLORS.critical : cost > 1 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>
-                        ${cost.toFixed(2)}
-                      </Text>
-                    );
-                  },
-                },
-                {
-                  header: 'Avg Latency', id: 'avgLatencyMs', accessor: 'avgLatencyMs', width: 100,
-                  cell: ({ value }) => <Text style={{ color: latencyColor(Number(value ?? 0)) }}>{fmtMs(Number(value ?? 0))}</Text>,
-                },
-              ]}
-            >
-              <DataTable.Pagination defaultPageSize={10} />
-            </DataTable>
-          </>
-        ) : (
-          <Flex alignItems="center" justifyContent="center" style={{ height: 120 }}>
-            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>{loading ? 'Loading…' : 'No token usage data — requires gen_ai.usage.* attributes'}</Text>
           </Flex>
         )}
       </Surface>

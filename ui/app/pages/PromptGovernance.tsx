@@ -20,7 +20,7 @@ import {
   CriticalIcon
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
-import { getIntentLink } from '@dynatrace-sdk/navigation';
+import { openTraceInDistributedTraces, TraceLink } from '../utils/traceLink';
 
 import { FilterBar } from '../components';
 import { useGlobalFilters } from '../context';
@@ -48,25 +48,7 @@ const GOVERNANCE_TOOLTIPS = {
   davisAI: 'Use Dynatrace Intelligence to perform advanced semantic analysis on prompts for nuanced risk detection'
 };
 
-/**
- * Navigate to Distributed Traces app for a specific trace
- */
-const openTraceInDistributedTraces = (traceId: string, timestamp: string): void => {
-  const timeDate = new Date(timestamp);
-  const startTime = new Date(timeDate.getTime() - 10 * 60 * 1000).toISOString();
-  const endTime = new Date(timeDate.getTime() + 10 * 60 * 1000).toISOString();
 
-  const intentUrl = getIntentLink(
-    { 
-      'trace_id': traceId,
-      'dt.timeframe': { from: startTime, to: endTime }
-    },
-    'dynatrace.distributedtracing',
-    'view-trace'
-  );
-  
-  window.open(intentUrl, '_blank', 'noopener,noreferrer');
-};
 
 // ============================================
 // Prompt Detail Modal
@@ -348,9 +330,10 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
 
         {/* IDs for debugging */}
         <Flex flexDirection="column" gap={4}>
-          <Text textStyle="small" style={{ opacity: 0.5 }}>
-            Trace ID: {prompt.traceId || 'N/A'}
-          </Text>
+          <Flex alignItems="center" gap={4}>
+            <Text textStyle="small" style={{ opacity: 0.5 }}>Trace ID:</Text>
+            <TraceLink traceId={prompt.traceId || ''} timestamp={prompt.timestamp} />
+          </Flex>
           <Text textStyle="small" style={{ opacity: 0.5 }}>
             Span ID: {prompt.spanId || 'N/A'}
           </Text>
@@ -996,7 +979,7 @@ export function PromptGovernance() {
                       </Flex>
                       <Flex flexDirection="column" gap={2}>
                         <Text textStyle="small" style={{ opacity: 0.5 }}>Trace ID</Text>
-                        <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{error.traceId}</Text>
+                        <TraceLink traceId={error.traceId} timestamp={error.timestamp} />
                       </Flex>
                     </Flex>
                     

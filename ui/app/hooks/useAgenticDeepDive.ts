@@ -148,6 +148,7 @@ export function useAgenticDeepDive(filters?: QueryFilters) {
           totalOutputTokens: Number(r.total_output_tokens) || 0,
           totalDurationMs: Number(r.total_duration_ms) || 0,
           errorCount: Number(r.error_count) || 0,
+          startTime: r.min_start ? String(r.min_start) : undefined,
         }))
       );
 
@@ -198,6 +199,7 @@ export function useAgenticDeepDive(filters?: QueryFilters) {
           agents: Array.isArray(r.agents) ? r.agents.map(String) : [],
           contextGrowthRatio: Number(r.context_growth_ratio) || 1,
           avgTokensPerTurn: Number(r.avg_tokens_per_turn) || 0,
+          startTime: r.min_start ? String(r.min_start) : undefined,
         }))
       );
 

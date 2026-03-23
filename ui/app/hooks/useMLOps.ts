@@ -1,5 +1,5 @@
 // GenAI Control Center — MLOps Hook
-// Surfaces Model Registry, SLO Compliance, Model Comparison, Cost Attribution.
+// Surfaces Model Registry, SLO Compliance, Model Comparison.
 // All data from real DQL queries against gen_ai.* spans — no mock data.
 
 import { useState, useCallback } from 'react';
@@ -10,8 +10,6 @@ import {
   MLOPS_SLO_COMPLIANCE_QUERY,
   MLOPS_SLO_TREND_QUERY,
   MLOPS_MODEL_COMPARISON_QUERY,
-  MLOPS_COST_BY_SERVICE_QUERY,
-  MLOPS_COST_BY_MODEL_QUERY,
   MLOPS_MODEL_USAGE_TREND_QUERY,
   type QueryFilters,
 } from '../queries/dql-queries';
@@ -20,7 +18,6 @@ import type {
   MLOpsSLOEntry,
   MLOpsSLOTrendPoint,
   MLOpsModelComparison,
-  MLOpsCostEntry,
   MLOpsSLOConfig,
 } from '../types';
 
@@ -80,8 +77,6 @@ export interface UseMLOpsReturn {
   sloEntries: MLOpsSLOEntry[];
   sloTrend: MLOpsSLOTrendPoint[];
   comparison: MLOpsModelComparison[];
-  costByService: MLOpsCostEntry[];
-  costByModel: MLOpsCostEntry[];
   usageTrend: Array<{ model: string; timeBucket: string; requests: number; totalTokens: number }>;
 
   // SLO config
@@ -110,8 +105,6 @@ export function useMLOps(): UseMLOpsReturn {
   const [sloEntries, setSloEntries] = useState<MLOpsSLOEntry[]>([]);
   const [sloTrend, setSloTrend] = useState<MLOpsSLOTrendPoint[]>([]);
   const [comparison, setComparison] = useState<MLOpsModelComparison[]>([]);
-  const [costByService, setCostByService] = useState<MLOpsCostEntry[]>([]);
-  const [costByModel, setCostByModel] = useState<MLOpsCostEntry[]>([]);
   const [usageTrend, setUsageTrend] = useState<Array<{ model: string; timeBucket: string; requests: number; totalTokens: number }>>([]);
   const [sloConfig, _setSloConfig] = useState<MLOpsSLOConfig>(loadSloConfig);
   const [loading, setLoading] = useState(false);
@@ -131,14 +124,12 @@ export function useMLOps(): UseMLOpsReturn {
     const cfg = loadSloConfig();
 
     try {
-      const [regRows, sloRows, trendRows, cmpRows, costSvcRows, costModelRows, usageRows] =
+      const [regRows, sloRows, trendRows, cmpRows, usageRows] =
         await Promise.all([
           runQuery(MLOPS_MODEL_REGISTRY_QUERY(filters)),
           runQuery(MLOPS_SLO_COMPLIANCE_QUERY(filters, cfg.latencyThresholdMs, cfg.errorBudgetPct)),
           runQuery(MLOPS_SLO_TREND_QUERY(filters, cfg.latencyThresholdMs)),
           runQuery(MLOPS_MODEL_COMPARISON_QUERY(filters)),
-          runQuery(MLOPS_COST_BY_SERVICE_QUERY(filters)),
-          runQuery(MLOPS_COST_BY_MODEL_QUERY(filters)),
           runQuery(MLOPS_MODEL_USAGE_TREND_QUERY(filters)),
         ]);
 
@@ -215,34 +206,6 @@ export function useMLOps(): UseMLOpsReturn {
         }))
       );
 
-      // Parse cost by service
-      setCostByService(
-        costSvcRows.map((r: any) => ({
-          serviceName: str(r['service_name']),
-          requests: num(r['requests']),
-          totalInput: num(r['total_input']),
-          totalOutput: num(r['total_output']),
-          totalTokens: num(r['total_tokens']),
-          errorRate: num(r['error_rate']),
-          modelsUsed: arr(r['models_used']),
-          providersUsed: arr(r['providers_used']),
-        }))
-      );
-
-      // Parse cost by model
-      setCostByModel(
-        costModelRows.map((r: any) => ({
-          model: str(r['model']),
-          provider: str(r['provider']),
-          requests: num(r['requests']),
-          totalInput: num(r['total_input']),
-          totalOutput: num(r['total_output']),
-          totalTokens: num(r['total_input']) + num(r['total_output']),
-          errorRate: 0,
-          servicesCount: num(r['services_count']),
-        }))
-      );
-
       // Parse usage trend
       setUsageTrend(
         usageRows.map((r: any) => ({
@@ -272,8 +235,6 @@ export function useMLOps(): UseMLOpsReturn {
     sloEntries,
     sloTrend,
     comparison,
-    costByService,
-    costByModel,
     usageTrend,
     sloConfig,
     setSloConfig,

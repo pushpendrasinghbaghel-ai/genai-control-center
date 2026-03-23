@@ -740,7 +740,8 @@ fetch spans, ${timeClause}
     task_count = count(),
     unique_agents = countDistinct(traceloop.entity.name),
     agents_list = collectDistinct(traceloop.entity.name),
-    total_duration_ms = sum(duration) / 1000000
+    total_duration_ms = sum(duration) / 1000000,
+    min_start = min(start_time)
   , by: { trace.id }
 | fieldsAdd retry_count = task_count - unique_agents
 | filter retry_count > 0
@@ -2189,9 +2190,10 @@ fetch spans, ${timeClause}
     total_output_tokens = sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
     total_duration_ms = sum(duration) / 1000000,
     error_count = countIf(otel.status_code == "ERROR"),
+    min_start = min(start_time),
     by: { trace_id = trace.id }
 | filter agent_count > 1
-| sort total_spans desc
+| sort min_start desc
 | limit 200
 `.trim();
 };
@@ -2268,6 +2270,7 @@ fetch spans, ${timeClause}
     total_output = sum(toLong(gen_ai.usage.output_tokens)),
     total_tokens = sum(toLong(gen_ai.usage.input_tokens)) + sum(toLong(gen_ai.usage.output_tokens)),
     duration_ms = (max(start_time) - min(start_time)) / 1000000,
+    min_start = min(start_time),
     agents = collectDistinct(gen_ai.agent.name),
     by: { trace_id = trace.id }
 | filter turns > 1

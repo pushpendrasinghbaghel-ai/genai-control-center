@@ -1,4 +1,4 @@
-// ConversationIntelligence.tsx — Phase 8.2: Conversation-Level AI Observability
+// ConversationIntelligence.tsx ï¿½ Phase 8.2: Conversation-Level AI Observability
 // Groups AI spans by conversation_id OR trace_id => turn counts, token usage, handoffs, long-dialogue alerts
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -13,6 +13,7 @@ import { AiIcon, ChatIcon, WarningIcon, CheckmarkIcon, HelpIcon } from '@dynatra
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { FilterBar } from '../components/FilterBar';
+import { openTraceInDistributedTraces, TraceLink } from '../utils/traceLink';
 import { useGlobalFilters } from '../context';
 import { getTimeframeDqlClause } from '../context/FilterContext';
 import {
@@ -41,6 +42,7 @@ interface ConversationSummary {
   hasErrors: boolean;
   hasHandoffs: boolean;
   groupedBy: 'conversation_id' | 'trace_id';  // New: tells user which grouping was used
+  firstTimestamp?: string;
 }
 
 interface ConversationStats {
@@ -75,7 +77,7 @@ fetch spans, ${timeClause}
     is_conversation_id = isNotNull(traceloop.association.properties.conversation_id)
 | summarize
     turns = count(),
-    agents = collectDistinct(coalesce(gen_ai.agent.name, traceloop.entity.name, "—")),
+    agents = collectDistinct(coalesce(gen_ai.agent.name, traceloop.entity.name, "ï¿½")),
     models_used = collectDistinct(gen_ai.request.model),
     primary_model = takeFirst(gen_ai.request.model),
     primary_provider = takeFirst(coalesce(gen_ai.provider.name, gen_ai.system, "unknown")),
@@ -201,7 +203,7 @@ function HelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
           </Flex>
           <Flex gap={8}>
             <Text textStyle="base-emphasized" style={{ minWidth: 120 }}>Long Sessions:</Text>
-            <Text>Sessions with &gt;{LONG_TURN_THRESHOLD} turns — may indicate stuck loops or unresolved queries</Text>
+            <Text>Sessions with &gt;{LONG_TURN_THRESHOLD} turns ï¿½ may indicate stuck loops or unresolved queries</Text>
           </Flex>
         </Flex>
 
@@ -211,8 +213,8 @@ function HelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
             Sessions are grouped by (in order of preference):
           </Text>
           <ol style={{ margin: 0, paddingLeft: 20 }}>
-            <li><code>traceloop.association.properties.conversation_id</code> — Explicit session ID from Traceloop/OpenLLMetry</li>
-            <li><code>trace_id</code> — OpenTelemetry trace ID as fallback</li>
+            <li><code>traceloop.association.properties.conversation_id</code> ï¿½ Explicit session ID from Traceloop/OpenLLMetry</li>
+            <li><code>trace_id</code> ï¿½ OpenTelemetry trace ID as fallback</li>
           </ol>
           <Text textStyle="small" style={{ display: 'block', marginTop: 12, color: Colors.Text.Neutral.Subdued }}>
             <strong>Tip:</strong> For best results, configure your OpenTelemetry instrumentation (e.g., Traceloop SDK) 
@@ -279,7 +281,7 @@ export function ConversationIntelligence() {
         const hasConvId = Boolean(r['has_conv_id']);
         const agents = r['agents'] as string[] || [];
         return {
-          conversationId: String(r['session_key'] || '—'),
+          conversationId: String(r['session_key'] || 'ï¿½'),
           totalTurns: turns,
           totalTokens: Number(r['total_tokens'] || 0),
           avgLatencyMs: Number(r['avg_latency'] || 0),
@@ -293,6 +295,7 @@ export function ConversationIntelligence() {
           hasErrors: errors > 0,
           hasHandoffs: handoffs > 0,
           groupedBy: hasConvId ? 'conversation_id' : 'trace_id',
+          firstTimestamp: r['session_start'] ? String(r['session_start']) : undefined,
         };
       });
       setConversations(rows);
@@ -336,11 +339,15 @@ export function ConversationIntelligence() {
         const isTraceId = rowData.groupedBy === 'trace_id';
         return (
           <Flex alignItems="center" gap={4}>
-            <Tooltip text={`${v}\n\nGrouped by: ${isTraceId ? 'trace_id (no conversation_id)' : 'conversation_id'}`}>
-              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                {v === '—' ? '—' : v.substring(0, 20) + (v.length > 20 ? '…' : '')}
-              </span>
-            </Tooltip>
+            {isTraceId ? (
+              <TraceLink traceId={v} timestamp={rowData.firstTimestamp} truncate={20} />
+            ) : (
+              <Tooltip text={`${v}\n\nGrouped by: conversation_id`}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                  {v.substring(0, 20) + (v.length > 20 ? 'â€¦' : '')}
+                </span>
+              </Tooltip>
+            )}
             {isTraceId && (
               <Tooltip text="Grouped by trace_id (no conversation_id in spans)">
                 <span style={{ fontSize: 9, color: Colors.Text.Neutral.Subdued, padding: '1px 4px', background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 3 }}>trace</span>
@@ -384,7 +391,7 @@ export function ConversationIntelligence() {
         const n = value as number;
         return n > 0
           ? <StatusPill label={n} color={'#1b7fc4'} />
-          : <span style={{ color: Colors.Text.Neutral.Subdued }}>—</span>;
+          : <span style={{ color: Colors.Text.Neutral.Subdued }}>ï¿½</span>;
       },
     },
     {
@@ -414,7 +421,7 @@ export function ConversationIntelligence() {
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true"><ChatIcon /></TitleBar.Prefix>
         <TitleBar.Title>Conversation Intelligence</TitleBar.Title>
-        <TitleBar.Subtitle>Session-level AI observability — turns, handoffs, token usage &amp; long-dialogue detection</TitleBar.Subtitle>
+        <TitleBar.Subtitle>Session-level AI observability ï¿½ turns, handoffs, token usage &amp; long-dialogue detection</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
             <Tooltip text="Learn how to use this page">
@@ -454,15 +461,15 @@ export function ConversationIntelligence() {
 
       {/* KPI Row */}
       <Flex gap={12} flexWrap="wrap">
-        <KpiCard label="Total Sessions" value={loading ? '—' : formatNum(stats?.totalConversations ?? conversations.length)} subtitle="grouped sessions" />
-        <KpiCard label="Avg Turns / Session" value={loading ? '—' : (stats?.avgTurnsPerConversation ?? 0).toFixed(1)} subtitle="exchange depth"
+        <KpiCard label="Total Sessions" value={loading ? 'ï¿½' : formatNum(stats?.totalConversations ?? conversations.length)} subtitle="grouped sessions" />
+        <KpiCard label="Avg Turns / Session" value={loading ? 'ï¿½' : (stats?.avgTurnsPerConversation ?? 0).toFixed(1)} subtitle="exchange depth"
           valueColor={(stats?.avgTurnsPerConversation ?? 0) > 10 ? Colors.Text.Warning.Default : Colors.Text.Success.Default} />
-        <KpiCard label="Avg Tokens / Session" value={loading ? '—' : formatNum(stats?.avgTokensPerConversation ?? 0)} subtitle="input + output" />
-        <KpiCard label="Agent Handoffs" value={loading ? '—' : formatNum(stats?.totalHandoffs ?? 0)} subtitle="transfer patterns"
+        <KpiCard label="Avg Tokens / Session" value={loading ? 'ï¿½' : formatNum(stats?.avgTokensPerConversation ?? 0)} subtitle="input + output" />
+        <KpiCard label="Agent Handoffs" value={loading ? 'ï¿½' : formatNum(stats?.totalHandoffs ?? 0)} subtitle="transfer patterns"
           valueColor={(stats?.totalHandoffs ?? 0) > 0 ? Colors.Text.Warning.Default : undefined} />
-        <KpiCard label="Long Conversations" value={loading ? '—' : formatNum(longCount)} subtitle={`> ${LONG_TURN_THRESHOLD} turns`}
+        <KpiCard label="Long Conversations" value={loading ? 'ï¿½' : formatNum(longCount)} subtitle={`> ${LONG_TURN_THRESHOLD} turns`}
           valueColor={longCount > 0 ? Colors.Text.Warning.Default : Colors.Text.Success.Default} />
-        <KpiCard label="Error Rate" value={loading ? '—' : `${(stats?.errorRate ?? 0).toFixed(1)}%`} subtitle="sessions with errors"
+        <KpiCard label="Error Rate" value={loading ? 'ï¿½' : `${(stats?.errorRate ?? 0).toFixed(1)}%`} subtitle="sessions with errors"
           valueColor={(stats?.errorRate ?? 0) > 5 ? Colors.Text.Critical.Default : (stats?.errorRate ?? 0) > 1 ? Colors.Text.Warning.Default : Colors.Text.Success.Default} />
       </Flex>
 
@@ -493,7 +500,7 @@ export function ConversationIntelligence() {
                   {longCount} Long Session{longCount > 1 ? 's' : ''} Detected
                 </Text>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Sessions &gt;{LONG_TURN_THRESHOLD} turns may indicate unresolved queries or agent loops — consuming{' '}
+                  Sessions &gt;{LONG_TURN_THRESHOLD} turns may indicate unresolved queries or agent loops ï¿½ consuming{' '}
                   {formatNum(conversations.filter(c => c.isLong).reduce((s, c) => s + c.totalTokens, 0))} tokens combined.
                 </Text>
               </Flex>

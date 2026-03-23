@@ -1,5 +1,5 @@
 // GenAI Control Center — MLOps Page
-// Model Registry, AI SLOs, Model Comparison, Cost Attribution, Deployment Tracker.
+// Model Registry, AI SLOs, Model Comparison.
 // All data sourced from real gen_ai.* DQL queries — no mock data, no arbitrary scores.
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -23,17 +23,14 @@ import {
   CriticalIcon,
   WarningIcon,
   ServicesIcon,
-  MoneyIcon,
   BarChartIcon,
   ClockIcon,
-  WorkflowsIcon,
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 
 import { useMLOps } from '../hooks/useMLOps';
-import { useInfrastructure } from '../hooks';
 import { createDefaultTimeframe } from '../components/FilterBar';
-import type { MLOpsModelEntry, MLOpsSLOEntry, MLOpsSLOTrendPoint, MLOpsModelComparison, MLOpsCostEntry } from '../types';
+import type { MLOpsModelEntry, MLOpsSLOEntry, MLOpsSLOTrendPoint, MLOpsModelComparison } from '../types';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -587,393 +584,6 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// Tab 4: Cost Attribution
-// ═══════════════════════════════════════════════════════════
-
-const CostAttributionTab = ({
-  costByService,
-  costByModel,
-}: {
-  costByService: MLOpsCostEntry[];
-  costByModel: MLOpsCostEntry[];
-}) => {
-  const [subTab, setSubTab] = useState(0);
-
-  const svcColumns = useMemo(() => [
-    {
-      id: 'serviceName',
-      header: 'Service',
-      accessor: (row: MLOpsCostEntry) => row.serviceName,
-      cell: ({ value }: { value: string }) => <Strong>{value}</Strong>,
-    },
-    {
-      id: 'requests',
-      header: 'Requests',
-      accessor: (row: MLOpsCostEntry) => row.requests,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalTokens',
-      header: 'Total Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalTokens,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalInput',
-      header: 'Input Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalInput,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalOutput',
-      header: 'Output Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalOutput,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'modelsUsed',
-      header: 'Models Used',
-      accessor: (row: MLOpsCostEntry) => row.modelsUsed?.length ?? 0,
-    },
-    {
-      id: 'providers',
-      header: 'Providers',
-      accessor: (row: MLOpsCostEntry) => row.providersUsed?.join(', ') ?? '—',
-    },
-    {
-      id: 'tokenShare',
-      header: 'Token Share',
-      accessor: (row: MLOpsCostEntry) => row.totalTokens,
-      cell: ({ value }: { value: number }) => {
-        const totalAll = costByService.reduce((s, r) => s + r.totalTokens, 0);
-        const pct = totalAll > 0 ? (value / totalAll) * 100 : 0;
-        return <Text style={{ textAlign: 'right', display: 'block' }}>{fmtPct(pct)}</Text>;
-      },
-    },
-  ], [costByService]);
-
-  const modelColumns = useMemo(() => [
-    {
-      id: 'model',
-      header: 'Model',
-      accessor: (row: MLOpsCostEntry) => row.model,
-      cell: ({ value }: { value: string }) => <Strong>{value}</Strong>,
-    },
-    {
-      id: 'provider',
-      header: 'Provider',
-      accessor: (row: MLOpsCostEntry) => row.provider,
-    },
-    {
-      id: 'requests',
-      header: 'Requests',
-      accessor: (row: MLOpsCostEntry) => row.requests,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalTokens',
-      header: 'Total Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalTokens,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalInput',
-      header: 'Input Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalInput,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'totalOutput',
-      header: 'Output Tokens',
-      accessor: (row: MLOpsCostEntry) => row.totalOutput,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'servicesCount',
-      header: 'Services',
-      accessor: (row: MLOpsCostEntry) => row.servicesCount ?? 0,
-    },
-    {
-      id: 'tokenShare',
-      header: 'Token Share',
-      accessor: (row: MLOpsCostEntry) => row.totalTokens,
-      cell: ({ value }: { value: number }) => {
-        const totalAll = costByModel.reduce((s, r) => s + r.totalTokens, 0);
-        const pct = totalAll > 0 ? (value / totalAll) * 100 : 0;
-        return <Text style={{ textAlign: 'right', display: 'block' }}>{fmtPct(pct)}</Text>;
-      },
-    },
-  ], [costByModel]);
-
-  const totalTokens = costByService.reduce((s, r) => s + r.totalTokens, 0);
-  const totalReqs = costByService.reduce((s, r) => s + r.requests, 0);
-
-  // DonutChart data: token share by model (top 8 + Other)
-  const modelDonutData = useMemo(() => {
-    const sorted = [...costByModel].sort((a, b) => b.totalTokens - a.totalTokens);
-    const top = sorted.slice(0, 8);
-    const otherTokens = sorted.slice(8).reduce((s, r) => s + r.totalTokens, 0);
-    const slices = top.map((m) => ({ category: m.model || 'unknown', value: m.totalTokens }));
-    if (otherTokens > 0) slices.push({ category: 'Other', value: otherTokens });
-    return { slices };
-  }, [costByModel]);
-
-  // DonutChart data: token share by service
-  const serviceDonutData = useMemo(() => {
-    const sorted = [...costByService].sort((a, b) => b.totalTokens - a.totalTokens);
-    const top = sorted.slice(0, 8);
-    const otherTokens = sorted.slice(8).reduce((s, r) => s + r.totalTokens, 0);
-    const slices = top.map((s) => ({ category: s.serviceName || 'unknown', value: s.totalTokens }));
-    if (otherTokens > 0) slices.push({ category: 'Other', value: otherTokens });
-    return { slices };
-  }, [costByService]);
-
-  return (
-    <Flex flexDirection="column" gap={16}>
-      <Flex gap={12}>
-        <MetricCard label="Total Tokens" value={fmtInt(totalTokens)} icon={<BarChartIcon style={{ width: 16 }} />} />
-        <MetricCard label="Total Requests" value={fmtInt(totalReqs)} icon={<ServicesIcon style={{ width: 16 }} />} />
-        <MetricCard label="Services" value={costByService.length} icon={<ServicesIcon style={{ width: 16 }} />} />
-        <MetricCard label="Models" value={costByModel.length} icon={<AiIcon style={{ width: 16 }} />} />
-      </Flex>
-
-      {/* Token Distribution Donuts */}
-      <Flex gap={16} flexWrap="wrap">
-        {modelDonutData.slices.length > 0 && (
-          <Surface style={{ flex: '1 1 300px', padding: 16 }}>
-            <Flex flexDirection="column" gap={8}>
-              <Flex alignItems="center" gap={6}>
-                <AiIcon style={{ width: 14, height: 14 }} />
-                <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Share by Model</Text>
-              </Flex>
-              <DonutChart data={modelDonutData} height={220}>
-                <DonutChart.Legend position="right" />
-                <DonutChart.Toolbar hidden />
-              </DonutChart>
-            </Flex>
-          </Surface>
-        )}
-        {serviceDonutData.slices.length > 0 && (
-          <Surface style={{ flex: '1 1 300px', padding: 16 }}>
-            <Flex flexDirection="column" gap={8}>
-              <Flex alignItems="center" gap={6}>
-                <ServicesIcon style={{ width: 14, height: 14 }} />
-                <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Share by Service</Text>
-              </Flex>
-              <DonutChart data={serviceDonutData} height={220}>
-                <DonutChart.Legend position="right" />
-                <DonutChart.Toolbar hidden />
-              </DonutChart>
-            </Flex>
-          </Surface>
-        )}
-      </Flex>
-
-      <Text style={{ opacity: 0.7 }}>
-        Token consumption broken down by service and model. Use this to understand which services and models consume the most tokens.
-        Pair with your rate card configuration on the FinOps page to estimate costs.
-      </Text>
-
-      <Tabs>
-        <Tab title="By Service" prefixIcon={<ServicesIcon />}>
-          {costByService.length
-            ? <DataTable data={costByService} columns={svcColumns} sortable resizable>
-                <DataTable.Pagination defaultPageSize={10} />
-              </DataTable>
-            : <Text>No service cost data available.</Text>
-          }
-        </Tab>
-        <Tab title="By Model" prefixIcon={<AiIcon />}>
-          {costByModel.length
-            ? <DataTable data={costByModel} columns={modelColumns} sortable resizable>
-                <DataTable.Pagination defaultPageSize={10} />
-              </DataTable>
-            : <Text>No model cost data available.</Text>
-          }
-        </Tab>
-      </Tabs>
-    </Flex>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════
-// Tab 5: Deployment Tracker (reuses Infrastructure hook)
-// ═══════════════════════════════════════════════════════════
-
-const DeploymentTrackerTab = ({
-  modelHistory,
-  serviceConfigs,
-  infraLoading,
-}: {
-  modelHistory: Array<{ serviceName: string; model: string; provider: string; requestCount: number; firstSeen: string; lastSeen: string }>;
-  serviceConfigs: Array<{ serviceName: string; model: string; provider: string; modelVersions: number; requestCount: number; lastSeen: string }>;
-  infraLoading: boolean;
-}) => {
-  const [trainingJobs, setTrainingJobs] = useState<Array<{ timestamp: string; jobName: string; baseModel: string; region: string; eventName: string }>>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { queryExecutionClient } = await import('@dynatrace-sdk/client-query');
-        const resp = await queryExecutionClient.queryExecute({
-          body: {
-            query: `fetch bizevents, from:now()-7d
-| filter event.type == "gen_ai.auditing" AND gen_ai.type == "training"
-| fieldsAdd jobName = record(requestParameters)["jobName"]
-| fieldsAdd baseModel = record(requestParameters)["baseModelIdentifier"]
-| fields timestamp, jobName, baseModel, awsRegion, eventName
-| sort timestamp desc
-| limit 20`,
-            requestTimeoutMilliseconds: 30000,
-            fetchTimeoutSeconds: 30
-          }
-        });
-        const records = resp.result?.records || [];
-        setTrainingJobs(records.map((r: any) => ({
-          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : '',
-          jobName: r.jobName || r.eventName || 'Unknown',
-          baseModel: r.baseModel || 'N/A',
-          region: r.awsRegion || 'N/A',
-          eventName: r.eventName || 'N/A',
-        })));
-      } catch {
-        // Training events not available
-      }
-    })();
-  }, []);
-  const historyColumns = useMemo(() => [
-    {
-      id: 'service',
-      header: 'Service',
-      accessor: (row: any) => row.serviceName,
-      cell: ({ value }: { value: string }) => <Strong>{value}</Strong>,
-    },
-    {
-      id: 'model',
-      header: 'Model',
-      accessor: (row: any) => row.model,
-    },
-    {
-      id: 'provider',
-      header: 'Provider',
-      accessor: (row: any) => row.provider,
-    },
-    {
-      id: 'requests',
-      header: 'Requests',
-      accessor: (row: any) => row.requestCount,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'firstSeen',
-      header: 'First Seen',
-      accessor: (row: any) => row.firstSeen,
-      cell: ({ value }: { value: string }) => <Text>{relTime(value)}</Text>,
-    },
-    {
-      id: 'lastSeen',
-      header: 'Last Seen',
-      accessor: (row: any) => row.lastSeen,
-      cell: ({ value }: { value: string }) => <Text>{relTime(value)}</Text>,
-    },
-  ], []);
-
-  const configColumns = useMemo(() => [
-    {
-      id: 'service',
-      header: 'Service',
-      accessor: (row: any) => row.serviceName,
-      cell: ({ value }: { value: string }) => <Strong>{value}</Strong>,
-    },
-    {
-      id: 'model',
-      header: 'Current Model',
-      accessor: (row: any) => row.model,
-    },
-    {
-      id: 'provider',
-      header: 'Provider',
-      accessor: (row: any) => row.provider,
-    },
-    {
-      id: 'versions',
-      header: 'Model Versions (7d)',
-      accessor: (row: any) => row.modelVersions,
-    },
-    {
-      id: 'requests',
-      header: 'Requests',
-      accessor: (row: any) => row.requestCount,
-      cell: ({ value }: { value: number }) => <Text style={{ textAlign: 'right', display: 'block' }}>{fmtInt(value)}</Text>,
-    },
-    {
-      id: 'lastSeen',
-      header: 'Last Active',
-      accessor: (row: any) => row.lastSeen,
-      cell: ({ value }: { value: string }) => <Text>{relTime(value)}</Text>,
-    },
-  ], []);
-
-  if (infraLoading) {
-    return <Flex justifyContent="center" style={{ padding: 32 }}><ProgressCircle /></Flex>;
-  }
-
-  return (
-    <Flex flexDirection="column" gap={16}>
-      <Text style={{ opacity: 0.7 }}>
-        Tracks which models are deployed per service, version history, and configuration changes.
-        Data from the Infrastructure queries (model history + service config snapshots).
-      </Text>
-
-      <Heading level={5}>Current Service Configuration</Heading>
-      {serviceConfigs.length
-        ? <DataTable data={serviceConfigs} columns={configColumns} sortable resizable>
-            <DataTable.Pagination defaultPageSize={10} />
-          </DataTable>
-        : <Text>No configuration data available.</Text>
-      }
-
-      <Heading level={5}>Model Version History (7 days)</Heading>
-      {modelHistory.length
-        ? <DataTable data={modelHistory} columns={historyColumns} sortable resizable>
-            <DataTable.Pagination defaultPageSize={10} />
-          </DataTable>
-        : <Text>No model history data available.</Text>
-      }
-
-      {/* AWS Bedrock Training Jobs from bizevents */}
-      {trainingJobs.length > 0 && (
-        <>
-          <Flex alignItems="center" gap={6} style={{ marginTop: 8 }}>
-            <WorkflowsIcon style={{ width: 14, height: 14 }} />
-            <Heading level={5}>Model Training Jobs</Heading>
-            <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
-          </Flex>
-          <Text textStyle="small" style={{ opacity: 0.6 }}>
-            AWS Bedrock fine-tuning and customization jobs detected from CloudTrail bizevents.
-          </Text>
-          <Flex flexDirection="column" gap={6}>
-            {trainingJobs.map((job, idx) => (
-              <Surface key={idx} style={{ padding: 12 }}>
-                <Flex justifyContent="space-between" alignItems="center">
-                  <Flex flexDirection="column" gap={2}>
-                    <Text style={{ fontWeight: 600, fontSize: 12 }}>{job.jobName}</Text>
-                    <Text textStyle="small" style={{ opacity: 0.6 }}>
-                      Base model: {job.baseModel} · Region: {job.region} · Event: {job.eventName}
-                    </Text>
-                  </Flex>
-                  <Text textStyle="small" style={{ opacity: 0.5 }}>{relTime(job.timestamp)}</Text>
-                </Flex>
-              </Surface>
-            ))}
-          </Flex>
-        </>
-      )}
-    </Flex>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════
 // Main Page
 // ═══════════════════════════════════════════════════════════
 
@@ -985,8 +595,6 @@ export const MLOps = () => {
     sloEntries,
     sloTrend,
     comparison,
-    costByService,
-    costByModel,
     usageTrend,
     sloConfig,
     setSloConfig,
@@ -1000,23 +608,18 @@ export const MLOps = () => {
     sloViolationCount,
   } = useMLOps();
 
-  const { serviceConfigs, modelHistory, loading: infraLoading, refetch: infraRefetch } = useInfrastructure();
-
   // Initial load
   useEffect(() => {
     refetch(timeframe);
-    infraRefetch(timeframe);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = () => {
     refetch(timeframe);
-    infraRefetch(timeframe);
   };
 
   const handleTimeframeChange = (tf: Timeframe) => {
     setTimeframe(tf);
     refetch(tf);
-    infraRefetch(tf);
   };
 
   return (
@@ -1025,7 +628,7 @@ export const MLOps = () => {
       <TitleBar>
         <TitleBar.Title>MLOps</TitleBar.Title>
         <TitleBar.Subtitle>
-          Model Registry, SLOs, Comparison &amp; Cost Attribution — all from live gen_ai.* span data
+          Model Registry, SLOs &amp; Comparison — all from live gen_ai.* span data
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex alignItems="center" gap={8}>
@@ -1084,16 +687,6 @@ export const MLOps = () => {
           </Tab>
           <Tab title="Model Comparison" prefixIcon={<BarChartIcon />}>
             <ModelComparisonTab data={comparison} />
-          </Tab>
-          <Tab title="Cost Attribution" prefixIcon={<MoneyIcon />}>
-            <CostAttributionTab costByService={costByService} costByModel={costByModel} />
-          </Tab>
-          <Tab title="Deployment Tracker" prefixIcon={<WorkflowsIcon />}>
-            <DeploymentTrackerTab
-              modelHistory={modelHistory}
-              serviceConfigs={serviceConfigs}
-              infraLoading={infraLoading}
-            />
           </Tab>
         </Tabs>
       )}

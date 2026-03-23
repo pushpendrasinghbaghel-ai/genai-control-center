@@ -1033,6 +1033,7 @@ export function useAgentTools(filters?: QueryFilters) {
         retryCount: Number(record['retry_count'] ?? 0),
         totalDurationMs: Number(record['total_duration_ms'] ?? 0),
         agentsList: Array.isArray(record['agents_list']) ? record['agents_list'].map(String) : [],
+        startTime: record['min_start'] ? String(record['min_start']) : undefined,
       }));
       setRetryTraces(processedRetries);
 
