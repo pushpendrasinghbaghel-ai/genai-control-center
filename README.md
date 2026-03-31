@@ -52,14 +52,16 @@ Navigation follows the **Observe → Analyze → Act** pattern, implemented in t
 | **Act** | 🛡️ Security Audit | `/security` | SecurityAuditTrail | Prompt security, PII detection, incident response audit trail |
 | **Act** | 🔄 Provider Failover | `/provider-status` | ProviderStatus | Provider health monitoring, failover readiness assessment |
 | **Act** | 🔌 Integrations Hub | `/integrations` | Integrations | MCP server integrations: Slack, PagerDuty, Prometheus, GitHub, Grafana |
+| **Advanced** | 🔐 Threat Intelligence | `/threat-intelligence` | ThreatIntelligence | Adversarial prompt attack detection, MITRE ATT&CK-style techniques |
+| **Advanced** | 📝 Data Playground | `/data` | Data | DQL editor with preset GenAI queries, results table & chart |
 
 ### Additional Routes (not in nav bar)
 
 | Route | Page Component | Purpose |
-|-------|----------------|---------|
-| `/providers` | ProviderComparison | Cross-provider analysis and comparison |
+|-------|----------------|--------|
 | `/ai-architect` | AIArchitect | Pattern detection and architecture recommendations |
-| `/problems` | RealTimeAlerts | Live Davis problem monitoring for AI services |
+| `/providers` | → redirect to `/provider-status` | Legacy route |
+| `/problems` | → redirect to `/operations` | Legacy route |
 | `/health` | → redirect to `/services` | Legacy route |
 | `/davis` | → redirect to `/intelligence` | Legacy route |
 | `/remediation` | → redirect to `/operations` | Legacy route |
@@ -378,6 +380,7 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 | `automation:workflows:write` | Create and update workflows |
 | `davis-copilot:nl2dql:execute` | Convert natural language to DQL queries |
 | `davis-copilot:dql2nl:execute` | Explain DQL queries in natural language |
+| `storage:bizevents:read` | Read business events for prompt audit trail |
 | `davis-copilot:conversations:execute` | Davis CoPilot conversational analysis |
 | `davis:analyzers:execute` | Execute Davis Intelligence analyzers |
 | `davis:analyzers:read` | List and inspect available analyzers |
@@ -397,11 +400,10 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 │  FinOps              │  Governance         │  Operations                │
 │  Services            │  Drift              │  Security Audit            │
 │  Agents              │  AI Architect       │  Provider Failover         │
-│  Topology            │  Provider Compare   │  Integrations Hub          │
-│  RAG / VectorDB      │  AI Quality         │  Agentic Workflows         │
-│  MLOps               │  Conversations      │                            │
-│  Infrastructure      │  Developer Exp      │                            │
-│  Problems            │                     │                            │
+│  Topology            │  AI Quality         │  Integrations Hub          │
+│  RAG / VectorDB      │  Conversations      │  Threat Intelligence       │
+│  MLOps               │  Developer Exp      │  Data Playground           │
+│  Infrastructure      │                     │                            │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                       Shared Components (14)                            │
 │  Header │ Card │ FilterBar │ DavisResponse │ ErrorBoundary              │
@@ -414,7 +416,7 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 │  ProviderProfiles (cost models, icons, capabilities)                    │
 │  RateCardConfig (configurable token pricing)                            │
 ├──────────────────────────────────────────────────────────────────────────┤
-│                        Custom Hooks (32)                                 │
+│                        Custom Hooks (34)                                 │
 │  useDQLQueries │ useDavisAI │ useAgentTools │ useModelDrift             │
 │  useAIArchitect │ useResponseAnalytics │ useAIQuality │ useMLOps       │
 │  useVectorDB │ useInfrastructure │ useProviderFailover                  │
@@ -424,7 +426,8 @@ The app requires these Dynatrace scopes (configured in `app.config.json`):
 │  useAWSBilling │ useAWSCloudWatch │ useSlackIntegration                 │
 │  usePagerDutyIntegration │ useGitHubIntegration │ useGrafanaIntegration │
 │  usePrometheusMCP │ useMCPGateway │ useRateCardStorage                  │
-│  useAgenticWorkflows │ useAgenticDeepDive                               │
+│  useAgenticWorkflows │ useAgenticDeepDive │ useAdversarialThreatDetect │
+│  useResponseContent                                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                      Dynatrace SDKs                                     │
 │  @dynatrace-sdk/client-query │ client-davis-copilot                     │
@@ -450,8 +453,7 @@ gcc/
 │   ├── SE_DEMO_SCRIPT.md         # Sales Engineer demo guide
 │   ├── DEMO_CHEATSHEET.md        # Quick demo reference card
 │   ├── COMPETITIVE_ASSESSMENT.md # Competitive analysis vs 7 alternatives
-│   ├── EVOLUTION_ROADMAP.md      # Product evolution path
-│   ├── PERMISSIONS_AND_SCOPES.md # Required OAuth scopes reference
+│   ├── EVOLUTION_ROADMAP.md      # Product evolution path│   ├── FINOPS_ROADMAP.md         # FinOps feature roadmap│   ├── PERMISSIONS_AND_SCOPES.md # Required OAuth scopes reference
 │   └── APAC_SE_TALK_TRACK.md    # Regional sales talk track
 ├── mcp-server/                   # MCP server for external integrations
 │   ├── src/
@@ -467,14 +469,18 @@ gcc/
 │   │   ├── aws-cloudwatch-integration.ts # AWS CloudWatch metrics
 │   │   └── agentic-workflows.ts  # Agentic workflow orchestration
 │   └── package.json
+├── mcp-gateway/                  # MCP gateway (planned)
 ├── scripts/
-│   └── send_demo_bizevents.py    # Demo business events generator
+│   ├── strato-fix.js             # Strato Design System compliance automation
+│   ├── strato-fix-{2..6}.js      # Additional compliance fix scripts
+│   ├── strato-repair.js          # Post-fix repair script
+│   └── strato-repair-imports.js  # Import deduplication repair
 ├── ui/
 │   ├── main.tsx                  # App entry point
 │   ├── tsconfig.json             # TypeScript config
 │   ├── assets/                   # Static assets (logo SVG)
 │   └── app/
-│       ├── App.tsx               # Main app with routing (24 routes + 2 redirects)
+│       ├── App.tsx               # Main app with routing (25 routes + 3 redirects)
 │       ├── agent/                # AI agent orchestration
 │       │   ├── orchestrator.ts       # Agent orchestration logic
 │       │   ├── tools.ts              # Agent tool definitions
@@ -503,11 +509,12 @@ gcc/
 │       ├── context/              # React context providers
 │       │   ├── FilterContext.tsx     # Global filter state
 │       │   └── index.ts
-│       ├── hooks/                # Data fetching & state hooks (32)
+│       ├── hooks/                # Data fetching & state hooks (34)
 │       │   ├── useDQLQueries.ts     # Core DQL query execution (2200+ lines)
 │       │   ├── useDavisAI.ts        # Davis CoPilot integration
 │       │   ├── useAgentTools.ts     # Agent monitoring (17 parallel queries)
 │       │   ├── useAgentOptimization.ts # Agent optimization scoring
+│       │   ├── useAdversarialThreatDetection.ts # Davis AI semantic attack detection
 │       │   ├── useModelDrift.ts     # Drift detection & baseline management
 │       │   ├── useVectorDB.ts       # RAG / vector store telemetry
 │       │   ├── useAIArchitect.ts    # Architecture pattern detection
@@ -515,6 +522,7 @@ gcc/
 │       │   ├── useMLOps.ts          # Model registry, SLOs, comparison
 │       │   ├── useInfrastructure.ts  # Infrastructure health monitoring
 │       │   ├── useResponseAnalytics.ts  # Token efficiency metrics
+│       │   ├── useResponseContent.ts # Response content analysis
 │       │   ├── useProviderFailover.ts # Provider failover assessment
 │       │   ├── useProviderDeepDive.ts # Provider deep analytics
 │       │   ├── useCostGuardrails.ts  # Cost guardrail management
@@ -537,7 +545,7 @@ gcc/
 │       │   ├── usePrometheusMCP.ts   # Prometheus MCP integration
 │       │   ├── useMCPGateway.ts      # MCP gateway communication
 │       │   └── index.ts
-│       ├── pages/                # Application pages (28)
+│       ├── pages/                # Application pages (30)
 │       │   ├── Home.tsx             # Executive dashboard
 │       │   ├── HealthDashboard.tsx  # Service health monitoring
 │       │   ├── FinOps.tsx           # Cost management
@@ -556,24 +564,31 @@ gcc/
 │       │   ├── ConversationIntelligence.tsx # Session analytics
 │       │   ├── DeveloperExperience.tsx # Instrumentation coverage
 │       │   ├── SecurityAuditTrail.tsx # Security audit & compliance
+│       │   ├── ThreatIntelligence.tsx # Davis AI adversarial prompt detection
+│       │   ├── BusinessObservability.tsx # Business observability (planned)
 │       │   ├── ProviderStatus.tsx    # Provider failover
 │       │   ├── Integrations.tsx     # MCP integrations hub
-│       │   ├── ProviderComparison.tsx # Provider analysis
+│       │   ├── ProviderComparison.tsx # Provider analysis (redirects)
 │       │   ├── AIArchitect.tsx      # Architecture recommendations
-│       │   ├── RealTimeAlerts.tsx   # Live problem monitoring
-│       │   ├── AgenticDeepDive.tsx  # Agentic deep analysis
+│       │   ├── RealTimeAlerts.tsx   # Live problem monitoring (redirects)
+│       │   ├── AgenticDeepDive.tsx  # Agentic deep analysis (merged)
 │       │   ├── Data.tsx             # GenAI data explorer
-│       │   ├── DavisAssistant.tsx   # Direct Davis chat
-│       │   ├── RemediationLibrary.tsx # Workflow library
+│       │   ├── DavisAssistant.tsx   # Direct Davis chat (legacy)
+│       │   ├── RemediationLibrary.tsx # Workflow library (merged)
 │       │   └── index.ts
 │       ├── queries/              # DQL query definitions
 │       │   └── dql-queries.ts       # All DQL queries (~700 lines)
 │       ├── types/                # TypeScript type definitions
 │       │   └── index.ts
 │       ├── utils/                # Helper functions
-│       │   ├── helpers.ts           # Formatting, calculations
+│       │   ├── helpers.ts           # General calculations & helpers
+│       │   ├── formatting.ts        # Locale-aware formatters (user-preferences SDK)
+│       │   ├── design-tokens.ts     # Centralized color tokens (StatusColors, ChartColors)
+│       │   ├── chatMemory.ts        # Chat memory persistence
+│       │   ├── davisAnalyzers.ts    # Davis analyzer utilities
+│       │   ├── traceLink.tsx        # Distributed trace deep-link builder
 │       │   ├── providerIcons.tsx    # Provider icon mappings
-│       │   └── index.ts
+│       │   └── index.ts             # Barrel export
 │       ├── workflows/            # Automation templates
 │       │   ├── agentic-templates.ts # Davis Intelligence workflow templates
 │       │   ├── finops-digest-workflow.json # FinOps email digest workflow
@@ -692,9 +707,16 @@ The Integrations page (`/integrations`) provides connections to external systems
   - Per-provider data completeness matrix (5 providers validated)
   - 10 untapped data sources identified (OTel GenAI metrics, business events)
   - Competitive assessment vs 7 alternatives
-- 🔗 **24 Routes + 2 Redirects**: From 16 to 26 total routes
-- 🛡️ **32 Custom Hooks**: From 11 to 32 data fetching hooks
+- 🔗 **25 Routes + 3 Redirects**: From 16 to 28 total routes
+- 🛡️ **34 Custom Hooks**: From 11 to 34 data fetching hooks
 - 🛠️ **14 Shared Components**: From 7 to 14 reusable components
+- 🆕 **Threat Intelligence Page**: Adversarial prompt detection with Davis AI, MITRE ATT&CK-style techniques
+- 🆕 **Data Playground Page**: DQL editor with 10 preset GenAI queries, results table & chart
+- 🎨 **100% Strato Design System Compliance**: Centralized `formatting.ts` and `design-tokens.ts`
+  - All raw HTML replaced with Strato components (`Flex`, `Text`, `Button`, `Chip`)
+  - All hardcoded hex colors replaced with CSS variable design tokens
+  - All `.toLocaleString()` calls replaced with locale-aware formatters
+  - Fixed component APIs: Tabs `defaultIndex`, DonutChart `{slices}`, TimeseriesChart `start:Date`
 
 ### v2.9.0 (March 2026)
 - 🔌 **Integrations Page**: New MCP server integrations hub
