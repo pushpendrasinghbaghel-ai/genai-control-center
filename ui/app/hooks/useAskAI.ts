@@ -5,6 +5,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { publicClient } from '@dynatrace-sdk/client-davis-copilot';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { formatNumber } from '../utils/formatting';
 
 export interface AskAIContext {
   /** Page or section the query originates from */
@@ -41,7 +42,7 @@ function buildContextPrefix(ctx: AskAIContext): string {
   if (ctx.data) {
     const entries = Object.entries(ctx.data)
       .filter(([, v]) => v != null)
-      .map(([k, v]) => `${k}: ${typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString() : (v as number).toFixed(2)) : v}`);
+      .map(([k, v]) => `${k}: ${typeof v === 'number' ? (Number.isInteger(v) ? formatNumber(v) : (v as number).toFixed(2)) : v}`);
     if (entries.length) parts.push(`Data — ${entries.join(', ')}`);
   }
   return parts.join(' | ');
@@ -240,7 +241,7 @@ async function executeDqlAndExplain(dql: string): Promise<string> {
       keys.forEach(k => {
         if (k !== nameKey && r[k] != null) {
           const v = r[k];
-          out += `   - ${k}: ${typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString() : (v as number).toFixed(2)) : String(v)}\n`;
+          out += `   - ${k}: ${typeof v === 'number' ? (Number.isInteger(v) ? formatNumber(v) : (v as number).toFixed(2)) : String(v)}\n`;
         }
       });
       out += '\n';

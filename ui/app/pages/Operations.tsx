@@ -15,6 +15,7 @@ import type { QueryFilters } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useLiveProblems } from '../hooks/useWorkflows';
 import { useAgenticWorkflows, type RealWorkflow, type RealExecution } from '../hooks/useAgenticWorkflows';
+import { formatDateTime } from '../utils/formatting';
 
 interface ActiveIncident {
   id: string;
@@ -98,7 +99,7 @@ export const Operations: React.FC = () => {
   const getSeverityIcon = (severity: string): React.ReactNode => {
     const icons: Record<string, React.ReactNode> = {
       critical: <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />,
-      high: <WarningIcon style={{ width: 14, height: 14, color: '#ff5722' }} />,
+      high: <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-critical-default)' }} />,
       medium: <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />,
       low: <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-success-default)' }} />,
     };
@@ -353,8 +354,8 @@ export const Operations: React.FC = () => {
                         {execution.user && <Text textStyle="small">User: {execution.user}</Text>}
                       </Flex>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                        Started: {new Date(execution.startTime).toLocaleString()}
-                        {execution.endTime && ` — Ended: ${new Date(execution.endTime).toLocaleString()}`}
+                        Started: {formatDateTime(execution.startTime)}
+                        {execution.endTime && ` — Ended: ${formatDateTime(execution.endTime)}`}
                       </Text>
                     </Flex>
                   </Surface>
@@ -392,7 +393,7 @@ export const Operations: React.FC = () => {
                     <Flex justifyContent="space-between" alignItems="flex-start">
                       <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                         <Flex alignItems="center" gap={8}>
-                          <span>{getSeverityIcon(incident.severity)}</span>
+                          <Text>{getSeverityIcon(incident.severity)}</Text>
                           <Text style={{ fontWeight: 600 }}>{incident.title}</Text>
                           <Text textStyle="small" style={{ 
                             padding: '2px 6px', backgroundColor: 'var(--dt-colors-background-default-secondary)',
@@ -456,8 +457,8 @@ export const Operations: React.FC = () => {
                         {problem.rootCauseEntity && <Text textStyle="small">Root cause: {problem.rootCauseEntity}</Text>}
                       </Flex>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                        Started: {new Date(problem.startTime).toLocaleString()}
-                        {problem.endTime && ` — Ended: ${new Date(problem.endTime).toLocaleString()}`}
+                        Started: {formatDateTime(problem.startTime)}
+                        {problem.endTime && ` — Ended: ${formatDateTime(problem.endTime)}`}
                       </Text>
                     </Flex>
                   </Surface>

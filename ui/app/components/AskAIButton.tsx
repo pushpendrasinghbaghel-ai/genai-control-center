@@ -32,26 +32,19 @@ export const AskAIButton: React.FC<AskAIButtonProps> = ({
 
   return (
     <Tooltip text={label}>
-      <button
+      <Button
+        variant="default"
         onClick={onClick}
         aria-label={label}
         style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
           padding: 2,
-          display: 'inline-flex',
-          alignItems: 'center',
-          borderRadius: 4,
+          minWidth: 'auto',
+          minHeight: 44,
           color: 'var(--dt-colors-text-primary-default)',
-          opacity: 0.7,
-          transition: 'opacity 0.15s',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7'; }}
       >
-        <AiIcon style={{ width: 14, height: 14 }} />
-      </button>
+        <AiIcon />
+      </Button>
     </Tooltip>
   );
 };

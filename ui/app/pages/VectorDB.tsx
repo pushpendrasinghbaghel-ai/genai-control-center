@@ -28,6 +28,7 @@ import { RAGHealthPanel } from '../components/RAGHealthPanel';
 import { createDefaultTimeframe } from '../context';
 import type { QueryFilters } from '../hooks/useDQLQueries';
 import type { RAGPipelineTrace, PipelineFlowStage, LatencyBucket } from '../types';
+import { formatDateTime, formatTime } from '../utils/formatting';
 
 // ============================================
 // Constants
@@ -107,20 +108,20 @@ const MetricCard: React.FC<{
       flex: '1 1 160px',
     }}
   >
-    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>
+    <Text style={{ display: 'flex', alignItems: 'center' }}>{icon}</Text>
+    <Flex>
+      <Flex style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>
         {value}
-      </div>
+      </Flex>
       <Flex alignItems="center" gap={4}>
-        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        <Flex style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</Flex>
         {tooltip && (
           <Tooltip text={tooltip}>
             <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
           </Tooltip>
         )}
       </Flex>
-    </div>
+    </Flex>
   </Flex>
 );
 
@@ -226,7 +227,7 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
             {trace.traceStart && (
               <Flex alignItems="center" gap={12}>
                 <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', width: 80, flexShrink: 0 }}>Timestamp</Text>
-                <Text style={{ fontSize: 11 }}>{new Date(trace.traceStart).toLocaleString()}</Text>
+                <Text style={{ fontSize: 11 }}>{formatDateTime(trace.traceStart)}</Text>
               </Flex>
             )}
           </Flex>
@@ -239,7 +240,7 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
             {steps.map((step, i) => (
               <React.Fragment key={step.badge}>
                 <Flex flexDirection="column" alignItems="center" gap={8} style={{ minWidth: 110, padding: '0 8px' }}>
-                  <div style={{
+                  <Flex style={{
                     width: 52, height: 52, borderRadius: '50%', display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
                     background: step.active ? `${step.color}20` : 'var(--dt-colors-background-base-default)',
@@ -249,7 +250,7 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
                     <Text style={{ fontSize: 18, fontWeight: 700, color: step.active ? step.color : 'var(--dt-colors-text-secondary-default)' }}>
                       {step.badge}
                     </Text>
-                  </div>
+                  </Flex>
                   <Text style={{ fontSize: 11, fontWeight: 600, color: step.active ? step.color : 'var(--dt-colors-text-secondary-default)', textAlign: 'center' }}>
                     {step.label}
                   </Text>
@@ -258,7 +259,7 @@ const RAGTraceDetailModal: React.FC<RAGTraceDetailModalProps> = ({ trace, onClos
                   </Text>
                 </Flex>
                 {i < steps.length - 1 && (
-                  <div style={{ flex: 1, height: 2, background: 'var(--dt-colors-border-neutral-default)', marginBottom: 20, minWidth: 32 }} />
+                  <Flex style={{ flex: 1, height: 2, background: 'var(--dt-colors-border-neutral-default)', marginBottom: 20, minWidth: 32 }} />
                 )}
               </React.Fragment>
             ))}
@@ -337,19 +338,19 @@ const PipelineFunnel: React.FC<{ stages: PipelineFlowStage[] }> = ({ stages }) =
           <Flex key={stageName} alignItems="center" gap={12} style={{ padding: '6px 0' }}>
             {/* Stage label */}
             <Flex alignItems="center" gap={6} style={{ minWidth: 130 }}>
-              <div style={{
+              <Flex style={{
                 width: 32, height: 32, borderRadius: '50%', display: 'flex',
                 alignItems: 'center', justifyContent: 'center',
                 background: `${meta.color}15`, border: `2px solid ${meta.color}`,
               }}>
                 <Text style={{ fontSize: 14, fontWeight: 700, color: meta.color }}>{meta.icon}</Text>
-              </div>
+              </Flex>
               <Text style={{ fontSize: 12, fontWeight: 600 }}>{meta.label}</Text>
             </Flex>
 
             {/* Funnel bar */}
-            <div style={{ flex: 1, position: 'relative', height: 36 }}>
-              <div style={{
+            <Flex style={{ flex: 1, position: 'relative', height: 36 }}>
+              <Flex style={{
                 width: `${widthPct}%`, height: '100%', borderRadius: 6,
                 background: `linear-gradient(90deg, ${meta.color}30, ${meta.color}60)`,
                 border: `1px solid ${meta.color}`,
@@ -360,8 +361,8 @@ const PipelineFunnel: React.FC<{ stages: PipelineFlowStage[] }> = ({ stages }) =
                 <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 8 }}>
                   {fmtMs(latency)} avg
                 </Text>
-              </div>
-            </div>
+              </Flex>
+            </Flex>
 
             {/* Drop-off + error rate */}
             <Flex flexDirection="column" alignItems="flex-end" style={{ minWidth: 80 }}>
@@ -773,7 +774,7 @@ export const VectorDB: React.FC = () => {
                 header: 'Step', id: 'stepLabel', accessor: 'stepLabel', width: 160,
                 cell: ({ value }) => (
                   <Flex alignItems="center" gap={6}>
-                    <span style={{
+                    <Text style={{
                       display: 'inline-block', width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
                       background: STEP_COLORS[String(value)] ?? Colors.Charts.Categorical.Color05.Default,
                     }} />
@@ -860,7 +861,7 @@ export const VectorDB: React.FC = () => {
                 width: 150,
                 cell: ({ value }) => (
                   <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                    {value ? new Date(String(value)).toLocaleTimeString() : '—'}
+                    {value ? formatTime(String(value)) : '—'}
                   </Text>
                 ),
               },
@@ -1078,7 +1079,7 @@ export const VectorDB: React.FC = () => {
                         : Colors.Charts.Categorical.Color01.Default;
                     return (
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color }} />
+                        <Text style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color }} />
                         <Text style={{ fontWeight: 600, textTransform: 'capitalize' }}>{op}</Text>
                       </Flex>
                     );
@@ -1401,7 +1402,7 @@ export const VectorDB: React.FC = () => {
                       <Flex alignItems="center" gap={4}>
                         {a.isAnomalous && <CriticalIcon style={{ width: 12, height: 12, color: STATUS_COLORS.warning }} />}
                         <Text style={{ fontSize: 11 }}>
-                          {value ? new Date(Number(value)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {value ? formatTime(String(Number(value))) : '—'}
                         </Text>
                       </Flex>
                     );
@@ -1557,13 +1558,13 @@ export const VectorDB: React.FC = () => {
                     <Text style={{ fontSize: 11, minWidth: 80, textAlign: 'right', color: 'var(--dt-colors-text-secondary-default)' }}>
                       {b.bucket}
                     </Text>
-                    <div style={{ flex: 1, height: 24, position: 'relative' }}>
-                      <div style={{
+                    <Flex style={{ flex: 1, height: 24, position: 'relative' }}>
+                      <Flex style={{
                         width: `${Math.max(widthPct, 1)}%`, height: '100%', borderRadius: 4,
                         background: barColor, opacity: 0.7,
                         transition: 'width 0.4s ease-out',
                       }} />
-                    </div>
+                    </Flex>
                     <Text style={{ fontSize: 12, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                       {fmt(b.spanCount)}
                     </Text>

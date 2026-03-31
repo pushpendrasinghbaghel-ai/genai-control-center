@@ -191,3 +191,74 @@ For querying Dynatrace data via MCP, use the **Demo Dynatrace MCP Server** (`mcp
 | `ui/app/hooks/useDavisAI.ts` | Davis CoPilot integration |
 | `ui/app/queries/dql-queries.ts` | Centralized DQL query definitions |
 | `ui/app/types/index.ts` | TypeScript type definitions |
+| `ui/app/utils/formatting.ts` | Locale-aware number/date/currency formatters |
+| `ui/app/utils/design-tokens.ts` | Centralized color token constants |
+
+---
+
+## Strato Design System Compliance — MANDATORY Rules
+
+**Every line of UI code in this project MUST follow these rules. No exceptions.**
+
+### 1. No Raw HTML Elements
+
+| Forbidden | Use Instead |
+|-----------|-------------|
+| `<div>` | `<Flex>` from `@dynatrace/strato-components/layouts` |
+| `<span>` | `<Text>` from `@dynatrace/strato-components/typography` |
+| `<button>` | `<Button>` from `@dynatrace/strato-components/buttons` |
+| `<input>` | `<TextInput>`, `<NumberInput>` from `@dynatrace/strato-components/forms` (exception: hidden `<input type="file">` for file uploads) |
+| `<select>` | `<Select>` from `@dynatrace/strato-components-preview/forms` |
+| `<table>` | `<DataTable>` from `@dynatrace/strato-components-preview/tables` |
+| `<a>` | `<Link>` from `@dynatrace/strato-components/typography` or `<AppLink>` |
+
+### 2. No Hardcoded Colors
+
+- **NEVER** use hex colors (`#RRGGBB`) or `rgb()`/`rgba()` in component styles.
+- **ALWAYS** use Strato CSS variables or design token imports.
+- Centralized tokens are in `ui/app/utils/design-tokens.ts` — use `StatusColors`, `ChartColors`, `EntityColors`, `GradeColors`.
+- For inline styles, use CSS variables: `var(--dt-colors-text-primary-default)`, `var(--dt-colors-border-neutral-default)`, etc.
+- **Only exception**: Hex colors as fallbacks inside `var()` expressions (e.g., `var(--dt-colors-x, #fallback)`) and brand-identity SVG icons in `providerIcons.tsx`.
+
+### 3. No Raw Locale Formatting
+
+- **NEVER** use `.toLocaleString()`, `.toLocaleTimeString()`, `.toLocaleDateString()`, or `new Intl.NumberFormat()` directly.
+- **ALWAYS** use the centralized formatters from `ui/app/utils/formatting.ts`:
+
+| Instead of | Use |
+|------------|-----|
+| `value.toLocaleString()` | `formatNumber(value)` |
+| `new Date(x).toLocaleString()` | `formatDateTime(x)` |
+| `new Date(x).toLocaleTimeString()` | `formatTime(x)` |
+| `new Date(x).toLocaleDateString()` | `formatDate(x)` |
+| `new Intl.NumberFormat('en-US', { style: 'currency' })` | `formatCurrencyLocalized(amount, 'USD')` |
+| `value.toFixed(2) + '%'` | `formatPercent(value)` |
+
+These formatters respect the user's Dynatrace regional format, timezone, and language preferences via `@dynatrace-sdk/user-preferences`.
+
+### 4. Strato Component API Rules
+
+- **Tabs**: Use `defaultIndex={0}` (not `defaultValue`). Tab items use `title="..."` (not `value`/`label`).
+- **DonutChart / PieChart**: Data must be `{ slices: [...] }` object, not a raw array.
+- **TimeseriesChart**: Datapoints need `start: Date` and `value: number` (not `timestamp: number`).
+- **DataTable**: Cell renderers must return JSX (`<Text>`) not raw strings.
+- **Flex gap**: Only use valid Strato spacing tokens: `0 | 2 | 4 | 6 | 8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 56 | 64`.
+- **Button variants**: Only `"default" | "emphasized" | "accent"`. There is no `"minimal"` variant.
+
+### 5. Responsive Layout
+
+- **NEVER** use fixed column grids like `gridTemplateColumns: 'repeat(2, 1fr)'`.
+- **ALWAYS** use responsive patterns: `repeat(auto-fit, minmax(280px, 1fr))` or `<Flex flexWrap="wrap">` with `flex: '1 1 280px'`.
+- **NEVER** use `calc(100vh - Xpx)` for height — let Strato `<Page>` and `<Flex>` handle layout.
+- **NEVER** hardcode pixel widths on containers — use `flex`, `minWidth`, and `maxWidth`.
+
+### 6. Imports
+
+- **ALWAYS** import Strato components from category subdirectories, never from package root.
+- **NEVER** create duplicate imports of the same symbol from both `../utils` and `../utils/formatting` — the barrel export in `utils/index.ts` already re-exports everything.
+- When adding formatting calls, check if the file already imports from `../utils` before adding a `../utils/formatting` import.
+
+### 7. Theming
+
+- **DO NOT** set theme manually on `<AppRoot>`. It handles dark/light mode automatically.
+- All colors via CSS variables automatically adapt to the user's theme. This is why hardcoded colors break in dark mode.

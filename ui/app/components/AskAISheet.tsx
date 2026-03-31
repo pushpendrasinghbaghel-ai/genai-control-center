@@ -7,10 +7,11 @@ import { Sheet } from '@dynatrace/strato-components/overlays';
 import { Button } from '@dynatrace/strato-components/buttons';
 import { Text, Heading } from '@dynatrace/strato-components/typography';
 import { TextInput } from '@dynatrace/strato-components/forms';
-import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { ProgressCircle, Chip } from '@dynatrace/strato-components/content';
 import { AiIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 
+import { formatNumber } from '../utils/formatting';
 import { useAskAI } from '../hooks/useAskAI';
 import type { AskAIContext, AskAIMessage } from '../hooks/useAskAI';
 import { DavisResponse } from './DavisResponse';
@@ -92,7 +93,7 @@ export const AskAISheet: React.FC<AskAISheetProps> = ({ show, onDismiss, context
                 ? `Analyzing: ${context.itemLabel}`
                 : `Page: ${context.domain}`}
               {context.data && Object.keys(context.data).length > 0 && (
-                <> &bull; {Object.entries(context.data).filter(([,v]) => v != null).slice(0, 3).map(([k,v]) => `${k}: ${typeof v === 'number' ? (v < 1 ? (v as number).toFixed(4) : (v as number).toLocaleString()) : v}`).join(' · ')}</>
+                <> &bull; {Object.entries(context.data).filter(([,v]) => v != null).slice(0, 3).map(([k,v]) => `${k}: ${typeof v === 'number' ? formatNumber(v, { maximumFractionDigits: v < 1 ? 4 : 0 }) : v}`).join(' · ')}</>
               )}
             </Text>
           </Flex>
@@ -104,33 +105,20 @@ export const AskAISheet: React.FC<AskAISheetProps> = ({ show, onDismiss, context
             <Text textStyle="small" style={{ fontWeight: 600, color: Colors.Text.Neutral.Subdued }}>Suggested Questions</Text>
             <Flex gap={6} flexWrap="wrap">
               {context.suggestedPrompts.map((prompt, i) => (
-                <button
+                <Chip
                   key={i}
                   onClick={() => handleChip(prompt)}
                   disabled={isLoading}
-                  style={{
-                    background: 'var(--dt-colors-surface-default-default)',
-                    border: '1px solid var(--dt-colors-border-neutral-default)',
-                    borderRadius: 16,
-                    padding: '5px 12px',
-                    fontSize: 12,
-                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                    color: 'var(--dt-colors-text-primary-default)',
-                    transition: 'background 0.15s',
-                    opacity: isLoading ? 0.5 : 1,
-                  }}
-                  onMouseEnter={e => { if (!isLoading) (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-primary-default)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-default-default)'; }}
                 >
                   {prompt}
-                </button>
+                </Chip>
               ))}
             </Flex>
           </Flex>
         )}
 
         {/* Message thread */}
-        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', minHeight: 200, maxHeight: 'calc(100vh - 340px)' }}>
+        <Flex ref={scrollRef} flexDirection="column" gap={0} style={{ flex: 1, overflowY: 'auto', minHeight: 200 }}>
           <Flex flexDirection="column" gap={12}>
             {messages.length === 0 && (
               <Flex flexDirection="column" alignItems="center" gap={8} style={{ padding: 32, opacity: 0.5 }}>
@@ -142,11 +130,11 @@ export const AskAISheet: React.FC<AskAISheetProps> = ({ show, onDismiss, context
               <MessageBubble key={msg.id} message={msg} />
             ))}
           </Flex>
-        </div>
+        </Flex>
 
         {/* Input area */}
         {error && lastQuestion && (
-          <Flex alignItems="center" gap={8} style={{ padding: '6px 10px', backgroundColor: 'rgba(255,165,0,0.1)', borderRadius: 6 }}>
+          <Flex alignItems="center" gap={8} style={{ padding: '6px 10px', backgroundColor: 'var(--dt-colors-background-warning-default)', borderRadius: 6 }}>
             <Text textStyle="small" style={{ flex: 1, color: 'var(--dt-colors-text-warning-default)' }}>Dynatrace Intelligence is temporarily unavailable.</Text>
             <Button variant="default" onClick={handleRetry} disabled={isLoading}>
               Retry
@@ -154,7 +142,7 @@ export const AskAISheet: React.FC<AskAISheetProps> = ({ show, onDismiss, context
           </Flex>
         )}
         <Flex gap={8} alignItems="center">
-          <div style={{ flex: 1 }}>
+          <Flex style={{ flexGrow: 1 }}>
             <TextInput
               placeholder="Ask about this data..."
               value={input}
@@ -162,7 +150,7 @@ export const AskAISheet: React.FC<AskAISheetProps> = ({ show, onDismiss, context
               onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               disabled={isLoading}
             />
-          </div>
+          </Flex>
           <Button variant="emphasized" onClick={handleSend} disabled={isLoading || !input.trim()}>
             {isLoading ? <ProgressCircle size="small" /> : 'Ask'}
           </Button>
@@ -211,7 +199,7 @@ const MessageBubble: React.FC<{ message: AskAIMessage }> = ({ message }) => {
     <Surface style={{ padding: 12, borderRadius: 8, borderLeft: '3px solid var(--dt-colors-charts-categorical-color-01-default)' }}>
       <DavisResponse content={message.content} />
       {message.isStreaming && (
-        <span style={{
+        <Text as="span" style={{
           display: 'inline-block',
           width: 6,
           height: 14,

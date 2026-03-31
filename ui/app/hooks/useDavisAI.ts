@@ -6,6 +6,7 @@ import { publicClient } from '@dynatrace-sdk/client-davis-copilot';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { ConversationMessage } from '../types';
 import { generateId } from '../utils';
+import { formatNumber } from '../utils/formatting';
 
 interface UseDavisAIResult {
   messages: ConversationMessage[];
@@ -172,7 +173,7 @@ async function analyzeWithDavisCoPilot(query: string, serviceName?: string): Pro
           if (key !== nameField && rec[key] !== null && rec[key] !== undefined) {
             const value = rec[key];
             const formattedValue = typeof value === 'number' 
-              ? (Number.isInteger(value) ? value.toLocaleString() : (value as number).toFixed(2))
+              ? (Number.isInteger(value) ? formatNumber(value) : (value as number).toFixed(2))
               : String(value);
             analysis += `   - ${key}: ${formattedValue}\n`;
           }

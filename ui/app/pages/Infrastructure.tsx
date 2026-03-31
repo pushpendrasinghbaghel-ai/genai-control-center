@@ -25,6 +25,7 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { useInfrastructure, useProviderDeepDive } from '../hooks';
 import type { K8sEvent, ProcessRestart, RateLimitError } from '../hooks/useInfrastructure';
 import type { ServiceConfig, ModelHistoryEntry, DeploymentEvent } from '../types';
+import { formatDateTime, formatNumber } from '../utils/formatting';
 
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ const STATUS_COLORS = {
   purple: Colors.Charts.Categorical.Color05.Default,
 };
 
-const fmt = (n: number): string => (isFinite(n) ? n.toLocaleString() : '—');
+const fmt = (n: number): string => (isFinite(n) ? formatNumber(n) : '—');
 
 const relTime = (iso: string): string => {
   if (!iso) return '—';
@@ -55,7 +56,7 @@ const relTime = (iso: string): string => {
 const shortDate = (iso: string): string => {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return formatDateTime(iso, {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   } catch { return iso; }
@@ -65,18 +66,18 @@ const shortDate = (iso: string): string => {
 
 const ProviderBadge: React.FC<{ provider: string }> = ({ provider }) => {
   const colorMap: Record<string, string> = {
-    openai: '#10a37f',
-    anthropic: '#c07f4c',
-    azure: '#0078d4',
-    google: '#4285f4',
-    bedrock: '#ff9900',
-    cohere: '#39594d',
-    mistral: '#ff7000',
+    openai: 'var(--dt-colors-charts-categorical-color-03-default)',
+    anthropic: 'var(--dt-colors-charts-categorical-color-04-default)',
+    azure: 'var(--dt-colors-charts-categorical-color-01-default)',
+    google: 'var(--dt-colors-charts-categorical-color-01-default)',
+    bedrock: 'var(--dt-colors-charts-categorical-color-04-default)',
+    cohere: 'var(--dt-colors-charts-categorical-color-07-default)',
+    mistral: 'var(--dt-colors-charts-categorical-color-04-default)',
   };
   const key = (provider ?? '').toLowerCase().split('.')[0];
-  const color = Object.entries(colorMap).find(([k]) => key.includes(k))?.[1] ?? '#6b7280';
+  const color = Object.entries(colorMap).find(([k]) => key.includes(k))?.[1] ?? 'var(--dt-colors-text-neutral-default)';
   return (
-    <span style={{
+    <Text style={{
       fontSize: 10,
       fontWeight: 600,
       padding: '2px 7px',
@@ -89,7 +90,7 @@ const ProviderBadge: React.FC<{ provider: string }> = ({ provider }) => {
       whiteSpace: 'nowrap',
     }}>
       {provider || 'unknown'}
-    </span>
+    </Text>
   );
 };
 
@@ -676,13 +677,13 @@ export const Infrastructure: React.FC = () => {
                   const kind = String(value ?? '');
                   const isError = kind.includes('ERROR');
                   return (
-                    <span style={{
+                    <Text style={{
                       fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 8,
                       background: isError ? `${STATUS_COLORS.critical}20` : `${STATUS_COLORS.neutral}20`,
                       color: isError ? STATUS_COLORS.critical : STATUS_COLORS.neutral,
                     }}>
                       {kind || '—'}
-                    </span>
+                    </Text>
                   );
                 },
               },

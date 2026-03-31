@@ -10,6 +10,7 @@ import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components/tabl
 import { CriticalIcon, WarningIcon, CheckmarkIcon } from '@dynatrace/strato-icons';
 import { useLiveProblems, LiveProblem } from '../hooks/useWorkflows';
 import { FilterBar, FilterOptions, createDefaultTimeframe } from '../components/FilterBar';
+import { formatDateTime, formatTime } from '../utils/formatting';
 
 // ============================================
 // Helper Functions
@@ -33,8 +34,8 @@ const getSeverityIcon = (severity: string): React.ReactNode => {
     case 'AVAILABILITY': return <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />;
     case 'PERFORMANCE': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />;
     case 'SLOWDOWN': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />;
-    case 'RESOURCE_CONTENTION': return <WarningIcon style={{ width: 14, height: 14, color: '#ff5722' }} />;
-    case 'CUSTOM_ALERT': return <WarningIcon style={{ width: 14, height: 14, color: '#9c27b0' }} />;
+    case 'RESOURCE_CONTENTION': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-critical-default)' }} />;
+    case 'CUSTOM_ALERT': return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-categorical-color-02-default)' }} />;
     default: return <WarningIcon style={{ width: 14, height: 14 }} />;
   }
 };
@@ -48,7 +49,7 @@ const formatTimeAgo = (timestamp: string) => {
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-  return new Date(timestamp).toLocaleString();
+  return formatDateTime(timestamp);
 };
 
 // ============================================
@@ -139,8 +140,8 @@ export const RealTimeAlerts: React.FC = () => {
       width: 150,
       cell: ({ value }) => (
         <Flex alignItems="center" gap={6}>
-          <span>{getSeverityIcon(value as string)}</span>
-          <span>{value as string}</span>
+          <Text>{getSeverityIcon(value as string)}</Text>
+          <Text>{value as string}</Text>
         </Flex>
       )
     },
@@ -149,20 +150,20 @@ export const RealTimeAlerts: React.FC = () => {
       header: 'Affected',
       accessor: 'affectedEntities',
       width: 100,
-      cell: ({ value }) => <span>{(value as string[]).length}</span>
+      cell: ({ value }) => <Text>{(value as string[]).length}</Text>
     },
     {
       id: 'rootCauseEntity',
       header: 'Root cause',
       accessor: 'rootCauseEntity',
-      cell: ({ value }) => <span>{(value as string) || '-'}</span>
+      cell: ({ value }) => <Text>{(value as string) || '-'}</Text>
     },
     {
       id: 'startTime',
       header: 'Started',
       accessor: 'startTime',
       width: 180,
-      cell: ({ value }) => <span>{formatTimeAgo(value as string)}</span>
+      cell: ({ value }) => <Text>{formatTimeAgo(value as string)}</Text>
     }
   ], []);
 
@@ -177,7 +178,7 @@ export const RealTimeAlerts: React.FC = () => {
         <TitleBar.Subtitle>Problems affecting AI services</TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            Last updated: {lastRefresh.toLocaleTimeString()}
+            Last updated: {formatTime(lastRefresh)}
           </Text>
         </TitleBar.Suffix>
       </TitleBar>

@@ -18,6 +18,7 @@ import {
   SCORING_WEIGHTS, SCORING_STANDARDS,
 } from '../hooks/useAIQuality';
 import { DavisResponse } from '../components/DavisResponse';
+import { formatNumber } from '../utils/formatting';
 
 // ============================================
 // Quality Score Ring Component
@@ -33,13 +34,13 @@ const QualityScoreRing: React.FC<{
   const strokeDashoffset = circumference * (1 - score / 100);
   
   const getColor = (s: number) => {
-    if (s >= 80) return '#4CAF50';
-    if (s >= 60) return '#ff9800';
-    return '#f44336';
+    if (s >= 80) return 'var(--dt-colors-charts-status-good-default)';
+    if (s >= 60) return 'var(--dt-colors-charts-status-warning-default)';
+    return 'var(--dt-colors-charts-status-critical-default)';
   };
 
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
+    <Flex style={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
         {/* Background circle */}
         <circle
@@ -64,23 +65,23 @@ const QualityScoreRing: React.FC<{
           style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
         />
       </svg>
-      <div style={{
+      <Flex style={{
         position: 'absolute',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: size / 3, fontWeight: 700, color: getColor(score) }}>
+        <Flex style={{ fontSize: size / 3, fontWeight: 700, color: getColor(score) }}>
           {score}
-        </div>
+        </Flex>
         {label && (
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
             {label}
-          </div>
+          </Flex>
         )}
-      </div>
-    </div>
+      </Flex>
+    </Flex>
   );
 };
 
@@ -106,20 +107,20 @@ const DimensionBar: React.FC<{
         <Text textStyle="small">{label}</Text>
         <Text textStyle="small" style={{ fontWeight: 600 }}>{value}%</Text>
       </Flex>
-      <div style={{
+      <Flex style={{
         height: 8,
         borderRadius: 4,
         background: 'var(--dt-colors-border-neutral-default)',
         overflow: 'hidden'
       }}>
-        <div style={{
+        <Flex style={{
           height: '100%',
           width: `${value}%`,
           background: getColor(value),
           borderRadius: 4,
           transition: 'width 0.3s ease-in-out'
         }} />
-      </div>
+      </Flex>
     </Flex>
   );
 };
@@ -158,9 +159,9 @@ const ForecastChart: React.FC<{
   `;
 
   const getTrendIcon = () => {
-    if (forecast.trend === 'increasing') return <span style={{ color: 'var(--dt-colors-feedback-success-default)' }}>↑</span>;
-    if (forecast.trend === 'decreasing') return <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>↓</span>;
-    return <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>→</span>;
+    if (forecast.trend === 'increasing') return <Text style={{ color: 'var(--dt-colors-feedback-success-default)' }}>↑</Text>;
+    if (forecast.trend === 'decreasing') return <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>↓</Text>;
+    return <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>→</Text>;
   };
 
   return (
@@ -170,17 +171,17 @@ const ForecastChart: React.FC<{
           <Heading level={6}>
             {forecast.metric.charAt(0).toUpperCase() + forecast.metric.slice(1)} Forecast
           </Heading>
-          <span>{getTrendIcon()}</span>
+          <Text>{getTrendIcon()}</Text>
           {forecast.anomalyDetected && (
-            <span style={{
+            <Text style={{
               padding: '2px 6px',
               borderRadius: 4,
               background: 'rgba(244, 67, 54, 0.2)',
-              color: '#f44336',
+              color: 'var(--dt-colors-charts-status-critical-default)',
               fontSize: 10
             }}>
               ANOMALY
-            </span>
+            </Text>
           )}
         </Flex>
         <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
@@ -223,7 +224,7 @@ const ForecastChart: React.FC<{
         <path
           d={linePath}
           fill="none"
-          stroke="#2196F3"
+          stroke='var(--dt-colors-charts-categorical-color-01-default)'
           strokeWidth={2}
         />
 
@@ -235,7 +236,7 @@ const ForecastChart: React.FC<{
               y1={yScale(budget)}
               x2={width - padding.right}
               y2={yScale(budget)}
-              stroke="#f44336"
+              stroke='var(--dt-colors-charts-status-critical-default)'
               strokeWidth={2}
               strokeDasharray="6 3"
             />
@@ -244,7 +245,7 @@ const ForecastChart: React.FC<{
               y={yScale(budget) - 5}
               textAnchor="end"
               fontSize={10}
-              fill="#f44336"
+              fill='var(--dt-colors-charts-status-critical-default)'
             >
               Budget: ${budget}
             </text>
@@ -327,15 +328,15 @@ const ScoringMethodologyModal: React.FC<{
                 <Flex key={key} justifyContent="space-between" alignItems="center">
                   <Text style={{ fontWeight: 600 }}>{info.name}</Text>
                   <Flex alignItems="center" gap={8}>
-                    <div style={{
+                    <Flex style={{
                       width: 120, height: 8, borderRadius: 4,
                       background: 'var(--dt-colors-border-neutral-default)', overflow: 'hidden'
                     }}>
-                      <div style={{
+                      <Flex style={{
                         height: '100%', width: `${weight * 100}%`, borderRadius: 4,
                         background: 'var(--dt-colors-charts-categorical-default-09)',
                       }} />
-                    </div>
+                    </Flex>
                     <Text textStyle="small" style={{ fontWeight: 600, minWidth: 40 }}>{(weight * 100).toFixed(0)}%</Text>
                   </Flex>
                 </Flex>
@@ -365,18 +366,18 @@ const ScoringMethodologyModal: React.FC<{
           <Heading level={6} style={{ marginBottom: 12 }}>Grade Scale</Heading>
           <Flex gap={12} style={{ flexWrap: 'wrap' }}>
             {[
-              { grade: 'A', range: '90 – 100', color: '#4CAF50' },
-              { grade: 'B', range: '80 – 89', color: '#8BC34A' },
-              { grade: 'C', range: '70 – 79', color: '#ff9800' },
-              { grade: 'D', range: '60 – 69', color: '#FF5722' },
-              { grade: 'F', range: '< 60', color: '#f44336' },
+              { grade: 'A', range: '90 – 100', color: 'var(--dt-colors-charts-status-good-default)' },
+              { grade: 'B', range: '80 – 89', color: 'var(--dt-colors-charts-status-good-default)' },
+              { grade: 'C', range: '70 – 79', color: 'var(--dt-colors-charts-status-warning-default)' },
+              { grade: 'D', range: '60 – 69', color: 'var(--dt-colors-charts-status-critical-default)' },
+              { grade: 'F', range: '< 60', color: 'var(--dt-colors-charts-status-critical-default)' },
             ].map(({ grade, range, color }) => (
               <Flex key={grade} alignItems="center" gap={8} style={{ minWidth: 120 }}>
-                <span style={{
+                <Text style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: 28, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 14,
                   background: `${color}20`, color,
-                }}>{grade}</span>
+                }}>{grade}</Text>
                 <Text textStyle="small">{range}</Text>
               </Flex>
             ))}
@@ -412,7 +413,7 @@ const DavisAnalysisModal: React.FC<{
             <Flex flexDirection="column" gap={4}>
               <Text style={{ fontWeight: 600 }}>{service.model} • {service.provider}</Text>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                {service.rawMetrics.requestCount.toLocaleString()} requests |
+                {formatNumber(service.rawMetrics.requestCount)} requests |
                 Error rate: {service.rawMetrics.errorRate.toFixed(2)}% |
                 Avg latency: {service.rawMetrics.avgLatencyMs.toFixed(0)}ms
               </Text>
@@ -491,27 +492,27 @@ export const AIQualityDashboard: React.FC = () => {
 
   // Grade badge renderer
   const GradeBadge: React.FC<{ grade: string; score: number }> = ({ grade, score }) => {
-    const color = score >= 90 ? '#4CAF50' : score >= 80 ? '#8BC34A' : score >= 70 ? '#ff9800' : score >= 60 ? '#FF5722' : '#f44336';
+    const color = score >= 90 ? 'var(--dt-colors-charts-status-good-default)' : score >= 80 ? 'var(--dt-colors-charts-status-good-default)' : score >= 70 ? 'var(--dt-colors-charts-status-warning-default)' : score >= 60 ? 'var(--dt-colors-charts-status-critical-default)' : 'var(--dt-colors-charts-status-critical-default)';
     return (
-      <span style={{
+      <Text style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 28, height: 28, borderRadius: 4, fontWeight: 700, fontSize: 14,
         background: `${color}20`, color,
-      }}>{grade}</span>
+      }}>{grade}</Text>
     );
   };
 
   // Dimension bar inline
   const DimBar: React.FC<{ value: number; width?: number }> = ({ value, width = 60 }) => {
-    const color = value >= 80 ? '#4CAF50' : value >= 60 ? '#ff9800' : '#f44336';
+    const color = value >= 80 ? 'var(--dt-colors-charts-status-good-default)' : value >= 60 ? 'var(--dt-colors-charts-status-warning-default)' : 'var(--dt-colors-charts-status-critical-default)';
     return (
       <Flex alignItems="center" gap={6}>
-        <div style={{
+        <Flex style={{
           width, height: 6, borderRadius: 3,
           background: 'var(--dt-colors-border-neutral-default)', overflow: 'hidden'
         }}>
-          <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 3 }} />
-        </div>
+          <Flex style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 3 }} />
+        </Flex>
         <Text textStyle="small" style={{ fontWeight: 600, minWidth: 28, fontSize: 11 }}>{value}</Text>
       </Flex>
     );
@@ -584,7 +585,7 @@ export const AIQualityDashboard: React.FC = () => {
       id: 'requestCount',
       accessor: (row: AIQualityScore) => row.rawMetrics.requestCount,
       width: 90,
-      cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>{Number(value).toLocaleString()}</Text>,
+      cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>{formatNumber(Number(value))}</Text>,
     },
     {
       header: 'Flags',
@@ -593,13 +594,13 @@ export const AIQualityDashboard: React.FC = () => {
       width: 80,
       cell: ({ rowData }: { rowData: AIQualityScore }) => {
         const flags = rowData.flags;
-        if (flags.length === 0) return <CheckmarkIcon style={{ width: 14, height: 14, color: '#4CAF50' }} />;
+        if (flags.length === 0) return <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-good-default)' }} />;
         const hasCritical = flags.some(f => f.severity === 'critical');
         return (
           <Flex alignItems="center" gap={4}>
             {hasCritical
-              ? <CriticalIcon style={{ width: 14, height: 14, color: '#f44336' }} />
-              : <WarningIcon style={{ width: 14, height: 14, color: '#ff9800' }} />}
+              ? <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-critical-default)' }} />
+              : <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-warning-default)' }} />}
             <Text textStyle="small" style={{ fontWeight: 600 }}>{flags.length}</Text>
           </Flex>
         );
@@ -666,21 +667,21 @@ export const AIQualityDashboard: React.FC = () => {
             <Heading level={6} style={{ marginBottom: 12 }}>Quality Flags</Heading>
             <Flex gap={16}>
               <Flex flexDirection="column" alignItems="center" style={{ flex: 1 }}>
-                <div style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Critical.Default }}>
+                <Flex style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Critical.Default }}>
                   {summary.criticalCount}
-                </div>
+                </Flex>
                 <Text textStyle="small">Critical</Text>
               </Flex>
               <Flex flexDirection="column" alignItems="center" style={{ flex: 1 }}>
-                <div style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Warning.Default }}>
+                <Flex style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Warning.Default }}>
                   {summary.warningCount}
-                </div>
+                </Flex>
                 <Text textStyle="small">Warning</Text>
               </Flex>
               <Flex flexDirection="column" alignItems="center" style={{ flex: 1 }}>
-                <div style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Success.Default }}>
+                <Flex style={{ fontSize: 32, fontWeight: 700, color: Colors.Text.Success.Default }}>
                   {summary.totalModels - summary.criticalCount - summary.warningCount}
-                </div>
+                </Flex>
                 <Text textStyle="small">Healthy</Text>
               </Flex>
             </Flex>
@@ -797,13 +798,13 @@ export const AIQualityDashboard: React.FC = () => {
                 selectedService.flags.map((flag, idx) => (
                   <Surface key={idx} style={{ 
                     padding: 8, 
-                    borderLeft: `3px solid ${flag.severity === 'critical' ? '#f44336' : '#ff9800'}`
+                    borderLeft: `3px solid ${flag.severity === 'critical' ? 'var(--dt-colors-charts-status-critical-default)' : 'var(--dt-colors-charts-status-warning-default)'}`
                   }}>
                     <Flex flexDirection="column" gap={4}>
                       <Flex alignItems="center" gap={8}>
                         {flag.severity === 'critical' 
-                          ? <CriticalIcon style={{ width: 12, height: 12, color: '#f44336' }} />
-                          : <WarningIcon style={{ width: 12, height: 12, color: '#ff9800' }} />}
+                          ? <CriticalIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-charts-status-critical-default)' }} />
+                          : <WarningIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-charts-status-warning-default)' }} />}
                         <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'uppercase' }}>
                           {flag.type.replace('_', ' ')}
                         </Text>
@@ -825,7 +826,7 @@ export const AIQualityDashboard: React.FC = () => {
               <Text style={{ fontWeight: 600 }}>Recommendations</Text>
               {selectedService.recommendations.map((rec, idx) => (
                 <Flex key={idx} alignItems="flex-start" gap={8}>
-                  <span style={{ fontSize: 14 }}>&#x1F4A1;</span>
+                  <Text style={{ fontSize: 14 }}>&#x1F4A1;</Text>
                   <Text textStyle="small">{rec}</Text>
                 </Flex>
               ))}

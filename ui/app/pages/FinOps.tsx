@@ -40,6 +40,7 @@ import {
 import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
 import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 import { useDavisForecast } from '../hooks/useDavisForecast';
+import { formatNumber } from '../utils/formatting';
 
 // Strato Design Tokens for status colors
 const STATUS_COLORS = {
@@ -270,7 +271,7 @@ export const FinOps: React.FC = () => {
     if (totalReqs > 1000) {
       const estimatedCacheHitRate = 0.15;
       const cacheSaving = totalCost * estimatedCacheHitRate;
-      insights.push({ type: 'saving', title: 'Semantic caching could save 15% cost', detail: `Based on ${totalReqs.toLocaleString()} requests, implement semantic caching to eliminate repeated LLM calls.`, saving: cacheSaving });
+      insights.push({ type: 'saving', title: 'Semantic caching could save 15% cost', detail: `Based on ${formatNumber(totalReqs)} requests, implement semantic caching to eliminate repeated LLM calls.`, saving: cacheSaving });
     }
 
     return insights;
@@ -455,7 +456,7 @@ export const FinOps: React.FC = () => {
               </Tooltip>
             </Flex>
             <Heading level={4}>
-              {totalTokens.toLocaleString()}
+              {formatNumber(totalTokens)}
             </Heading>
             <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
               ${(totalCost / Math.max(totalTokens, 1) * 1000).toFixed(4)}/1K tokens
@@ -591,7 +592,7 @@ export const FinOps: React.FC = () => {
                   <BarChartIcon style={{ width: 14, height: 14 }} />
                   <Text style={{ fontWeight: 600, fontSize: 13 }}>Cost Velocity Over Time ($/min)</Text>
                 </Flex>
-                <div style={{ height: 200 }}>
+                <Flex style={{ height: 200 }}>
                   <TimeseriesChart data={[{
                     name: 'Cost $/min',
                     datapoints: velocityTimeseries.map(p => ({
@@ -601,7 +602,7 @@ export const FinOps: React.FC = () => {
                   }]}>
                     <TimeseriesChart.Legend hidden />
                   </TimeseriesChart>
-                </div>
+                </Flex>
               </Flex>
             </Surface>
           )}
@@ -672,7 +673,7 @@ export const FinOps: React.FC = () => {
               <AiIcon style={{ width: 16, height: 16, color: isDavisPowered ? Colors.Charts.Status.Good.Default : Colors.Text.Neutral.Subdued }} />
               <Heading level={6}>Budget Projection</Heading>
               {isDavisPowered && (
-                <span style={{ fontSize: 9, padding: '2px 8px', background: Colors.Charts.Status.Good.Default + '20', color: Colors.Charts.Status.Good.Default, borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px' }}>DT INTELLIGENCE</span>
+                <Text style={{ fontSize: 9, padding: '2px 8px', background: Colors.Charts.Status.Good.Default + '20', color: Colors.Charts.Status.Good.Default, borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px' }}>DT INTELLIGENCE</Text>
               )}
             </Flex>
             {isDavisPowered ? (
@@ -749,7 +750,7 @@ export const FinOps: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <AiIcon style={{ width: 16, height: 16, color: STATUS_COLORS.good }} />
               <Heading level={6}>AI-Powered Cost Optimization Insights</Heading>
-              <span style={{ fontSize: 9, padding: '2px 6px', background: STATUS_COLORS.good + '20', color: STATUS_COLORS.good, borderRadius: 10, fontWeight: 700 }}>LIVE</span>
+              <Text style={{ fontSize: 9, padding: '2px 6px', background: STATUS_COLORS.good + '20', color: STATUS_COLORS.good, borderRadius: 10, fontWeight: 700 }}>LIVE</Text>
             </Flex>
             <Flex gap={12} flexWrap="wrap">
               {costInsights.map((ins, i) => (
@@ -835,14 +836,14 @@ export const FinOps: React.FC = () => {
                 fontWeight: 600,
                 fontSize: 12
               }}>
-                <span style={{ flex: 1 }}>Provider</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Total Tokens</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Input</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Output</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
-                <span style={{ width: 28 }}></span>
+                <Text style={{ flex: 1 }}>Provider</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Total Tokens</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Input</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Output</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Est. Cost</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>$/1K Req</Text>
+                <Text style={{ width: 28 }}></Text>
               </Flex>
               {/* Table Rows */}
               {costBreakdown.map((row, idx) => (
@@ -854,14 +855,14 @@ export const FinOps: React.FC = () => {
                     fontSize: 13
                   }}
                 >
-                  <span style={{ flex: 1, fontWeight: 500 }}>{row.provider}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.totalTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.inputTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.outputTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${row.estimatedCost.toFixed(2)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.requestCount)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>${(row.avgCostPerRequest * 1000).toFixed(2)}</span>
-                  <span style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
+                  <Text style={{ flex: 1, fontWeight: 500 }}>{row.provider}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.totalTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.inputTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.outputTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${row.estimatedCost.toFixed(2)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.requestCount)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>${(row.avgCostPerRequest * 1000).toFixed(2)}</Text>
+                  <Text style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
                     <AskAIButton
                       label={`Ask AI about ${row.provider}`}
                       onClick={() => openAskAI({
@@ -871,7 +872,7 @@ export const FinOps: React.FC = () => {
                         suggestedPrompts: [`Why is ${row.provider} costing $${row.estimatedCost.toFixed(2)}?`, `Compare ${row.provider} with other providers`, `How to optimize ${row.provider} token usage?`, `Show ${row.provider} error rate and latency`],
                       })}
                     />
-                  </span>
+                  </Text>
                 </Flex>
               ))}
             </Flex>
@@ -909,14 +910,14 @@ export const FinOps: React.FC = () => {
                 fontWeight: 600,
                 fontSize: 12
               }}>
-                <span style={{ flex: 2 }}>Model</span>
-                <span style={{ flex: 1 }}>Provider</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Input Tokens</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Output Tokens</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Est. Cost</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>$/1K Req</span>
-                <span style={{ width: 28 }}></span>
+                <Text style={{ flex: 2 }}>Model</Text>
+                <Text style={{ flex: 1 }}>Provider</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Input Tokens</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Output Tokens</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Est. Cost</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>$/1K Req</Text>
+                <Text style={{ width: 28 }}></Text>
               </Flex>
               {/* Table Rows */}
               {modelCosts.map((row: any, idx: number) => (
@@ -928,16 +929,16 @@ export const FinOps: React.FC = () => {
                     fontSize: 13
                   }}
                 >
-                  <span style={{ flex: 2, fontWeight: 500 }}>{row.model}</span>
-                  <span style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{row.provider || '-'}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.inputTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{row.outputTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: row.estimatedCost > 1 ? Colors.Text.Warning.Default : 'inherit' }}>
+                  <Text style={{ flex: 2, fontWeight: 500 }}>{row.model}</Text>
+                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{row.provider || '-'}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.inputTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.outputTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: row.estimatedCost > 1 ? Colors.Text.Warning.Default : 'inherit' }}>
                     ${row.estimatedCost.toFixed(2)}
-                  </span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.totalRequests)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>${(row.costPerRequest * 1000).toFixed(2)}</span>
-                  <span style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
+                  </Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.totalRequests)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>${(row.costPerRequest * 1000).toFixed(2)}</Text>
+                  <Text style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
                     <AskAIButton
                       label={`Ask AI about ${row.model}`}
                       onClick={() => openAskAI({
@@ -947,7 +948,7 @@ export const FinOps: React.FC = () => {
                         suggestedPrompts: [`Why is ${row.model} costing $${row.estimatedCost.toFixed(2)}?`, `Is there a cheaper alternative to ${row.model}?`, `Analyze token efficiency for ${row.model}`, `Show latency distribution for ${row.model}`],
                       })}
                     />
-                  </span>
+                  </Text>
                 </Flex>
               ))}
               {/* Summary Row */}
@@ -958,21 +959,21 @@ export const FinOps: React.FC = () => {
                 fontSize: 13,
                 backgroundColor: 'rgba(99, 102, 241, 0.05)'
               }}>
-                <span style={{ flex: 2 }}>Total ({modelCosts.length} models)</span>
-                <span style={{ flex: 1 }}></span>
-                <span style={{ flex: 1, textAlign: 'right' }}>
-                  {modelCosts.reduce((sum: number, r: any) => sum + r.inputTokens, 0).toLocaleString()}
-                </span>
-                <span style={{ flex: 1, textAlign: 'right' }}>
-                  {modelCosts.reduce((sum: number, r: any) => sum + r.outputTokens, 0).toLocaleString()}
-                </span>
-                <span style={{ flex: 1, textAlign: 'right' }}>
+                <Text style={{ flex: 2 }}>Total ({modelCosts.length} models)</Text>
+                <Text style={{ flex: 1 }}></Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>
+                  {formatNumber(modelCosts.reduce((sum: number, r: any) => sum + r.inputTokens, 0))}
+                </Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>
+                  {formatNumber(modelCosts.reduce((sum: number, r: any) => sum + r.outputTokens, 0))}
+                </Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>
                   ${modelCosts.reduce((sum: number, r: any) => sum + r.estimatedCost, 0).toFixed(2)}
-                </span>
-                <span style={{ flex: 1, textAlign: 'right' }}>
+                </Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>
                   {formatRequestCount(modelCosts.reduce((sum: number, r: any) => sum + r.totalRequests, 0))}
-                </span>
-                <span style={{ flex: 1, textAlign: 'right' }}>-</span>
+                </Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>-</Text>
               </Flex>
             </Flex>
           )}
@@ -1020,11 +1021,11 @@ export const FinOps: React.FC = () => {
                         <ProgressBar value={Number(percentage)} style={{ marginTop: 8, marginBottom: 8 }} />
                         <Flex justifyContent="space-between">
                           <Text textStyle="small">Requests:</Text>
-                          <Text textStyle="small">{requests.toLocaleString()}</Text>
+                          <Text textStyle="small">{formatNumber(requests)}</Text>
                         </Flex>
                         <Flex justifyContent="space-between">
                           <Text textStyle="small">Tokens:</Text>
-                          <Text textStyle="small">{totalTokens.toLocaleString()}</Text>
+                          <Text textStyle="small">{formatNumber(totalTokens)}</Text>
                         </Flex>
                         <Flex justifyContent="space-between">
                           <Text textStyle="small">Est. Cost:</Text>
@@ -1068,19 +1069,19 @@ export const FinOps: React.FC = () => {
               <Flex flexDirection="column" gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>
                 {/* Header */}
                 <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
-                  <span style={{ flex: 2 }}>Service</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Tokens</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Cost</span>
+                  <Text style={{ flex: 2 }}>Service</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Tokens</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Cost</Text>
                 </Flex>
                 {serviceCosts.map((svc: any, idx: number) => (
                   <Flex key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 12 }}>
-                    <span style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={svc.serviceId}>
+                    <Text style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={svc.serviceId}>
                       {svc.serviceId.replace('SERVICE-', '').substring(0, 12)}...
-                    </span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(svc.totalRequests)}</span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>{(svc.totalTokens / 1000).toFixed(1)}K</span>
-                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${svc.estimatedCost.toFixed(2)}</span>
+                    </Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(svc.totalRequests)}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>{(svc.totalTokens / 1000).toFixed(1)}K</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${svc.estimatedCost.toFixed(2)}</Text>
                   </Flex>
                 ))}
               </Flex>
@@ -1111,22 +1112,22 @@ export const FinOps: React.FC = () => {
             <Flex alignItems="center" gap={8}>
               <RefreshIcon style={{ width: 18, height: 18, color: STATUS_COLORS.ideal }} />
               <Heading level={6}>💰 Semantic Cache Savings Calculator</Heading>
-              <span style={{ 
+              <Text style={{ 
                 fontSize: 9, 
                 padding: '2px 6px', 
                 backgroundColor: 'rgba(99, 102, 241, 0.15)', 
-                color: '#6366f1',
+                color: 'var(--dt-colors-charts-categorical-color-06-default)',
                 borderRadius: 10,
                 fontWeight: 600
               }}>
                 UNIQUE GCC
-              </span>
+              </Text>
               <Tooltip text="Identifies repeated prompts that could be cached. When you implement semantic caching, identical prompts return cached responses instead of calling the LLM again - saving tokens and cost. ROI shows potential savings if caching was implemented.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
             </Flex>
             {cacheSavings && cacheSavings.totalCandidates > 0 && (
-              <span style={{
+              <Text style={{
                 padding: '4px 12px',
                 backgroundColor: STATUS_COLORS.ideal + '20',
                 color: STATUS_COLORS.ideal,
@@ -1135,7 +1136,7 @@ export const FinOps: React.FC = () => {
                 fontWeight: 600
               }}>
                 ${cacheSavings.totalPotentialSavings.toFixed(2)} potential savings
-              </span>
+              </Text>
             )}
           </Flex>
 
@@ -1170,7 +1171,7 @@ export const FinOps: React.FC = () => {
                 <Surface style={{ flex: '1 1 160px', padding: 12 }}>
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Repeated Requests</Text>
-                    <Heading level={3}>{cacheSavings.totalRepetitiveRequests.toLocaleString()}</Heading>
+                    <Heading level={3}>{formatNumber(cacheSavings.totalRepetitiveRequests)}</Heading>
                     <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                       cacheable invocations
                     </Text>
@@ -1191,12 +1192,12 @@ export const FinOps: React.FC = () => {
               <Flex flexDirection="column" gap={8}>
                 <Text textStyle="small" style={{ fontWeight: 600 }}>Top Cache Candidates (by savings)</Text>
                 <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 6, fontSize: 11, fontWeight: 600 }}>
-                  <span style={{ flex: 3 }}>Prompt Pattern</span>
-                  <span style={{ flex: 1 }}>Model</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Hit Rate</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Current Cost</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>Savings</span>
+                  <Text style={{ flex: 3 }}>Prompt Pattern</Text>
+                  <Text style={{ flex: 1 }}>Model</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Hit Rate</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Current Cost</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Savings</Text>
                 </Flex>
                 {cacheSavings.topCandidates.slice(0, 5).map((candidate: SemanticCacheCandidate, idx: number) => (
                   <Flex 
@@ -1208,7 +1209,7 @@ export const FinOps: React.FC = () => {
                       alignItems: 'center'
                     }}
                   >
-                    <span style={{ 
+                    <Text style={{ 
                       flex: 3, 
                       overflow: 'hidden', 
                       textOverflow: 'ellipsis', 
@@ -1218,16 +1219,16 @@ export const FinOps: React.FC = () => {
                       color: Colors.Text.Neutral.Subdued
                     }} title={candidate.promptPattern}>
                       {candidate.promptPattern.substring(0, 50)}...
-                    </span>
-                    <span style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</span>
-                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</span>
-                    <span style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>
+                    </Text>
+                    <Text style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>
                       {(candidate.cacheHitRate * 100).toFixed(0)}%
-                    </span>
-                    <span style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</span>
-                    <span style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>
+                    </Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>
                       ${candidate.potentialSavings.toFixed(3)}
-                    </span>
+                    </Text>
                   </Flex>
                 ))}
               </Flex>
@@ -1291,13 +1292,13 @@ export const FinOps: React.FC = () => {
             <Flex flexDirection="column" gap={4}>
               {/* Header */}
               <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 8, fontWeight: 600, fontSize: 12 }}>
-                <span style={{ flex: 2 }}>Model</span>
-                <span style={{ flex: 1 }}>Provider</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Requests</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Avg In</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Avg Out</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Efficiency</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Status</span>
+                <Text style={{ flex: 2 }}>Model</Text>
+                <Text style={{ flex: 1 }}>Provider</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Avg In</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Avg Out</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Efficiency</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Status</Text>
               </Flex>
               {tokenEfficiency.slice(0, 10).map((item: any, idx: number) => (
                 <Flex 
@@ -1309,21 +1310,21 @@ export const FinOps: React.FC = () => {
                     backgroundColor: item.isWasteful ? 'rgba(255, 165, 0, 0.1)' : 'transparent'
                   }}
                 >
-                  <span style={{ flex: 2, fontWeight: 500 }}>{item.model}</span>
-                  <span style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{item.provider || '-'}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{item.requests.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{item.avgInput.toFixed(0)}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{item.avgOutput.toFixed(0)}</span>
-                  <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{item.efficiency.toFixed(2)}x</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>
+                  <Text style={{ flex: 2, fontWeight: 500 }}>{item.model}</Text>
+                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{item.provider || '-'}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(item.requests)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{item.avgInput.toFixed(0)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{item.avgOutput.toFixed(0)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{item.efficiency.toFixed(2)}x</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>
                     {item.isWasteful ? (
-                      <span style={{ color: Colors.Text.Warning.Default, fontWeight: 600 }}>⚠️ Wasteful</span>
+                      <Text style={{ color: Colors.Text.Warning.Default, fontWeight: 600 }}>⚠️ Wasteful</Text>
                     ) : item.efficiency < 1.0 ? (
-                      <span style={{ color: Colors.Text.Neutral.Subdued }}>Fair</span>
+                      <Text style={{ color: Colors.Text.Neutral.Subdued }}>Fair</Text>
                     ) : (
-                      <span style={{ color: Colors.Text.Success.Default }}>✓ Efficient</span>
+                      <Text style={{ color: Colors.Text.Success.Default }}>✓ Efficient</Text>
                     )}
-                  </span>
+                  </Text>
                 </Flex>
               ))}
               {/* Summary */}
@@ -1353,11 +1354,11 @@ export const FinOps: React.FC = () => {
       <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
         <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
         <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Prompt Caching</Text>
-        <span style={{
+        <Text style={{
           fontSize: 9, padding: '2px 6px',
-          backgroundColor: 'rgba(99,102,241,0.15)', color: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)',
           borderRadius: 10, fontWeight: 600,
-        }}>LIVE DATA</span>
+        }}>LIVE DATA</Text>
       </Flex>
 
       <Flex gap={16} flexWrap="wrap">
@@ -1455,21 +1456,21 @@ export const FinOps: React.FC = () => {
             </Flex>
             <Flex flexDirection="column" gap={4}>
               <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
-                <span style={{ flex: 3 }}>Prompt</span>
-                <span style={{ flex: 1 }}>Provider</span>
-                <span style={{ flex: 1 }}>Model</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Tokens</span>
-                <span style={{ flex: 1, textAlign: 'right' }}>Duration</span>
+                <Text style={{ flex: 3 }}>Prompt</Text>
+                <Text style={{ flex: 1 }}>Provider</Text>
+                <Text style={{ flex: 1 }}>Model</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Tokens</Text>
+                <Text style={{ flex: 1, textAlign: 'right' }}>Duration</Text>
               </Flex>
               {topExpensivePrompts.slice(0, 10).map((p, idx) => (
                 <Flex key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 12 }}>
-                  <span style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.prompt}>
+                  <Text style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.prompt}>
                     {p.prompt.substring(0, 80)}{p.prompt.length > 80 ? '…' : ''}
-                  </span>
-                  <span style={{ flex: 1, textTransform: 'capitalize' }}>{p.provider}</span>
-                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}>{p.model}</span>
-                  <span style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{p.totalTokens.toLocaleString()}</span>
-                  <span style={{ flex: 1, textAlign: 'right' }}>{p.durationMs.toFixed(0)}ms</span>
+                  </Text>
+                  <Text style={{ flex: 1, textTransform: 'capitalize' }}>{p.provider}</Text>
+                  <Text style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}>{p.model}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{formatNumber(p.totalTokens)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{p.durationMs.toFixed(0)}ms</Text>
                 </Flex>
               ))}
             </Flex>

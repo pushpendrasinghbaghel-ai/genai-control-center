@@ -392,7 +392,7 @@ export function RateCardSettings({ isOpen, onClose, onConfigChange, detectedMode
                       <Flex flex={2} alignItems="center" gap={8}>
                         <Text textStyle="base-emphasized">{model.model}</Text>
                         {model.isCustom && (
-                          <span style={{ 
+                          <Text style={{ 
                             display: 'inline-block',
                             padding: '2px 8px', 
                             borderRadius: 4, 
@@ -400,7 +400,7 @@ export function RateCardSettings({ isOpen, onClose, onConfigChange, detectedMode
                             fontWeight: 600,
                             backgroundColor: 'rgba(0, 200, 100, 0.15)',
                             color: Colors.Text.Success.Default 
-                          }}>Custom</span>
+                          }}>Custom</Text>
                         )}
                       </Flex>
                       <Text style={{ flex: 1, textAlign: 'right', fontFamily: 'monospace' }}>

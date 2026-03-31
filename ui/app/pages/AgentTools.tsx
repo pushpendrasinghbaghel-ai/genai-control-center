@@ -31,6 +31,7 @@ import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, A
 import { useAgenticDeepDive } from '../hooks/useAgenticDeepDive';
 import type { AgentRetryTrace, AgentRetrySummary, AgentStepSummary, AgentExitCondition, MultiAgentTrace, CrossAgentTokens, ContextGrowthEntry, ContextWindowUtilization, CostBreachEntry, AgentTraceSpan } from '../types';
 import type { QueryFilters } from '../hooks/useDQLQueries';
+import { formatTime } from '../utils/formatting';
 
 // ============================================
 // Status Colors (consistent with other pages)
@@ -52,26 +53,26 @@ const retryColor = (rate: number): string => {
 // Tool Flow Node Colors - Explicit hex values for SVG compatibility
 // Starting with purple to differentiate from Agent (blue)
 const FLOW_COLORS = [
-  '#6f2da8', // Purple (Tool default)
-  '#00b4a0', // Teal
-  '#73be28', // Green
-  '#ef8b2f', // Orange
-  '#e6457a', // Pink
-  '#f5d30f', // Yellow
-  '#2ab6f4', // Light blue
-  '#9b59b6', // Violet
+  'var(--dt-colors-charts-categorical-color-02-default)', // Purple (Tool default)
+  'var(--dt-colors-charts-categorical-color-03-default)', // Teal
+  'var(--dt-colors-charts-status-good-default)', // Green
+  'var(--dt-colors-charts-categorical-color-04-default)', // Orange
+  'var(--dt-colors-charts-categorical-color-05-default)', // Pink
+  'var(--dt-colors-charts-status-warning-default)', // Yellow
+  'var(--dt-colors-charts-categorical-color-01-default)', // Light blue
+  'var(--dt-colors-charts-categorical-color-02-default)', // Violet
 ];
 
 // Chart color palette for timeseries
 const CHART_COLORS = {
-  toolCalls: '#14a8f5', // Dynatrace blue for tool activity
-  errorRate: '#e6457a', // Pink/red for errors
-  latencyAvg: '#14a8f5', // Blue for avg
-  latencyP50: '#73be28', // Green for p50
-  latencyP95: '#ef8b2f', // Orange for p95
-  tokenInput: '#2ab6f4', // Light blue for input tokens
-  tokenOutput: '#6f2da8', // Purple for output tokens
-  cost: '#e6457a', // Pink for cost
+  toolCalls: 'var(--dt-colors-charts-categorical-color-01-default)', // Dynatrace blue for tool activity
+  errorRate: 'var(--dt-colors-charts-categorical-color-05-default)', // Pink/red for errors
+  latencyAvg: 'var(--dt-colors-charts-categorical-color-01-default)', // Blue for avg
+  latencyP50: 'var(--dt-colors-charts-status-good-default)', // Green for p50
+  latencyP95: 'var(--dt-colors-charts-categorical-color-04-default)', // Orange for p95
+  tokenInput: 'var(--dt-colors-charts-categorical-color-01-default)', // Light blue for input tokens
+  tokenOutput: 'var(--dt-colors-charts-categorical-color-02-default)', // Purple for output tokens
+  cost: 'var(--dt-colors-charts-categorical-color-05-default)', // Pink for cost
   agentActivity: [
     Colors.Charts.Categorical.Color01.Default,
     Colors.Charts.Categorical.Color02.Default,
@@ -84,8 +85,8 @@ const CHART_COLORS = {
 
 // SVG Topology Node Types - Dynatrace standard colors
 const NODE_CONFIGS = {
-  agent: { label: 'Agent', color: '#14a8f5', bgColor: '#14a8f5' },  // Dynatrace blue
-  tool: { label: 'Tool', color: '#6f2da8', bgColor: '#6f2da8' },    // Purple
+  agent: { label: 'Agent', color: 'var(--dt-colors-charts-categorical-color-01-default)', bgColor: 'var(--dt-colors-charts-categorical-color-01-default)' },  // Dynatrace blue
+  tool: { label: 'Tool', color: 'var(--dt-colors-charts-categorical-color-02-default)', bgColor: 'var(--dt-colors-charts-categorical-color-02-default)' },    // Purple
 };
 
 /**
@@ -133,18 +134,18 @@ const MetricCard: React.FC<{
       flex: '1 1 160px'
     }}
   >
-    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
+    <Text style={{ display: 'flex', alignItems: 'center' }}>{icon}</Text>
+    <Flex>
+      <Flex style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</Flex>
       <Flex alignItems="center" gap={4}>
-        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        <Flex style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</Flex>
         {tooltip && (
           <Tooltip text={tooltip}>
             <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
           </Tooltip>
         )}
       </Flex>
-    </div>
+    </Flex>
   </Flex>
 );
 
@@ -237,18 +238,18 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
               <Heading level={6}>Tool Flow Topology</Heading>
               <Flex gap={12} style={{ marginLeft: 'auto' }}>
                 <Flex alignItems="center" gap={4}>
-                  <div style={{ width: 12, height: 12, background: NODE_CONFIGS.agent.color, clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+                  <Flex style={{ width: 12, height: 12, background: NODE_CONFIGS.agent.color, clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
                   <Text style={{ fontSize: 11 }}>Agent</Text>
                 </Flex>
                 <Flex alignItems="center" gap={4}>
-                  <div style={{ width: 12, height: 12, background: NODE_CONFIGS.tool.color, clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+                  <Flex style={{ width: 12, height: 12, background: NODE_CONFIGS.tool.color, clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
                   <Text style={{ fontSize: 11 }}>Tool</Text>
                 </Flex>
               </Flex>
             </Flex>
             
-            <div style={{ 
-              background: '#f9fafb',
+            <Flex style={{ 
+              background: 'var(--dt-colors-background-surface-default)',
               overflow: 'auto',
               padding: '8px 0'
             }}>
@@ -268,7 +269,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                     refY="4"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 4, 0 8" fill="#9ca3af" />
+                    <polygon points="0 0, 10 4, 0 8" fill='var(--dt-colors-text-neutral-subdued)' />
                   </marker>
                   <pattern id="dotPatternFlow" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
                     <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
@@ -276,7 +277,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                 </defs>
 
                 {/* Background */}
-                <rect width="100%" height="100%" fill="#f9fafb" />
+                <rect width="100%" height="100%" fill='var(--dt-colors-background-surface-default)' />
                 <rect width="100%" height="100%" fill="url(#dotPatternFlow)" />
 
                 {/* Edges (lines between nodes) */}
@@ -290,7 +291,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         y1={nodeY}
                         x2={targetX - 6}
                         y2={nodeY}
-                        stroke="#9ca3af"
+                        stroke='var(--dt-colors-text-neutral-subdued)'
                         strokeWidth={1.5}
                         strokeDasharray="4 2"
                         markerEnd="url(#arrowhead-flow)"
@@ -302,8 +303,8 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         width={24}
                         height={16}
                         rx={3}
-                        fill="#ffffff"
-                        stroke="#e5e7eb"
+                        fill='var(--dt-colors-text-primary-inverse)'
+                        stroke='var(--dt-colors-border-neutral-default)'
                         strokeWidth={1}
                       />
                       <text
@@ -312,7 +313,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         textAnchor="middle"
                         fontSize={9}
                         fontWeight={500}
-                        fill="#6b7280"
+                        fill='var(--dt-colors-text-neutral-default)'
                       >
                         #{idx + 1}
                       </text>
@@ -327,7 +328,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                     width={cardWidth}
                     height={cardHeight}
                     rx={5}
-                    fill="#ffffff"
+                    fill='var(--dt-colors-text-primary-inverse)'
                     stroke={NODE_CONFIGS.agent.color}
                     strokeWidth={2}
                     style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.08))' }}
@@ -340,14 +341,14 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                     fill={NODE_CONFIGS.agent.bgColor}
                   />
                   <rect y={12} width={cardWidth} height={8} fill={NODE_CONFIGS.agent.bgColor} />
-                  <text x={8} y={14} fontSize={9} fontWeight={600} fill="#ffffff" style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <text x={8} y={14} fontSize={9} fontWeight={600} fill='var(--dt-colors-text-primary-inverse)' style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Agent
                   </text>
                   {/* Hexagon icon */}
                   <g transform={`translate(${cardWidth/2}, 38)`}>
                     <polygon
                       points="0,-12 10,-6 10,6 0,12 -10,6 -10,-6"
-                      fill="#ffffff"
+                      fill='var(--dt-colors-text-primary-inverse)'
                       stroke={NODE_CONFIGS.agent.color}
                       strokeWidth={1.5}
                     />
@@ -362,7 +363,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                     textAnchor="middle"
                     fontSize={10}
                     fontWeight={600}
-                    fill="#1f2937"
+                    fill='var(--dt-colors-text-primary-default)'
                   >
                     {flow.agentName.length > 14 ? flow.agentName.substring(0, 12) + '...' : flow.agentName}
                   </text>
@@ -379,7 +380,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         width={cardWidth}
                         height={cardHeight}
                         rx={5}
-                        fill="#ffffff"
+                        fill='var(--dt-colors-text-primary-inverse)'
                         stroke={toolColor}
                         strokeWidth={1.5}
                         style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))' }}
@@ -392,17 +393,17 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         fill={toolColor}
                       />
                       <rect y={12} width={cardWidth} height={8} fill={toolColor} />
-                      <text x={8} y={14} fontSize={9} fontWeight={600} fill="#ffffff" style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <text x={8} y={14} fontSize={9} fontWeight={600} fill='var(--dt-colors-text-primary-inverse)' style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                         Tool
                       </text>
-                      <text x={cardWidth - 8} y={14} fontSize={9} fontWeight={600} fill="#ffffff" textAnchor="end">
+                      <text x={cardWidth - 8} y={14} fontSize={9} fontWeight={600} fill='var(--dt-colors-text-primary-inverse)' textAnchor="end">
                         #{idx + 1}
                       </text>
                       {/* Hexagon icon */}
                       <g transform={`translate(${cardWidth/2}, 38)`}>
                         <polygon
                           points="0,-12 10,-6 10,6 0,12 -10,6 -10,-6"
-                          fill="#ffffff"
+                          fill='var(--dt-colors-text-primary-inverse)'
                           stroke={toolColor}
                           strokeWidth={1.5}
                         />
@@ -417,7 +418,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                         textAnchor="middle"
                         fontSize={10}
                         fontWeight={600}
-                        fill="#1f2937"
+                        fill='var(--dt-colors-text-primary-default)'
                       >
                         {tool.length > 14 ? tool.substring(0, 12) + '...' : tool}
                       </text>
@@ -425,7 +426,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                   );
                 })}
               </svg>
-            </div>
+            </Flex>
           </Flex>
         </Surface>
 
@@ -597,12 +598,12 @@ const AgentToolCardNode: React.FC<{
   const cardHeight = 72;
   
   const config = type === 'agent' 
-    ? { label: 'Agent', color: '#14a8f5', icon: 'A' }
-    : { label: 'Tool', color: '#6f2da8', icon: 'T' };
+    ? { label: 'Agent', color: 'var(--dt-colors-charts-categorical-color-01-default)', icon: 'A' }
+    : { label: 'Tool', color: 'var(--dt-colors-charts-categorical-color-02-default)', icon: 'T' };
   
   // Determine health status
   const health = metrics.errorRate > 5 ? 'critical' : metrics.errorRate > 2 ? 'warning' : 'healthy';
-  const healthColor = health === 'critical' ? '#dc172a' : health === 'warning' ? '#f5d30f' : '#73be28';
+  const healthColor = health === 'critical' ? 'var(--dt-colors-charts-status-critical-default)' : health === 'warning' ? 'var(--dt-colors-charts-status-warning-default)' : 'var(--dt-colors-charts-status-good-default)';
   
   // Display name with truncation
   const displayName = name.length > 14 ? name.substring(0, 12) + '...' : name;
@@ -634,8 +635,8 @@ const AgentToolCardNode: React.FC<{
         width={cardWidth}
         height={cardHeight}
         rx={6}
-        fill="#ffffff"
-        stroke={isHighlighted ? config.color : '#e5e7eb'}
+        fill='var(--dt-colors-text-primary-inverse)'
+        stroke={isHighlighted ? config.color : 'var(--dt-colors-border-neutral-default)'}
         strokeWidth={isHighlighted ? 2 : 1}
       />
       
@@ -659,7 +660,7 @@ const AgentToolCardNode: React.FC<{
         y={13}
         fontSize={9}
         fontWeight={600}
-        fill="#ffffff"
+        fill='var(--dt-colors-text-primary-inverse)'
         style={{ textTransform: 'uppercase' }}
       >
         {config.label}
@@ -671,7 +672,7 @@ const AgentToolCardNode: React.FC<{
         y={13}
         fontSize={9}
         fontWeight={600}
-        fill="#ffffff"
+        fill='var(--dt-colors-text-primary-inverse)'
         textAnchor="end"
       >
         {callsDisplay}
@@ -681,7 +682,7 @@ const AgentToolCardNode: React.FC<{
       <g transform={`translate(${cardWidth/2}, 40)`}>
         <polygon
           points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7"
-          fill="#ffffff"
+          fill='var(--dt-colors-text-primary-inverse)'
           stroke={config.color}
           strokeWidth={1.5}
         />
@@ -704,7 +705,7 @@ const AgentToolCardNode: React.FC<{
         textAnchor="middle"
         fontSize={11}
         fontWeight={600}
-        fill="#1f2937"
+        fill='var(--dt-colors-text-primary-default)'
       >
         {displayName}
       </text>
@@ -824,9 +825,9 @@ const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolRelia
     const opacity = highlighted ? 0.9 : 0.5;
     
     // Color based on error rate
-    const edgeColor = rel.errorRate > 5 ? '#dc172a' : 
-                      rel.errorRate > 2 ? '#f5d30f' : 
-                      '#9ca3af';
+    const edgeColor = rel.errorRate > 5 ? 'var(--dt-colors-charts-status-critical-default)' : 
+                      rel.errorRate > 2 ? 'var(--dt-colors-charts-status-warning-default)' : 
+                      'var(--dt-colors-text-neutral-subdued)';
 
     // Calculate edge endpoints (from card edges)
     const startX = agentPos.x + cardWidth / 2 + 5;
@@ -863,8 +864,8 @@ const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolRelia
               width={56}
               height={20}
               rx={4}
-              fill="#ffffff"
-              stroke="#e5e7eb"
+              fill='var(--dt-colors-text-primary-inverse)'
+              stroke='var(--dt-colors-border-neutral-default)'
               strokeWidth={1}
               style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
             />
@@ -874,7 +875,7 @@ const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolRelia
               textAnchor="middle"
               fontSize={9}
               fontWeight={500}
-              fill="#374151"
+              fill='var(--dt-colors-text-primary-default)'
             >
               {callsLabel} calls
             </text>
@@ -913,7 +914,7 @@ const AgentToolTopologySVG: React.FC<AgentToolTopologyProps> = ({ agentToolRelia
           refY={3}
           orient="auto"
         >
-          <polygon points="0 0, 8 3, 0 6" fill="#9ca3af" />
+          <polygon points="0 0, 8 3, 0 6" fill='var(--dt-colors-text-neutral-subdued)' />
         </marker>
       </defs>
       
@@ -1192,7 +1193,7 @@ const ConversationStateTab: React.FC<{
             <Heading level={5}>Conversation State Distribution</Heading>
             <Flex gap={24} flexWrap="wrap" alignItems="center">
               {/* DonutChart for conversation state breakdown */}
-              <div style={{ width: 180, height: 180, flexShrink: 0 }}>
+              <Flex style={{ width: 180, height: 180, flexShrink: 0 }}>
                 <DonutChart
                   data={{
                     slices: [
@@ -1209,7 +1210,7 @@ const ConversationStateTab: React.FC<{
                   <DonutChart.Legend hidden />
                   <DonutChart.Toolbar hidden />
                 </DonutChart>
-              </div>
+              </Flex>
               {/* Metric cards alongside the donut */}
               <Flex gap={12} flexWrap="wrap" style={{ flex: 1 }}>
                 <MetricCard value={formatNumber(conversationState.total)} label="Total Conversations" icon={<WorkflowsIcon />} />
@@ -1352,7 +1353,7 @@ const DeepDiveTraceWaterfallModal: React.FC<{
 }> = ({ traceId, spans, onClose }) => {
   const columns = useMemo(
     () => [
-      { id: 'startTime', header: 'Time', accessor: (r: AgentTraceSpan) => new Date(r.startTime).toLocaleTimeString(), columnType: 'text' as const },
+      { id: 'startTime', header: 'Time', accessor: (r: AgentTraceSpan) => formatTime(r.startTime), columnType: 'text' as const },
       { id: 'spanName', header: 'Span', accessor: 'spanName', columnType: 'text' as const },
       { id: 'spanKind', header: 'Kind', accessor: 'spanKind', columnType: 'text' as const },
       { id: 'agentName', header: 'Agent', accessor: 'agentName', columnType: 'text' as const },
@@ -1922,7 +1923,7 @@ export const AgentTools: React.FC = () => {
         }
         return (
           <Flex alignItems="center" justifyContent="center" gap={6} style={{ width: '100%' }}>
-            <div style={{ 
+            <Flex style={{ 
               width: 80,
               height: 14, 
               background: 'var(--dt-colors-background-container-neutral-subdued)',
@@ -1930,17 +1931,17 @@ export const AgentTools: React.FC = () => {
               overflow: 'hidden',
               display: 'flex'
             }}>
-              <div style={{ 
+              <Flex style={{ 
                 width: `${llmPct}%`, 
                 height: '100%', 
                 background: Colors.Charts.Categorical.Color01.Default
               }} />
-              <div style={{ 
+              <Flex style={{ 
                 width: `${toolPct}%`, 
                 height: '100%', 
                 background: Colors.Charts.Categorical.Color02.Default
               }} />
-            </div>
+            </Flex>
             <Text style={{ fontSize: 10, minWidth: 55 }}>
               {llmPct}% / {toolPct}%
             </Text>
@@ -2062,7 +2063,7 @@ export const AgentTools: React.FC = () => {
         const isSelfTransfer = rowData.sourceAgent === rowData.targetAgent;
         return (
           <Flex alignItems="center" gap={6}>
-            <span style={{ 
+            <Text style={{ 
               width: 10, height: 10, borderRadius: '50%', 
               backgroundColor: NODE_CONFIGS.agent.color 
             }} />
@@ -2101,7 +2102,7 @@ export const AgentTools: React.FC = () => {
         const isSelfTransfer = rowData.sourceAgent === rowData.targetAgent;
         return (
           <Flex alignItems="center" gap={6}>
-            <span style={{ 
+            <Text style={{ 
               width: 10, height: 10, borderRadius: '50%', 
               backgroundColor: isSelfTransfer ? STATUS_COLORS.warning : Colors.Charts.Categorical.Color03.Default 
             }} />
@@ -2141,7 +2142,7 @@ export const AgentTools: React.FC = () => {
       id: 'agentName',
       cell: ({ value }: { value: string }) => (
         <Flex alignItems="center" gap={6}>
-          <span style={{ 
+          <Text style={{ 
             width: 10, height: 10, borderRadius: '50%', 
             backgroundColor: NODE_CONFIGS.agent.color 
           }} />
@@ -2156,7 +2157,7 @@ export const AgentTools: React.FC = () => {
       id: 'toolName',
       cell: ({ value }: { value: string }) => (
         <Flex alignItems="center" gap={6}>
-          <span style={{ 
+          <Text style={{ 
             width: 10, height: 10, borderRadius: '50%', 
             backgroundColor: NODE_CONFIGS.tool.color 
           }} />
@@ -2289,7 +2290,7 @@ export const AgentTools: React.FC = () => {
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontWeight: 600 }}>Detected Frameworks:</Text>
           {frameworkDetections.map(fd => (
             <Tooltip key={fd.framework.id} text={`${fd.framework.description} — ${fd.evidence.length} evidence signals, ${fd.serviceCount} service(s), confidence: ${fd.confidence}`}>
-              <span style={{
+              <Text style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
                 backgroundColor: `${fd.framework.color}20`,
@@ -2297,8 +2298,8 @@ export const AgentTools: React.FC = () => {
                 border: `1px solid ${fd.framework.color}40`,
               }}>
                 {fd.framework.icon} {fd.framework.displayName}
-                <span style={{ fontSize: 10, opacity: 0.7 }}>({fd.confidence})</span>
-              </span>
+                <Text style={{ fontSize: 10, opacity: 0.7 }}>({fd.confidence})</Text>
+              </Text>
             </Tooltip>
           ))}
         </Flex>
@@ -2337,7 +2338,7 @@ export const AgentTools: React.FC = () => {
             <Button.Prefix><RefreshIcon /></Button.Prefix>
             Refresh
           </Button>
-          <div style={{ flex: 1 }} />
+          <Flex style={{ flex: 1 }} />
           <Button variant="default" onClick={() => setShowSettings(s => !s)} title="Configure visible sections">
             <Button.Prefix><SettingIcon /></Button.Prefix>
           </Button>
@@ -2489,16 +2490,16 @@ export const AgentTools: React.FC = () => {
                         <BarChartIcon style={{ color: Colors.Charts.Categorical.Color01.Default }} />
                         <Heading level={5}>Agent Performance Summary</Heading>
                       </Flex>
-                      <span style={{ 
+                      <Text style={{ 
                         padding: '2px 8px', 
                         borderRadius: '4px', 
-                        backgroundColor: '#14a8f5',
+                        backgroundColor: 'var(--dt-colors-charts-categorical-color-01-default)',
                         color: 'white',
                         fontSize: '10px',
                         fontWeight: 600
                       }}>
                         INDUSTRY STANDARD
-                      </span>
+                      </Text>
                       <Tooltip text="Key performance indicators for AI agent observability - success rate, token efficiency, cost tracking, and latency">
                         <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                       </Tooltip>
@@ -2525,7 +2526,7 @@ export const AgentTools: React.FC = () => {
                             borderLeft: `4px solid ${successColor}`
                           }}>
                             <Flex alignItems="center" gap={16}>
-                              <div style={{ width: 110, height: 110, flexShrink: 0 }}>
+                              <Flex style={{ width: 110, height: 110, flexShrink: 0 }}>
                                 <DonutChart
                                   data={successDonutData}
                                   height={110}
@@ -2536,7 +2537,7 @@ export const AgentTools: React.FC = () => {
                                   <DonutChart.Labels hidden />
                                   <DonutChart.Toolbar hidden />
                                 </DonutChart>
-                              </div>
+                              </Flex>
                               <Flex flexDirection="column" gap={4}>
                                 <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Agent Success Rate</Text>
                                 <Heading level={2} style={{ color: successColor }}>{successRate.toFixed(1)}%</Heading>
@@ -2659,7 +2660,7 @@ export const AgentTools: React.FC = () => {
                               
                               return (
                                 <Flex alignItems="center" gap={16}>
-                                  <div style={{ width: 130, height: 130, flexShrink: 0 }}>
+                                  <Flex style={{ width: 130, height: 130, flexShrink: 0 }}>
                                     <DonutChart
                                       data={timeDonutData}
                                       height={130}
@@ -2670,14 +2671,14 @@ export const AgentTools: React.FC = () => {
                                       <DonutChart.Labels hidden />
                                       <DonutChart.Toolbar hidden />
                                     </DonutChart>
-                                  </div>
+                                  </Flex>
                                   <Flex flexDirection="column" gap={6}>
                                     <Flex alignItems="center" gap={6}>
-                                      <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
+                                      <Text style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
                                       <Text textStyle="small">LLM: {formatDuration(totalLLMTime)} ({llmPct.toFixed(1)}%)</Text>
                                     </Flex>
                                     <Flex alignItems="center" gap={6}>
-                                      <span style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
+                                      <Text style={{ width: 12, height: 12, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
                                       <Text textStyle="small">Tool: {formatDuration(totalToolTime)} ({toolPct.toFixed(1)}%)</Text>
                                     </Flex>
                                     <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)', marginTop: 4 }}>
@@ -2723,29 +2724,29 @@ export const AgentTools: React.FC = () => {
                                             {successRate.toFixed(1)}%
                                           </Text>
                                         </Flex>
-                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
-                                          <div style={{ 
+                                        <Flex style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
+                                          <Flex style={{ 
                                             height: '100%', 
                                             width: `${successRate}%`, 
                                             borderRadius: 4, 
                                             background: barColor,
                                             transition: 'width 0.3s ease'
                                           }} />
-                                        </div>
+                                        </Flex>
                                       </Flex>
                                     );
                                   })}
                                   <Flex gap={12} style={{ marginTop: 4 }}>
                                     <Flex alignItems="center" gap={4}>
-                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
+                                      <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
                                       <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>&ge;95%</Text>
                                     </Flex>
                                     <Flex alignItems="center" gap={4}>
-                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+                                      <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
                                       <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>85-95%</Text>
                                     </Flex>
                                     <Flex alignItems="center" gap={4}>
-                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+                                      <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
                                       <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>&lt;85%</Text>
                                     </Flex>
                                   </Flex>
@@ -2821,11 +2822,11 @@ export const AgentTools: React.FC = () => {
                   )}
                   <Flex gap={12} style={{ marginLeft: 'auto' }}>
                     <Flex alignItems="center" gap={4}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
+                      <Text style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color01.Default }} />
                       <Text style={{ fontSize: 11 }}>LLM</Text>
                     </Flex>
                     <Flex alignItems="center" gap={4}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
+                      <Text style={{ width: 10, height: 10, borderRadius: 2, background: Colors.Charts.Categorical.Color02.Default }} />
                       <Text style={{ fontSize: 11 }}>Tool</Text>
                     </Flex>
                   </Flex>
@@ -2925,16 +2926,16 @@ export const AgentTools: React.FC = () => {
                 <Flex alignItems="center" gap={8}>
                   <WorkflowsIcon style={{ color: Colors.Charts.Categorical.Color06.Default }} />
                   <Heading level={5}>Agent Flow Efficiency</Heading>
-                  <span style={{ 
+                  <Text style={{ 
                     padding: '2px 8px', 
                     borderRadius: '4px', 
-                    backgroundColor: '#7c3aed',
+                    backgroundColor: 'var(--dt-colors-charts-categorical-color-02-default)',
                     color: 'white',
                     fontSize: '10px',
                     fontWeight: 600
                   }}>
                     UNIQUE GCC
-                  </span>
+                  </Text>
                   <Tooltip text="Analyzes multi-step agent conversations for efficiency. Detects repetitive patterns, token waste, and optimization opportunities. Exclusive to GenAI Control Center.">
                     <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
@@ -3043,23 +3044,23 @@ export const AgentTools: React.FC = () => {
                             </Text>
                           </Flex>
                           {/* Mini progress bar */}
-                          <div style={{ 
+                          <Flex style={{ 
                             width: '100%', 
                             height: 6, 
                             borderRadius: 3, 
-                            background: '#e0e0e0',
+                            background: 'var(--dt-colors-border-neutral-default)',
                             overflow: 'hidden',
                             display: 'flex'
                           }}>
-                            <div style={{ 
+                            <Flex style={{ 
                               width: `${flowEfficiencyMetrics.llmTimeRatio}%`, 
                               background: Colors.Charts.Categorical.Color01.Default 
                             }} />
-                            <div style={{ 
+                            <Flex style={{ 
                               width: `${flowEfficiencyMetrics.toolTimeRatio}%`, 
                               background: Colors.Charts.Categorical.Color02.Default 
                             }} />
-                          </div>
+                          </Flex>
                         </Flex>
                       </Surface>
 
@@ -3178,7 +3179,7 @@ export const AgentTools: React.FC = () => {
                             other: 'var(--dt-colors-text-secondary-default)'
                           };
                           return (
-                            <span style={{ 
+                            <Text style={{ 
                               padding: '2px 8px', 
                               borderRadius: 4, 
                               backgroundColor: `${typeColors[value] || typeColors.other}20`,
@@ -3188,7 +3189,7 @@ export const AgentTools: React.FC = () => {
                               textTransform: 'uppercase'
                             }}>
                               {value}
-                            </span>
+                            </Text>
                           );
                         },
                         minWidth: 90
@@ -3310,7 +3311,7 @@ export const AgentTools: React.FC = () => {
                         id: 'entityName',
                         cell: ({ rowData }: { rowData: AgentEntityMapping }) => (
                           <Flex alignItems="center" gap={6}>
-                            <ServicesIcon style={{ width: 14, height: 14, color: '#14a8f5' }} />
+                            <ServicesIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-categorical-color-01-default)' }} />
                             <Text style={{ fontWeight: 500 }}>{rowData.entityName}</Text>
                           </Flex>
                         ),
@@ -3465,7 +3466,7 @@ export const AgentTools: React.FC = () => {
                 {agentToolReliability.length > 0 ? (
                   <Flex flexDirection="column" gap={16}>
                     {/* SVG Topology Visualization */}
-                    <div style={{ 
+                    <Flex style={{ 
                       width: '100%', 
                       minHeight: 320, 
                       backgroundColor: 'var(--dt-colors-background-container-neutral-subdued)',
@@ -3473,24 +3474,24 @@ export const AgentTools: React.FC = () => {
                       overflow: 'hidden'
                     }}>
                       <AgentToolTopologySVG agentToolReliability={agentToolReliability} />
-                    </div>
+                    </Flex>
                     
                     {/* Legend */}
                     <Flex gap={16} flexWrap="wrap" justifyContent="center">
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.agent.color }} />
+                        <Text style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.agent.color }} />
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Agent</Text>
                       </Flex>
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.tool.color }} />
+                        <Text style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: NODE_CONFIGS.tool.color }} />
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Tool</Text>
                       </Flex>
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 30, height: 3, backgroundColor: 'var(--dt-colors-border-neutral-default)', borderRadius: 2 }} />
+                        <Text style={{ width: 30, height: 3, backgroundColor: 'var(--dt-colors-border-neutral-default)', borderRadius: 2 }} />
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Usage (thicker = more calls)</Text>
                       </Flex>
                       <Flex alignItems="center" gap={6}>
-                        <span style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: STATUS_COLORS.critical }} />
+                        <Text style={{ width: 24, height: 14, borderRadius: 3, backgroundColor: STATUS_COLORS.critical }} />
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High Error Rate (&gt;5%)</Text>
                       </Flex>
                     </Flex>
@@ -3878,7 +3879,7 @@ export const AgentTools: React.FC = () => {
             {activeTab === 'trends' && (
               <>
             {/* Row 1: Error Rate + Latency */}
-            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
               {/* Error Rate Over Time */}
               {sectionToggles.errorRateTrend !== false && (
               <Surface padding={16}>
@@ -3947,7 +3948,7 @@ export const AgentTools: React.FC = () => {
             </Flex>
 
             {/* Row 2: Cost + Token Consumption */}
-            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
               {/* Hourly Cost Trend */}
               {sectionToggles.costTrend !== false && (
               <Surface padding={16}>
@@ -4016,7 +4017,7 @@ export const AgentTools: React.FC = () => {
             </Flex>
 
             {/* Row 3: Tool Calls + Agent Activity (volume context) */}
-            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <Flex gap={16} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
               {/* Tool Calls Over Time */}
               {sectionToggles.toolCallsTrend !== false && (
               <Surface padding={16}>

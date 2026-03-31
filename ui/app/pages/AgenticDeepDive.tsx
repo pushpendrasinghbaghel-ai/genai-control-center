@@ -31,6 +31,7 @@ import { useAgenticDeepDive } from '../hooks/useAgenticDeepDive';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
 import type { QueryFilters } from '../hooks/useDQLQueries';
+import { formatTime } from '../utils/formatting';
 import type {
   AgentStepSummary,
   AgentExitCondition,
@@ -74,18 +75,18 @@ const MetricCard: React.FC<{
       flex: '1 1 160px',
     }}
   >
-    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
+    <Text style={{ display: 'flex', alignItems: 'center' }}>{icon}</Text>
+    <Flex>
+      <Flex style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</Flex>
       <Flex alignItems="center" gap={4}>
-        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        <Flex style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</Flex>
         {tooltip && (
           <Tooltip text={tooltip}>
             <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
           </Tooltip>
         )}
       </Flex>
-    </div>
+    </Flex>
   </Flex>
 );
 
@@ -723,7 +724,7 @@ const TraceWaterfallModal: React.FC<{
       {
         id: 'startTime',
         header: 'Time',
-        accessor: (r: AgentTraceSpan) => new Date(r.startTime).toLocaleTimeString(),
+        accessor: (r: AgentTraceSpan) => formatTime(r.startTime),
         columnType: 'text' as const,
       },
       { id: 'spanName', header: 'Span', accessor: 'spanName', columnType: 'text' as const },

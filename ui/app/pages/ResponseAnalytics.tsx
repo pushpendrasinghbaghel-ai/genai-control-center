@@ -16,6 +16,7 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
+import { formatTime, formatNumber } from '../utils/formatting';
 
 import { 
   useResponseAnalytics, 
@@ -87,7 +88,7 @@ function EfficiencyRing({ value, maxValue, label, sublabel, size = 80 }: Efficie
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e0e0e0"
+          stroke='var(--dt-colors-border-neutral-default)'
           strokeWidth={strokeWidth}
         />
         <circle
@@ -133,11 +134,11 @@ function ModelCard({ model, rank }: ModelCardProps) {
     <Surface style={{ padding: '16px', minWidth: '220px', flex: '1 1 220px' }}>
       <Flex flexDirection="column" gap={12}>
         <Flex alignItems="center" gap={8}>
-          <div style={{
+          <Flex style={{
             width: '32px',
             height: '32px',
             borderRadius: '50%',
-            backgroundColor: rank === 1 ? STATUS_COLORS.excellent : '#e0e0e0',
+            backgroundColor: rank === 1 ? STATUS_COLORS.excellent : 'var(--dt-colors-border-neutral-default)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -145,7 +146,7 @@ function ModelCard({ model, rank }: ModelCardProps) {
             fontWeight: 'bold'
           }}>
             #{rank}
-          </div>
+          </Flex>
           <Flex flexDirection="column">
             <Text textStyle="base-emphasized">{model.model}</Text>
             <Text textStyle="small" style={{ opacity: 0.7 }}>{model.provider}</Text>
@@ -153,15 +154,15 @@ function ModelCard({ model, rank }: ModelCardProps) {
         </Flex>
 
         <Tooltip text={METRIC_TOOLTIPS.efficiencyScore}>
-          <div>
+          <Flex>
             <EfficiencyRing
               value={model.efficiencyScore}
               maxValue={100}
               label="Efficiency Score"
-              sublabel={`${model.totalRequests.toLocaleString()} requests`}
+              sublabel={`${formatNumber(model.totalRequests)} requests`}
               size={80}
             />
-          </div>
+          </Flex>
         </Tooltip>
 
         <Flex flexDirection="column" gap={8}>
@@ -203,7 +204,7 @@ function ServiceRow({ metric }: ServiceRowProps) {
             <Text textStyle="base-emphasized">{metric.serviceName}</Text>
             {metric.inefficient && (
               <Tooltip text="Low token efficiency - high input, low output">
-                <span style={{ 
+                <Text style={{ 
                   padding: '2px 6px', 
                   borderRadius: '4px', 
                   backgroundColor: STATUS_COLORS.poor,
@@ -211,12 +212,12 @@ function ServiceRow({ metric }: ServiceRowProps) {
                   fontSize: '10px'
                 }}>
                   Inefficient
-                </span>
+                </Text>
               </Tooltip>
             )}
             {metric.inconsistent && (
               <Tooltip text="High output variance - inconsistent responses">
-                <span style={{ 
+                <Text style={{ 
                   padding: '2px 6px', 
                   borderRadius: '4px', 
                   backgroundColor: STATUS_COLORS.fair,
@@ -224,7 +225,7 @@ function ServiceRow({ metric }: ServiceRowProps) {
                   fontSize: '10px'
                 }}>
                   Inconsistent
-                </span>
+                </Text>
               </Tooltip>
             )}
           </Flex>
@@ -234,7 +235,7 @@ function ServiceRow({ metric }: ServiceRowProps) {
         <Flex gap={24} alignItems="center" flexWrap="wrap">
           <Flex flexDirection="column" alignItems="flex-end">
             <Text textStyle="small" style={{ opacity: 0.7 }}>Requests</Text>
-            <Text textStyle="base-emphasized">{metric.requestCount.toLocaleString()}</Text>
+            <Text textStyle="base-emphasized">{formatNumber(metric.requestCount)}</Text>
           </Flex>
           <Flex flexDirection="column" alignItems="flex-end">
             <Tooltip text={METRIC_TOOLTIPS.tokenRatio}>
@@ -374,7 +375,7 @@ export function ResponseAnalytics() {
 
   // Content table columns
   const contentColumns = useMemo(() => [
-    { id: 'timestamp', header: 'Time', accessor: (row: any) => new Date(row.timestamp).toLocaleTimeString(), ratioWidth: 1 },
+    { id: 'timestamp', header: 'Time', accessor: (row: any) => formatTime(row.timestamp), ratioWidth: 1 },
     { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
     { id: 'requestModel', header: 'Model', accessor: 'requestModel', ratioWidth: 1.2 },
     { id: 'promptPreview', header: 'Prompt', accessor: 'promptPreview', ratioWidth: 3 },
@@ -444,7 +445,7 @@ export function ResponseAnalytics() {
           <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
             <Flex flexDirection="column" gap={8}>
               <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
-              <Heading level={2}>{summary.totalRequests.toLocaleString()}</Heading>
+              <Heading level={2}>{formatNumber(summary.totalRequests)}</Heading>
             </Flex>
           </Surface>
           <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
@@ -492,7 +493,7 @@ export function ResponseAnalytics() {
       )}
 
       {/* Tab Navigation */}
-      <Flex gap={8} style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px' }}>
+      <Flex gap={8} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: '8px' }}>
         <Button
           variant={activeTab === 'overview' ? 'accent' : 'default'}
           onClick={() => setActiveTab('overview')}
@@ -523,7 +524,7 @@ export function ResponseAnalytics() {
         >
           Streaming vs Batch
           {streamingSummary && streamingSummary.streamingCount > 0 && (
-            <span style={{ 
+            <Text style={{ 
               padding: '2px 6px', 
               borderRadius: '4px', 
               backgroundColor: Colors.Charts.Categorical.Color06.Default,
@@ -533,7 +534,7 @@ export function ResponseAnalytics() {
               fontWeight: 600
             }}>
               LIVE
-            </span>
+            </Text>
           )}
         </Button>
         <Button
@@ -554,9 +555,9 @@ export function ResponseAnalytics() {
         >
           Model Aliasing
           {aliases.filter(a => a.isMismatch).length > 0 && (
-            <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: STATUS_COLORS.fair, color: 'white', fontSize: '9px', marginLeft: '4px', fontWeight: 600 }}>
+            <Text style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: STATUS_COLORS.fair, color: 'white', fontSize: '9px', marginLeft: '4px', fontWeight: 600 }}>
               {aliases.filter(a => a.isMismatch).length}
-            </span>
+            </Text>
           )}
         </Button>
         <Button
@@ -755,7 +756,7 @@ export function ResponseAnalytics() {
                 <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Streaming Requests</Text>
-                    <Heading level={3}>{streamingSummary.streamingCount.toLocaleString()}</Heading>
+                    <Heading level={3}>{formatNumber(streamingSummary.streamingCount)}</Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>
                       {streamingSummary.streamingPct.toFixed(1)}% of total
                     </Text>
@@ -764,7 +765,7 @@ export function ResponseAnalytics() {
                 <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Batch Requests</Text>
-                    <Heading level={3}>{streamingSummary.batchCount.toLocaleString()}</Heading>
+                    <Heading level={3}>{formatNumber(streamingSummary.batchCount)}</Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>
                       {(100 - streamingSummary.streamingPct).toFixed(1)}% of total
                     </Text>
@@ -797,7 +798,7 @@ export function ResponseAnalytics() {
             {streamingEntries.length > 0 ? (
               <Flex flexDirection="column" gap={8}>
                 <Heading level={5}>Per-Model Breakdown</Heading>
-                <div style={{ overflowX: 'auto' }}>
+                <Flex style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ borderBottom: '2px solid var(--dt-colors-border-neutral-default)' }}>
@@ -818,7 +819,7 @@ export function ResponseAnalytics() {
                           backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--dt-colors-surface-default-secondary)'
                         }}>
                           <td style={{ padding: '8px 12px' }}>
-                            <span style={{
+                            <Text style={{
                               padding: '2px 8px',
                               borderRadius: 4,
                               fontSize: 11,
@@ -831,13 +832,13 @@ export function ResponseAnalytics() {
                                 : 'inherit'
                             }}>
                               {entry.mode}
-                            </span>
+                            </Text>
                           </td>
                           <td style={{ padding: '8px 12px' }}>{entry.provider}</td>
                           <td style={{ padding: '8px 12px' }}>
                             <Text textStyle="small-emphasized">{entry.model}</Text>
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>{entry.requestCount.toLocaleString()}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>{formatNumber(entry.requestCount)}</td>
                           <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                             {entry.avgLatencyMs >= 1000 
                               ? `${(entry.avgLatencyMs / 1000).toFixed(2)}s`
@@ -850,19 +851,19 @@ export function ResponseAnalytics() {
                           </td>
                           <td style={{ padding: '8px 12px', textAlign: 'right' }}>{Math.round(entry.avgOutputTokens)}</td>
                           <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            <span style={{ 
+                            <Text style={{ 
                               color: entry.errorRate > 5 ? STATUS_COLORS.poor 
                                 : entry.errorRate > 1 ? STATUS_COLORS.fair 
                                 : STATUS_COLORS.excellent 
                             }}>
                               {entry.errorRate.toFixed(2)}%
-                            </span>
+                            </Text>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </Flex>
               </Flex>
             ) : !streamingLoading && (
               <Text style={{ opacity: 0.7 }}>
@@ -973,7 +974,7 @@ export function ResponseAnalytics() {
                   <Flex flexDirection="column" gap={8}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
                     <Heading level={3}>
-                      {qualitySummary!.totalRequests.toLocaleString()}
+                      {formatNumber(qualitySummary!.totalRequests)}
                     </Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
                   </Flex>
@@ -1039,13 +1040,13 @@ export function ResponseAnalytics() {
                       <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
                     </Tooltip>
                   </Flex>
-                  <div style={{ height: '300px' }}>
+                  <Flex style={{ height: '300px' }}>
                     <TimeseriesChart
                       data={qualityChartData}
                     >
                       <TimeseriesChart.Legend />
                     </TimeseriesChart>
-                  </div>
+                  </Flex>
                 </Flex>
               </Surface>
             )}
@@ -1121,14 +1122,14 @@ export function ResponseAnalytics() {
                 <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Spans with Content</Text>
-                    <Heading level={3}>{finishSummary.totalWithContent.toLocaleString()}</Heading>
+                    <Heading level={3}>{formatNumber(finishSummary.totalWithContent)}</Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>gen_ai.completion.0.content</Text>
                   </Flex>
                 </Surface>
                 <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Spans with Finish Reason</Text>
-                    <Heading level={3}>{finishSummary.totalWithFinishReason.toLocaleString()}</Heading>
+                    <Heading level={3}>{formatNumber(finishSummary.totalWithFinishReason)}</Heading>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>gen_ai.completion.0.finish_reason</Text>
                   </Flex>
                 </Surface>
@@ -1157,16 +1158,16 @@ export function ResponseAnalytics() {
                       <Surface key={d.reason} style={{ padding: '12px 16px', minWidth: '120px' }}>
                         <Flex flexDirection="column" gap={4} alignItems="center">
                           <Text textStyle="base-emphasized">{d.reason}</Text>
-                          <Heading level={4}>{d.count.toLocaleString()}</Heading>
+                          <Heading level={4}>{formatNumber(d.count)}</Heading>
                           <Text textStyle="small" style={{ opacity: 0.7 }}>{d.pct.toFixed(1)}%</Text>
-                          <div style={{
+                          <Flex style={{
                             width: '100%',
                             height: '4px',
                             borderRadius: '2px',
-                            backgroundColor: '#e0e0e0',
+                            backgroundColor: 'var(--dt-colors-border-neutral-default)',
                             overflow: 'hidden'
                           }}>
-                            <div style={{
+                            <Flex style={{
                               width: `${Math.min(d.pct, 100)}%`,
                               height: '100%',
                               borderRadius: '2px',
@@ -1174,7 +1175,7 @@ export function ResponseAnalytics() {
                                 : d.reason === 'length' ? STATUS_COLORS.fair
                                 : STATUS_COLORS.poor,
                             }} />
-                          </div>
+                          </Flex>
                         </Flex>
                       </Surface>
                     ))}
@@ -1251,7 +1252,7 @@ export function ResponseAnalytics() {
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Affected Requests</Text>
                     <Heading level={3}>
-                      {aliases.filter(a => a.isMismatch).reduce((s, a) => s + a.count, 0).toLocaleString()}
+                      {formatNumber(aliases.filter(a => a.isMismatch).reduce((s, a) => s + a.count, 0))}
                     </Heading>
                   </Flex>
                 </Surface>
@@ -1326,7 +1327,7 @@ export function ResponseAnalytics() {
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Max Prompt Length</Text>
                     <Heading level={3}>
-                      {Math.max(...lengthTrends.map(t => t.maxPromptLength)).toLocaleString()} chars
+                      {formatNumber(Math.max(...lengthTrends.map(t => t.maxPromptLength)))} chars
                     </Heading>
                   </Flex>
                 </Surface>
@@ -1334,7 +1335,7 @@ export function ResponseAnalytics() {
                   <Flex flexDirection="column" gap={4}>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>Max Response Length</Text>
                     <Heading level={3}>
-                      {Math.max(...lengthTrends.map(t => t.maxResponseLength)).toLocaleString()} chars
+                      {formatNumber(Math.max(...lengthTrends.map(t => t.maxResponseLength)))} chars
                     </Heading>
                   </Flex>
                 </Surface>
@@ -1346,11 +1347,11 @@ export function ResponseAnalytics() {
               <Surface style={{ padding: '20px' }}>
                 <Flex flexDirection="column" gap={12}>
                   <Heading level={5}>Prompt & Response Length Over Time</Heading>
-                  <div style={{ height: '300px' }}>
+                  <Flex style={{ height: '300px' }}>
                     <TimeseriesChart data={lengthChartData}>
                       <TimeseriesChart.Legend />
                     </TimeseriesChart>
-                  </div>
+                  </Flex>
                 </Flex>
               </Surface>
             )}

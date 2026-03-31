@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Flex, Surface } from "@dynatrace/strato-components/layouts";
-import { Paragraph, Strong } from "@dynatrace/strato-components/typography";
+import { Paragraph, Strong, Text } from "@dynatrace/strato-components/typography";
 import { ProgressCircle } from "@dynatrace/strato-components/content";
 import { Button } from "@dynatrace/strato-components/buttons";
 import { TitleBar } from "@dynatrace/strato-components/layouts";
@@ -105,13 +105,13 @@ const StatCard: React.FC<{
       borderRadius: 6, 
       background: 'var(--dt-colors-surface-default)',
       border: '1px solid var(--dt-colors-border-neutral-default)',
-      minWidth: 130
+      flex: '1 1 130px',
     }}
   >
-    <span style={{ color: color || 'var(--dt-colors-text-secondary-default)', display: 'flex' }}>{icon}</span>
+    <Flex style={{ color: color || 'var(--dt-colors-text-secondary-default)' }}>{icon}</Flex>
     <Flex flexDirection="column" gap={0}>
-      <span style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</span>
-      <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase' }}>{label}</span>
+      <Strong style={{ fontSize: 18, color: color || 'inherit', lineHeight: 1.2 }}>{value}</Strong>
+      <Paragraph style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)', textTransform: 'uppercase', margin: 0 }}>{label}</Paragraph>
     </Flex>
   </Flex>
 );
@@ -586,7 +586,7 @@ export const Home = () => {
               />
             </Flex>
           ) : (
-            <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>No AI services discovered</span>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>No AI services discovered</Text>
           )}
       </Flex>
 
@@ -597,13 +597,13 @@ export const Home = () => {
         <>
           <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
             <BarChartIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
-            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Usage & Cost Trends</span>
+            <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Usage & Cost Trends</Text>
           </Flex>
 
           {/* Usage & Cost Grid - 2x2 */}
-          <div style={{ 
+          <Flex style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
             gap: 16,
           }}>
             {/* Token Trend - Real DQL Timeseries */}
@@ -612,12 +612,12 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={8}>
                   <BarChartIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} aria-hidden="true" />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Token Usage Trend</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Token Usage Trend</Text>
                   <Tooltip text="Total tokens (input + output) consumed over time by provider. Each color = different provider. Spikes indicate high usage periods. 1K tokens ≈ 750 words.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</span>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</Text>
               </Flex>
               {trendLoading ? (
                 <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
@@ -636,7 +636,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No token data in timeframe</span>
+                  <Text style={{ fontSize: 11 }}>No token data in timeframe</Text>
                 </Flex>
               )}
             </Flex>
@@ -648,12 +648,12 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <MoneyIcon style={{ width: 14, height: 14, color: CHART_COLORS.warning }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Cost Trend</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Cost Trend</Text>
                   <Tooltip text="Estimated costs based on token usage × provider pricing. Uses public rates (OpenAI $0.50-$15/MTok). Watch for unexpected spikes indicating cost anomalies.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.warning }}>{formatCurrency(chartTotals.cost)}</span>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.warning }}>{formatCurrency(chartTotals.cost)}</Text>
               </Flex>
               {trendLoading ? (
                 <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
@@ -672,7 +672,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <MoneyIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No cost data in timeframe</span>
+                  <Text style={{ fontSize: 11 }}>No cost data in timeframe</Text>
                 </Flex>
               )}
             </Flex>
@@ -684,14 +684,14 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <ServicesIcon style={{ width: 14, height: 14, color: CHART_COLORS.secondary }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Request Volume</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Request Volume</Text>
                   <Tooltip text="Total number of AI API calls (chat completions, embeddings, etc.) over time. Higher volume = more active usage. Each request consumes tokens and incurs cost.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <span style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.secondary }}>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.secondary }}>
                   {formatNumber(chartTotals.requests)}
-                </span>
+                </Text>
               </Flex>
               {trendLoading ? (
                 <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
@@ -710,7 +710,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ServicesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No request data in timeframe</span>
+                  <Text style={{ fontSize: 11 }}>No request data in timeframe</Text>
                 </Flex>
               )}
             </Flex>
@@ -721,7 +721,7 @@ export const Home = () => {
             <Flex flexDirection="column" gap={8}>
               <Flex alignItems="center" gap={6}>
                 <AiIcon style={{ width: 14, height: 14, color: CHART_COLORS.tertiary }} />
-                <span style={{ fontSize: 12, fontWeight: 600 }}>Tokens by Provider</span>
+                <Text style={{ fontSize: 12, fontWeight: 600 }}>Tokens by Provider</Text>
                 <Tooltip text="Distribution of token consumption across AI providers. High concentration in one provider = vendor lock-in risk. Consider multi-provider strategy for resilience.">
                   <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                 </Tooltip>
@@ -740,17 +740,17 @@ export const Home = () => {
                   <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                     {donutChartSlices.slice(0, 5).map((item, i) => (
                       <Flex key={i} alignItems="center" gap={8} style={{ fontSize: 11 }}>
-                        <div style={{ 
+                        <Flex style={{ 
                           width: 10, height: 10, borderRadius: 2, 
                           backgroundColor: item.color,
                           flexShrink: 0
                         }} />
-                        <span style={{ color: 'var(--dt-colors-text-secondary-default)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Text style={{ color: 'var(--dt-colors-text-secondary-default)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.category}
-                        </span>
-                        <span style={{ fontWeight: 600 }}>
+                        </Text>
+                        <Text style={{ fontWeight: 600 }}>
                           {providerData?.find(p => p.provider === item.category)?.percentage.toFixed(0)}%
-                        </span>
+                        </Text>
                       </Flex>
                     ))}
                   </Flex>
@@ -758,25 +758,25 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No provider data available</span>
+                  <Text style={{ fontSize: 11 }}>No provider data available</Text>
                 </Flex>
               )}
             </Flex>
           </Surface>
-          </div>
+          </Flex>
 
           {/* ══════════════════════════════════════════════════════════════════════════════ */}
           {/* SECTION: Performance & Quality */}
           {/* ══════════════════════════════════════════════════════════════════════════════ */}
           <Flex alignItems="center" gap={8} style={{ marginTop: 16 }}>
             <ClockIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-secondary-default)' }} />
-            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Performance & Quality</span>
+            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Performance & Quality</Text>
           </Flex>
 
           {/* Performance Grid - 2x2 */}
-          <div style={{ 
+          <Flex style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
             gap: 16,
           }}>
             {/* Error Rate Trend by Provider - Line Chart */}
@@ -785,15 +785,15 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <WarningIcon style={{ width: 14, height: 14, color: CHART_COLORS.critical }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Error Rate by Provider (%)</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Error Rate by Provider (%)</Text>
                   <Tooltip text="Percentage of failed AI requests per provider. Errors include: rate limits (429), auth failures (401), model overload (503). Target: <1% error rate.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
                 {errorRateTimeseriesData.length > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
                     {errorRateTimeseriesData.length} provider{errorRateTimeseriesData.length > 1 ? 's' : ''} with errors
-                  </span>
+                  </Text>
                 )}
               </Flex>
               {errorTrendLoading ? (
@@ -813,7 +813,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <WarningIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No errors in timeframe 🎉</span>
+                  <Text style={{ fontSize: 11 }}>No errors in timeframe 🎉</Text>
                 </Flex>
               )}
             </Flex>
@@ -825,15 +825,15 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <ClockIcon style={{ width: 14, height: 14, color: CHART_COLORS.secondary }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>P95 Latency by Provider (ms)</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>P95 Latency by Provider (ms)</Text>
                   <Tooltip text="95th percentile response time. P95 means 95% of requests complete faster than this. Higher values = slower responses. Compare providers to identify performance differences.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
                 {latencyTimeseriesData.length > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
                     {latencyTimeseriesData.length} provider{latencyTimeseriesData.length > 1 ? 's' : ''}
-                  </span>
+                  </Text>
                 )}
               </Flex>
               {latencyTrendLoading ? (
@@ -853,7 +853,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ClockIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No latency data available</span>
+                  <Text style={{ fontSize: 11 }}>No latency data available</Text>
                 </Flex>
               )}
             </Flex>
@@ -865,15 +865,15 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <ServiceLevelObjectivesIcon style={{ width: 14, height: 14, color: CHART_COLORS.success }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Token Efficiency by Provider</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Token Efficiency by Provider</Text>
                   <Tooltip text="Output/Input token ratio. Higher = more output per input (efficient). Values <0.5 suggest large prompts with small responses (potential waste). Optimize by reducing context size.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
                 {efficiencyTimeseriesData.length > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
                     output/input ratio
-                  </span>
+                  </Text>
                 )}
               </Flex>
               {efficiencyTrendLoading ? (
@@ -893,7 +893,7 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ServiceLevelObjectivesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No token data available</span>
+                  <Text style={{ fontSize: 11 }}>No token data available</Text>
                 </Flex>
               )}
             </Flex>
@@ -905,15 +905,15 @@ export const Home = () => {
               <Flex justifyContent="space-between" alignItems="center">
                 <Flex alignItems="center" gap={6}>
                   <AiIcon style={{ width: 14, height: 14, color: CHART_COLORS.primary }} />
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Model Usage Trend</span>
+                  <Text style={{ fontSize: 12, fontWeight: 600 }}>Model Usage Trend</Text>
                   <Tooltip text="Request count by model over time. Shows which models are most used. Use this to identify model popularity, plan capacity, and detect unexpected model switches.">
                     <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
                 {modelUsageTimeseriesData.length > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
                     Top {modelUsageTimeseriesData.length} models
-                  </span>
+                  </Text>
                 )}
               </Flex>
               {modelUsageLoading ? (
@@ -933,12 +933,12 @@ export const Home = () => {
               ) : (
                 <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No model usage data available</span>
+                  <Text style={{ fontSize: 11 }}>No model usage data available</Text>
                 </Flex>
               )}
             </Flex>
           </Surface>
-          </div>
+          </Flex>
         </>
       )}
 
@@ -949,21 +949,21 @@ export const Home = () => {
           <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
               <ResearchIcon style={{ color: aiInsights.statusColor }} />
-              <span style={{ fontWeight: 700, fontSize: 16 }}>AI Observability Insights</span>
+              <Text style={{ fontWeight: 700, fontSize: 16 }}>AI Observability Insights</Text>
               <Tooltip text="Coverage shows which telemetry surfaces GCC can see. Findings are actionable, data-driven recommendations.">
-                <span
+                <Flex
                   onClick={() => setShowMaturityModal(true)}
-                  style={{ display: 'flex', cursor: 'pointer', color: 'var(--dt-colors-text-secondary-default)' }}
+                  style={{ cursor: 'pointer', color: 'var(--dt-colors-text-secondary-default)' }}
                   aria-label="View details"
                 >
                   <HelpIcon style={{ width: 16, height: 16 }} />
-                </span>
+                </Flex>
               </Tooltip>
             </Flex>
             {/* Coverage percentage badge */}
             <Flex alignItems="center" gap={8}>
-              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Telemetry Coverage</span>
-              <span style={{
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Telemetry Coverage</Text>
+              <Text style={{
                 fontSize: 20, fontWeight: 800,
                 color: aiInsights.coveragePercent === 100 ? STATUS_COLORS.ideal
                   : aiInsights.coveragePercent >= 70 ? STATUS_COLORS.good
@@ -971,15 +971,15 @@ export const Home = () => {
                   : STATUS_COLORS.critical,
               }}>
                 {aiInsights.coveragePercent}%
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+              </Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
                 ({aiInsights.coveredCount}/{aiInsights.totalChecks})
-              </span>
+              </Text>
             </Flex>
           </Flex>
 
           {/* Coverage checks — compact horizontal grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+          <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
             {aiInsights.coverageChecks.map((check) => (
               <Tooltip key={check.label} text={check.detail}>
                 <Flex
@@ -999,22 +999,22 @@ export const Home = () => {
                     ? <CheckmarkIcon style={{ width: 14, height: 14, color: STATUS_COLORS.ideal, flexShrink: 0 }} />
                     : <CriticalIcon style={{ width: 14, height: 14, color: STATUS_COLORS.warning, flexShrink: 0 }} />
                   }
-                  <span style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.2 }}>{check.label}</span>
+                  <Text style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.2 }}>{check.label}</Text>
                 </Flex>
               </Tooltip>
             ))}
-          </div>
+          </Flex>
 
           {/* Findings */}
           {aiInsights.findings.length > 0 && (
             <Flex flexDirection="column" gap={8}>
               <Flex alignItems="center" gap={6}>
                 <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
-                <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>
+                <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>
                   Findings ({aiInsights.findings.filter(f => f.severity !== 'info').length} action{aiInsights.findings.filter(f => f.severity !== 'info').length !== 1 ? 's' : ''} needed)
-                </span>
+                </Text>
               </Flex>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 8 }}>
+              <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 8 }}>
                 {aiInsights.findings.slice(0, 6).map((finding, i) => {
                   const findingColor = finding.severity === 'critical' ? STATUS_COLORS.critical
                     : finding.severity === 'warning' ? STATUS_COLORS.warning
@@ -1034,22 +1034,22 @@ export const Home = () => {
                             {finding.severity === 'critical' && <CriticalIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
                             {finding.severity === 'warning' && <WarningIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
                             {finding.severity === 'info' && <CheckmarkIcon style={{ width: 14, height: 14, color: findingColor, flexShrink: 0 }} />}
-                            <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{finding.title}</span>
+                            <Text style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{finding.title}</Text>
                           </Flex>
                           <Link to={finding.link} style={{ textDecoration: 'none', flexShrink: 0 }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: CHART_COLORS.primary, padding: '2px 8px', borderRadius: 4, background: `${CHART_COLORS.primary}14`, whiteSpace: 'nowrap' }}>
+                            <Text style={{ fontSize: 10, fontWeight: 600, color: CHART_COLORS.primary, padding: '2px 8px', borderRadius: 4, background: `${CHART_COLORS.primary}14`, whiteSpace: 'nowrap' }}>
                               {finding.linkLabel} →
-                            </span>
+                            </Text>
                           </Link>
                         </Flex>
-                        <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
+                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
                           {finding.detail}
-                        </span>
+                        </Text>
                       </Flex>
                     </Surface>
                   );
                 })}
-              </div>
+              </Flex>
             </Flex>
           )}
         </Flex>
@@ -1067,7 +1067,7 @@ export const Home = () => {
           {/* Coverage overview */}
           <Flex alignItems="center" gap={16}>
             <Flex flexDirection="column" alignItems="center" gap={2}>
-              <span style={{
+              <Text style={{
                 fontSize: 52, fontWeight: 800, lineHeight: 1,
                 color: aiInsights.coveragePercent === 100 ? STATUS_COLORS.ideal
                   : aiInsights.coveragePercent >= 70 ? STATUS_COLORS.good
@@ -1075,8 +1075,8 @@ export const Home = () => {
                   : STATUS_COLORS.critical,
               }}>
                 {aiInsights.coveragePercent}%
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>coverage</span>
+              </Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>coverage</Text>
             </Flex>
             <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
               <Paragraph>
@@ -1084,15 +1084,15 @@ export const Home = () => {
                 Each check is binary — the data is either flowing or it isn't. This is not a score with subjective weights;
                 it's a factual inventory of your instrumentation.
               </Paragraph>
-              <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
                 {aiInsights.coveredCount} of {aiInsights.totalChecks} telemetry surfaces active
-              </span>
+              </Text>
             </Flex>
           </Flex>
 
           {/* Coverage detail table */}
           <Flex flexDirection="column" gap={8}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Coverage Breakdown</span>
+            <Text style={{ fontWeight: 700, fontSize: 14 }}>Coverage Breakdown</Text>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--dt-colors-background-base-default)' }}>
@@ -1123,7 +1123,7 @@ export const Home = () => {
           {/* Findings detail */}
           {aiInsights.findings.length > 0 && (
             <Flex flexDirection="column" gap={8}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>Findings & Recommendations</span>
+              <Text style={{ fontWeight: 700, fontSize: 14 }}>Findings & Recommendations</Text>
               <Paragraph style={{ fontSize: 12 }}>
                 Findings are auto-generated from your live telemetry. Each maps to a specific action and a page in GCC
                 where you can investigate further. Critical findings indicate active issues; warnings highlight gaps
@@ -1148,22 +1148,22 @@ export const Home = () => {
                           {finding.severity === 'critical' && <CriticalIcon style={{ width: 16, height: 16, color: findingColor }} />}
                           {finding.severity === 'warning' && <WarningIcon style={{ width: 16, height: 16, color: findingColor }} />}
                           {finding.severity === 'info' && <CheckmarkIcon style={{ width: 16, height: 16, color: findingColor }} />}
-                          <span style={{ fontWeight: 700, fontSize: 13 }}>{finding.title}</span>
+                          <Text style={{ fontWeight: 700, fontSize: 13 }}>{finding.title}</Text>
                         </Flex>
-                        <span style={{
+                        <Text style={{
                           fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 4,
                           color: findingColor, background: `${findingColor}18`,
                         }}>
                           {finding.severity}
-                        </span>
+                        </Text>
                       </Flex>
-                      <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>
+                      <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.6 }}>
                         {finding.detail}
-                      </span>
+                      </Text>
                       <Flex justifyContent="space-between" alignItems="center" style={{ paddingTop: 4, borderTop: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                        <span style={{ fontSize: 11, fontWeight: 500 }}>
+                        <Text style={{ fontSize: 11, fontWeight: 500 }}>
                           <Strong>Action:</Strong> {finding.action}
-                        </span>
+                        </Text>
                         <Link to={finding.link} onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>
                           <Button variant="default" style={{ fontSize: 11 }}>
                             {finding.linkLabel} →
@@ -1183,11 +1183,11 @@ export const Home = () => {
               <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                 <Flex alignItems="center" gap={8}>
                   <AiIcon style={{ color: STATUS_COLORS.good, width: 18, height: 18 }} />
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>Deep-Dive with Dynatrace Intelligence</span>
+                  <Text style={{ fontWeight: 700, fontSize: 13 }}>Deep-Dive with Dynatrace Intelligence</Text>
                 </Flex>
-                <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
+                <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', lineHeight: 1.5 }}>
                   Ask Dynatrace Intelligence to analyze your AI infrastructure, correlate findings across services, and recommend prioritized actions.
-                </span>
+                </Text>
               </Flex>
               <Link to="/intelligence" onClick={() => setShowMaturityModal(false)} style={{ textDecoration: 'none', flexShrink: 0 }}>
                 <Button variant="emphasized">

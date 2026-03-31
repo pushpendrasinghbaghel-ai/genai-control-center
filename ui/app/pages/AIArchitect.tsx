@@ -42,36 +42,36 @@ const RecommendationCard: React.FC<{
         border: '1px solid var(--dt-colors-border-neutral-default)'
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center' }}>{getIcon(recommendation.type)}</span>
-      <div style={{ flex: 1 }}>
+      <Text style={{ display: 'flex', alignItems: 'center' }}>{getIcon(recommendation.type)}</Text>
+      <Flex style={{ flex: 1 }}>
         <Flex alignItems="center" gap={8} style={{ marginBottom: 4 }}>
-          <span style={{ fontWeight: 600, fontSize: 13 }}>{recommendation.title}</span>
-          <span style={{ 
+          <Text style={{ fontWeight: 600, fontSize: 13 }}>{recommendation.title}</Text>
+          <Text style={{ 
             fontSize: 9, padding: '2px 5px', borderRadius: 3,
             backgroundColor: getSeverityColor(recommendation.severity) + '20',
             color: getSeverityColor(recommendation.severity),
             textTransform: 'uppercase', fontWeight: 600
           }}>
             {recommendation.severity}
-          </span>
+          </Text>
           {recommendation.estimatedImpact && (
-            <span style={{ 
+            <Text style={{ 
               fontSize: 12, fontWeight: 600, marginLeft: 'auto',
               color: recommendation.type === 'cost_optimization' ? 'var(--dt-colors-feedback-success-default)' : 'inherit'
             }}>
               {recommendation.estimatedImpact}
-            </span>
+            </Text>
           )}
         </Flex>
         {recommendation.affectedService && (
-          <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+          <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
             {recommendation.affectedService}
-          </span>
+          </Text>
         )}
         <p style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', margin: '6px 0 0' }}>
           {recommendation.description}
         </p>
-      </div>
+      </Flex>
       <Flex gap={6}>
         {onInvestigate && <Button onClick={onInvestigate}>Investigate</Button>}
         {onApply && <Button variant="accent" onClick={onApply}>Apply</Button>}
@@ -133,7 +133,7 @@ export const AIArchitect: React.FC = () => {
       <Flex justifyContent="center" alignItems="center" style={{ height: '40vh' }}>
         <Flex flexDirection="column" alignItems="center" gap={12}>
           <ProgressCircle />
-          <span style={{ fontSize: 13 }}>{analyzing ? 'Analyzing patterns...' : 'Loading services...'}</span>
+          <Text style={{ fontSize: 13 }}>{analyzing ? 'Analyzing patterns...' : 'Loading services...'}</Text>
         </Flex>
       </Flex>
     );
@@ -190,33 +190,33 @@ export const AIArchitect: React.FC = () => {
         borderRadius: 6,
         border: '1px solid var(--dt-colors-border-neutral-default)'
       }}>
-        <div>
-          <span style={{ fontSize: 24, fontWeight: 700 }}>{recommendations.length}</span>
-          <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 6 }}>
+        <Flex>
+          <Text style={{ fontSize: 24, fontWeight: 700 }}>{recommendations.length}</Text>
+          <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)', marginLeft: 6 }}>
             Recommendations
-          </span>
-        </div>
+          </Text>
+        </Flex>
         {(criticalCount > 0 || highCount > 0) && (
-          <div style={{ borderLeft: '1px solid var(--dt-colors-border-default)', paddingLeft: 16 }}>
+          <Flex style={{ borderLeft: '1px solid var(--dt-colors-border-default)', paddingLeft: 16 }}>
             <Flex gap={16}>
               {criticalCount > 0 && (
                 <Flex alignItems="center" gap={4}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-critical-default)' }}>
+                  <Text style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-critical-default)' }}>
                     {criticalCount}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Critical</span>
+                  </Text>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Critical</Text>
                 </Flex>
               )}
               {highCount > 0 && (
                 <Flex alignItems="center" gap={4}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-warning-default)' }}>
+                  <Text style={{ fontSize: 18, fontWeight: 700, color: 'var(--dt-colors-feedback-warning-default)' }}>
                     {highCount}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High</span>
+                  </Text>
+                  <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>High</Text>
                 </Flex>
               )}
             </Flex>
-          </div>
+          </Flex>
         )}
       </Flex>
 
@@ -227,11 +227,11 @@ export const AIArchitect: React.FC = () => {
           borderRadius: 6,
           border: '1px solid var(--dt-colors-border-neutral-default)'
         }}>
-          <span style={{ fontSize: 36 }}>✨</span>
+          <Text style={{ fontSize: 36 }}>✨</Text>
           <Heading level={5}>All Clear!</Heading>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', fontSize: 13 }}>
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', fontSize: 13 }}>
             No issues detected. Your AI services are following best practices.
-          </span>
+          </Text>
         </Flex>
       ) : (
         Object.entries(groupedRecommendations).map(([type, recs]) => (

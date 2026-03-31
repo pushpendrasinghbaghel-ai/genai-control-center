@@ -28,6 +28,7 @@ import { usePromptAnalysis, useGenAIErrors, AnalyzedPrompt, GenAIError, PromptFl
 import { useDavisPromptScoring, DavisPromptScore } from '../hooks/useDavisAI';
 import { useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks/useDQLQueries';
 import { usePromptAuditTrail } from '../hooks/useResponseAnalytics';
+import { formatTime, formatDateTime, formatNumber } from '../utils/formatting';
 
 // Status colors matching Dynatrace design system
 const STATUS_COLORS = {
@@ -71,7 +72,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
           <Flex flexDirection="column" gap={4}>
             <Text textStyle="base-emphasized">{prompt.serviceName}</Text>
             <Text textStyle="small" style={{ opacity: 0.7 }}>{prompt.model} • {prompt.provider}</Text>
-            <Text textStyle="small" style={{ opacity: 0.5 }}>{new Date(prompt.timestamp).toLocaleString()}</Text>
+            <Text textStyle="small" style={{ opacity: 0.5 }}>{formatDateTime(prompt.timestamp)}</Text>
           </Flex>
           {prompt.traceId && (
             <Button onClick={() => openTraceInDistributedTraces(prompt.traceId, prompt.timestamp)}>
@@ -87,7 +88,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
               <Flex alignItems="center" gap={8}>
                 <InformationIcon />
                 <Text textStyle="base-emphasized">Dynatrace Intelligence Analysis</Text>
-                <span style={{
+                <Text style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
                   backgroundColor: davisScore.riskScore >= 70 ? STATUS_COLORS.poor : 
@@ -97,7 +98,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                   fontWeight: 600
                 }}>
                   Risk: {davisScore.riskScore}/100
-                </span>
+                </Text>
               </Flex>
               <Text>{davisScore.explanation}</Text>
               {davisScore.recommendations && davisScore.recommendations.length > 0 && (
@@ -105,7 +106,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                   <Text textStyle="small-emphasized">Recommendations:</Text>
                   <Flex gap={8} flexWrap="wrap">
                     {davisScore.recommendations.map((rec, idx) => (
-                      <span key={idx} style={{
+                      <Text key={idx} style={{
                         padding: '4px 8px',
                         borderRadius: '4px',
                         backgroundColor: STATUS_COLORS.fair,
@@ -113,7 +114,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                         fontSize: '11px'
                       }}>
                         {rec}
-                      </span>
+                      </Text>
                     ))}
                   </Flex>
                 </Flex>
@@ -138,7 +139,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                   const countOfType = prompt.flags.filter(f => f.type === flag.type).length;
                   return (
                     <Tooltip key={idx} text={flag.detail}>
-                      <span style={{
+                      <Text style={{
                         padding: '4px 12px',
                         borderRadius: '4px',
                         backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
@@ -149,7 +150,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                         textTransform: 'uppercase'
                       }}>
                         {flag.type}{countOfType > 1 ? ` (${countOfType})` : ''}
-                      </span>
+                      </Text>
                     </Tooltip>
                   );
                 });
@@ -179,7 +180,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                     return Object.entries(flagsByType).map(([type, flags]) => (
                       <Flex key={type} flexDirection="column" gap={4}>
                         <Flex alignItems="center" gap={8}>
-                          <span style={{
+                          <Text style={{
                             padding: '2px 8px',
                             borderRadius: '4px',
                             backgroundColor: flags[0].severity === 'critical' ? STATUS_COLORS.poor :
@@ -190,7 +191,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                             textTransform: 'uppercase'
                           }}>
                             {type}
-                          </span>
+                          </Text>
                           <Text textStyle="small-emphasized" style={{ textTransform: 'capitalize' }}>
                             {type.replace(/_/g, ' ')} ({flags.length} detection{flags.length > 1 ? 's' : ''})
                           </Text>
@@ -259,7 +260,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
             <Flex alignItems="center" gap={8}>
               <Text textStyle="base-emphasized">Model Response</Text>
               {hasHallucination && (
-                <span style={{
+                <Text style={{
                   padding: '2px 8px',
                   borderRadius: '4px',
                   backgroundColor: 'orange',
@@ -267,7 +268,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                   fontSize: '11px'
                 }}>
                   ⚠️ Potential Hallucination
-                </span>
+                </Text>
               )}
             </Flex>
             <Surface style={{ 
@@ -295,13 +296,13 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
               <Text textStyle="small" style={{ opacity: 0.7 }}>Input Tokens</Text>
-              <Text textStyle="base-emphasized">{prompt.inputTokens.toLocaleString()}</Text>
+              <Text textStyle="base-emphasized">{formatNumber(prompt.inputTokens)}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
               <Text textStyle="small" style={{ opacity: 0.7 }}>Output Tokens</Text>
-              <Text textStyle="base-emphasized">{prompt.outputTokens.toLocaleString()}</Text>
+              <Text textStyle="base-emphasized">{formatNumber(prompt.outputTokens)}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
@@ -383,7 +384,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
             {/* Flags - One badge per category with count */}
             {uniqueFlags.slice(0, 4).map((flag, idx) => (
               <Tooltip key={idx} text={`${flag.detail}${flag.count > 1 ? ` (${flag.count} detections)` : ''}`}>
-                <span style={{
+                <Text style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
                   backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
@@ -395,7 +396,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
                   cursor: 'help'
                 }}>
                   {flag.type}{flag.count > 1 ? ` (${flag.count})` : ''}
-                </span>
+                </Text>
               </Tooltip>
             ))}
             {uniqueFlags.length > 4 && (
@@ -405,7 +406,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
             {/* Davis Score */}
             {davisScore && (
               <Tooltip text={`Dynatrace Intelligence Risk: ${davisScore.explanation}`}>
-                <span style={{
+                <Text style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
                   backgroundColor: davisScore.riskScore >= 70 ? STATUS_COLORS.poor : 
@@ -416,7 +417,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
                   cursor: 'help'
                 }}>
                   AI: {davisScore.riskScore}
-                </span>
+                </Text>
               </Tooltip>
             )}
             
@@ -447,8 +448,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
         </Flex>
 
         {/* Prompt Preview */}
-        <div 
-          style={{ 
+        <Flex style={{ 
             padding: '8px 12px', 
             backgroundColor: 'rgba(0,0,0,0.03)',
             borderRadius: '4px',
@@ -462,11 +462,11 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
           onClick={() => onViewDetail(prompt)}
         >
           {prompt.promptPreview.substring(0, 200)}{prompt.promptPreview.length > 200 ? '...' : ''}
-        </div>
+        </Flex>
 
         {/* Response Preview for hallucination review */}
         {hasResponse && hasHallucinationFlag && (
-          <div style={{ 
+          <Flex style={{ 
             padding: '8px 12px', 
             backgroundColor: 'rgba(255,165,0,0.1)',
             borderRadius: '4px',
@@ -480,13 +480,13 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
               ⚠️ Response (potential hallucination):
             </Text>
             {prompt.completionPreview?.substring(0, 150)}...
-          </div>
+          </Flex>
         )}
 
         {/* Timestamp */}
         <Flex justifyContent="flex-end">
           <Text textStyle="small" style={{ opacity: 0.5, fontSize: '10px' }}>
-            {new Date(prompt.timestamp).toLocaleTimeString()}
+            {formatTime(prompt.timestamp)}
           </Text>
         </Flex>
       </Flex>
@@ -823,7 +823,7 @@ export function PromptGovernance() {
             <Flex flexDirection="column" gap={2}>
               <Flex alignItems="center" gap={4}>
                 <Text style={{ fontWeight: 600, fontSize: 13 }}>Composite Risk Score</Text>
-                <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+                <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
               </Flex>
               <Text textStyle="small" style={{ opacity: 0.6 }}>
                 Weighted: PII (40%) + Injection (30%) + Cost (15%) + Hallucination (10%) + Errors (5%)
@@ -997,7 +997,7 @@ export function PromptGovernance() {
                     
                     {/* Timestamp */}
                     <Text textStyle="small" style={{ opacity: 0.5, fontSize: '10px' }}>
-                      {new Date(error.timestamp).toLocaleString()}
+                      {formatDateTime(error.timestamp)}
                     </Text>
                   </Flex>
                 </Surface>
@@ -1097,7 +1097,7 @@ export function PromptGovernance() {
                   <Flex gap={16} flexWrap="wrap" alignItems="center">
                     <Flex flexDirection="column" alignItems="flex-end">
                       <Text textStyle="small" style={{ opacity: 0.6 }}>Calls</Text>
-                      <Text style={{ fontWeight: 700, fontSize: 14 }}>{p.count.toLocaleString()}</Text>
+                      <Text style={{ fontWeight: 700, fontSize: 14 }}>{formatNumber(p.count)}</Text>
                     </Flex>
                     <Flex flexDirection="column" alignItems="flex-end">
                       <Text textStyle="small" style={{ opacity: 0.6 }}>Efficiency</Text>
@@ -1144,7 +1144,7 @@ export function PromptGovernance() {
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
                   <Text textStyle="small" style={{ opacity: 0.6 }}>Total Traces</Text>
-                  <Heading level={4}>{auditSummary.totalEvents.toLocaleString()}</Heading>
+                  <Heading level={4}>{formatNumber(auditSummary.totalEvents)}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
@@ -1162,13 +1162,13 @@ export function PromptGovernance() {
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
                   <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Input Tokens</Text>
-                  <Heading level={4}>{auditSummary.avgInputTokens.toLocaleString()}</Heading>
+                  <Heading level={4}>{formatNumber(auditSummary.avgInputTokens)}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
                   <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Output Tokens</Text>
-                  <Heading level={4}>{auditSummary.avgOutputTokens.toLocaleString()}</Heading>
+                  <Heading level={4}>{formatNumber(auditSummary.avgOutputTokens)}</Heading>
                 </Flex>
               </Surface>
             </Flex>
@@ -1208,7 +1208,7 @@ export function PromptGovernance() {
                   </Flex>
                   <Flex gap={8} alignItems="center">
                     <Text textStyle="small" style={{ opacity: 0.5 }}>
-                      {new Date(entry.timestamp).toLocaleString()}
+                      {formatDateTime(entry.timestamp)}
                     </Text>
                     {entry.traceId && (
                       <Button variant="default" onClick={() => openTraceInDistributedTraces(entry.traceId, entry.timestamp)}>
@@ -1222,11 +1222,11 @@ export function PromptGovernance() {
                 <Flex gap={16} flexWrap="wrap">
                   <Flex gap={4} alignItems="center">
                     <Text textStyle="small" style={{ opacity: 0.5 }}>Input:</Text>
-                    <Text textStyle="small-emphasized">{entry.inputTokens.toLocaleString()} tokens</Text>
+                    <Text textStyle="small-emphasized">{formatNumber(entry.inputTokens)} tokens</Text>
                   </Flex>
                   <Flex gap={4} alignItems="center">
                     <Text textStyle="small" style={{ opacity: 0.5 }}>Output:</Text>
-                    <Text textStyle="small-emphasized">{entry.outputTokens.toLocaleString()} tokens</Text>
+                    <Text textStyle="small-emphasized">{formatNumber(entry.outputTokens)} tokens</Text>
                   </Flex>
                   <Flex gap={4} alignItems="center">
                     <Text textStyle="small" style={{ opacity: 0.5 }}>Latency:</Text>

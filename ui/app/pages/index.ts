@@ -61,6 +61,9 @@ export { MLOps } from './MLOps';
 // NEW: Agentic Deep Dive (multi-agent trace analysis, step-by-step breakdown)
 export { AgenticDeepDive } from './AgenticDeepDive';
 
+// NEW: Adversarial Prompt Threat Intelligence (Davis AI semantic attack detection)
+export { ThreatIntelligence } from './ThreatIntelligence';
+
 // Legacy pages (kept for backward compatibility)
 export { AIArchitect } from './AIArchitect';
 export { DavisAssistant } from './DavisAssistant';

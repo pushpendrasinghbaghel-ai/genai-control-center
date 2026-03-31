@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Agentic Tool Registry â€” GenAI Observability Tools
  * 
  * 15 tools organized in 3 tiers:
@@ -19,6 +19,7 @@ import {
   runGenAIAnalyzerSuite,
 } from "../utils/davisAnalyzers";
 import { estimateCost } from "../utils/helpers";
+import { formatNumber, formatDateTime, formatTime } from '../utils/formatting';
 import type {
   AgentTool,
   ToolExecutionContext,
@@ -672,7 +673,7 @@ const forecastTool: AgentTool = {
             chartType: "timeseries",
             title: isCost ? "Cost Forecast (24h)" : "Token Usage Forecast (24h)",
             data: result.forecastPoints.map(p => ({
-              label: new Date(p.timestamp).toLocaleTimeString(),
+              label: formatTime(String(p.timestamp)),
               value: p.value,
               timestamp: p.timestamp,
             })),
@@ -864,7 +865,7 @@ const errorInvestigation: AgentTool = {
       type: "table",
       headers: ["Time", "Service", "Provider", "Model", "Error Type", "Latency"],
       rows: detailRecords.slice(0, 10).map((r: any) => [
-        r.start_time ? new Date(r.start_time).toLocaleString() : "â€”",
+        r.start_time ? formatDateTime(String(r.start_time)) : "â€”",
         String(r["dt.entity.service"] || "â€”"),
         r["gen_ai.provider.name"] || "â€”",
         r["gen_ai.request.model"] || "â€”",
@@ -1091,7 +1092,7 @@ const executiveSummary: AgentTool = {
     // Timestamp
     blocks.push({
       type: "text",
-      content: `*Report generated at ${new Date().toLocaleString()} â€” timeframe: last ${ctx.timeframe}*`,
+      content: `*Report generated at ${formatDateTime(new Date())} â€” timeframe: last ${ctx.timeframe}*`,
     });
 
     return {
@@ -2528,7 +2529,7 @@ const modelDrift: AgentTool = {
           r["gen_ai.response.model"] || "â€”",
           r["gen_ai.provider.name"] || "â€”",
           fmt(Number(r.occurrences || 0)),
-          r.last_seen ? new Date(r.last_seen).toLocaleString() : "â€”",
+          r.last_seen ? formatDateTime(String(r.last_seen)) : "â€”",
         ]),
         caption: "Models returning different versions than requested",
       });
@@ -2675,7 +2676,7 @@ const infrastructure: AgentTool = {
           r.entity || "â€”",
           r.version || "â€”",
           r.artifact || "â€”",
-          r.timestamp ? new Date(r.timestamp).toLocaleString() : "â€”",
+          r.timestamp ? formatDateTime(String(r.timestamp)) : "â€”",
         ]),
         caption: "Recent Deployments",
       });
@@ -2693,7 +2694,7 @@ const infrastructure: AgentTool = {
           r.provider || "â€”",
           fmt(Number(r.model_versions || 0)),
           fmt(Number(r.request_count || 0)),
-          r.last_seen ? new Date(r.last_seen).toLocaleString() : "â€”",
+          r.last_seen ? formatDateTime(String(r.last_seen)) : "â€”",
         ]),
         caption: "AI Service Configuration",
       });
@@ -3188,7 +3189,7 @@ const governance: AgentTool = {
         type: "table",
         headers: ["Time", "Service", "Provider", "Model", "In Tokens", "Out Tokens", "Error?"],
         rows: audit.slice(0, 25).map((r: any) => [
-          r.timestamp ? new Date(r.timestamp).toLocaleString() : "â€”",
+          r.timestamp ? formatDateTime(String(r.timestamp)) : "â€”",
           String(r.service || "â€”"),
           r.provider || "â€”",
           r.model || "â€”",
@@ -3435,7 +3436,7 @@ const liveProblems: AgentTool = {
           r.status || "â€”",
           r.severity || "â€”",
           r.root_cause || "â€”",
-          r.start_time ? new Date(r.start_time).toLocaleString() : "â€”",
+          r.start_time ? formatDateTime(String(r.start_time)) : "â€”",
         ]),
         caption: "Recent Problems",
       });
@@ -3450,7 +3451,7 @@ const liveProblems: AgentTool = {
         rows: workflows.map((r: any) => [
           r["workflow.title"] || r["workflow.id"] || "â€”",
           fmt(Number(r.runs || 0)),
-          r.last_run ? new Date(r.last_run).toLocaleString() : "â€”",
+          r.last_run ? formatDateTime(String(r.last_run)) : "â€”",
         ]),
         caption: "Recent Workflow Executions",
       });
@@ -3669,7 +3670,7 @@ const securityPosture: AgentTool = {
           r.service || "â€”",
           r.provider || "â€”",
           String(Number(r.count) || 0),
-          r.last_seen ? new Date(String(r.last_seen)).toLocaleString() : "â€”",
+          r.last_seen ? formatDateTime(String(r.last_seen)) : "â€”",
         ]),
         caption: "Security Event Patterns",
       });

@@ -16,6 +16,7 @@ import { useGlobalFilters } from '../context';
 import { useDistinctServices, useDistinctProviders, useDistinctModels } from '../hooks';
 import { getTimeframeDqlClause } from '../context/FilterContext';
 import { getProviderIcon, getModelIcon } from '../utils/providerIcons';
+import { formatNumber } from '../utils/formatting';
 
 // ============================================
 // Types
@@ -87,28 +88,28 @@ const SmartscapeCardNode: React.FC<{
       case 'service':
         return { 
           label: 'Service', 
-          color: '#14a8f5', 
+          color: 'var(--dt-colors-charts-categorical-color-01-default)', 
           bgColor: 'rgba(20, 168, 245, 0.08)',
           icon: <ServicesIcon style={{ width: 20, height: 20 }} />
         };
       case 'provider':
         return { 
           label: 'AI Provider', 
-          color: '#6f2da8', 
+          color: 'var(--dt-colors-charts-categorical-color-02-default)', 
           bgColor: 'rgba(111, 45, 168, 0.08)',
           icon: getProviderIcon(nodeName || '', 20)
         };
       case 'model':
         return { 
           label: 'Model', 
-          color: '#00b4a0',  // Dynatrace teal - distinct from service blue
+          color: 'var(--dt-colors-charts-categorical-color-03-default)',  // Dynatrace teal - distinct from service blue
           bgColor: 'rgba(0, 180, 160, 0.08)',
           icon: getModelIcon(nodeName || '', 18)
         };
       default:
         return { 
           label: 'Entity', 
-          color: '#73be28', 
+          color: 'var(--dt-colors-charts-status-good-default)', 
           bgColor: 'rgba(115, 190, 40, 0.08)',
           icon: <AppsIcon style={{ width: 18, height: 18 }} />
         };
@@ -133,8 +134,8 @@ const SmartscapeCardNode: React.FC<{
         height={cardHeight}
         rx={5}
         ry={5}
-        fill="#ffffff"
-        stroke={isSelected ? config.color : isHovered ? config.color : '#e0e0e0'}
+        fill='var(--dt-colors-text-primary-inverse)'
+        stroke={isSelected ? config.color : isHovered ? config.color : 'var(--dt-colors-border-neutral-default)'}
         strokeWidth={isSelected ? 2 : 1}
         style={{
           filter: isHovered ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))',
@@ -162,7 +163,7 @@ const SmartscapeCardNode: React.FC<{
           y={14}
           fontSize={9}
           fontWeight={600}
-          fill="#ffffff"
+          fill='var(--dt-colors-text-primary-inverse)'
           style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}
         >
           {config.label}
@@ -173,7 +174,7 @@ const SmartscapeCardNode: React.FC<{
           y={14}
           fontSize={9}
           fontWeight={600}
-          fill="#ffffff"
+          fill='var(--dt-colors-text-primary-inverse)'
           textAnchor="end"
         >
           {node.metrics.requests > 1000 ? `${(node.metrics.requests/1000).toFixed(1)}K` : node.metrics.requests}
@@ -182,7 +183,7 @@ const SmartscapeCardNode: React.FC<{
         {node.type === 'service' && node.entityId && (
           <a href={getSmartscapeUrl(node.entityId)} target="_blank" rel="noopener noreferrer">
             <g transform={`translate(${cardWidth - 22}, 6)`} style={{ cursor: 'pointer' }}>
-              <ExternalLinkIcon style={{ width: 10, height: 10, color: '#ffffff' }} />
+              <ExternalLinkIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-primary-inverse)' }} />
             </g>
           </a>
         )}
@@ -192,7 +193,7 @@ const SmartscapeCardNode: React.FC<{
       <g transform={`translate(${cardWidth/2}, 42)`}>
         <polygon
           points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7"
-          fill="#ffffff"
+          fill='var(--dt-colors-text-primary-inverse)'
           stroke={config.color}
           strokeWidth={1.5}
         />
@@ -208,7 +209,7 @@ const SmartscapeCardNode: React.FC<{
         textAnchor="middle"
         fontSize={10}
         fontWeight={600}
-        fill="#1f2937"
+        fill='var(--dt-colors-text-primary-default)'
       >
         {node.name.length > 16 ? node.name.substring(0, 14) + '...' : node.name}
       </text>
@@ -232,7 +233,7 @@ const SmartscapeCardNode: React.FC<{
         cx={cardWidth - 8}
         cy={cardHeight - 8}
         r={3}
-        fill={node.health === 'healthy' ? '#73be28' : node.health === 'warning' ? '#f5d30f' : '#dc172a'}
+        fill={node.health === 'healthy' ? 'var(--dt-colors-charts-status-good-default)' : node.health === 'warning' ? 'var(--dt-colors-charts-status-warning-default)' : 'var(--dt-colors-charts-status-critical-default)'}
       />
     </g>
   );
@@ -287,7 +288,7 @@ const SmartscapeEdge: React.FC<{
         y1={startY}
         x2={endX}
         y2={endY}
-        stroke="#9ca3af"
+        stroke='var(--dt-colors-text-neutral-subdued)'
         strokeWidth={1.5}
         strokeDasharray="4 2"
         markerEnd="url(#arrowhead-smartscape)"
@@ -300,8 +301,8 @@ const SmartscapeEdge: React.FC<{
         width={48}
         height={18}
         rx={3}
-        fill="#ffffff"
-        stroke="#e5e7eb"
+        fill='var(--dt-colors-text-primary-inverse)'
+        stroke='var(--dt-colors-border-neutral-default)'
         strokeWidth={1}
       />
       
@@ -312,7 +313,7 @@ const SmartscapeEdge: React.FC<{
         textAnchor="middle"
         fontSize={9}
         fontWeight={500}
-        fill="#6b7280"
+        fill='var(--dt-colors-text-neutral-default)'
       >
         {edgeLabel} {edgeUnit}
       </text>
@@ -415,7 +416,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
           <Surface style={{ padding: 12, flex: '1 1 140px' }}>
             <Flex flexDirection="column" gap={4}>
               <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Error Rate</Text>
-              <Text style={{ fontSize: 20, fontWeight: 600, color: service.metrics.errorRate > 5 ? '#dc172a' : undefined }}>
+              <Text style={{ fontSize: 20, fontWeight: 600, color: service.metrics.errorRate > 5 ? 'var(--dt-colors-charts-status-critical-default)' : undefined }}>
                 {service.metrics.errorRate.toFixed(1)}%
               </Text>
             </Flex>
@@ -423,7 +424,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
           <Surface style={{ padding: 12, flex: '1 1 140px' }}>
             <Flex flexDirection="column" gap={4}>
               <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Providers</Text>
-              <Text style={{ fontSize: 20, fontWeight: 600, color: '#6f2da8' }}>{connectedProviders.length}</Text>
+              <Text style={{ fontSize: 20, fontWeight: 600, color: 'var(--dt-colors-charts-categorical-color-02-default)' }}>{connectedProviders.length}</Text>
             </Flex>
           </Surface>
         </Flex>
@@ -436,21 +437,21 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
               <Heading level={6}>Service → Provider → Model Flow</Heading>
               <Flex gap={12} style={{ marginLeft: 'auto' }}>
                 <Flex alignItems="center" gap={4}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#14a8f5' }} />
+                  <Flex style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--dt-colors-charts-categorical-color-01-default)' }} />
                   <Text style={{ fontSize: 11 }}>Service</Text>
                 </Flex>
                 <Flex alignItems="center" gap={4}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#6f2da8' }} />
+                  <Flex style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--dt-colors-charts-categorical-color-02-default)' }} />
                   <Text style={{ fontSize: 11 }}>Provider</Text>
                 </Flex>
                 <Flex alignItems="center" gap={4}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: '#73be28' }} />
+                  <Flex style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--dt-colors-charts-status-good-default)' }} />
                   <Text style={{ fontSize: 11 }}>Model</Text>
                 </Flex>
               </Flex>
             </Flex>
             
-            <div style={{ background: '#f9fafb', overflow: 'auto', padding: '8px 0' }}>
+            <Flex style={{ background: 'var(--dt-colors-background-surface-default)', overflow: 'auto', padding: '8px 0' }}>
               <svg 
                 width={svgWidth}
                 height={svgHeight}
@@ -459,14 +460,14 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
               >
                 <defs>
                   <marker id="arrowhead-modal" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
-                    <polygon points="0 0, 6 2.5, 0 5" fill="#9ca3af" />
+                    <polygon points="0 0, 6 2.5, 0 5" fill='var(--dt-colors-text-neutral-subdued)' />
                   </marker>
                   <pattern id="dotPatternModal" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
                     <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
                   </pattern>
                 </defs>
 
-                <rect width="100%" height="100%" fill="#f9fafb" />
+                <rect width="100%" height="100%" fill='var(--dt-colors-background-surface-default)' />
                 <rect width="100%" height="100%" fill="url(#dotPatternModal)" />
 
                 {/* Edges: Service → Providers */}
@@ -483,15 +484,15 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                         y1={serviceY}
                         x2={endX}
                         y2={providerY}
-                        stroke="#9ca3af"
+                        stroke='var(--dt-colors-text-neutral-subdued)'
                         strokeWidth={1.5}
                         strokeDasharray="4 2"
                         markerEnd="url(#arrowhead-modal)"
                       />
                       {edge && (
                         <>
-                          <rect x={midX - 22} y={(serviceY + providerY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke="#e5e7eb" />
-                          <text x={midX} y={(serviceY + providerY) / 2 + 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                          <rect x={midX - 22} y={(serviceY + providerY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke='var(--dt-colors-border-neutral-default)' />
+                          <text x={midX} y={(serviceY + providerY) / 2 + 4} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                             {formatNumber(edge.metrics.tokens)} tok
                           </text>
                         </>
@@ -516,15 +517,15 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                           y1={startY}
                           x2={startX}
                           y2={endY}
-                          stroke="#9ca3af"
+                          stroke='var(--dt-colors-text-neutral-subdued)'
                           strokeWidth={1.5}
                           strokeDasharray="4 2"
                           markerEnd="url(#arrowhead-modal)"
                         />
                         {edge && (
                           <>
-                            <rect x={startX - 22} y={(startY + endY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke="#e5e7eb" />
-                            <text x={startX} y={(startY + endY) / 2 + 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                            <rect x={startX - 22} y={(startY + endY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke='var(--dt-colors-border-neutral-default)' />
+                            <text x={startX} y={(startY + endY) / 2 + 4} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                               {formatNumber(edge.metrics.requests)} req
                             </text>
                           </>
@@ -536,15 +537,15 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
 
                 {/* Service Node */}
                 <g transform={`translate(${serviceX - cardWidth / 2}, ${serviceY - cardHeight / 2})`}>
-                  <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#14a8f5" strokeWidth={2} />
+                  <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-categorical-color-01-default)' strokeWidth={2} />
                   <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(20, 168, 245, 0.1)" />
                   <rect y={16} width={cardWidth} height={8} fill="rgba(20, 168, 245, 0.1)" />
-                  <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#14a8f5">SERVICE</text>
+                  <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-categorical-color-01-default)'>SERVICE</text>
                   <ServicesIcon style={{ position: 'absolute' }} />
-                  <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                  <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
                     {service.name.length > 14 ? service.name.substring(0, 12) + '...' : service.name}
                   </text>
-                  <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                  <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                     {formatNumber(service.metrics.requests)} req
                   </text>
                 </g>
@@ -552,14 +553,14 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                 {/* Provider Nodes */}
                 {connectedProviders.map((provider, idx) => (
                   <g key={provider.id} transform={`translate(${getProviderX(idx) - cardWidth / 2}, ${providerY - cardHeight / 2})`}>
-                    <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#6f2da8" strokeWidth={2} />
+                    <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-categorical-color-02-default)' strokeWidth={2} />
                     <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(111, 45, 168, 0.1)" />
                     <rect y={16} width={cardWidth} height={8} fill="rgba(111, 45, 168, 0.1)" />
-                    <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#6f2da8">PROVIDER</text>
-                    <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                    <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-categorical-color-02-default)'>PROVIDER</text>
+                    <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
                       {provider.name.length > 14 ? provider.name.substring(0, 12) + '...' : provider.name}
                     </text>
-                    <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                    <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                       {formatNumber(provider.metrics.tokens)} tok
                     </text>
                   </g>
@@ -570,21 +571,21 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                   const models = providerToModels[provider.id] || [];
                   return models.map((model, mIdx) => (
                     <g key={model.id} transform={`translate(${getProviderX(pIdx) - cardWidth / 2}, ${getModelY(mIdx) - cardHeight / 2})`}>
-                      <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke="#73be28" strokeWidth={2} />
+                      <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-status-good-default)' strokeWidth={2} />
                       <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(115, 190, 40, 0.1)" />
                       <rect y={16} width={cardWidth} height={8} fill="rgba(115, 190, 40, 0.1)" />
-                      <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill="#73be28">MODEL</text>
-                      <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill="#1f2937">
+                      <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-status-good-default)'>MODEL</text>
+                      <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
                         {model.name.length > 14 ? model.name.substring(0, 12) + '...' : model.name}
                       </text>
-                      <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill="#6b7280">
+                      <text x={cardWidth / 2} y={68} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                         {model.metrics.latency.toFixed(0)}ms
                       </text>
                     </g>
                   ));
                 })}
               </svg>
-            </div>
+            </Flex>
           </Flex>
         </Surface>
 
@@ -617,8 +618,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                     </Flex>
                     <Flex gap={8} flexWrap="wrap" style={{ maxWidth: '50%' }}>
                       {models.map(model => (
-                        <div 
-                          key={model.id} 
+                        <Flex key={model.id} 
                           style={{ 
                             padding: '4px 8px', 
                             background: 'rgba(115, 190, 40, 0.1)', 
@@ -628,7 +628,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                           }}
                         >
                           {getModelIcon(model.name, 12)} {model.name}
-                        </div>
+                        </Flex>
                       ))}
                     </Flex>
                   </Flex>
@@ -1267,19 +1267,19 @@ export const AITopology: React.FC = () => {
         fontSize: 11
       }}>
         <Flex alignItems="center" gap={4}>
-          <div style={{ width: 12, height: 12, background: '#14a8f5', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
-          <span><strong>{topologyData.summary.totalServices}</strong> Svc</span>
+          <Flex style={{ width: 12, height: 12, background: 'var(--dt-colors-charts-categorical-color-01-default)', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <Text><strong>{topologyData.summary.totalServices}</strong> Svc</Text>
         </Flex>
         <Flex alignItems="center" gap={4}>
-          <div style={{ width: 12, height: 12, background: '#6f2da8', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
-          <span><strong>{topologyData.summary.totalProviders}</strong> Prov</span>
+          <Flex style={{ width: 12, height: 12, background: 'var(--dt-colors-charts-categorical-color-02-default)', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <Text><strong>{topologyData.summary.totalProviders}</strong> Prov</Text>
         </Flex>
         <Flex alignItems="center" gap={4}>
-          <div style={{ width: 12, height: 12, background: '#00b4a0', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
-          <span><strong>{topologyData.summary.totalModels}</strong> Mod</span>
+          <Flex style={{ width: 12, height: 12, background: 'var(--dt-colors-charts-categorical-color-03-default)', clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+          <Text><strong>{topologyData.summary.totalModels}</strong> Mod</Text>
         </Flex>
-        <div style={{ height: 12, borderLeft: '1px solid var(--dt-colors-border-neutral-default)' }} />
-        <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+        <Flex style={{ height: 12, borderLeft: '1px solid var(--dt-colors-border-neutral-default)' }} />
+        <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
           {topologyData.summary.totalRequests > 1000 
             ? `${(topologyData.summary.totalRequests/1000).toFixed(1)}K` 
             : topologyData.summary.totalRequests} req • {
@@ -1289,7 +1289,7 @@ export const AITopology: React.FC = () => {
               ? `${(topologyData.summary.totalTokens / 1000).toFixed(0)}K`
               : topologyData.summary.totalTokens
           } tok
-        </span>
+        </Text>
       </Flex>
 
       {/* Topology SVG - Scrollable Container */}
@@ -1297,9 +1297,9 @@ export const AITopology: React.FC = () => {
         padding: 0, 
         flex: 1,
         minHeight: 200,
-        maxHeight: 'calc(100vh - 160px)',
+        maxHeight: '100%',
         overflow: 'auto',
-        background: '#f9fafb',
+        background: 'var(--dt-colors-background-surface-default)',
         borderRadius: 8,
         border: '1px solid var(--dt-colors-border-neutral-default)',
         position: 'relative'
@@ -1325,7 +1325,7 @@ export const AITopology: React.FC = () => {
             >
               <polygon 
                 points="0 0, 6 2.5, 0 5" 
-                fill="#9ca3af"
+                fill='var(--dt-colors-text-neutral-subdued)'
               />
             </marker>
             {/* Glow filter for nodes */}
@@ -1343,7 +1343,7 @@ export const AITopology: React.FC = () => {
           </defs>
 
           {/* Background - light gray with subtle dots */}
-          <rect width="100%" height="100%" fill="#f9fafb" />
+          <rect width="100%" height="100%" fill='var(--dt-colors-background-surface-default)' />
           <rect width="100%" height="100%" fill="url(#dotPattern)" />
 
           {/* Edges (render first so they're behind nodes) */}
@@ -1383,15 +1383,15 @@ export const AITopology: React.FC = () => {
 
       {/* Tooltip Portal - Fixed position following cursor */}
       {hoveredNode && (
-        <div style={{
+        <Flex style={{
           position: 'fixed',
           left: tooltipPos.x + 20,
           top: tooltipPos.y - 10,
           zIndex: 9999,
-          background: '#ffffff',
+          background: 'var(--dt-colors-text-primary-inverse)',
           borderRadius: 8,
           boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          border: '1px solid #d1d5db',
+          border: '1px solid var(--dt-colors-border-neutral-default)',
           padding: 12,
           minWidth: 200,
           maxWidth: 240,
@@ -1400,36 +1400,36 @@ export const AITopology: React.FC = () => {
           <Flex flexDirection="column" gap={4}>
             <Flex justifyContent="space-between" alignItems="center">
               <Text style={{ fontWeight: 600, fontSize: 13 }}>{hoveredNode.name}</Text>
-              <span style={{
+              <Text style={{
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: hoveredNode.health === 'healthy' ? '#73be28' : 
-                           hoveredNode.health === 'warning' ? '#f5d30f' : '#dc172a'
+                background: hoveredNode.health === 'healthy' ? 'var(--dt-colors-charts-status-good-default)' : 
+                           hoveredNode.health === 'warning' ? 'var(--dt-colors-charts-status-warning-default)' : 'var(--dt-colors-charts-status-critical-default)'
               }} />
             </Flex>
-            <Text textStyle="small" style={{ color: '#6b7280', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.5px' }}>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-default)', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.5px' }}>
               {hoveredNode.type}
             </Text>
-            <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
+            <Flex style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', margin: '4px 0' }} />
             <Flex justifyContent="space-between">
-              <Text style={{ fontSize: 11, color: '#6b7280' }}>Requests</Text>
-              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.requests.toLocaleString()}</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-neutral-default)' }}>Requests</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{formatNumber(hoveredNode.metrics.requests)}</Text>
             </Flex>
             <Flex justifyContent="space-between">
-              <Text style={{ fontSize: 11, color: '#6b7280' }}>Tokens</Text>
-              <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.tokens.toLocaleString()}</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-neutral-default)' }}>Tokens</Text>
+              <Text style={{ fontWeight: 600, fontSize: 11 }}>{formatNumber(hoveredNode.metrics.tokens)}</Text>
             </Flex>
             <Flex justifyContent="space-between">
-              <Text style={{ fontSize: 11, color: '#6b7280' }}>Latency</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-neutral-default)' }}>Latency</Text>
               <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.latency.toFixed(0)}ms</Text>
             </Flex>
             <Flex justifyContent="space-between">
-              <Text style={{ fontSize: 11, color: '#6b7280' }}>Error Rate</Text>
+              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-neutral-default)' }}>Error Rate</Text>
               <Text style={{ fontWeight: 600, fontSize: 11 }}>{hoveredNode.metrics.errorRate.toFixed(1)}%</Text>
             </Flex>
           </Flex>
-        </div>
+        </Flex>
       )}
 
       {/* Service Detail Modal */}

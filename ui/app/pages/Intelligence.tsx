@@ -58,6 +58,7 @@ import {
   getConversationHistory,
 } from '../utils/chatMemory';
 import type { ChatSession } from '../utils/chatMemory';
+import { formatDateTime, formatNumber, formatTime } from '../utils/formatting';
 
 // ============================================
 // Constants
@@ -113,30 +114,30 @@ const TILE_ICON_STYLE: React.CSSProperties = { width: 22, height: 22 };
 
 /** Big icon tiles shown on the welcome screen */
 const WELCOME_TILES: { icon: React.ReactNode; label: string; sub: string; query: string; color: string }[] = [
-  { icon: <CheckmarkIcon style={TILE_ICON_STYLE} />,  label: 'Health',     sub: 'Service status',   query: 'How are my AI services doing right now?',                  color: '#2ab6a4' },
-  { icon: <MoneyIcon style={TILE_ICON_STYLE} />,      label: 'Costs',      sub: 'Spend & tokens',   query: 'Show me a cost breakdown by provider and model',           color: '#f5a623' },
-  { icon: <AiIcon style={TILE_ICON_STYLE} />,         label: 'Agents',     sub: 'Activity & tools',  query: 'Tell me about my AI agents and their activity',            color: '#7b61ff' },
-  { icon: <CriticalIcon style={TILE_ICON_STYLE} />,   label: 'Errors',     sub: 'Top failures',     query: 'What are the top errors across my AI services?',            color: '#e74c3c' },
-  { icon: <BarChartIcon style={TILE_ICON_STYLE} />,   label: 'Tokens',     sub: 'Usage by model',   query: 'Which models are consuming the most tokens?',               color: '#3498db' },
+  { icon: <CheckmarkIcon style={TILE_ICON_STYLE} />,  label: 'Health',     sub: 'Service status',   query: 'How are my AI services doing right now?',                  color: 'var(--dt-colors-charts-categorical-color-03-default)' },
+  { icon: <MoneyIcon style={TILE_ICON_STYLE} />,      label: 'Costs',      sub: 'Spend & tokens',   query: 'Show me a cost breakdown by provider and model',           color: 'var(--dt-colors-charts-status-warning-default)' },
+  { icon: <AiIcon style={TILE_ICON_STYLE} />,         label: 'Agents',     sub: 'Activity & tools',  query: 'Tell me about my AI agents and their activity',            color: 'var(--dt-colors-charts-categorical-color-06-default)' },
+  { icon: <CriticalIcon style={TILE_ICON_STYLE} />,   label: 'Errors',     sub: 'Top failures',     query: 'What are the top errors across my AI services?',            color: 'var(--dt-colors-charts-status-critical-default)' },
+  { icon: <BarChartIcon style={TILE_ICON_STYLE} />,   label: 'Tokens',     sub: 'Usage by model',   query: 'Which models are consuming the most tokens?',               color: 'var(--dt-colors-charts-categorical-color-01-default)' },
 ];
 
 /** Category colors for suggested prompt chips */
 const CATEGORY_COLORS: Record<string, string> = {
-  general: '#7b61ff',
-  health: '#2ab6a4',
-  performance: '#3498db',
-  cost: '#f5a623',
-  agents: '#9b59b6',
-  security: '#e74c3c',
-  analysis: '#3498db',
-  inventory: '#2ab6a4',
+  general: 'var(--dt-colors-charts-categorical-color-06-default)',
+  health: 'var(--dt-colors-charts-categorical-color-03-default)',
+  performance: 'var(--dt-colors-charts-categorical-color-01-default)',
+  cost: 'var(--dt-colors-charts-status-warning-default)',
+  agents: 'var(--dt-colors-charts-categorical-color-02-default)',
+  security: 'var(--dt-colors-charts-status-critical-default)',
+  analysis: 'var(--dt-colors-charts-categorical-color-01-default)',
+  inventory: 'var(--dt-colors-charts-categorical-color-03-default)',
 };
 
 /** Tool Help Guide � organized by tier (Observe / Analyze / Act) � toggleable panel */
 const TOOL_HELP_GUIDE: { tier: string; color: string; tools: { name: string; prompt: string; desc: string }[] }[] = [
   {
     tier: 'Observe',
-    color: '#3498db',
+    color: 'var(--dt-colors-charts-categorical-color-01-default)',
     tools: [
       { name: 'Service Inventory', prompt: 'How many services, providers, models, and agents do I have?', desc: 'List all AI services, providers, models' },
       { name: 'Service Health', prompt: 'How are my AI services doing right now?', desc: 'Check health status of all AI services' },
@@ -147,7 +148,7 @@ const TOOL_HELP_GUIDE: { tier: string; color: string; tools: { name: string; pro
   },
   {
     tier: 'Analyze',
-    color: '#9b59b6',
+    color: 'var(--dt-colors-charts-categorical-color-02-default)',
     tools: [
       { name: 'Cost Breakdown', prompt: 'Show me a cost breakdown by provider and model', desc: 'Detailed cost analysis by provider' },
       { name: 'Latency Analysis', prompt: 'Which services or models have the highest latency?', desc: 'Performance bottleneck detection' },
@@ -159,7 +160,7 @@ const TOOL_HELP_GUIDE: { tier: string; color: string; tools: { name: string; pro
   },
   {
     tier: 'Act',
-    color: '#2ab6a4',
+    color: 'var(--dt-colors-charts-categorical-color-03-default)',
     tools: [
       { name: 'Forecast Spend', prompt: 'Forecast my token usage and costs for the next 24 hours', desc: 'Predict future spend and usage' },
       { name: 'Executive Summary', prompt: 'Give me a full executive summary of GenAI operations', desc: 'Comprehensive operations report' },
@@ -267,7 +268,7 @@ const MarkdownText: React.FC<{ content: string; style?: React.CSSProperties }> =
       // Empty line = paragraph break
       if (line.trim() === '') {
         flushList();
-        result.push(<div key={`br-${i}`} style={{ height: 6 }} />);
+        result.push(<Flex key={`br-${i}`} style={{ height: 6 }} />);
         continue;
       }
 
@@ -278,9 +279,9 @@ const MarkdownText: React.FC<{ content: string; style?: React.CSSProperties }> =
         const level = hMatch[1].length;
         const sizes = [18, 16, 14, 13];
         result.push(
-          <div key={`h-${i}`} style={{ fontWeight: 600, fontSize: sizes[level - 1] || 13, margin: '6px 0 2px' }}>
+          <Flex key={`h-${i}`} style={{ fontWeight: 600, fontSize: sizes[level - 1] || 13, margin: '6px 0 2px' }}>
             {renderInline(hMatch[2])}
-          </div>
+          </Flex>
         );
         continue;
       }
@@ -303,13 +304,13 @@ const MarkdownText: React.FC<{ content: string; style?: React.CSSProperties }> =
 
       // Regular text
       flushList();
-      result.push(<div key={`p-${i}`} style={{ lineHeight: 1.5, fontSize: 13 }}>{renderInline(line)}</div>);
+      result.push(<Flex key={`p-${i}`} style={{ lineHeight: 1.5, fontSize: 13 }}>{renderInline(line)}</Flex>);
     }
     flushList();
     return result;
   }, [content]);
 
-  return <div style={style}>{elements}</div>;
+  return <Flex style={style}>{elements}</Flex>;
 };
 
 /** Render a TableBlock using Strato DataTable */
@@ -436,7 +437,7 @@ const TimeseriesChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
         {xLabels.map((d, i) => {
           const idx = sorted.indexOf(d);
           const label = d.timestamp
-            ? new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            ? formatTime(d.timestamp)
             : d.label;
           return (
             <text key={`xl-${i}`} x={x(idx)} y={H - 6} textAnchor="middle" fontSize={8} fill="var(--dt-colors-text-secondary-default, #888)">
@@ -458,7 +459,7 @@ const TimeseriesChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
 const PieChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
   const total = block.data.reduce((s, d) => s + d.value, 0) || 1;
   const R = 60, CX = 80, CY = 80, IR = 35;
-  const COLORS = ['#6F2DA8', '#2ab6a4', '#f5a623', '#e74c3c', '#3498db', '#9b59b6', '#1abc9c', '#34495e'];
+  const COLORS = ['var(--dt-colors-charts-categorical-color-02-default)', 'var(--dt-colors-charts-categorical-color-03-default)', 'var(--dt-colors-charts-status-warning-default)', 'var(--dt-colors-charts-status-critical-default)', 'var(--dt-colors-charts-categorical-color-01-default)', 'var(--dt-colors-charts-categorical-color-02-default)', 'var(--dt-colors-charts-categorical-color-03-default)', 'var(--dt-colors-text-neutral-default)'];
 
   // Build arcs
   let cumAngle = -Math.PI / 2;
@@ -485,7 +486,7 @@ const PieChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
             <path key={i} d={a.path} fill={a.color} stroke="var(--dt-colors-surface-default-default, #fff)" strokeWidth={1.5} />
           ))}
           <text x={CX} y={CY - 4} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--dt-colors-text-primary-default, #222)">
-            {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toLocaleString()}
+            {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : formatNumber(total)}
           </text>
           <text x={CX} y={CY + 10} textAnchor="middle" fontSize={8} fill="var(--dt-colors-text-secondary-default, #888)">
             {block.unit || 'total'}
@@ -494,8 +495,8 @@ const PieChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
         <Flex flexDirection="column" gap={4}>
           {arcs.map((a, i) => (
             <Flex key={i} gap={6} alignItems="center">
-              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: a.color, flexShrink: 0 }} />
-              <Text textStyle="small">{a.label}: <Strong>{a.value.toLocaleString()}</Strong> ({a.pct}%)</Text>
+              <Text style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: a.color, flexShrink: 0 }} />
+              <Text textStyle="small">{a.label}: <Strong>{formatNumber(a.value)}</Strong> ({a.pct}%)</Text>
             </Flex>
           ))}
         </Flex>
@@ -527,7 +528,7 @@ const BarChart: React.FC<{ block: ChartBlock }> = ({ block }) => {
               }} />
             </Flex>
             <Text textStyle="small" style={{ minWidth: 60 }}>
-              {d.value.toLocaleString()}{block.unit ? ` ${block.unit}` : ''}
+              {formatNumber(d.value)}{block.unit ? ` ${block.unit}` : ''}
             </Text>
           </Flex>
         ))}
@@ -621,8 +622,7 @@ const FollowUpChips: React.FC<{
 }> = ({ chips, onSelect, disabled }) => (
   <Flex gap={6} flexWrap="wrap">
     {chips.map((chip, i) => (
-      <div
-        key={i}
+      <Flex key={i}
         onClick={() => !disabled && onSelect(chip.query)}
         style={{
           display: 'flex',
@@ -650,8 +650,8 @@ const FollowUpChips: React.FC<{
         }}
       >
         <ArrowRightIcon style={{ width: 11, height: 11 }} />
-        <span>{chip.label}</span>
-      </div>
+        <Text>{chip.label}</Text>
+      </Flex>
     ))}
   </Flex>
 );
@@ -662,13 +662,13 @@ const FollowUpChips: React.FC<{
 
 /** Render a DQL query code block (learned from DavisAssistant's inline DQL display) */
 const DQLQueryBlock: React.FC<{ dql: string }> = ({ dql }) => (
-  <div style={{
+  <Flex style={{
     marginTop: 8,
     padding: 10,
     borderRadius: 6,
     background: 'var(--dt-colors-background-default-secondary)',
   }}>
-    <span style={{
+    <Text style={{
       fontSize: 9,
       fontWeight: 600,
       textTransform: 'uppercase' as const,
@@ -676,7 +676,7 @@ const DQLQueryBlock: React.FC<{ dql: string }> = ({ dql }) => (
       letterSpacing: '0.5px',
     }}>
       DQL Query
-    </span>
+    </Text>
     <code style={{
       display: 'block',
       fontSize: 11,
@@ -687,7 +687,7 @@ const DQLQueryBlock: React.FC<{ dql: string }> = ({ dql }) => (
     }}>
       {dql}
     </code>
-  </div>
+  </Flex>
 );
 
 const MessageBubble: React.FC<{
@@ -711,7 +711,7 @@ const MessageBubble: React.FC<{
       justifyContent={isUser ? 'flex-end' : 'flex-start'}
       style={{ width: '100%' }}
     >
-      <div style={{
+      <Flex style={{
         padding: '12px 16px',
         maxWidth: isUser ? '70%' : '95%',
         minWidth: isUser ? undefined : '60%',
@@ -726,22 +726,22 @@ const MessageBubble: React.FC<{
         <Flex flexDirection="column" gap={4}>
           {/* Role Label + Timestamp (learned from DavisAssistant) */}
           <Flex alignItems="center" gap={6}>
-            <span style={{ display: 'flex', alignItems: 'center' }}>
+            <Text style={{ display: 'flex', alignItems: 'center' }}>
               {isUser
                 ? <HelpIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-primary-default)' }} />
                 : <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
               }
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const }}>
+            </Text>
+            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const }}>
               {isUser ? 'You' : 'GenAI Intelligence'}
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
-              {message.timestamp.toLocaleTimeString()}
-            </span>
+            </Text>
+            <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+              {formatTime(message.timestamp)}
+            </Text>
             {/* Selection badge */}
             {!isUser && message.selectionMethod && (
               <Tooltip text={message.selectionReasoning || `Tool selection: ${message.selectionMethod}`}>
-                <span style={{
+                <Text style={{
                   fontSize: 9,
                   padding: '1px 6px',
                   borderRadius: 8,
@@ -749,14 +749,14 @@ const MessageBubble: React.FC<{
                   color: 'var(--dt-colors-text-secondary-default)',
                 }}>
                   {message.selectionMethod === 'ai' ? 'AI-selected' : message.selectionMethod}
-                </span>
+                </Text>
               </Tooltip>
             )}
             {/* Tool badges */}
             {!isUser && message.toolsUsed && message.toolsUsed.length > 0 && (
               <Flex gap={4}>
                 {message.toolsUsed.map((t, i) => (
-                  <span key={i} style={{
+                  <Text key={i} style={{
                     fontSize: 9,
                     padding: '1px 6px',
                     borderRadius: 8,
@@ -764,7 +764,7 @@ const MessageBubble: React.FC<{
                     color: 'var(--dt-colors-text-secondary-default)',
                   }}>
                     {t.replace(/_/g, ' ')}
-                  </span>
+                  </Text>
                 ))}
               </Flex>
             )}
@@ -774,13 +774,13 @@ const MessageBubble: React.FC<{
           {message.isLoading ? (
             <Flex alignItems="center" gap={6} style={{ padding: '8px 0' }}>
               <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
-              <span style={{
+              <Text style={{
                 color: 'var(--dt-colors-text-secondary-default)',
                 fontStyle: 'italic',
                 fontSize: 12,
               }}>
                 GenAI Intelligence is thinking...
-              </span>
+              </Text>
             </Flex>
           ) : (
             <>
@@ -818,7 +818,7 @@ const MessageBubble: React.FC<{
             </>
           )}
         </Flex>
-      </div>
+      </Flex>
     </Flex>
   );
 };
@@ -880,7 +880,7 @@ const SessionSidebar: React.FC<{
           style={{ justifyContent: 'flex-start', gap: 8, padding: '8px 10px' }}
         >
           <PlusIcon style={{ width: 16, height: 16 }} />
-          {isSidebarOpen && <span style={{ fontSize: 12 }}>New chat</span>}
+          {isSidebarOpen && <Text style={{ fontSize: 12 }}>New chat</Text>}
         </Button>
       </Tooltip>
       <Flex flexDirection="column" gap={8} style={{ overflow: 'auto', minHeight: 0 }}>
@@ -931,7 +931,7 @@ const SessionSidebar: React.FC<{
                       {session.title}
                     </Strong>
                     <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
-                      {new Date(session.updatedAt).toLocaleString()}
+                      {formatDateTime(session.updatedAt)}
                     </Text>
                   </Flex>
                 </Flex>
@@ -1412,7 +1412,7 @@ export const Intelligence: React.FC = () => {
               </Flex>
             )}
 
-            <div ref={messagesEndRef} />
+            <Flex ref={messagesEndRef} />
           </Flex>
 
           {/* Input Area � always at the bottom */}
@@ -1420,12 +1420,12 @@ export const Intelligence: React.FC = () => {
             {/* Filter bar: Timeframe */}
             <Flex gap={8} alignItems="center" style={{ marginBottom: 8 }}>
               <Tooltip text="Data timeframe for queries">
-                <div>
+                <Flex>
                   <TimeframeSelector
                     value={timeframe}
                     onChange={(tf) => setTimeframe(tf)}
                   />
-                </div>
+                </Flex>
               </Tooltip>
             </Flex>
             {/* Text input + Send */}
@@ -1442,17 +1442,17 @@ export const Intelligence: React.FC = () => {
                     <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                   </svg>
                   {isListening && (
-                    <span style={{
+                    <Text style={{
                       position: 'absolute', top: 3, right: 3,
                       width: 7, height: 7, borderRadius: '50%',
-                      backgroundColor: '#dc2626',
-                      boxShadow: '0 0 0 0 #dc2626',
+                      backgroundColor: 'var(--dt-colors-charts-status-critical-default)',
+                      boxShadow: '0 0 0 0 var(--dt-colors-charts-status-critical-default)',
                       animation: 'dtVoicePulse 1.2s ease-in-out infinite',
                     }} />
                   )}
                 </Button>
               </Tooltip>
-              <div style={{ flex: 1, position: 'relative' }}>
+              <Flex style={{ flex: 1, position: 'relative' }}>
                 <textarea
                   value={inputValue}
                   onChange={(e) => {
@@ -1483,7 +1483,7 @@ export const Intelligence: React.FC = () => {
                     outline: 'none',
                   }}
                 />
-              </div>
+              </Flex>
               <Tooltip text="Send message">
                 <Button
                   variant="emphasized"

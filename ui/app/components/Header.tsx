@@ -51,7 +51,7 @@ export const Header = () => {
   });
 
   // Check if any "More" page is currently active
-  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/security', '/provider-status', '/governance', '/ai-architect', '/integrations', '/data'];
+  const morePages = ['/quality', '/conversation', '/devex', '/infrastructure', '/operations', '/security', '/threat-intelligence', '/provider-status', '/governance', '/ai-architect', '/integrations', '/data'];
   const isMoreActive = morePages.some(p => isActive(p));
 
   // Navigation follows Observe → Analyze → Act pattern
@@ -181,6 +181,13 @@ export const Header = () => {
             >
               <Menu.Prefix><LockIcon /></Menu.Prefix>
               Security Audit
+            </Menu.Item>
+            <Menu.Item
+              onSelect={() => navigate('/threat-intelligence')}
+              style={isActive('/threat-intelligence') ? { fontWeight: 600 } : {}}
+            >
+              <Menu.Prefix><LockIcon /></Menu.Prefix>
+              Threat Intelligence
             </Menu.Item>
             <Menu.Item
               onSelect={() => navigate('/provider-status')}

@@ -73,18 +73,18 @@ const MetricCard: React.FC<{
       flex: '1 1 140px'
     }}
   >
-    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
+    <Text style={{ display: 'flex', alignItems: 'center' }}>{icon}</Text>
+    <Flex>
+      <Flex style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</Flex>
       <Flex alignItems="center" gap={4}>
-        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        <Flex style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</Flex>
         {tooltip && (
           <Tooltip text={tooltip}>
             <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
           </Tooltip>
         )}
       </Flex>
-    </div>
+    </Flex>
   </Flex>
 );
 
@@ -94,7 +94,7 @@ const DriftScoreGauge: React.FC<{ score: number; size?: 'small' | 'large' }> = (
   
   return (
     <Flex alignItems="center" gap={8}>
-      <div style={{ position: 'relative', width: size === 'large' ? 60 : 40, height: size === 'large' ? 60 : 40 }}>
+      <Flex style={{ position: 'relative', width: size === 'large' ? 60 : 40, height: size === 'large' ? 60 : 40 }}>
         <svg width="100%" height="100%" viewBox="0 0 40 40">
           {/* Background circle */}
           <circle
@@ -119,7 +119,7 @@ const DriftScoreGauge: React.FC<{ score: number; size?: 'small' | 'large' }> = (
             transform="rotate(-90 20 20)"
           />
         </svg>
-        <span style={{
+        <Text style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
@@ -129,8 +129,8 @@ const DriftScoreGauge: React.FC<{ score: number; size?: 'small' | 'large' }> = (
           color
         }}>
           {score}
-        </span>
-      </div>
+        </Text>
+      </Flex>
       {size === 'large' && (
         <Text style={{ color, fontWeight: 500 }}>{label}</Text>
       )}
@@ -147,7 +147,7 @@ const TrendBadge: React.FC<{ trend: 'improving' | 'stable' | 'degrading' }> = ({
   const { color, icon, label } = config[trend];
   
   return (
-    <span style={{
+    <Text style={{
       display: 'inline-flex',
       alignItems: 'center',
       gap: 4,
@@ -159,7 +159,7 @@ const TrendBadge: React.FC<{ trend: 'improving' | 'stable' | 'degrading' }> = ({
       fontWeight: 500
     }}>
       {icon} {label}
-    </span>
+    </Text>
   );
 };
 
@@ -363,7 +363,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
           <Flex flexDirection="column" gap={4}>
             <Flex alignItems="center" gap={8}>
               <Text textStyle="base-emphasized">{summary.model}</Text>
-              <span style={{ 
+              <Text style={{ 
                 display: 'inline-flex',
                 padding: '2px 8px',
                 borderRadius: 4,
@@ -373,7 +373,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                 fontWeight: 500
               }}>
                 {opConfig.label}
-              </span>
+              </Text>
             </Flex>
             <Text textStyle="small" style={{ opacity: 0.7 }}>{summary.provider}</Text>
           </Flex>
@@ -486,9 +486,9 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
           </Surface>
           {/* Drift threshold lines explanation */}
           <Flex gap={16} justifyContent="center" style={{ fontSize: 10, opacity: 0.6 }}>
-            <span>🟢 Normal: 0-39</span>
-            <span>🟡 Warning: 40-69</span>
-            <span>🔴 Critical: 70+</span>
+            <Text>🟢 Normal: 0-39</Text>
+            <Text>🟡 Warning: 40-69</Text>
+            <Text>🔴 Critical: 70+</Text>
           </Flex>
         </Flex>
 
@@ -533,7 +533,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
                           {formatNumber(svc.requestCount)}
-                          <span style={{ fontSize: 10, opacity: 0.6 }}> ({requestShare.toFixed(0)}%)</span>
+                          <Text style={{ fontSize: 10, opacity: 0.6 }}> ({requestShare.toFixed(0)}%)</Text>
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
                           {svc.avgLatency.toFixed(0)}ms
@@ -542,7 +542,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                           {svc.errorRate.toFixed(2)}%
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                          <span style={{ 
+                          <Text style={{ 
                             display: 'inline-flex',
                             padding: '2px 8px',
                             borderRadius: 4,
@@ -552,7 +552,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                             fontWeight: 600
                           }}>
                             {impactLevel}
-                          </span>
+                          </Text>
                         </td>
                       </tr>
                     );
@@ -583,7 +583,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
             <ResearchIcon style={{ width: 14, height: 14 }} />
             <Text textStyle="base-emphasized">AI Agents Impacted by Drift</Text>
             {impactedAgents.length > 0 && (
-              <span style={{ 
+              <Text style={{ 
                 padding: '2px 8px', 
                 borderRadius: 12, 
                 backgroundColor: summary.severity === 'critical' ? `${STATUS_COLORS.critical}20` : `${STATUS_COLORS.warning}20`,
@@ -592,7 +592,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                 fontWeight: 600
               }}>
                 {impactedAgents.length} agent{impactedAgents.length !== 1 ? 's' : ''}
-              </span>
+              </Text>
             )}
           </Flex>
           {agentsLoading ? (
@@ -623,28 +623,28 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                       <tr key={idx} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
                         <td style={{ padding: '8px 12px', fontSize: 12 }}>
                           <Flex alignItems="center" gap={6}>
-                            <span style={{ 
+                            <Text style={{ 
                               width: 8, height: 8, borderRadius: '50%', 
-                              backgroundColor: '#14a8f5' 
+                              backgroundColor: 'var(--dt-colors-charts-categorical-color-01-default)' 
                             }} />
                             <Text textStyle="small-emphasized">{agent.agentName}</Text>
                           </Flex>
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
-                          {agent.callCount.toLocaleString()}
-                          <span style={{ fontSize: 10, opacity: 0.6 }}> ({callShare.toFixed(0)}%)</span>
+                          {formatNumber(agent.callCount)}
+                          <Text style={{ fontSize: 10, opacity: 0.6 }}> ({callShare.toFixed(0)}%)</Text>
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
                           {agent.avgLatency.toFixed(0)}ms
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace' }}>
-                          {agent.totalTokens.toLocaleString()}
+                          {formatNumber(agent.totalTokens)}
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, fontFamily: 'monospace', color: agent.errorRate > 1 ? STATUS_COLORS.critical : 'inherit' }}>
                           {agent.errorRate.toFixed(2)}%
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                          <span style={{ 
+                          <Text style={{ 
                             display: 'inline-flex',
                             padding: '2px 8px',
                             borderRadius: 4,
@@ -654,7 +654,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                             fontWeight: 600
                           }}>
                             {impactLevel}
-                          </span>
+                          </Text>
                         </td>
                       </tr>
                     );
@@ -830,7 +830,7 @@ export const ModelDrift: React.FC = () => {
         };
         const config = typeConfig[rowData.operationType] || typeConfig.unknown;
         return (
-          <span style={{ 
+          <Text style={{ 
             display: 'inline-flex',
             padding: '2px 6px',
             borderRadius: 4,
@@ -840,7 +840,7 @@ export const ModelDrift: React.FC = () => {
             fontWeight: 500
           }}>
             {config.label}
-          </span>
+          </Text>
         );
       },
       minWidth: 70
@@ -865,15 +865,15 @@ export const ModelDrift: React.FC = () => {
       accessor: 'metrics',
       cell: ({ rowData }: { rowData: ModelDriftSummary }) => {
         const latencyMetric = rowData.metrics.find(m => m.metricName === 'Average Latency');
-        if (!latencyMetric) return <span>-</span>;
+        if (!latencyMetric) return <Text>-</Text>;
         return (
-          <span style={{ 
+          <Text style={{ 
             color: latencyMetric.changePercent > 20 ? STATUS_COLORS.critical : 
                    latencyMetric.changePercent > 10 ? STATUS_COLORS.warning : 
                    'inherit'
           }}>
             {latencyMetric.changePercent >= 0 ? '+' : ''}{latencyMetric.changePercent.toFixed(1)}%
-          </span>
+          </Text>
         );
       },
       minWidth: 90
@@ -884,15 +884,15 @@ export const ModelDrift: React.FC = () => {
       accessor: 'metrics',
       cell: ({ rowData }: { rowData: ModelDriftSummary }) => {
         const outputMetric = rowData.metrics.find(m => m.metricName === 'Avg Output Tokens');
-        if (!outputMetric) return <span>-</span>;
+        if (!outputMetric) return <Text>-</Text>;
         return (
-          <span style={{ 
+          <Text style={{ 
             color: outputMetric.changePercent < -20 ? STATUS_COLORS.critical : 
                    outputMetric.changePercent < -10 ? STATUS_COLORS.warning : 
                    'inherit'
           }}>
             {outputMetric.changePercent >= 0 ? '+' : ''}{outputMetric.changePercent.toFixed(1)}%
-          </span>
+          </Text>
         );
       },
       minWidth: 90
@@ -903,10 +903,10 @@ export const ModelDrift: React.FC = () => {
       accessor: 'metrics',
       cell: ({ rowData }: { rowData: ModelDriftSummary }) => {
         const effMetric = rowData.metrics.find(m => m.metricName === 'Token Efficiency');
-        if (!effMetric) return <span>-</span>;
+        if (!effMetric) return <Text>-</Text>;
         return (
           <Tooltip text={`Output/Input ratio: ${effMetric.currentValue.toFixed(2)} (${effMetric.changePercent >= 0 ? '+' : ''}${effMetric.changePercent.toFixed(1)}% from baseline)`}>
-            <span style={{ 
+            <Text style={{ 
               color: effMetric.changePercent < -30 ? STATUS_COLORS.critical : 
                      effMetric.changePercent < -15 ? STATUS_COLORS.warning : 
                      effMetric.changePercent > 10 ? STATUS_COLORS.ideal :
@@ -914,7 +914,7 @@ export const ModelDrift: React.FC = () => {
               cursor: 'help'
             }}>
               {effMetric.currentValue.toFixed(2)}
-            </span>
+            </Text>
           </Tooltip>
         );
       },
@@ -925,12 +925,12 @@ export const ModelDrift: React.FC = () => {
       header: 'Anomalies',
       accessor: 'anomalies',
       cell: ({ rowData }: { rowData: ModelDriftSummary }) => (
-        <span style={{ 
+        <Text style={{ 
           color: rowData.anomalies.length > 0 ? STATUS_COLORS.warning : 'inherit',
           fontWeight: rowData.anomalies.length > 0 ? 600 : 400
         }}>
           {rowData.anomalies.length}
-        </span>
+        </Text>
       ),
       minWidth: 80
     },
@@ -1189,17 +1189,17 @@ export const ModelDrift: React.FC = () => {
                     <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>SEVERITY SCORES</Text>
                     <Flex flexDirection="column" gap={8} style={{ fontSize: 13 }}>
                       <Flex alignItems="center" gap={8}>
-                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#2ea043' }} />
+                        <Text style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: 'var(--dt-colors-charts-status-good-default)' }} />
                         <Text><strong>0-39</strong> = Normal</Text>
                       </Flex>
                       <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Model behaving within expected parameters</Text>
                       <Flex alignItems="center" gap={8}>
-                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#d29922' }} />
+                        <Text style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: 'var(--dt-colors-charts-status-warning-default)' }} />
                         <Text><strong>40-69</strong> = Warning</Text>
                       </Flex>
                       <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Notable deviation, investigation recommended</Text>
                       <Flex alignItems="center" gap={8}>
-                        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: '#cf222e' }} />
+                        <Text style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', backgroundColor: 'var(--dt-colors-charts-status-critical-default)' }} />
                         <Text><strong>70-100</strong> = Critical</Text>
                       </Flex>
                       <Text style={{ paddingLeft: 20, opacity: 0.7, fontSize: 11 }}>Significant drift, immediate attention required</Text>
@@ -1256,7 +1256,7 @@ export const ModelDrift: React.FC = () => {
                 <HelpIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
               </Tooltip>
               {/* Compact model count badge */}
-              <span style={{
+              <Text style={{
                 fontSize: 10,
                 padding: '2px 6px',
                 borderRadius: 10,
@@ -1264,13 +1264,13 @@ export const ModelDrift: React.FC = () => {
                 color: 'var(--dt-colors-text-secondary-default)'
               }}>
                 {selectedTrendModels.length} of {availableTrendModels.length} models
-              </span>
+              </Text>
             </Flex>
             <Flex alignItems="center" gap={12}>
               <Flex gap={12} style={{ fontSize: 11, opacity: 0.7 }}>
-                <span>🟢 0-39</span>
-                <span>🟡 40-69</span>
-                <span>🔴 70+</span>
+                <Text>🟢 0-39</Text>
+                <Text>🟡 40-69</Text>
+                <Text>🔴 70+</Text>
               </Flex>
               {/* Collapsible model selector toggle */}
               <Button 
@@ -1306,8 +1306,8 @@ export const ModelDrift: React.FC = () => {
                     {availableTrendModels.map(model => (
                       <Select.Option key={model.id} value={model.id}>
                         <Flex justifyContent="space-between" alignItems="center" style={{ width: '100%' }}>
-                          <span style={{ fontSize: 12 }}>{model.label}</span>
-                          <span style={{ 
+                          <Text style={{ fontSize: 12 }}>{model.label}</Text>
+                          <Text style={{ 
                             fontSize: 9, 
                             padding: '1px 4px',
                             borderRadius: 3,
@@ -1319,7 +1319,7 @@ export const ModelDrift: React.FC = () => {
                                    STATUS_COLORS.ideal
                           }}>
                             {model.driftScore}
-                          </span>
+                          </Text>
                         </Flex>
                       </Select.Option>
                     ))}
@@ -1383,7 +1383,7 @@ export const ModelDrift: React.FC = () => {
               <WarningIcon style={{ width: 16, height: 16, color: STATUS_COLORS.warning }} />
               <Heading level={6}>Recent Drift Anomalies</Heading>
             </Flex>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+            <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
               {anomalies.slice(0, 6).map((anomaly, idx) => (
                 <Surface 
                   key={idx} 
@@ -1402,24 +1402,24 @@ export const ModelDrift: React.FC = () => {
                         }
                         <Text textStyle="small-emphasized">{anomaly.title}</Text>
                       </Flex>
-                      <span style={{
+                      <Text style={{
                         padding: '2px 6px',
                         borderRadius: 4,
-                        backgroundColor: anomaly.type === 'latency_spike' ? '#e74c3c20' : 
-                                         anomaly.type === 'quality_drop' ? '#f39c1220' : '#9b59b620',
+                        backgroundColor: anomaly.type === 'latency_spike' ? 'var(--dt-colors-background-critical-default)' : 
+                                         anomaly.type === 'quality_drop' ? 'var(--dt-colors-background-warning-default)' : 'var(--dt-colors-background-neutral-default)',
                         color: 'var(--dt-colors-text-primary-default)',
                         fontSize: 10,
                         textTransform: 'uppercase'
                       }}>
                         {anomaly.type.replace('_', ' ')}
-                      </span>
+                      </Text>
                     </Flex>
                     <Text textStyle="small" style={{ opacity: 0.7 }}>{anomaly.model} • {anomaly.provider}</Text>
                     <Text textStyle="small" style={{ opacity: 0.8 }}>{anomaly.description}</Text>
                   </Flex>
                 </Surface>
               ))}
-            </div>
+            </Flex>
           </Flex>
         </Surface>
       )}

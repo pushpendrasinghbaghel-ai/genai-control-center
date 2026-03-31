@@ -28,6 +28,7 @@ import {
   Integrations,
   MLOps,
   Data,
+  ThreatIntelligence,
 } from "./pages";
 // RealTimeAlerts removed — duplicate of Operations problems section
 
@@ -108,6 +109,9 @@ export const App = () => {
 
                 {/* Security Audit Trail - Prompt security, PII detection, incident response */}
                 <Route path="/security" element={<SecurityAuditTrail />} />
+
+                {/* Adversarial Prompt Threat Intelligence - Davis AI semantic attack detection */}
+                <Route path="/threat-intelligence" element={<ThreatIntelligence />} />
 
                 {/* Provider Status & Failover - Phase 5: Provider health, failover readiness */}
                 <Route path="/provider-status" element={<ProviderStatus />} />

@@ -17,6 +17,7 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useProviderFailover, type ProviderHealth, type ProviderModelHealth, type ProviderErrorBurst, type FailoverEvent, type ProviderTrendPoint } from '../hooks/useProviderFailover';
+import { formatTime, formatNumber } from '../utils/formatting';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   healthy: Colors.Charts.Status.Ideal.Default,
   degraded: Colors.Charts.Status.Warning.Default,
   critical: Colors.Charts.Status.Critical.Default,
-  down: '#b91c1c',
+  down: 'var(--dt-colors-charts-status-critical-default)',
   unknown: Colors.Text.Neutral.Subdued,
 };
 
@@ -66,7 +67,7 @@ const ReadinessGauge: React.FC<{ value: number }> = ({ value }) => {
   const color = value >= 75 ? STATUS_COLORS.healthy : value >= 50 ? STATUS_COLORS.degraded : STATUS_COLORS.critical;
   return (
     <Flex flexDirection="column" alignItems="center" gap={4}>
-      <div style={{ position: 'relative', width: 72, height: 72 }}>
+      <Flex style={{ position: 'relative', width: 72, height: 72 }}>
         <svg width={72} height={72} viewBox="0 0 72 72">
           <circle cx={36} cy={36} r={30} fill="none" stroke="var(--dt-colors-border-neutral-default)" strokeWidth={6} />
           <circle
@@ -76,10 +77,10 @@ const ReadinessGauge: React.FC<{ value: number }> = ({ value }) => {
             transform="rotate(-90 36 36)"
           />
         </svg>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Flex style={{ position: 'absolute', top: 0, left: 0, width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 18, fontWeight: 700, color }}>{value}</Text>
-        </div>
-      </div>
+        </Flex>
+      </Flex>
       <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>Failover Readiness</Text>
     </Flex>
   );
@@ -117,7 +118,7 @@ const ProviderHealthCard: React.FC<{ provider: ProviderHealth; trend: ProviderTr
         <Flex gap={16} flexWrap="wrap">
           <Flex flexDirection="column" gap={2}>
             <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>Requests</Text>
-            <Text style={{ fontSize: 13, fontWeight: 600 }}>{provider.totalRequests.toLocaleString()}</Text>
+            <Text style={{ fontSize: 13, fontWeight: 600 }}>{formatNumber(provider.totalRequests)}</Text>
           </Flex>
           <Flex flexDirection="column" gap={2}>
             <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>Error Rate</Text>
@@ -159,11 +160,11 @@ const ProviderHealthCard: React.FC<{ provider: ProviderHealth; trend: ProviderTr
             ] as const).map((dim) => (
               <Flex key={dim.label} alignItems="center" gap={8}>
                 <Text style={{ fontSize: 11, width: 80 }}>{dim.label}</Text>
-                <div style={{ flex: 1 }}>
+                <Flex style={{ flex: 1 }}>
                   <ProgressBar value={dim.value} max={100}>
                     <ProgressBar.Label>{dim.value}/100</ProgressBar.Label>
                   </ProgressBar>
-                </div>
+                </Flex>
               </Flex>
             ))}
           </Flex>
@@ -196,7 +197,7 @@ const FailoverEventCard: React.FC<{ event: FailoverEvent }> = ({ event }) => {
           <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>{event.reason}</Text>
         </Flex>
         <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued, whiteSpace: 'nowrap' }}>
-          {new Date(event.timestamp).toLocaleTimeString()}
+          {formatTime(event.timestamp)}
         </Text>
       </Flex>
     </Surface>
@@ -442,7 +443,7 @@ const MethodologyHelpModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                   { status: 'down', range: '0–29', desc: 'Provider effectively unavailable; failover recommended', color: STATUS_COLORS.down },
                 ].map((s) => (
                   <Flex key={s.status} alignItems="center" gap={12}>
-                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: s.color }} />
+                    <Flex style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: s.color }} />
                     <Text style={{ width: 70, fontWeight: 600, textTransform: 'capitalize' }}>{s.status}</Text>
                     <Text style={{ width: 60, fontFamily: 'monospace', fontSize: 12 }}>{s.range}</Text>
                     <Text style={{ fontSize: 12, color: Colors.Text.Neutral.Subdued }}>{s.desc}</Text>
@@ -520,7 +521,7 @@ export const ProviderStatus: React.FC = () => {
     },
     {
       id: 'requests', header: 'Requests', minWidth: 80,
-      cell: ({ value }: any) => <Text>{Number(value).toLocaleString()}</Text>,
+      cell: ({ value }: any) => <Text>{formatNumber(Number(value))}</Text>,
     },
     {
       id: 'errorRate', header: 'Error Rate', minWidth: 80,
@@ -563,7 +564,7 @@ export const ProviderStatus: React.FC = () => {
     },
     {
       id: 'lastSeen', header: 'Last Seen', minWidth: 120,
-      cell: ({ value }: any) => <Text style={{ fontSize: 12 }}>{value ? new Date(String(value)).toLocaleTimeString() : '—'}</Text>,
+      cell: ({ value }: any) => <Text style={{ fontSize: 12 }}>{value ? formatTime(String(value)) : '—'}</Text>,
     },
   ], []);
 

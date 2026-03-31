@@ -102,13 +102,13 @@ function formatNum(n: number): string {
 
 function StatusPill({ label, color }: { label: string | number; color: string }) {
   return (
-    <span style={{
+    <Text style={{
       display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
       borderRadius: 10, fontSize: 11, fontWeight: 700,
       background: color + '22', color,
     }}>
       {label}
-    </span>
+    </Text>
   );
 }
 
@@ -118,10 +118,10 @@ function CompletionBadge({ value }: { value: number }) {
     : Colors.Text.Critical.Default;
   return (
     <Flex alignItems="center" gap={6}>
-      <div style={{ width: 48, height: 6, borderRadius: 3, background: color + '30', overflow: 'hidden' }}>
-        <div style={{ width: `${value}%`, height: '100%', borderRadius: 3, background: color }} />
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 32 }}>{value}%</span>
+      <Flex style={{ width: 48, height: 6, borderRadius: 3, background: color + '30', overflow: 'hidden' }}>
+        <Flex style={{ width: `${value}%`, height: '100%', borderRadius: 3, background: color }} />
+      </Flex>
+      <Text style={{ fontSize: 11, fontWeight: 700, color, minWidth: 32 }}>{value}%</Text>
     </Flex>
   );
 }
@@ -131,7 +131,7 @@ function AttributeCheck({ pctValue }: { pctValue: number }) {
     return (
       <Flex alignItems="center" gap={4}>
         <CheckmarkIcon style={{ width: 13, height: 13, color: Colors.Text.Success.Default }} />
-        <span style={{ fontSize: 11, color: Colors.Text.Success.Default }}>{pctValue}%</span>
+        <Text style={{ fontSize: 11, color: Colors.Text.Success.Default }}>{pctValue}%</Text>
       </Flex>
     );
   }
@@ -139,14 +139,14 @@ function AttributeCheck({ pctValue }: { pctValue: number }) {
     return (
       <Flex alignItems="center" gap={4}>
         <WarningIcon style={{ width: 13, height: 13, color: Colors.Text.Warning.Default }} />
-        <span style={{ fontSize: 11, color: Colors.Text.Warning.Default }}>{pctValue}%</span>
+        <Text style={{ fontSize: 11, color: Colors.Text.Warning.Default }}>{pctValue}%</Text>
       </Flex>
     );
   }
   return (
     <Flex alignItems="center" gap={4}>
       <CriticalIcon style={{ width: 13, height: 13, color: Colors.Text.Critical.Default }} />
-      <span style={{ fontSize: 11, color: Colors.Text.Critical.Default }}>None</span>
+      <Text style={{ fontSize: 11, color: Colors.Text.Critical.Default }}>None</Text>
     </Flex>
   );
 }
@@ -432,19 +432,19 @@ export function DeveloperExperience() {
     {
       id: 'provider', header: 'Provider', accessor: 'provider', width: 110,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</span>
+        <Text style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</Text>
       ),
     },
     {
       id: 'model', header: 'Model', accessor: 'model',
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as string}</span>
+        <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as string}</Text>
       ),
     },
     {
       id: 'calls', header: 'Calls', accessor: 'calls', width: 80,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontSize: 12, fontWeight: 600 }}>{formatNum(value as number)}</span>
+        <Text style={{ fontSize: 12, fontWeight: 600 }}>{formatNum(value as number)}</Text>
       ),
     },
     {
@@ -465,13 +465,13 @@ export function DeveloperExperience() {
         const v = value as number;
         return v > 0
           ? <StatusPill label={`${v}%`} color={Colors.Text.Critical.Default} />
-          : <span style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>0%</span>;
+          : <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>0%</Text>;
       },
     },
     {
       id: 'avgLatencyMs', header: 'Avg Latency', accessor: 'avgLatencyMs', width: 100,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontSize: 12 }}>{formatNum(value as number)} ms</span>
+        <Text style={{ fontSize: 12 }}>{formatNum(value as number)} ms</Text>
       ),
     },
     {
@@ -484,25 +484,25 @@ export function DeveloperExperience() {
     {
       id: 'provider', header: 'Provider', accessor: 'provider', width: 110,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</span>
+        <Text style={{ fontWeight: 600, fontSize: 12 }}>{value as string}</Text>
       ),
     },
     {
       id: 'requested', header: 'Requested Model', accessor: 'requested',
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{value as string}</span>
+        <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>{value as string}</Text>
       ),
     },
     {
       id: 'arrow', header: '', accessor: 'requested', width: 30,
-      cell: () => <span style={{ fontSize: 14, color: Colors.Text.Neutral.Subdued }}>?</span>,
+      cell: () => <Text style={{ fontSize: 14, color: Colors.Text.Neutral.Subdued }}>?</Text>,
     },
     {
       id: 'actual', header: 'Served Model', accessor: 'actual',
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 12, color: Colors.Text.Warning.Default, fontWeight: 600 }}>
+        <Text style={{ fontFamily: 'monospace', fontSize: 12, color: Colors.Text.Warning.Default, fontWeight: 600 }}>
           {value as string}
-        </span>
+        </Text>
       ),
     },
     {
@@ -514,7 +514,7 @@ export function DeveloperExperience() {
     {
       id: 'avgLatencyMs', header: 'Avg Latency', accessor: 'avgLatencyMs', width: 100,
       cell: ({ value }: { value: unknown }) => (
-        <span style={{ fontSize: 12 }}>{formatNum(value as number)} ms</span>
+        <Text style={{ fontSize: 12 }}>{formatNum(value as number)} ms</Text>
       ),
     },
   ], []);
@@ -578,7 +578,7 @@ export function DeveloperExperience() {
                     <strong>Tokens</strong> � gen_ai.usage.input_tokens / output_tokens (needed for cost tracking)<br />
                     <strong>Resp Model</strong> � gen_ai.response.model (detect version pinning and routing)<br />
                     <strong>Agent ID</strong> � gen_ai.agent.name (attribute calls to specific agents/workflows)<br />
-                    <span style={{ color: Colors.Text.Success.Default }}>Green checkmark (=80%)</span> = well instrumented, <span style={{ color: Colors.Text.Warning.Default }}>yellow warning</span> = partial, <span style={{ color: Colors.Text.Critical.Default }}>red X</span> = missing.
+                    <Text style={{ color: Colors.Text.Success.Default }}>Green checkmark (=80%)</Text> = well instrumented, <Text style={{ color: Colors.Text.Warning.Default }}>yellow warning</Text> = partial, <Text style={{ color: Colors.Text.Critical.Default }}>red X</Text> = missing.
                     The <strong>Completeness</strong> bar is the average of all four attributes.
                   </Text>
                 </Flex>
@@ -921,14 +921,14 @@ export function DeveloperExperience() {
                           {rec.detail}
                         </Text>
                         <Tooltip text="OpenTelemetry semantic convention attribute">
-                          <span style={{
+                          <Text style={{
                             display: 'inline-block', fontFamily: 'monospace', fontSize: 11,
                             padding: '2px 8px', borderRadius: 4,
                             background: 'var(--dt-colors-surface-neutral-subdued)',
                             color: Colors.Text.Neutral.Subdued, alignSelf: 'flex-start',
                           }}>
                             {rec.attribute}
-                          </span>
+                          </Text>
                         </Tooltip>
                       </Flex>
                     </Surface>
@@ -973,14 +973,14 @@ export function DeveloperExperience() {
 
             {/* Custom Query Input */}
             <Flex gap={8} alignItems="center">
-              <div style={{ flex: 1 }}>
+              <Flex style={{ flex: 1 }}>
                 <TextInput
                   placeholder="Ask anything about your AI integration health..."
                   value={davisQuery}
                   onChange={setDavisQuery}
                   onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') handleCustomDavisQuery(); }}
                 />
-              </div>
+              </Flex>
               <Button variant="emphasized" onClick={handleCustomDavisQuery}
                 disabled={!davisQuery.trim() || davisLoading}>
                 <Button.Prefix><DavisAIIcon /></Button.Prefix>
@@ -990,10 +990,10 @@ export function DeveloperExperience() {
 
             {/* Conversation */}
             {(davisMessages.length > 0 || davisLoading) && (
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 120, maxHeight: 320, borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
+              <Flex style={{ flex: 1, overflow: 'auto', minHeight: 120, maxHeight: 320, borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
                 <Flex flexDirection="column" gap={12}>
                   {davisMessages.map((msg: ConversationMessage, i: number) => (
-                    <div key={msg.id || i} style={{ width: '100%' }}>
+                    <Flex key={msg.id || i} style={{ width: '100%' }}>
                       {msg.role === 'user' ? (
                         <Flex gap={8} alignItems="flex-start">
                           <HelpIcon style={{ width: 14, height: 14, marginTop: 2, flexShrink: 0, color: 'var(--dt-colors-text-primary-default)' }} />
@@ -1009,10 +1009,10 @@ export function DeveloperExperience() {
                           <DavisResponse content={msg.content} />
                         </Surface>
                       )}
-                    </div>
+                    </Flex>
                   ))}
                 </Flex>
-              </div>
+              </Flex>
             )}
           </Flex>
         </Surface>

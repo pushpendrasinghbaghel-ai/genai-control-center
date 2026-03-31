@@ -141,13 +141,13 @@ function formatNum(n: number): string {
 
 function StatusPill({ label, color }: { label: string | number; color: string }) {
   return (
-    <span style={{
+    <Text style={{
       display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
       borderRadius: 10, fontSize: 11, fontWeight: 700,
       background: color + '22', color,
     }}>
       {label}
-    </span>
+    </Text>
   );
 }
 
@@ -343,14 +343,14 @@ export function ConversationIntelligence() {
               <TraceLink traceId={v} timestamp={rowData.firstTimestamp} truncate={20} />
             ) : (
               <Tooltip text={`${v}\n\nGrouped by: conversation_id`}>
-                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>
                   {v.substring(0, 20) + (v.length > 20 ? '…' : '')}
-                </span>
+                </Text>
               </Tooltip>
             )}
             {isTraceId && (
               <Tooltip text="Grouped by trace_id (no conversation_id in spans)">
-                <span style={{ fontSize: 9, color: Colors.Text.Neutral.Subdued, padding: '1px 4px', background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 3 }}>trace</span>
+                <Text style={{ fontSize: 9, color: Colors.Text.Neutral.Subdued, padding: '1px 4px', background: 'var(--dt-colors-surface-neutral-subdued)', borderRadius: 3 }}>trace</Text>
               </Tooltip>
             )}
           </Flex>
@@ -361,7 +361,7 @@ export function ConversationIntelligence() {
       id: 'totalTurns', header: 'Turns', accessor: 'totalTurns', width: 80,
       cell: ({ value, rowData }: { value: unknown; rowData: ConversationSummary }) => (
         <Flex alignItems="center" gap={4}>
-          <span style={{ color: rowData.isLong ? Colors.Text.Warning.Default : undefined }}>{value as number}</span>
+          <Text style={{ color: rowData.isLong ? Colors.Text.Warning.Default : undefined }}>{value as number}</Text>
           {rowData.isLong && (
             <Tooltip text={`Long conversation (>${LONG_TURN_THRESHOLD} turns)`}>
               <WarningIcon style={{ width: 11, height: 11, color: Colors.Text.Warning.Default }} />
@@ -372,26 +372,26 @@ export function ConversationIntelligence() {
     },
     {
       id: 'totalTokens', header: 'Tokens', accessor: 'totalTokens', width: 90,
-      cell: ({ value }: { value: unknown }) => <span>{formatNum(value as number)}</span>,
+      cell: ({ value }: { value: unknown }) => <Text>{formatNum(value as number)}</Text>,
     },
     {
       id: 'avgLatencyMs', header: 'Avg Latency', accessor: 'avgLatencyMs', width: 110,
       cell: ({ value }: { value: unknown }) => {
         const ms = value as number;
-        return <span style={{ color: ms > 5000 ? Colors.Text.Warning.Default : undefined }}>{formatMs(ms)}</span>;
+        return <Text style={{ color: ms > 5000 ? Colors.Text.Warning.Default : undefined }}>{formatMs(ms)}</Text>;
       },
     },
     {
       id: 'model', header: 'Model', accessor: 'model', width: 140,
-      cell: ({ value }: { value: unknown }) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as string}</span>,
+      cell: ({ value }: { value: unknown }) => <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>{value as string}</Text>,
     },
     {
       id: 'handoffCount', header: 'Handoffs', accessor: 'handoffCount', width: 90,
       cell: ({ value }: { value: unknown }) => {
         const n = value as number;
         return n > 0
-          ? <StatusPill label={n} color={'#1b7fc4'} />
-          : <span style={{ color: Colors.Text.Neutral.Subdued }}>�</span>;
+          ? <StatusPill label={n} color={'var(--dt-colors-charts-categorical-color-01-default)'} />
+          : <Text style={{ color: Colors.Text.Neutral.Subdued }}>�</Text>;
       },
     },
     {
@@ -405,11 +405,11 @@ export function ConversationIntelligence() {
     },
     {
       id: 'durationMs', header: 'Duration', accessor: 'durationMs', width: 100,
-      cell: ({ value }: { value: unknown }) => <span>{formatMs(value as number)}</span>,
+      cell: ({ value }: { value: unknown }) => <Text>{formatMs(value as number)}</Text>,
     },
     {
       id: 'provider', header: 'Provider', accessor: 'provider', width: 120,
-      cell: ({ value }: { value: unknown }) => <span>{value as string}</span>,
+      cell: ({ value }: { value: unknown }) => <Text>{value as string}</Text>,
     },
   ], []);
 
@@ -428,7 +428,7 @@ export function ConversationIntelligence() {
               <Button variant="default" onClick={() => setShowHelp(true)}>
                 <Flex alignItems="center" gap={4}>
                   <HelpIcon style={{ width: 14, height: 14 }} />
-                  <span>Help</span>
+                  <Text>Help</Text>
                 </Flex>
               </Button>
             </Tooltip>
@@ -483,7 +483,7 @@ export function ConversationIntelligence() {
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                 No <code>conversation_id</code> found. All spans sharing the same <code>trace_id</code> are grouped as one session.
                 {conversations.length === 1 && ' If you see only 1 session, your spans likely share a single parent trace.'}{' '}
-                <span style={{ cursor: 'pointer', color: Colors.Text.Primary.Default, textDecoration: 'underline' }} onClick={() => setShowHelp(true)}>Learn more</span>
+                <Text style={{ cursor: 'pointer', color: Colors.Text.Primary.Default, textDecoration: 'underline' }} onClick={() => setShowHelp(true)}>Learn more</Text>
               </Text>
             </Flex>
           </Flex>
@@ -559,9 +559,9 @@ export function ConversationIntelligence() {
             </Button>
           </Flex>
         ) : (
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <Flex style={{ flex: 1, overflow: 'auto' }}>
             <DataTable data={filtered} columns={columns} fullWidth />
-          </div>
+          </Flex>
         )}
       </Surface>
 
@@ -572,7 +572,7 @@ export function ConversationIntelligence() {
             Sessions grouped by <code>conversation_id</code> (preferred) or <code>trace_id</code> (fallback).
             Agent handoffs detected via "transfer" or "handoff" span name patterns.
             Long conversations (&gt;{LONG_TURN_THRESHOLD} turns) may indicate unresolved user intent, agent loops, or missing fallback logic.
-            <span style={{ cursor: 'pointer', color: Colors.Text.Primary.Default, marginLeft: 8 }} onClick={() => setShowHelp(true)}>Need help?</span>
+            <Text style={{ cursor: 'pointer', color: Colors.Text.Primary.Default, marginLeft: 8 }} onClick={() => setShowHelp(true)}>Need help?</Text>
           </Text>
         </Flex>
       </Surface>

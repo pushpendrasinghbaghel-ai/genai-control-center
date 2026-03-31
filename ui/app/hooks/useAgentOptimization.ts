@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { formatNumber } from '../utils/formatting';
 
 // ============================================
 // Types
@@ -309,7 +310,7 @@ function detectTokenWastePatterns(tokenRecords: any[]): AgentAntiPattern[] {
         agentName: agent,
         title: `Oversized Context: ${agent}`,
         description: `Average input is ${Math.round(avgInputPerCall)} tokens/call (max: ${Math.round(maxInputPerCall)}). Large context windows waste tokens and increase latency.`,
-        evidence: `${Math.round(totalInput).toLocaleString()} total input tokens across ${llmCalls} LLM calls`,
+        evidence: `${formatNumber(Math.round(totalInput))} total input tokens across ${llmCalls} LLM calls`,
         recommendation: 'Implement context windowing: summarize older messages, use RAG to inject only relevant context, truncate system prompts.',
         estimatedSavings: `~$${wasteCost.toFixed(2)}/6h by trimming to 2K avg`,
         affectedTraces: traces,

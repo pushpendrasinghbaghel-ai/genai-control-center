@@ -22,6 +22,7 @@ import {
 } from '../queries/dql-queries';
 import type { Timeframe } from '@dynatrace/strato-components/core';
 import { estimateCost, calculateHealthStatus } from '../utils';
+import { formatNumber } from '../utils/formatting';
 
 export type { QueryFilters } from '../queries/dql-queries';
 
@@ -768,7 +769,7 @@ function analyzePromptForFlags(
   } else if (tokens > 100000) {
     flags.push({ type: 'expensive', severity: 'high', detail: `High total tokens: ${(tokens/1000).toFixed(0)}K tokens` });
   } else if (tokens > 10000) {
-    flags.push({ type: 'expensive', severity: 'low', detail: `Elevated total tokens: ${tokens.toLocaleString()} tokens` });
+    flags.push({ type: 'expensive', severity: 'low', detail: `Elevated total tokens: ${formatNumber(tokens)} tokens` });
   }
   
   // Real-time/factual query detection (hallucination risk)

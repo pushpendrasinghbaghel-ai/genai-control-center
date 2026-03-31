@@ -29,28 +29,28 @@ export const SampleDataBadge: React.FC<SampleDataBadgeProps> = ({
       label: 'SAMPLE DATA',
       icon: <DocumentIcon style={{ width: 10, height: 10 }} />,
       bgColor: 'rgba(99, 102, 241, 0.15)',
-      textColor: '#6366f1',
+      textColor: 'var(--dt-colors-charts-categorical-color-06-default)',
       defaultTooltip: 'This section shows sample/example data for demonstration purposes.',
     },
     reference: {
       label: 'REFERENCE DATA',
       icon: <HelpIcon style={{ width: 10, height: 10 }} />,
       bgColor: 'rgba(59, 130, 246, 0.15)',
-      textColor: '#3b82f6',
+      textColor: 'var(--dt-colors-charts-categorical-color-01-default)',
       defaultTooltip: 'This data is based on public information. Verify with your provider.',
     },
     static: {
       label: 'STATIC',
       icon: <PinIcon style={{ width: 10, height: 10 }} />,
       bgColor: 'rgba(156, 163, 175, 0.2)',
-      textColor: '#6b7280',
+      textColor: 'var(--dt-colors-text-neutral-default)',
       defaultTooltip: 'This content is not dynamically updated from Dynatrace.',
     },
     beta: {
       label: 'BETA',
       icon: <WarningIcon style={{ width: 10, height: 10 }} />,
       bgColor: 'rgba(245, 158, 11, 0.15)',
-      textColor: '#f59e0b',
+      textColor: 'var(--dt-colors-charts-status-warning-default)',
       defaultTooltip: 'This feature is in beta and may change.',
     },
   };
@@ -71,7 +71,7 @@ export const SampleDataBadge: React.FC<SampleDataBadgeProps> = ({
         ...style,
       }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', color: config.textColor }}>{config.icon}</span>
+      <Text style={{ display: 'flex', alignItems: 'center', color: config.textColor }}>{config.icon}</Text>
       <Text textStyle="small" style={{ 
         fontSize: 9, 
         fontWeight: 600, 
@@ -105,7 +105,7 @@ export const SampleDataIndicator: React.FC<{ type?: 'sample' | 'reference' | 'st
   
   return (
     <Tooltip text={`This is ${type} data`}>
-      <span style={{ cursor: 'help', marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>{icons[type]}</span>
+      <Text style={{ cursor: 'help', marginLeft: 4, display: 'inline-flex', alignItems: 'center' }}>{icons[type]}</Text>
     </Tooltip>
   );
 };

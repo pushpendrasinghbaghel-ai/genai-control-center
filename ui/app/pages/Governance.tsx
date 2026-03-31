@@ -17,6 +17,7 @@ import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar, SampleDataBadge } from '../components';
 import { useGlobalFilters } from '../context';
 import { getProviderProfile } from '../config';
+import { formatNumber, formatDateTime } from '../utils/formatting';
 
 
 
@@ -391,7 +392,7 @@ export const Governance: React.FC = () => {
     const colors: Record<string, { bg: string; text: string }> = {
       critical: { bg: 'rgba(255, 50, 50, 0.2)', text: Colors.Text.Critical.Default },
       high: { bg: 'rgba(255, 150, 50, 0.2)', text: Colors.Text.Warning.Default },
-      medium: { bg: 'rgba(255, 200, 50, 0.2)', text: '#C99700' },
+      medium: { bg: 'rgba(255, 200, 50, 0.2)', text: 'var(--dt-colors-charts-status-warning-default)' },
       low: { bg: 'rgba(100, 180, 255, 0.2)', text: Colors.Text.Primary.Default },
     };
     
@@ -577,7 +578,7 @@ export const Governance: React.FC = () => {
                     <Flex justifyContent="space-between" alignItems="flex-start">
                       <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                         <Flex alignItems="center" gap={8}>
-                          <span>{getStatusIcon(policy.status)}</span>
+                          <Text>{getStatusIcon(policy.status)}</Text>
                           <Text style={{ fontWeight: 600 }}>{policy.name}</Text>
                           <Text textStyle="small" style={{ 
                             padding: '2px 6px', 
@@ -641,14 +642,14 @@ export const Governance: React.FC = () => {
                         </Flex>
                         <Flex gap={4} style={{ flexWrap: 'wrap' }}>
                           {risk.certifications.map((cert, i) => (
-                            <span key={i} style={{ 
+                            <Text key={i} style={{ 
                               fontSize: 10, 
                               padding: '2px 6px', 
                               backgroundColor: 'var(--dt-colors-background-default-secondary)',
                               borderRadius: 4
                             }}>
                               {cert}
-                            </span>
+                            </Text>
                           ))}
                         </Flex>
                       </Flex>
@@ -949,7 +950,7 @@ export const Governance: React.FC = () => {
                       {/* Stats: tokens, cost */}
                       <Flex alignItems="center" gap={8}>
                         <Text textStyle="small" style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>
-                          {prompt.totalInputTokens.toLocaleString()}/{prompt.totalOutputTokens.toLocaleString()} tokens
+                          {formatNumber(prompt.totalInputTokens)}/{formatNumber(prompt.totalOutputTokens)} tokens
                         </Text>
                         <Text style={{ fontWeight: 600, fontSize: 11, color: prompt.totalCost > 1 ? Colors.Text.Warning.Default : undefined }}>
                           ${prompt.totalCost.toFixed(3)}
@@ -1017,8 +1018,7 @@ export const Governance: React.FC = () => {
                               }, 'low' as PromptFlag['severity']);
                               
                               return (
-                                <span 
-                                  key={type} 
+                                <Text key={type} 
                                   title={typeFlags.map(f => f.detail).join('\n')}
                                   style={{
                                     padding: '1px 6px',
@@ -1032,12 +1032,12 @@ export const Governance: React.FC = () => {
                                                    'rgba(100, 180, 255, 0.2)',
                                     color: highestSeverity === 'critical' ? Colors.Text.Critical.Default :
                                            highestSeverity === 'high' ? Colors.Text.Warning.Default :
-                                           highestSeverity === 'medium' ? '#C99700' :
+                                           highestSeverity === 'medium' ? 'var(--dt-colors-charts-status-warning-default)' :
                                            Colors.Text.Primary.Default
                                   }}
                                 >
                                   {getFlagIcon(type as PromptFlag['type'])} {type.toUpperCase()}{count > 1 ? ` ×${count}` : ''}
-                                </span>
+                                </Text>
                               );
                             });
                           })()}
@@ -1068,14 +1068,14 @@ export const Governance: React.FC = () => {
                                     [{flag.severity.toUpperCase()}]
                                   </strong> {flag.detail}
                                   {flag.metadata?.detectionMethod && (
-                                    <span style={{ color: Colors.Text.Neutral.Subdued, fontStyle: 'italic' }}>
+                                    <Text style={{ color: Colors.Text.Neutral.Subdued, fontStyle: 'italic' }}>
                                       {' '}({flag.metadata.detectionMethod.replace(/_/g, ' ')})
-                                    </span>
+                                    </Text>
                                   )}
                                   {flag.metadata?.confidence && (
-                                    <span style={{ color: Colors.Text.Neutral.Subdued }}>
+                                    <Text style={{ color: Colors.Text.Neutral.Subdued }}>
                                       {' '}• {Math.round(flag.metadata.confidence * 100)}% confidence
-                                    </span>
+                                    </Text>
                                   )}
                                 </Text>
                               ))}
@@ -1135,8 +1135,7 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
   const { data: auditData, loading, error } = useAuditTrail(filters);
   
   const formatTimestamp = (ts: string) => {
-    const date = new Date(ts);
-    return date.toLocaleString();
+    return formatDateTime(ts);
   };
 
   const getRiskBadge = (hasError: boolean, latencyMs: number) => {
@@ -1191,12 +1190,12 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
                 fontSize: 11
               }}
             >
-              <div style={{ flex: 1.5 }}>Timestamp</div>
-              <div style={{ flex: 1 }}>Provider</div>
-              <div style={{ flex: 1.5 }}>Model</div>
-              <div style={{ flex: 0.5, textAlign: 'right' }}>Tokens</div>
-              <div style={{ flex: 0.5, textAlign: 'right' }}>Latency</div>
-              <div style={{ flex: 0.5, textAlign: 'center' }}>Status</div>
+              <Flex style={{ flex: 1.5 }}>Timestamp</Flex>
+              <Flex style={{ flex: 1 }}>Provider</Flex>
+              <Flex style={{ flex: 1.5 }}>Model</Flex>
+              <Flex style={{ flex: 0.5, textAlign: 'right' }}>Tokens</Flex>
+              <Flex style={{ flex: 0.5, textAlign: 'right' }}>Latency</Flex>
+              <Flex style={{ flex: 0.5, textAlign: 'center' }}>Status</Flex>
             </Flex>
             
             {/* Rows */}
@@ -1212,19 +1211,19 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
                     fontSize: 12
                   }}
                 >
-                  <div style={{ flex: 1.5, color: Colors.Text.Neutral.Subdued }}>
+                  <Flex style={{ flex: 1.5, color: Colors.Text.Neutral.Subdued }}>
                     {formatTimestamp(event.timestamp)}
-                  </div>
-                  <div style={{ flex: 1, textTransform: 'capitalize' }}>{event.provider}</div>
-                  <div style={{ flex: 1.5, fontFamily: 'monospace', fontSize: 11 }}>{event.model || 'N/A'}</div>
-                  <div style={{ flex: 0.5, textAlign: 'right' }}>
-                    {(event.inputTokens + event.outputTokens).toLocaleString()}
-                  </div>
-                  <div style={{ flex: 0.5, textAlign: 'right' }}>
+                  </Flex>
+                  <Flex style={{ flex: 1, textTransform: 'capitalize' }}>{event.provider}</Flex>
+                  <Flex style={{ flex: 1.5, fontFamily: 'monospace', fontSize: 11 }}>{event.model || 'N/A'}</Flex>
+                  <Flex style={{ flex: 0.5, textAlign: 'right' }}>
+                    {formatNumber(event.inputTokens + event.outputTokens)}
+                  </Flex>
+                  <Flex style={{ flex: 0.5, textAlign: 'right' }}>
                     {event.latencyMs.toFixed(0)}ms
-                  </div>
-                  <div style={{ flex: 0.5, textAlign: 'center' }}>
-                    <span style={{ 
+                  </Flex>
+                  <Flex style={{ flex: 0.5, textAlign: 'center' }}>
+                    <Text style={{ 
                       padding: '2px 6px', 
                       borderRadius: 4, 
                       fontSize: 9,
@@ -1233,8 +1232,8 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
                       color: risk.color
                     }}>
                       {risk.label}
-                    </span>
-                  </div>
+                    </Text>
+                  </Flex>
                 </Flex>
               );
             })}

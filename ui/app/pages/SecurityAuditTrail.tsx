@@ -15,6 +15,7 @@ import {
 } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useSecurityAutoResponse } from '../hooks/useSecurityAutoResponse';
+import { formatTime, formatDateTime } from '../utils/formatting';
 
 const STATUS_COLORS = {
   ideal: Colors.Charts.Status.Ideal.Default,
@@ -27,7 +28,7 @@ const STATUS_COLORS = {
 const severityColor = (sev: string) => {
   switch (sev) {
     case 'critical': return STATUS_COLORS.critical;
-    case 'high': return '#ff5722';
+    case 'high': return 'var(--dt-colors-charts-status-critical-default)';
     case 'medium': return STATUS_COLORS.warning;
     default: return STATUS_COLORS.neutral;
   }
@@ -88,7 +89,7 @@ export const SecurityAuditTrail: React.FC = () => {
                 </Text>
               )}
               {summary && summary.highEvents > 0 && (
-                <Text textStyle="small" style={{ color: '#ff5722', fontWeight: 600 }}>
+                <Text textStyle="small" style={{ color: 'var(--dt-colors-charts-status-critical-default)', fontWeight: 600 }}>
                   {summary.highEvents} high
                 </Text>
               )}
@@ -144,13 +145,13 @@ export const SecurityAuditTrail: React.FC = () => {
                 <Flex gap={16}>
                   {[
                     { label: 'Critical', count: summary.criticalEvents, color: STATUS_COLORS.critical },
-                    { label: 'High', count: summary.highEvents, color: '#ff5722' },
+                    { label: 'High', count: summary.highEvents, color: 'var(--dt-colors-charts-status-critical-default)' },
                     { label: 'Medium', count: summary.mediumEvents, color: STATUS_COLORS.warning },
                     { label: 'Low', count: summary.lowEvents, color: STATUS_COLORS.neutral },
                   ].map(item => (
                     <Flex key={item.label} flexDirection="column" gap={4} style={{ flex: 1 }}>
                       <Flex alignItems="center" gap={6}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color }} />
+                        <Flex style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color }} />
                         <Text textStyle="small">{item.label}</Text>
                       </Flex>
                       <Heading level={3}>{item.count}</Heading>
@@ -172,7 +173,7 @@ export const SecurityAuditTrail: React.FC = () => {
                   {e.severity === 'critical' ? (
                     <CriticalIcon style={{ width: 14, height: 14, color: STATUS_COLORS.critical }} />
                   ) : (
-                    <WarningIcon style={{ width: 14, height: 14, color: '#ff5722' }} />
+                    <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-status-critical-default)' }} />
                   )}
                   <Flex flexDirection="column" gap={2} style={{ flex: 1 }}>
                     <Text textStyle="small" style={{ fontWeight: 600 }}>{typeLabel(e.type)}</Text>
@@ -181,7 +182,7 @@ export const SecurityAuditTrail: React.FC = () => {
                     </Text>
                   </Flex>
                   <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                    {new Date(e.timestamp).toLocaleTimeString()}
+                    {formatTime(e.timestamp)}
                   </Text>
                 </Flex>
               ))}
@@ -234,7 +235,7 @@ export const SecurityAuditTrail: React.FC = () => {
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Traces: {inc.affectedTraces}</Text>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Status: {inc.status}</Text>
                       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                        Created: {new Date(inc.createdAt).toLocaleString()}
+                        Created: {formatDateTime(inc.createdAt)}
                       </Text>
                     </Flex>
                     {inc.autoResponseActions.length > 0 && (
@@ -254,7 +255,7 @@ export const SecurityAuditTrail: React.FC = () => {
                       {inc.auditTrail.map((entry, i) => (
                         <Flex key={i} alignItems="center" gap={6}>
                           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, width: 70, fontSize: 10 }}>
-                            {new Date(entry.timestamp).toLocaleTimeString()}
+                            {formatTime(entry.timestamp)}
                           </Text>
                           <Text textStyle="small" style={{ fontSize: 10, backgroundColor: 'rgba(99,102,241,0.1)', padding: '1px 4px', borderRadius: 2 }}>
                             {entry.actor}
@@ -290,7 +291,7 @@ export const SecurityAuditTrail: React.FC = () => {
                   <Text textStyle="small" style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{e.serviceName}</Text>
                   <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{e.model}</Text>
                   <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, width: 70 }}>
-                    {new Date(e.timestamp).toLocaleTimeString()}
+                    {formatTime(e.timestamp)}
                   </Text>
                 </Flex>
               ))

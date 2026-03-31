@@ -19,6 +19,7 @@ import {
   type FilterFieldValidatorMap
 } from '@dynatrace/strato-components/filters';
 import type { Timeframe } from '@dynatrace/strato-components/core';
+import { Text } from '@dynatrace/strato-components/typography';
 
 /** Service option with both display name and entity ID for Grail queries */
 export interface ServiceOption {
@@ -220,7 +221,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   return (
     <Flex alignItems="center" gap={16} style={{ width: '100%', padding: '8px 0' }}>
       {/* FilterField - In-context filtering with auto-suggestions */}
-      <div style={{ flex: 1, minWidth: 300 }}>
+      <Flex style={{ flex: 1, minWidth: 300 }}>
         <FilterField
           value={filters.filterQuery}
           onChange={handleChange}
@@ -229,7 +230,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           autoSuggestions
           placeholder="Filter by service, provider, model (e.g., service=myapp)"
         />
-      </div>
+      </Flex>
 
       {/* TimeframeSelector */}
       <TimeframeSelector
@@ -246,7 +247,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         >
           <Flex alignItems="center" gap={4}>
             <RefreshIcon />
-            <span>Refresh</span>
+            <Text>Refresh</Text>
           </Flex>
         </Button>
       )}

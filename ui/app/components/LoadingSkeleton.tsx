@@ -20,8 +20,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   borderRadius = 4,
   style 
 }) => (
-  <div
-    style={{
+  <Flex style={{
       width,
       height,
       borderRadius,
@@ -141,12 +140,12 @@ export const DashboardSkeleton: React.FC = () => (
     
     {/* Main Content */}
     <Flex gap={16}>
-      <div style={{ flex: 2 }}>
+      <Flex style={{ flex: 2 }}>
         <ChartSkeleton height={250} />
-      </div>
-      <div style={{ flex: 1 }}>
+      </Flex>
+      <Flex style={{ flex: 1 }}>
         <TableSkeleton rows={4} columns={3} />
-      </div>
+      </Flex>
     </Flex>
     
     {/* Service Cards */}

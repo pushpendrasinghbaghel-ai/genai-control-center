@@ -134,8 +134,8 @@ const CollapsibleSection: React.FC<{
     <Surface style={{ 
       padding: 0, 
       marginBottom: 8,
-      backgroundColor: 'rgba(0,0,0,0.02)',
-      border: '1px solid rgba(0,0,0,0.05)',
+      backgroundColor: 'var(--dt-colors-background-surface-default)',
+      border: '1px solid var(--dt-colors-border-neutral-default)',
       borderRadius: 4,
       overflow: 'hidden',
     }}>
@@ -147,7 +147,7 @@ const CollapsibleSection: React.FC<{
           padding: '8px 12px',
           justifyContent: 'flex-start',
           borderRadius: 0,
-          backgroundColor: expanded ? 'rgba(0,0,0,0.03)' : 'transparent',
+          backgroundColor: expanded ? 'var(--dt-colors-surface-hover)' : 'transparent',
         }}
       >
         <Flex alignItems="center" gap={8}>
@@ -160,12 +160,12 @@ const CollapsibleSection: React.FC<{
         </Flex>
       </Button>
       {expanded && (
-        <div style={{ 
+        <Flex flexDirection="column" style={{ 
           padding: '8px 12px',
-          backgroundColor: variant === 'code' ? 'rgba(0,0,0,0.04)' : 'transparent',
+          backgroundColor: variant === 'code' ? 'var(--dt-colors-background-surface-default)' : 'transparent',
         }}>
           {children}
-        </div>
+        </Flex>
       )}
     </Surface>
   );
@@ -198,7 +198,7 @@ function renderInlineMarkdown(line: string, keyPrefix: string): React.ReactNode 
     } else if (match[4]) {
       // `code`
       parts.push(
-        <code key={`${keyPrefix}-c${idx++}`} style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em', fontFamily: 'monospace' }}>
+        <code key={`${keyPrefix}-c${idx++}`} style={{ background: 'var(--dt-colors-background-surface-default)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em', fontFamily: 'monospace' }}>
           {match[4]}
         </code>
       );
@@ -249,7 +249,7 @@ function renderMarkdown(md: string): React.ReactNode[] {
     if (line.startsWith('```')) {
       if (inCodeBlock) {
         nodes.push(
-          <pre key={`code-${i}`} style={{ fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '4px 0', backgroundColor: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 4 }}>
+          <pre key={`code-${i}`} style={{ fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '4px 0', backgroundColor: 'var(--dt-colors-background-surface-default)', padding: 8, borderRadius: 4 }}>
             {codeLines.join('\n')}
           </pre>
         );
@@ -325,7 +325,7 @@ export const DavisResponse: React.FC<DavisResponseProps> = ({ content }) => {
       {resultSections.length > 0 && (
         <Surface style={{ 
           padding: 12, 
-          backgroundColor: hasNoData ? 'rgba(255, 100, 0, 0.08)' : 'rgba(99, 102, 241, 0.08)',
+          backgroundColor: hasNoData ? 'var(--dt-colors-background-warning-default)' : 'var(--dt-colors-background-accent-default)',
           borderRadius: 4,
           marginBottom: 8,
         }}>
@@ -337,9 +337,9 @@ export const DavisResponse: React.FC<DavisResponseProps> = ({ content }) => {
               {hasNoData ? '⚠️ Output' : '📊 Output'}
             </Text>
             {resultSections.map((section, idx) => (
-              <div key={`result-${idx}`}>
+              <Flex key={`result-${idx}`} flexDirection="column">
                 {renderMarkdown(section.content)}
-              </div>
+              </Flex>
             ))}
           </Flex>
         </Surface>
@@ -372,7 +372,7 @@ export const DavisResponse: React.FC<DavisResponseProps> = ({ content }) => {
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
             margin: 0,
-            backgroundColor: 'rgba(0,0,0,0.03)',
+            backgroundColor: 'var(--dt-colors-background-surface-default)',
             padding: 8,
             borderRadius: 4,
           }}>
@@ -383,9 +383,9 @@ export const DavisResponse: React.FC<DavisResponseProps> = ({ content }) => {
       
       {/* Any other text sections */}
       {sections.filter(s => s.type === 'text').map((section, idx) => (
-        <div key={`text-${idx}`}>
+        <Flex key={`text-${idx}`} flexDirection="column">
           {renderMarkdown(section.content)}
-        </div>
+        </Flex>
       ))}
     </Flex>
   );

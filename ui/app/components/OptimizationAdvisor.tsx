@@ -38,7 +38,7 @@ const PATTERN_ICONS: Record<string, string> = {
 const sevColor = (sev: string) => {
   switch (sev) {
     case 'critical': return STATUS_COLORS.critical;
-    case 'high': return '#ff5722';
+    case 'high': return 'var(--dt-colors-charts-status-critical-default)';
     case 'medium': return STATUS_COLORS.warning;
     default: return STATUS_COLORS.neutral;
   }
@@ -174,15 +174,15 @@ const ScoringMethodologyModal: React.FC<{ open: boolean; onClose: () => void }> 
           <Text style={{ fontWeight: 600, fontSize: 13 }}>Score Interpretation</Text>
           <Flex gap={24}>
             <Flex alignItems="center" gap={6}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.healthy }} />
+              <Text style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.healthy }} />
               <Text textStyle="small">75-100: Production Ready</Text>
             </Flex>
             <Flex alignItems="center" gap={6}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+              <Text style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.warning }} />
               <Text textStyle="small">50-74: Needs Attention</Text>
             </Flex>
             <Flex alignItems="center" gap={6}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+              <Text style={{ width: 12, height: 12, borderRadius: '50%', background: STATUS_COLORS.critical }} />
               <Text textStyle="small">0-49: Action Required</Text>
             </Flex>
           </Flex>
@@ -377,7 +377,7 @@ export const OptimizationAdvisor: React.FC<OptimizationAdvisorProps> = ({ compac
                   style={{ padding: '2px 8px', fontSize: 11 }}
                 >
                   <HelpIcon style={{ width: 12, height: 12 }} />
-                  <span style={{ marginLeft: 4 }}>How is this calculated?</span>
+                  <Text style={{ marginLeft: 4 }}>How is this calculated?</Text>
                 </Button>
               </Flex>
               <Flex alignItems="center" gap={8}>

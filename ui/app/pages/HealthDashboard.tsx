@@ -9,7 +9,7 @@ import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressCircle } from '@dynatrace/strato-components/content';
+import { ProgressCircle, Chip } from '@dynatrace/strato-components/content';
 import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
@@ -64,13 +64,13 @@ const HealthStatusBadge: React.FC<{ status: HealthStatus; size?: 'small' | 'larg
   return (
     <Flex alignItems="center" gap={4} aria-label={`Status: ${labels[status]}`}>
       {icons[status]}
-      <span style={{ 
+      <Text style={{ 
         fontSize: size === 'large' ? 16 : 12, 
         fontWeight: size === 'large' ? 600 : 400, 
         color: statusToColorMap[status] 
       }}>
         {labels[status]}
-      </span>
+      </Text>
     </Flex>
   );
 };
@@ -93,18 +93,18 @@ const MetricCard: React.FC<{
       border: '1px solid var(--dt-colors-border-neutral-default)'
     }}
   >
-    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>
-    <div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</div>
+    <Text style={{ display: 'flex', alignItems: 'center' }}>{icon}</Text>
+    <Flex>
+      <Flex style={{ fontSize: 18, fontWeight: 600, color: color || 'inherit', lineHeight: 1.2 }}>{value}</Flex>
       <Flex alignItems="center" gap={4}>
-        <div style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</div>
+        <Flex style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>{label}</Flex>
         {tooltip && (
           <Tooltip text={tooltip}>
             <HelpIcon style={{ width: 10, height: 10, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
           </Tooltip>
         )}
       </Flex>
-    </div>
+    </Flex>
   </Flex>
 );
 
@@ -147,7 +147,7 @@ const ServiceRow: React.FC<{
     >
       <Flex alignItems="center" gap={12} style={{ flex: 2 }}>
         <HealthStatusBadge status={service.healthStatus} />
-        <div>
+        <Flex>
           <Flex alignItems="center" gap={6}>
             <Text style={{ fontWeight: 600, fontSize: 13 }}>{service.serviceName}</Text>
             {service.entityId && (
@@ -165,24 +165,24 @@ const ServiceRow: React.FC<{
             <LargeLanguageModelIcon style={{ width: 12, height: 12, verticalAlign: 'middle', marginRight: 3 }} />
             {service.modelName || 'Unknown'} • {service.provider || 'Unknown'}
           </Text>
-        </div>
+        </Flex>
       </Flex>
       
       <Flex alignItems="center" gap={16} style={{ flex: 3 }}>
-        <div style={{ textAlign: 'right', minWidth: 55 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.requestCount)}</div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>requests</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 65 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.totalTokens)}</div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>tokens</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 50 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{Number(service.avgLatency || 0).toFixed(0)}ms</div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>latency</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 50 }}>
-          <div style={{ 
+        <Flex style={{ textAlign: 'right', minWidth: 55 }}>
+          <Flex style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.requestCount)}</Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>requests</Flex>
+        </Flex>
+        <Flex style={{ textAlign: 'right', minWidth: 65 }}>
+          <Flex style={{ fontSize: 12, fontWeight: 600 }}>{formatNumber(service.totalTokens)}</Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>tokens</Flex>
+        </Flex>
+        <Flex style={{ textAlign: 'right', minWidth: 50 }}>
+          <Flex style={{ fontSize: 12, fontWeight: 600 }}>{Number(service.avgLatency || 0).toFixed(0)}ms</Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>latency</Flex>
+        </Flex>
+        <Flex style={{ textAlign: 'right', minWidth: 50 }}>
+          <Flex style={{ 
             fontSize: 12, fontWeight: 600,
             color: Number(service.errorRate || 0) > 5 
               ? 'var(--dt-colors-feedback-critical-default)' 
@@ -191,15 +191,15 @@ const ServiceRow: React.FC<{
               : 'var(--dt-colors-feedback-success-default)'
           }}>
             {Number(service.errorRate || 0).toFixed(1)}%
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>error rate</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 55 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(service.estimatedCost)}</div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>cost</div>
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 45 }}>
-          <div style={{ 
+          </Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>error rate</Flex>
+        </Flex>
+        <Flex style={{ textAlign: 'right', minWidth: 55 }}>
+          <Flex style={{ fontSize: 12, fontWeight: 600 }}>{formatCurrency(service.estimatedCost)}</Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>cost</Flex>
+        </Flex>
+        <Flex style={{ textAlign: 'right', minWidth: 45 }}>
+          <Flex style={{ 
             fontSize: 12, fontWeight: 600,
             color: Number(service.slowRequestRate || 0) > 10 
               ? 'var(--dt-colors-feedback-critical-default)' 
@@ -208,9 +208,9 @@ const ServiceRow: React.FC<{
               : 'var(--dt-colors-feedback-success-default)'
           }}>
             {Number(service.slowRequestRate || 0).toFixed(1)}%
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>slow</div>
-        </div>
+          </Flex>
+          <Flex style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>slow</Flex>
+        </Flex>
       </Flex>
       
       <Button variant="accent" onClick={() => onInvestigate(service.serviceName)}>
@@ -534,18 +534,18 @@ export const HealthDashboard: React.FC = () => {
           <HealthStatusBadge status={healthMetrics.overallHealth} size="large" />
           <Text style={{ fontSize: 12 }}>
             {healthMetrics.criticalCount > 0 && (
-              <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
+              <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
                 {healthMetrics.criticalCount} critical
-              </span>
+              </Text>
             )}
             {healthMetrics.criticalCount > 0 && healthMetrics.warningCount > 0 && ' • '}
             {healthMetrics.warningCount > 0 && (
-              <span style={{ color: 'var(--dt-colors-feedback-warning-default)' }}>
+              <Text style={{ color: 'var(--dt-colors-feedback-warning-default)' }}>
                 {healthMetrics.warningCount} warning{healthMetrics.warningCount !== 1 ? 's' : ''}
-              </span>
+              </Text>
             )}
             {healthMetrics.criticalCount === 0 && healthMetrics.warningCount === 0 && (
-              <span style={{ color: 'var(--dt-colors-feedback-success-default)' }}>All healthy</span>
+              <Text style={{ color: 'var(--dt-colors-feedback-success-default)' }}>All healthy</Text>
             )}
           </Text>
         </Flex>
@@ -590,11 +590,11 @@ export const HealthDashboard: React.FC = () => {
             <Flex alignItems="center" gap={6}>
               <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.critical }} />
               <Text style={{ fontWeight: 600, fontSize: 13 }}>Davis AI Anomaly Detection</Text>
-              <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
             </Flex>
             {anomalies.map((a, i) => (
               <Flex key={i} alignItems="center" gap={8} style={{ padding: '4px 0' }}>
-                <span style={{
+                <Text style={{
                   width: 8, height: 8, borderRadius: '50%',
                   background: a.severity === 'critical' ? STATUS_COLORS.critical : a.severity === 'high' ? STATUS_COLORS.warning : STATUS_COLORS.neutral
                 }} />
@@ -602,13 +602,13 @@ export const HealthDashboard: React.FC = () => {
                   <strong>{a.metric === 'token_usage' ? 'Token Usage' : a.metric === 'error_rate' ? 'Error Rate' : a.metric === 'latency' ? 'Latency' : a.metric === 'request_volume' ? 'Request Volume' : a.metric}:</strong> {a.description}
                 </Text>
                 {a.severity !== 'none' && (
-                  <span style={{
+                  <Text style={{
                     fontSize: 9, padding: '1px 5px', borderRadius: 4, fontWeight: 600,
                     backgroundColor: a.severity === 'critical' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                    color: a.severity === 'critical' ? '#ef4444' : '#f59e0b'
+                    color: a.severity === 'critical' ? 'var(--dt-colors-charts-status-critical-default)' : 'var(--dt-colors-charts-status-warning-default)'
                   }}>
                     {a.severity.toUpperCase()}
-                  </span>
+                  </Text>
                 )}
               </Flex>
             ))}
@@ -629,7 +629,7 @@ export const HealthDashboard: React.FC = () => {
                     <LargeLanguageModelIcon style={{ width: 14, height: 14 }} />
                     <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{rt.type}</Text>
                   </Flex>
-                  <Heading level={4}>{rt.count.toLocaleString()}</Heading>
+                  <Heading level={4}>{formatNumber(rt.count)}</Heading>
                   <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
                     {pct}% &bull; avg {rt.avgDuration.toFixed(0)}ms
                   </Text>
@@ -668,7 +668,7 @@ export const HealthDashboard: React.FC = () => {
                       minWidth: 200
                     }}
                   >
-                    <div style={{ 
+                    <Flex style={{ 
                       width: 24, 
                       height: 24, 
                       borderRadius: '50%', 
@@ -681,8 +681,8 @@ export const HealthDashboard: React.FC = () => {
                       color: idx === 0 ? '#000' : 'inherit'
                     }}>
                       {idx + 1}
-                    </div>
-                    <div style={{ flex: 1 }}>
+                    </Flex>
+                    <Flex style={{ flex: 1 }}>
                       <Text style={{ fontWeight: 600, fontSize: 13 }}>{service.serviceName}</Text>
                       <Flex gap={12} style={{ marginTop: 2 }}>
                         <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
@@ -692,7 +692,7 @@ export const HealthDashboard: React.FC = () => {
                           {formatNumber(service.totalTokens)} tokens
                         </Text>
                       </Flex>
-                    </div>
+                    </Flex>
                   </Flex>
                 ))}
             </Flex>
@@ -713,11 +713,11 @@ export const HealthDashboard: React.FC = () => {
                     <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <div style={{ height: 180 }}>
+                <Flex style={{ height: 180 }}>
                   <TimeseriesChart data={otelTokens}>
                     <TimeseriesChart.Legend hidden />
                   </TimeseriesChart>
-                </div>
+                </Flex>
               </Flex>
             </Surface>
           )}
@@ -731,11 +731,11 @@ export const HealthDashboard: React.FC = () => {
                     <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
-                <div style={{ height: 180 }}>
+                <Flex style={{ height: 180 }}>
                   <TimeseriesChart data={otelDuration}>
                     <TimeseriesChart.Legend hidden />
                   </TimeseriesChart>
-                </div>
+                </Flex>
               </Flex>
             </Surface>
           )}
@@ -794,7 +794,7 @@ export const HealthDashboard: React.FC = () => {
                 </Tooltip>
               </Flex>
             </Flex>
-            <div style={{ width: 90 }} />
+            <Flex style={{ width: 90 }} />
           </Flex>
           
           {/* Service Rows */}
@@ -839,15 +839,15 @@ export const HealthDashboard: React.FC = () => {
               <Text textStyle="small" style={{ fontWeight: 600, marginBottom: 8, display: 'block' }}>Health Thresholds</Text>
               <Flex gap={16} flexWrap="wrap">
                 <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
+                  <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.critical }} />
                   <Text style={{ fontSize: 11 }}>Critical: error &gt;10% OR latency &gt;6s OR issueScore &gt;30</Text>
                 </Flex>
                 <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
+                  <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} />
                   <Text style={{ fontSize: 11 }}>Warning: error &gt;5% OR latency &gt;3s OR issueScore &gt;15</Text>
                 </Flex>
                 <Flex alignItems="center" gap={4}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
+                  <Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.ideal }} />
                   <Text style={{ fontSize: 11 }}>Healthy: all below thresholds</Text>
                 </Flex>
               </Flex>
@@ -887,20 +887,20 @@ export const HealthDashboard: React.FC = () => {
                         </Flex>
                         <Flex gap={12} style={{ flex: 3 }} flexWrap="wrap">
                           <Text style={{ fontSize: 11, minWidth: 80 }}>
-                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Error: </span>
-                            <span style={{ color: svc.errorRate > 10 ? STATUS_COLORS.critical : svc.errorRate > 5 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.errorRate.toFixed(1)}%</span>
+                            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Error: </Text>
+                            <Text style={{ color: svc.errorRate > 10 ? STATUS_COLORS.critical : svc.errorRate > 5 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.errorRate.toFixed(1)}%</Text>
                           </Text>
                           <Text style={{ fontSize: 11, minWidth: 80 }}>
-                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Latency: </span>
-                            <span style={{ color: svc.avgLatency > 6000 ? STATUS_COLORS.critical : svc.avgLatency > 3000 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.avgLatency.toFixed(0)}ms</span>
+                            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Latency: </Text>
+                            <Text style={{ color: svc.avgLatency > 6000 ? STATUS_COLORS.critical : svc.avgLatency > 3000 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{svc.avgLatency.toFixed(0)}ms</Text>
                           </Text>
                           <Text style={{ fontSize: 11, minWidth: 80 }}>
-                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Slow: </span>
-                            <span style={{ color: slowRate > 20 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{slowRate.toFixed(1)}%</span>
+                            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Slow: </Text>
+                            <Text style={{ color: slowRate > 20 ? STATUS_COLORS.warning : STATUS_COLORS.ideal }}>{slowRate.toFixed(1)}%</Text>
                           </Text>
                           <Text style={{ fontSize: 11, minWidth: 80 }}>
-                            <span style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Low Output: </span>
-                            <span>{lowOut.toFixed(1)}%</span>
+                            <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>Low Output: </Text>
+                            <Text>{lowOut.toFixed(1)}%</Text>
                           </Text>
                         </Flex>
                         <Flex style={{ flex: 2 }}>
@@ -920,7 +920,7 @@ export const HealthDashboard: React.FC = () => {
                 {/* Header */}
                 <Flex alignItems="center" justifyContent="space-between">
                   <Flex alignItems="center" gap={8}>
-                    <AiIcon style={{ width: 18, height: 18, color: '#6366f1' }} />
+                    <AiIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-charts-categorical-color-06-default)' }} />
                     <Text style={{ fontWeight: 600 }}>Dynatrace Intelligence</Text>
                     <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>context-aware AI analysis</Text>
                   </Flex>
@@ -970,7 +970,7 @@ export const HealthDashboard: React.FC = () => {
                 </Flex>
 
                 {/* Context badge */}
-                <Surface style={{ padding: 8, borderLeft: '3px solid #6366f1', borderRadius: 4 }}>
+                <Surface style={{ padding: 8, borderLeft: '3px solid var(--dt-colors-border-accent-default)', borderRadius: 4 }}>
                   <Flex alignItems="center" gap={6}>
                     <AiIcon style={{ width: 12, height: 12, color: 'var(--dt-colors-text-secondary-default)' }} />
                     <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
@@ -985,26 +985,14 @@ export const HealthDashboard: React.FC = () => {
                     <Text style={{ fontSize: 11, fontWeight: 600, color: 'var(--dt-colors-text-secondary-default)' }}>Suggested Questions</Text>
                     <Flex gap={6} flexWrap="wrap">
                       {healthAIContext.suggestedPrompts.map((prompt, i) => (
-                        <button
+                        <Chip
                           key={i}
                           onClick={() => { void askHealthAI(prompt); }}
                           disabled={healthChatLoading}
-                          style={{
-                            background: 'var(--dt-colors-surface-default-default)',
-                            border: '1px solid var(--dt-colors-border-neutral-default)',
-                            borderRadius: 16,
-                            padding: '4px 10px',
-                            fontSize: 11,
-                            cursor: healthChatLoading ? 'not-allowed' : 'pointer',
-                            color: 'var(--dt-colors-text-primary-default)',
-                            transition: 'background 0.15s',
-                            opacity: healthChatLoading ? 0.5 : 1,
-                          }}
-                          onMouseEnter={e => { if (!healthChatLoading) (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-primary-default)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--dt-colors-surface-default-default)'; }}
+                          style={{ opacity: healthChatLoading ? 0.5 : 1 }}
                         >
                           {prompt}
-                        </button>
+                        </Chip>
                       ))}
                     </Flex>
                   </Flex>
@@ -1012,7 +1000,7 @@ export const HealthDashboard: React.FC = () => {
 
                 {/* Conversation thread */}
                 {healthChatMessages.length > 0 && (
-                  <div style={{ maxHeight: 350, overflowY: 'auto', padding: '4px 0' }}>
+                  <Flex style={{ maxHeight: 350, overflowY: 'auto', padding: '4px 0' }}>
                     <Flex flexDirection="column" gap={8}>
                       {healthChatMessages.map((msg) => (
                         msg.role === 'user' ? (
@@ -1023,7 +1011,7 @@ export const HealthDashboard: React.FC = () => {
                           </Flex>
                         ) : (
                           <Flex key={msg.id} justifyContent="flex-start" gap={6}>
-                            <AiIcon style={{ width: 14, height: 14, color: '#6366f1', marginTop: 4, flexShrink: 0 }} />
+                            <AiIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-charts-categorical-color-06-default)', marginTop: 4, flexShrink: 0 }} />
                             <Surface style={{ padding: '8px 12px', borderRadius: 12, borderBottomLeftRadius: 4, maxWidth: '90%' }}>
                               {msg.isLoading && !msg.content ? (
                                 <Flex alignItems="center" gap={6}>
@@ -1034,7 +1022,7 @@ export const HealthDashboard: React.FC = () => {
                                 <>
                                   <DavisResponse content={msg.content} />
                                   {msg.isStreaming && (
-                                    <span style={{ display: 'inline-block', width: 6, height: 14, background: '#6366f1', marginLeft: 2, animation: 'blink 1s step-end infinite' }} />
+                                    <Text style={{ display: 'inline-block', width: 6, height: 14, background: 'var(--dt-colors-charts-categorical-color-06-default)', marginLeft: 2, animation: 'blink 1s step-end infinite' }} />
                                   )}
                                 </>
                               )}
@@ -1043,7 +1031,7 @@ export const HealthDashboard: React.FC = () => {
                         )
                       ))}
                     </Flex>
-                  </div>
+                  </Flex>
                 )}
 
                 {/* Error state */}
@@ -1055,7 +1043,7 @@ export const HealthDashboard: React.FC = () => {
 
                 {/* Chat input — always visible for follow-up questions */}
                 <Flex gap={8} alignItems="center">
-                  <div style={{ flex: 1 }}>
+                  <Flex style={{ flex: 1 }}>
                     <TextInput
                       placeholder={healthChatMessages.length === 0 ? 'Ask about your AI service health...' : 'Ask a follow-up question...'}
                       value={healthChatInput}
@@ -1072,7 +1060,7 @@ export const HealthDashboard: React.FC = () => {
                       }}
                       disabled={healthChatLoading}
                     />
-                  </div>
+                  </Flex>
                   <Button
                     variant="emphasized"
                     onClick={() => {

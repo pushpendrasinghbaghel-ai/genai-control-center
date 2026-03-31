@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
           }}>
             <Flex flexDirection="column" gap={16}>
               <Flex alignItems="center" gap={12}>
-                <span style={{ fontSize: 32 }}>⚠️</span>
+                <Text style={{ fontSize: 32 }} aria-hidden="true">⚠️</Text>
                 <Heading level={4}>Something went wrong</Heading>
               </Flex>
               

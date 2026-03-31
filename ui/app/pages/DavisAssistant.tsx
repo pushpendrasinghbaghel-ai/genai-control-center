@@ -10,6 +10,7 @@ import { TextInput } from '@dynatrace/strato-components/forms';
 import { AiIcon, HelpIcon, DavisAIIcon } from '@dynatrace/strato-icons';
 import { useDavisInvestigation } from '../hooks';
 import type { ConversationMessage } from '../types';
+import { formatTime } from '../utils/formatting';
 
 // Quick Action Button - Compact
 const QuickAction: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
@@ -24,7 +25,7 @@ const ChatMessage: React.FC<{ message: ConversationMessage }> = ({ message }) =>
   
   return (
     <Flex justifyContent={isUser ? 'flex-end' : 'flex-start'} style={{ width: '100%' }}>
-      <div style={{ 
+      <Flex style={{ 
         maxWidth: '80%',
         padding: 12,
         borderRadius: 8,
@@ -32,38 +33,38 @@ const ChatMessage: React.FC<{ message: ConversationMessage }> = ({ message }) =>
         border: isUser ? 'none' : '1px solid var(--dt-colors-border-neutral-default)'
       }}>
         <Flex alignItems="center" gap={6} style={{ marginBottom: 6 }}>
-          <span style={{ display: 'flex', alignItems: 'center' }}>
+          <Text style={{ display: 'flex', alignItems: 'center' }}>
             {isUser 
               ? <HelpIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-primary-default)' }} /> 
               : <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
             }
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
             {isUser ? 'You' : 'Dynatrace Intelligence'}
-          </span>
-          <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
-            {message.timestamp.toLocaleTimeString()}
-          </span>
+          </Text>
+          <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+            {formatTime(message.timestamp)}
+          </Text>
         </Flex>
-        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: 13 }}>
+        <Flex style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: 13 }}>
           {message.content}
-        </div>
+        </Flex>
         {message.metadata?.dqlQuery && (
-          <div style={{ 
+          <Flex style={{ 
             marginTop: 8, 
             padding: 8, 
             borderRadius: 4,
             background: 'var(--dt-colors-background-default-secondary)'
           }}>
-            <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>
+            <Text style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)' }}>
               DQL Query
-            </span>
+            </Text>
             <code style={{ display: 'block', fontSize: 10, fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginTop: 4 }}>
               {message.metadata.dqlQuery}
             </code>
-          </div>
+          </Flex>
         )}
-      </div>
+      </Flex>
     </Flex>
   );
 };
@@ -114,7 +115,7 @@ export const DavisAssistant: React.FC = () => {
   ];
 
   return (
-    <Flex flexDirection="column" style={{ height: 'calc(100vh - 100px)' }} padding={16} gap={16}>
+    <Flex flexDirection="column" style={{ height: '100%' }} padding={16} gap={16}>
       {/* Page TitleBar */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true">
@@ -141,14 +142,14 @@ export const DavisAssistant: React.FC = () => {
       {/* Chat Messages */}
       <Surface style={{ flex: 1, overflow: 'hidden' }}>
         <Flex flexDirection="column" style={{ height: '100%' }}>
-          <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+          <Flex style={{ flex: 1, overflow: 'auto', padding: 12 }}>
             {messages.length === 0 ? (
               <Flex flexDirection="column" alignItems="center" justifyContent="center" style={{ height: '100%' }} gap={12}>
                 <AiIcon style={{ width: 48, height: 48, color: 'var(--dt-colors-text-accent-default)' }} />
                 <Heading level={5}>Welcome to Dynatrace Assist</Heading>
-                <span style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', maxWidth: 360, fontSize: 13 }}>
+                <Text style={{ color: 'var(--dt-colors-text-secondary-default)', textAlign: 'center', maxWidth: 360, fontSize: 13 }}>
                   Ask me about your AI services - errors, performance, costs, and recommendations.
-                </span>
+                </Text>
               </Flex>
             ) : (
               <Flex flexDirection="column" gap={12}>
@@ -158,15 +159,15 @@ export const DavisAssistant: React.FC = () => {
                 {isProcessing && (
                   <Flex alignItems="center" gap={6}>
                     <AiIcon style={{ width: 16, height: 16, color: 'var(--dt-colors-text-accent-default)' }} />
-                    <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic', fontSize: 12 }}>
+                    <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontStyle: 'italic', fontSize: 12 }}>
                       Davis is thinking...
-                    </span>
+                    </Text>
                   </Flex>
                 )}
-                <div ref={messagesEndRef} />
+                <Flex ref={messagesEndRef} />
               </Flex>
             )}
-          </div>
+          </Flex>
         </Flex>
       </Surface>
 
@@ -176,14 +177,14 @@ export const DavisAssistant: React.FC = () => {
         borderRadius: 6,
         border: '1px solid var(--dt-colors-border-neutral-default)'
       }}>
-        <div style={{ flex: 1 }}>
+        <Flex style={{ flex: 1 }}>
           <TextInput
             value={inputValue}
             onChange={(value) => setInputValue(value)}
             placeholder="Ask Dynatrace Intelligence about your AI services..."
             onKeyDown={handleKeyPress}
           />
-        </div>
+        </Flex>
         <Button 
           variant="accent" 
           onClick={handleSend}

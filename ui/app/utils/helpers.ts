@@ -189,49 +189,19 @@ export function formatNumber(num: number | string | null | undefined): string {
 }
 
 /**
- * Format duration in milliseconds to human readable
+ * Format duration in milliseconds to human readable — delegates to locale-aware formatter
  */
-export function formatDuration(ms: number | string | null | undefined): string {
-  const n = Number(ms);
-  if (isNaN(n) || ms === null || ms === undefined) {
-    return '0ms';
-  }
-  if (n < 1000) {
-    return `${n.toFixed(0)}ms`;
-  }
-  if (n < 60000) {
-    return `${(n / 1000).toFixed(2)}s`;
-  }
-  return `${(n / 60000).toFixed(2)}min`;
-}
+export { formatDurationMs as formatDuration } from './formatting';
 
 /**
- * Format latency from nanoseconds (DQL returns ns)
+ * Format latency from nanoseconds (DQL returns ns) — delegates to locale-aware formatter
  */
-export function formatLatencyFromNs(ns: number | string | null | undefined): string {
-  const n = Number(ns);
-  if (isNaN(n) || ns === null || ns === undefined) {
-    return '0ms';
-  }
-  const ms = n / 1_000_000;
-  return formatDuration(ms);
-}
+export { formatLatencyNs as formatLatencyFromNs } from './formatting';
 
 /**
- * Format currency
+ * Format currency — delegates to locale-aware formatter
  */
-export function formatCurrency(amount: number | string | null | undefined, currency: string = 'USD'): string {
-  const n = Number(amount);
-  if (isNaN(n) || amount === null || amount === undefined) {
-    return '$0.00';
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4
-  }).format(n);
-}
+export { formatCurrencyLocalized as formatCurrency } from './formatting';
 
 /**
  * Format cost per 1K requests (industry standard pricing format)
@@ -292,7 +262,7 @@ export function formatRequestCount(count: number | string | null | undefined): s
   if (absN >= 1e3) {
     return `${sign}${(absN / 1e3).toFixed(1)}K`;
   }
-  return n.toLocaleString();
+  return formatNumber(n);
 }
 
 /**

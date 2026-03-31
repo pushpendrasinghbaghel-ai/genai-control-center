@@ -28,4 +28,5 @@ export * from './useRateCardStorage';
 export * from './useMLOps';
 export * from './useAskAI';
 export * from './useAgenticDeepDive';
+export * from './useAdversarialThreatDetection';
 export * from './useResponseContent';

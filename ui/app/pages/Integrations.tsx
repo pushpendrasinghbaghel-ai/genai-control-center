@@ -67,14 +67,14 @@ function StatusBadge({ status, label }: { status: 'healthy' | 'warning' | 'criti
   };
   const color = colorMap[status];
   return (
-    <span style={{
+    <Text style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px',
       borderRadius: 10, fontSize: 11, fontWeight: 700,
       background: color + '18', color,
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <Text style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
       {label}
-    </span>
+    </Text>
   );
 }
 
@@ -92,9 +92,9 @@ function MetricBox({ label, value, unit, status }: {
   return (
     <Flex flexDirection="column" gap={2} style={{ minWidth: 80 }}>
       <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontSize: 10 }}>{label}</Text>
-      <span style={{ fontSize: 18, fontWeight: 700, color }}>
-        {value}{unit && <span style={{ fontSize: 11, fontWeight: 400 }}> {unit}</span>}
-      </span>
+      <Text style={{ fontSize: 18, fontWeight: 700, color }}>
+        {value}{unit && <Text style={{ fontSize: 11, fontWeight: 400 }}> {unit}</Text>}
+      </Text>
     </Flex>
   );
 }
@@ -183,9 +183,9 @@ function IntegrationCard({ title, icon, status, statusLabel, loading, error, met
 
         {/* Expanded detail panel */}
         {expanded && details && (
-          <div style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
+          <Flex style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
             {details}
-          </div>
+          </Flex>
         )}
       </Flex>
     </Surface>
@@ -385,7 +385,7 @@ export function Integrations() {
 
         <Flex gap={12} flexWrap="wrap">
           {/* Slack — real data from useSlackIntegration hook */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="Slack"
               icon={<AiIcon style={{ width: 16, height: 16 }} />}
@@ -415,10 +415,10 @@ export function Integrations() {
                 ) : undefined
               }
             />
-          </div>
+          </Flex>
 
           {/* PagerDuty — real data from usePagerDutyIntegration hook */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="PagerDuty"
               icon={<CriticalIcon style={{ width: 16, height: 16, color: Colors.Text.Warning.Default }} />}
@@ -447,7 +447,7 @@ export function Integrations() {
                 ) : undefined
               }
             />
-          </div>
+          </Flex>
         </Flex>
       </Flex>
 
@@ -456,7 +456,7 @@ export function Integrations() {
 
         <Flex gap={12} flexWrap="wrap">
           {/* Prometheus — real data from usePrometheusMCP hook */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="Prometheus"
               icon={<AiIcon style={{ width: 16, height: 16 }} />}
@@ -485,10 +485,10 @@ export function Integrations() {
                 ) : undefined
               }
             />
-          </div>
+          </Flex>
 
           {/* AWS CloudWatch */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="AWS CloudWatch"
               icon={<WarningIcon style={{ width: 16, height: 16, color: Colors.Text.Warning.Default }} />}
@@ -523,7 +523,7 @@ export function Integrations() {
                 ) : null
               }
             />
-          </div>
+          </Flex>
         </Flex>
       </Flex>
 
@@ -532,7 +532,7 @@ export function Integrations() {
 
         <Flex gap={12} flexWrap="wrap">
           {/* AWS Billing */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="AWS Billing & Cost"
               icon={<AiIcon style={{ width: 16, height: 16 }} />}
@@ -569,10 +569,10 @@ export function Integrations() {
                 ) : null
               }
             />
-          </div>
+          </Flex>
 
           {/* Grafana */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="Grafana"
               icon={<AiIcon style={{ width: 16, height: 16 }} />}
@@ -607,7 +607,7 @@ export function Integrations() {
                 ) : null
               }
             />
-          </div>
+          </Flex>
         </Flex>
       </Flex>
 
@@ -616,7 +616,7 @@ export function Integrations() {
 
         <Flex gap={12} flexWrap="wrap">
           {/* GitHub */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="GitHub"
               icon={<AiIcon style={{ width: 16, height: 16 }} />}
@@ -643,11 +643,11 @@ export function Integrations() {
                         <Text textStyle="small" style={{ flex: 1 }}>{iss.title}</Text>
                         <Flex gap={4}>
                           {iss.labels.slice(0, 2).map((l, j) => (
-                            <span key={j} style={{
+                            <Text key={j} style={{
                               fontSize: 9, padding: '1px 6px', borderRadius: 8,
                               background: 'var(--dt-colors-surface-neutral-subdued)',
                               color: Colors.Text.Neutral.Subdued,
-                            }}>{l}</span>
+                            }}>{l}</Text>
                           ))}
                         </Flex>
                       </Flex>
@@ -656,10 +656,10 @@ export function Integrations() {
                 ) : null
               }
             />
-          </div>
+          </Flex>
 
           {/* Agentic Workflows */}
-          <div style={{ flex: 1, minWidth: 380 }}>
+          <Flex style={{ flex: 1, minWidth: 380 }}>
             <IntegrationCard
               title="Agentic Workflows"
               icon={<AutomationEngineIcon style={{ width: 16, height: 16 }} />}
@@ -686,11 +686,11 @@ export function Integrations() {
                     <Flex key={i} alignItems="center" gap={8}>
                       <CheckmarkIcon style={{ width: 12, height: 12, color: Colors.Text.Success.Default }} />
                       <Text textStyle="small" style={{ flex: 1 }}>{t.name}</Text>
-                      <span style={{
+                      <Text style={{
                         fontSize: 9, padding: '1px 6px', borderRadius: 8,
                         background: 'var(--dt-colors-surface-neutral-subdued)',
                         color: Colors.Text.Neutral.Subdued,
-                      }}>{t.category}</span>
+                      }}>{t.category}</Text>
                     </Flex>
                   ))}
 
@@ -701,11 +701,11 @@ export function Integrations() {
                         <Flex key={i} alignItems="center" gap={8}>
                           <CriticalIcon style={{ width: 12, height: 12, color: Colors.Text.Critical.Default }} />
                           <Text textStyle="small">{c.provider}/{c.model} — {c.errorRate.toFixed(1)}% errors</Text>
-                          <span style={{
+                          <Text style={{
                             fontSize: 9, padding: '1px 6px', borderRadius: 8,
                             background: Colors.Text.Warning.Default + '18',
                             color: Colors.Text.Warning.Default,
-                          }}>→ {c.suggestedWorkflow}</span>
+                          }}>→ {c.suggestedWorkflow}</Text>
                         </Flex>
                       ))}
                     </>
@@ -713,7 +713,7 @@ export function Integrations() {
                 </Flex>
               }
             />
-          </div>
+          </Flex>
         </Flex>
       </Flex>
 
@@ -746,7 +746,7 @@ export function Integrations() {
                 <Flex flexDirection="column" gap={2}>
                   <Text textStyle="small-emphasized">{group.name}</Text>
                   <Flex alignItems="center" gap={4}>
-                    <span style={{ fontSize: 16, fontWeight: 700 }}>{group.tools}</span>
+                    <Text style={{ fontSize: 16, fontWeight: 700 }}>{group.tools}</Text>
                     <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>tools</Text>
                   </Flex>
                   <Text textStyle="small" style={{ fontFamily: 'monospace', fontSize: 9, color: Colors.Text.Neutral.Subdued }}>
@@ -791,14 +791,14 @@ export function Integrations() {
             </Flex>
 
             <Flex gap={8} alignItems="center">
-              <div style={{ flex: 1 }}>
+              <Flex style={{ flex: 1 }}>
                 <TextInput
                   placeholder="Ask about integrations, costs, alerts, or workflows..."
                   value={davisQuery}
                   onChange={setDavisQuery}
                   onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') handleCustomDavisQuery(); }}
                 />
-              </div>
+              </Flex>
               <Button variant="emphasized" onClick={handleCustomDavisQuery} disabled={!davisQuery.trim() || davisLoading}>
                 <Button.Prefix><DavisAIIcon /></Button.Prefix>
                 Ask
@@ -806,10 +806,10 @@ export function Integrations() {
             </Flex>
 
             {(davisMessages.length > 0 || davisLoading) && (
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 120, maxHeight: 320, borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
+              <Flex style={{ flex: 1, overflow: 'auto', minHeight: 120, maxHeight: 320, borderTop: '1px solid var(--dt-colors-border-neutral-default)', paddingTop: 12 }}>
                 <Flex flexDirection="column" gap={12}>
                   {davisMessages.map((msg: ConversationMessage, i: number) => (
-                    <div key={msg.id || i} style={{ width: '100%' }}>
+                    <Flex key={msg.id || i} style={{ width: '100%' }}>
                       {msg.role === 'user' ? (
                         <Flex gap={8} alignItems="flex-start">
                           <HelpIcon style={{ width: 14, height: 14, marginTop: 2, flexShrink: 0, color: 'var(--dt-colors-text-primary-default)' }} />
@@ -825,10 +825,10 @@ export function Integrations() {
                           <DavisResponse content={msg.content} />
                         </Surface>
                       )}
-                    </div>
+                    </Flex>
                   ))}
                 </Flex>
-              </div>
+              </Flex>
             )}
           </Flex>
         </Surface>

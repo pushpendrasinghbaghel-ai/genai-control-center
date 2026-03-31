@@ -14,6 +14,7 @@ import {
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useRAGHealthScore } from '../hooks/useRAGHealthScore';
 import type { RAGHealthDimension, HealingAction, RAGHealthTrend } from '../hooks/useRAGHealthScore';
+import { formatTime } from '../utils/formatting';
 
 const STATUS_COLORS = {
   healthy: Colors.Charts.Status.Ideal.Default,
@@ -134,7 +135,7 @@ const HealingActionCard: React.FC<{ action: HealingAction }> = ({ action }) => {
           <Text textStyle="small" style={{ fontWeight: 600 }}>{action.title}</Text>
           {action.automated && (
             <Surface style={{ padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(99,102,241,0.1)' }}>
-              <Text textStyle="small" style={{ fontSize: 9, color: '#6366f1' }}>AUTO</Text>
+              <Text textStyle="small" style={{ fontSize: 9, color: 'var(--dt-colors-charts-categorical-color-06-default)' }}>AUTO</Text>
             </Surface>
           )}
         </Flex>
@@ -224,7 +225,7 @@ export const RAGHealthPanel: React.FC<RAGHealthPanelProps> = ({ compact = false 
                   {healthScore.status}
                 </Text>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  · {new Date(healthScore.lastUpdated).toLocaleTimeString()}
+                  · {formatTime(healthScore.lastUpdated)}
                 </Text>
               </Flex>
             </Flex>

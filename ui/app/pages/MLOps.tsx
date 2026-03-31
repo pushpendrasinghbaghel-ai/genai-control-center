@@ -495,20 +495,20 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
                 <Flex key={`${m.model}-${m.provider}`} flexDirection="column" gap={2}>
                   <Flex justifyContent="space-between" alignItems="center">
                     <Text style={{ fontSize: 11, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.model} <span style={{ opacity: 0.5 }}>({m.provider})</span>
+                      {m.model} <Text style={{ opacity: 0.5 }}>({m.provider})</Text>
                     </Text>
                     <Text style={{ fontSize: 11, fontWeight: 600, color: barColor }}>{fmt(m.avgLatencyMs)}ms</Text>
                   </Flex>
-                  <div style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(m.avgLatencyMs / maxLatency) * 100}%`, borderRadius: 4, background: barColor, transition: 'width 0.3s ease' }} />
-                  </div>
+                  <Flex style={{ height: 8, borderRadius: 4, background: 'var(--dt-colors-background-container-neutral-subdued)', overflow: 'hidden' }}>
+                    <Flex style={{ height: '100%', width: `${(m.avgLatencyMs / maxLatency) * 100}%`, borderRadius: 4, background: barColor, transition: 'width 0.3s ease' }} />
+                  </Flex>
                 </Flex>
               );
             })}
             <Flex gap={12} style={{ marginTop: 4 }}>
-              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.pass }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&lt;1s</Text></Flex>
-              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>1-3s</Text></Flex>
-              <Flex alignItems="center" gap={4}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.fail }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&gt;3s</Text></Flex>
+              <Flex alignItems="center" gap={4}><Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.pass }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&lt;1s</Text></Flex>
+              <Flex alignItems="center" gap={4}><Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.warning }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>1-3s</Text></Flex>
+              <Flex alignItems="center" gap={4}><Text style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS.fail }} /><Text style={{ fontSize: 10, opacity: 0.6 }}>&gt;3s</Text></Flex>
             </Flex>
           </Flex>
         </Flex>
@@ -520,7 +520,7 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
           <Flex alignItems="center" gap={6}>
             <AiIcon style={{ width: 14, height: 14 }} />
             <Text style={{ fontWeight: 600, fontSize: 13 }}>Model Efficiency Frontier</Text>
-            <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</span>
+            <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
           </Flex>
           <Text textStyle="small" style={{ opacity: 0.6 }}>
             Models in the bottom-right quadrant (high efficiency, low latency) are on the efficiency frontier — optimal performance per token.
@@ -537,7 +537,7 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
             }));
 
             return (
-              <div style={{ height: 300 }}>
+              <Flex style={{ height: 300 }}>
                 <XYChart data={scatterData} colorPalette="categorical">
                   <XYChart.DotSeries
                     xAxisId="latency-axis"
@@ -549,7 +549,7 @@ const ModelComparisonTab = ({ data }: { data: MLOpsModelComparison[] }) => {
                   <XYChart.XAxis id="latency-axis" type="numerical" position="bottom" label="Avg Latency (ms)" />
                   <XYChart.YAxis id="efficiency-axis" type="numerical" position="left" label="Token Efficiency (output/input)" />
                 </XYChart>
-              </div>
+              </Flex>
             );
           })()}
           {/* Frontier summary — top 3 most efficient models */}

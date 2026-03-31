@@ -11,6 +11,7 @@ import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { StopIcon, RefreshIcon, ClockIcon, SettingIcon, ArrowRightIcon, NotificationIcon, WorkflowsIcon, WarningIcon, MailIcon, BarChartIcon } from '@dynatrace/strato-icons';
 import { useRemediation, useRemediationActions, useAIServicesDiscovery } from '../hooks';
 import type { RemediationAction, WorkflowExecution } from '../types';
+import { formatTime } from '../utils/formatting';
 
 // Agentic Workflow Templates
 const AGENTIC_WORKFLOWS = [
@@ -51,25 +52,25 @@ const AgenticWorkflowCard: React.FC<{
   <Surface style={{ padding: 16, borderRadius: 8, border: '1px solid var(--dt-colors-border-neutral-default)' }}>
     <Flex flexDirection="column" gap={12}>
       <Flex alignItems="center" gap={8}>
-        <span style={{ 
+        <Text style={{ 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 36, height: 36, borderRadius: 8,
           background: 'var(--dt-colors-charts-categorical-default-6)',
           color: 'white'
         }}>
           {workflow.icon}
-        </span>
+        </Text>
         <Flex flexDirection="column" style={{ flex: 1 }}>
           <Text style={{ fontWeight: 600, fontSize: 14 }}>{workflow.title}</Text>
           <Text style={{ fontSize: 11, opacity: 0.7 }}>Trigger: {workflow.trigger}</Text>
         </Flex>
         <Tooltip text="Agentic Workflow powered by Dynatrace Intelligence">
-          <span style={{ 
+          <Text style={{ 
             padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
-            background: '#7c3aed', color: 'white'
+            background: 'var(--dt-colors-charts-categorical-color-02-default)', color: 'white'
           }}>
             AGENTIC
-          </span>
+          </Text>
         </Tooltip>
       </Flex>
       
@@ -77,13 +78,13 @@ const AgenticWorkflowCard: React.FC<{
       
       <Flex gap={4} flexWrap="wrap">
         {workflow.features.map((f, i) => (
-          <span key={i} style={{ 
+          <Text key={i} style={{ 
             padding: '2px 6px', borderRadius: 4, fontSize: 10,
             background: 'var(--dt-colors-surface-neutral-default)',
             border: '1px solid var(--dt-colors-border-neutral-default)'
           }}>
             {f}
-          </span>
+          </Text>
         ))}
       </Flex>
       
@@ -125,8 +126,8 @@ const ActionCard: React.FC<{
       }}
     >
       <Flex alignItems="center" gap={8}>
-        <span style={{ display: 'flex', alignItems: 'center' }}>{icons[action.type] || <WorkflowsIcon style={{ width: 20, height: 20 }} />}</span>
-        <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{action.name}</span>
+        <Text style={{ display: 'flex', alignItems: 'center' }}>{icons[action.type] || <WorkflowsIcon style={{ width: 20, height: 20 }} />}</Text>
+        <Text style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{action.name}</Text>
         {action.isDestructive && (
           <Flex alignItems="center" gap={2} style={{ 
             fontSize: 9, padding: '2px 5px', 
@@ -139,9 +140,9 @@ const ActionCard: React.FC<{
           </Flex>
         )}
       </Flex>
-      <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12 }}>
         {action.description}
-      </span>
+      </Text>
       <Flex justifyContent="flex-end">
         <Button 
           color={action.isDestructive ? 'critical' : 'primary'}
@@ -158,9 +159,9 @@ const ActionCard: React.FC<{
 const ExecutionHistory: React.FC<{ executions: WorkflowExecution[] }> = ({ executions }) => {
   if (executions.length === 0) {
     return (
-      <span style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 12, fontSize: 12 }}>
+      <Text style={{ color: 'var(--dt-colors-text-secondary-default)', padding: 12, fontSize: 12 }}>
         No executions yet.
-      </span>
+      </Text>
     );
   }
 
@@ -179,7 +180,7 @@ const ExecutionHistory: React.FC<{ executions: WorkflowExecution[] }> = ({ execu
           }}
         >
           <Flex alignItems="center" gap={8}>
-            <span style={{ 
+            <Text style={{ 
               fontSize: 10, padding: '3px 6px', borderRadius: 3,
               background: execution.status === 'completed' 
                 ? 'var(--dt-colors-feedback-success-subtle)'
@@ -194,12 +195,12 @@ const ExecutionHistory: React.FC<{ executions: WorkflowExecution[] }> = ({ execu
               textTransform: 'uppercase', fontWeight: 600
             }}>
               {execution.status}
-            </span>
-            <span style={{ fontSize: 12 }}>{execution.workflowId}</span>
+            </Text>
+            <Text style={{ fontSize: 12 }}>{execution.workflowId}</Text>
           </Flex>
-          <span style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
-            {execution.startTime.toLocaleTimeString()}
-          </span>
+          <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-secondary-default)' }}>
+            {formatTime(execution.startTime)}
+          </Text>
         </Flex>
       ))}
     </Flex>
@@ -256,29 +257,29 @@ export const RemediationLibrary: React.FC = () => {
       {/* Agentic Workflows Section */}
       <Flex flexDirection="column" gap={12}>
         <Flex alignItems="center" gap={8}>
-          <WorkflowsIcon style={{ width: 18, height: 18, color: '#7c3aed' }} />
+          <WorkflowsIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-charts-categorical-color-02-default)' }} />
           <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
             Agentic Workflow Templates
           </Text>
           <Tooltip text="Powered by Dynatrace Intelligence - autonomous workflows that analyze, decide, and act">
-            <span style={{ 
+            <Text style={{ 
               padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600,
-              background: '#7c3aed', color: 'white'
+              background: 'var(--dt-colors-charts-categorical-color-02-default)', color: 'white'
             }}>
               PREVIEW
-            </span>
+            </Text>
           </Tooltip>
         </Flex>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+        <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
           {AGENTIC_WORKFLOWS.map(workflow => (
             <AgenticWorkflowCard key={workflow.id} workflow={workflow} onDeploy={handleDeployWorkflow} />
           ))}
-        </div>
+        </Flex>
       </Flex>
 
       {/* Divider */}
-      <div style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', margin: '8px 0' }} />
+      <Flex style={{ borderTop: '1px solid var(--dt-colors-border-neutral-default)', margin: '8px 0' }} />
 
       {/* Quick Actions Header */}
       <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -292,13 +293,13 @@ export const RemediationLibrary: React.FC = () => {
         border: '1px solid var(--dt-colors-feedback-warning-default)'
       }}>
         <WarningIcon style={{ width: 18, height: 18, color: 'var(--dt-colors-feedback-warning-default)' }} />
-        <div>
-          <span style={{ fontWeight: 600, fontSize: 12 }}>Automation SDK Required</span>
-          <span style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, marginLeft: 6 }}>
+        <Flex>
+          <Text style={{ fontWeight: 600, fontSize: 12 }}>Automation SDK Required</Text>
+          <Text style={{ color: 'var(--dt-colors-text-secondary-default)', fontSize: 12, marginLeft: 6 }}>
             Quick actions require @dynatrace-sdk/client-automation. Configure matching workflows in the Dynatrace Workflows app first. 
             Destructive actions (red) can impact production.
-          </span>
-        </div>
+          </Text>
+        </Flex>
       </Flex>
 
       {/* Two Column Layout */}
@@ -306,11 +307,11 @@ export const RemediationLibrary: React.FC = () => {
         {/* Actions Grid */}
         <Flex flexDirection="column" gap={12} style={{ flex: 2 }}>
           <Heading level={6}>Available Actions</Heading>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+          <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
             {actions.map(action => (
               <ActionCard key={action.id} action={action} onExecute={handleExecute} />
             ))}
-          </div>
+          </Flex>
         </Flex>
 
         {/* Execution History */}
@@ -327,36 +328,36 @@ export const RemediationLibrary: React.FC = () => {
         onDismiss={handleCancel}
       >
         <Flex flexDirection="column" gap={16} padding={16}>
-          <span>{selectedAction?.description}</span>
+          <Text>{selectedAction?.description}</Text>
           
           {selectedAction?.isDestructive && (
             <Surface style={{ background: 'var(--dt-colors-feedback-critical-subtle)' }}>
               <Flex padding={12} alignItems="center" gap={8}>
                 <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />
-                <span style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
+                <Text style={{ color: 'var(--dt-colors-feedback-critical-default)' }}>
                   This is a destructive action and may impact production services.
-                </span>
+                </Text>
               </Flex>
             </Surface>
           )}
 
-          <div>
-            <span style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'block' }}>
+          <Flex>
+            <Text style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'block' }}>
               Target Service
-            </span>
+            </Text>
             <TextInput
               value={actionParams.serviceName || ''}
               onChange={(value) => setActionParams({ ...actionParams, serviceName: value })}
               placeholder="Enter service name..."
             />
-          </div>
+          </Flex>
 
           {services && services.length > 0 && (
-            <div>
-              <span style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+            <Flex>
+              <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
                 Available services: {services.map(s => s.serviceName).join(', ')}
-              </span>
-            </div>
+              </Text>
+            </Flex>
           )}
 
           <Flex gap={12} justifyContent="flex-end">
