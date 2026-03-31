@@ -134,11 +134,11 @@ const SmartscapeCardNode: React.FC<{
         height={cardHeight}
         rx={5}
         ry={5}
-        fill='var(--dt-colors-text-primary-inverse)'
+        fill='var(--dt-colors-background-surface-default)'
         stroke={isSelected ? config.color : isHovered ? config.color : 'var(--dt-colors-border-neutral-default)'}
         strokeWidth={isSelected ? 2 : 1}
         style={{
-          filter: isHovered ? 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))',
+          filter: isHovered ? 'drop-shadow(0 2px 8px var(--dt-colors-shadow-default, rgba(0,0,0,0.16)))' : 'drop-shadow(0 1px 3px var(--dt-colors-shadow-default, rgba(0,0,0,0.1)))',
           transition: 'all 0.15s ease'
         }}
       />
@@ -193,7 +193,7 @@ const SmartscapeCardNode: React.FC<{
       <g transform={`translate(${cardWidth/2}, 42)`}>
         <polygon
           points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7"
-          fill='var(--dt-colors-text-primary-inverse)'
+          fill='var(--dt-colors-background-surface-default)'
           stroke={config.color}
           strokeWidth={1.5}
         />
@@ -301,7 +301,7 @@ const SmartscapeEdge: React.FC<{
         width={48}
         height={18}
         rx={3}
-        fill='var(--dt-colors-text-primary-inverse)'
+        fill='var(--dt-colors-background-surface-default)'
         stroke='var(--dt-colors-border-neutral-default)'
         strokeWidth={1}
       />
@@ -463,11 +463,11 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                     <polygon points="0 0, 6 2.5, 0 5" fill='var(--dt-colors-text-neutral-subdued)' />
                   </marker>
                   <pattern id="dotPatternModal" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
+                    <circle cx="2" cy="2" r="1" fill='var(--dt-colors-border-neutral-default)' opacity="0.3" />
                   </pattern>
                 </defs>
 
-                <rect width="100%" height="100%" fill='var(--dt-colors-background-surface-default)' />
+                <rect width="100%" height="100%" fill='var(--dt-colors-surface-neutral-default)' />
                 <rect width="100%" height="100%" fill="url(#dotPatternModal)" />
 
                 {/* Edges: Service → Providers */}
@@ -491,7 +491,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                       />
                       {edge && (
                         <>
-                          <rect x={midX - 22} y={(serviceY + providerY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke='var(--dt-colors-border-neutral-default)' />
+                          <rect x={midX - 22} y={(serviceY + providerY) / 2 - 9} width={44} height={18} rx={3} fill='var(--dt-colors-background-surface-default)' stroke='var(--dt-colors-border-neutral-default)' />
                           <text x={midX} y={(serviceY + providerY) / 2 + 4} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                             {formatNumber(edge.metrics.tokens)} tok
                           </text>
@@ -524,7 +524,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                         />
                         {edge && (
                           <>
-                            <rect x={startX - 22} y={(startY + endY) / 2 - 9} width={44} height={18} rx={3} fill="#fff" stroke='var(--dt-colors-border-neutral-default)' />
+                            <rect x={startX - 22} y={(startY + endY) / 2 - 9} width={44} height={18} rx={3} fill='var(--dt-colors-background-surface-default)' stroke='var(--dt-colors-border-neutral-default)' />
                             <text x={startX} y={(startY + endY) / 2 + 4} textAnchor="middle" fontSize={9} fill='var(--dt-colors-text-neutral-default)'>
                               {formatNumber(edge.metrics.requests)} req
                             </text>
@@ -537,9 +537,9 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
 
                 {/* Service Node */}
                 <g transform={`translate(${serviceX - cardWidth / 2}, ${serviceY - cardHeight / 2})`}>
-                  <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-categorical-color-01-default)' strokeWidth={2} />
-                  <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(20, 168, 245, 0.1)" />
-                  <rect y={16} width={cardWidth} height={8} fill="rgba(20, 168, 245, 0.1)" />
+                  <rect width={cardWidth} height={cardHeight} rx={8} fill='var(--dt-colors-background-surface-default)' stroke='var(--dt-colors-charts-categorical-color-01-default)' strokeWidth={2} />
+                  <rect y={0} width={cardWidth} height={24} rx={8} fill='var(--dt-colors-charts-categorical-color-01-default)' opacity="0.12" />
+                  <rect y={16} width={cardWidth} height={8} fill='var(--dt-colors-charts-categorical-color-01-default)' opacity="0.12" />
                   <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-categorical-color-01-default)'>SERVICE</text>
                   <ServicesIcon style={{ position: 'absolute' }} />
                   <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
@@ -553,9 +553,9 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                 {/* Provider Nodes */}
                 {connectedProviders.map((provider, idx) => (
                   <g key={provider.id} transform={`translate(${getProviderX(idx) - cardWidth / 2}, ${providerY - cardHeight / 2})`}>
-                    <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-categorical-color-02-default)' strokeWidth={2} />
-                    <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(111, 45, 168, 0.1)" />
-                    <rect y={16} width={cardWidth} height={8} fill="rgba(111, 45, 168, 0.1)" />
+                    <rect width={cardWidth} height={cardHeight} rx={8} fill='var(--dt-colors-background-surface-default)' stroke='var(--dt-colors-charts-categorical-color-02-default)' strokeWidth={2} />
+                    <rect y={0} width={cardWidth} height={24} rx={8} fill='var(--dt-colors-charts-categorical-color-02-default)' opacity="0.12" />
+                    <rect y={16} width={cardWidth} height={8} fill='var(--dt-colors-charts-categorical-color-02-default)' opacity="0.12" />
                     <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-categorical-color-02-default)'>PROVIDER</text>
                     <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
                       {provider.name.length > 14 ? provider.name.substring(0, 12) + '...' : provider.name}
@@ -571,9 +571,9 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                   const models = providerToModels[provider.id] || [];
                   return models.map((model, mIdx) => (
                     <g key={model.id} transform={`translate(${getProviderX(pIdx) - cardWidth / 2}, ${getModelY(mIdx) - cardHeight / 2})`}>
-                      <rect width={cardWidth} height={cardHeight} rx={8} fill="#fff" stroke='var(--dt-colors-charts-status-good-default)' strokeWidth={2} />
-                      <rect y={0} width={cardWidth} height={24} rx={8} fill="rgba(115, 190, 40, 0.1)" />
-                      <rect y={16} width={cardWidth} height={8} fill="rgba(115, 190, 40, 0.1)" />
+                      <rect width={cardWidth} height={cardHeight} rx={8} fill='var(--dt-colors-background-surface-default)' stroke='var(--dt-colors-charts-status-good-default)' strokeWidth={2} />
+                      <rect y={0} width={cardWidth} height={24} rx={8} fill='var(--dt-colors-charts-status-good-default)' opacity="0.12" />
+                      <rect y={16} width={cardWidth} height={8} fill='var(--dt-colors-charts-status-good-default)' opacity="0.12" />
                       <text x={cardWidth / 2} y={16} textAnchor="middle" fontSize={9} fontWeight={600} fill='var(--dt-colors-charts-status-good-default)'>MODEL</text>
                       <text x={cardWidth / 2} y={50} textAnchor="middle" fontSize={11} fontWeight={600} fill='var(--dt-colors-text-primary-default)'>
                         {model.name.length > 14 ? model.name.substring(0, 12) + '...' : model.name}
@@ -621,10 +621,10 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                         <Flex key={model.id} 
                           style={{ 
                             padding: '4px 8px', 
-                            background: 'rgba(115, 190, 40, 0.1)', 
+                            background: 'var(--dt-colors-surface-neutral-default)',
                             borderRadius: 4, 
                             fontSize: 11,
-                            border: '1px solid rgba(115, 190, 40, 0.3)'
+                            border: '1px solid var(--dt-colors-charts-status-good-default)'
                           }}
                         >
                           {getModelIcon(model.name, 12)} {model.name}
@@ -1299,7 +1299,7 @@ export const AITopology: React.FC = () => {
         minHeight: 200,
         maxHeight: '100%',
         overflow: 'auto',
-        background: 'var(--dt-colors-background-surface-default)',
+        background: 'var(--dt-colors-surface-neutral-default)',
         borderRadius: 8,
         border: '1px solid var(--dt-colors-border-neutral-default)',
         position: 'relative'
@@ -1338,12 +1338,12 @@ export const AITopology: React.FC = () => {
             </filter>
             {/* Light dotted pattern for background */}
             <pattern id="dotPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
+              <circle cx="2" cy="2" r="1" fill='var(--dt-colors-border-neutral-default)' opacity="0.3" />
             </pattern>
           </defs>
 
-          {/* Background - light gray with subtle dots */}
-          <rect width="100%" height="100%" fill='var(--dt-colors-background-surface-default)' />
+          {/* Background - subtle canvas distinct from card fills */}
+          <rect width="100%" height="100%" fill='var(--dt-colors-surface-neutral-default)' />
           <rect width="100%" height="100%" fill="url(#dotPattern)" />
 
           {/* Edges (render first so they're behind nodes) */}
@@ -1388,9 +1388,9 @@ export const AITopology: React.FC = () => {
           left: tooltipPos.x + 20,
           top: tooltipPos.y - 10,
           zIndex: 9999,
-          background: 'var(--dt-colors-text-primary-inverse)',
+          background: 'var(--dt-colors-background-surface-default)',
           borderRadius: 8,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          boxShadow: '0 8px 32px var(--dt-colors-shadow-default, rgba(0,0,0,0.2))',
           border: '1px solid var(--dt-colors-border-neutral-default)',
           padding: 12,
           minWidth: 200,
