@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { estimateCost } from '../utils/helpers';
 
 // ============================================
 // Types
@@ -158,7 +159,7 @@ export function useResponseAnalytics() {
         // Estimate cost (using rough public pricing)
         const totalInput = Number(record.total_input_tokens) || 0;
         const totalOutput = Number(record.total_output_tokens) || 0;
-        const estimatedCost = estimateTokenCost(provider, model, totalInput, totalOutput);
+        const estimatedCost = estimateCost(provider, totalInput, totalOutput, model);
         const requestCount = Number(record.request_count) || 1;
         
         return {
@@ -301,55 +302,7 @@ export function useResponseAnalytics() {
   };
 }
 
-// ============================================
-// Cost Estimation Helper (based on public pricing)
-// ============================================
-
-function estimateTokenCost(provider: string, model: string, inputTokens: number, outputTokens: number): number {
-  const providerLower = provider.toLowerCase();
-  const modelLower = model.toLowerCase();
-  
-  // Pricing per 1M tokens (approximate public pricing as of 2024)
-  let inputPricePer1M = 0.50;
-  let outputPricePer1M = 1.50;
-  
-  if (providerLower.includes('openai')) {
-    if (modelLower.includes('gpt-4o')) {
-      inputPricePer1M = 2.50;
-      outputPricePer1M = 10.00;
-    } else if (modelLower.includes('gpt-4-turbo') || modelLower.includes('gpt-4')) {
-      inputPricePer1M = 10.00;
-      outputPricePer1M = 30.00;
-    } else if (modelLower.includes('gpt-3.5')) {
-      inputPricePer1M = 0.50;
-      outputPricePer1M = 1.50;
-    }
-  } else if (providerLower.includes('anthropic')) {
-    if (modelLower.includes('opus')) {
-      inputPricePer1M = 15.00;
-      outputPricePer1M = 75.00;
-    } else if (modelLower.includes('sonnet')) {
-      inputPricePer1M = 3.00;
-      outputPricePer1M = 15.00;
-    } else if (modelLower.includes('haiku')) {
-      inputPricePer1M = 0.25;
-      outputPricePer1M = 1.25;
-    }
-  } else if (providerLower.includes('google') || providerLower.includes('gemini')) {
-    if (modelLower.includes('pro')) {
-      inputPricePer1M = 1.25;
-      outputPricePer1M = 5.00;
-    } else {
-      inputPricePer1M = 0.35;
-      outputPricePer1M = 1.05;
-    }
-  }
-  
-  const inputCost = (inputTokens / 1_000_000) * inputPricePer1M;
-  const outputCost = (outputTokens / 1_000_000) * outputPricePer1M;
-  
-  return inputCost + outputCost;
-}
+// Cost estimation now uses centralized estimateCost from ../utils/helpers
 
 // ============================================
 // Response Quality Trends Hook

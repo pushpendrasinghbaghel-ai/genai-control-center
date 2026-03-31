@@ -1,6 +1,5 @@
 /**
- * Health Dashboard - Pillar A: Auto-Discovery & Health-at-a-Glance
- * Standard Dynatrace app with FilterBar and deep linking to Services app
+ * AI Services — Service health monitoring and auto-discovery
  */
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
@@ -220,7 +219,7 @@ const ServiceRow: React.FC<{
   );
 };
 
-export const HealthDashboard: React.FC = () => {
+const HealthOverviewTab: React.FC = () => {
   const navigate = useNavigate();
   
   // Use global filter state for consistency across pages
@@ -1088,4 +1087,12 @@ export const HealthDashboard: React.FC = () => {
       )}
     </Flex>
   );
+};
+
+// ============================================
+// Main HealthDashboard
+// ============================================
+
+export const HealthDashboard: React.FC = () => {
+  return <HealthOverviewTab />;
 };

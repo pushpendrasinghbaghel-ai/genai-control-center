@@ -181,6 +181,56 @@ The app uses Davis CoPilot for:
 
 For querying Dynatrace data via MCP, use the **Demo Dynatrace MCP Server** (`mcp_demo_dynatrac_*` tools). Do NOT use `mcp_io_github_dyn_*` tools.
 
+### MCP Data Validation — MANDATORY for Every Implementation
+
+**Every feature that writes or modifies DQL queries MUST validate them against the live Dynatrace environment using the MCP server before the implementation is considered complete. No exceptions.**
+
+#### Why
+DQL queries that pass TypeScript compilation can still fail at runtime — wrong field names, missing commas before `by:`, null fields in actual event data, or schema mismatches between assumed and real structures. These bugs only surface as "no data" in the UI. MCP validation catches them early.
+
+#### Mandatory Steps
+
+1. **Run every DQL query via MCP** — Use `mcp_demo_dynatrac_execute_dql` with the exact query string from the code:
+   ```
+   Tool: mcp_demo_dynatrac_execute_dql
+   Input: { "dql_query": "<exact DQL from hook/module>" }
+   ```
+
+2. **Verify response schema** — For each result, confirm:
+   - Query returns records (not empty)
+   - All expected field names exist (e.g., `provider`, `model`, `request_count`)
+   - Field values are correct types (string, number, not null)
+   - Aggregation shapes match what the UI code unpacks
+   - `by:` grouping produces the expected dimensions
+
+3. **Investigate failures** — If fields are null or missing:
+   - Run exploratory query: `fetch bizevents | filter event.type == "X" | limit 1` or `fetch spans | filter ... | limit 1`
+   - Inspect raw record structure to find the real field names
+   - Use DQL `parse` command for JSON-embedded data (e.g., `requestParameters` in CloudTrail events)
+
+4. **Fix, re-validate, confirm** — After fixing the DQL:
+   - Re-run via MCP to confirm data flows correctly
+   - Update hook data processing if field names/types changed
+   - Run TypeScript compilation to ensure no type errors
+
+5. **Report results** — Briefly state: records returned per query, any field adjustments, any data gaps.
+
+#### Known DQL Pitfalls
+
+| Pitfall | Example | Fix |
+|---------|---------|-----|
+| Missing comma before `by:` | `summarize count()` *(newline)* `by: { field }` | `summarize count(), by: { field }` |
+| Assumed field doesn't exist | `gen_ai.training.base_model` is null in CloudTrail events | Use `parse` to extract from JSON string fields |
+| Field returns as string | `avg_duration_ns` = `"123456"` | Wrap with `Number()` in hook processing |
+| BizEvent schema mismatch | Expected structured fields, got raw webhook payload | Exploratory query first: `fetch bizevents \| limit 1` |
+| Time window too narrow | 0 records for `last 5 minutes` | Start with `last 24 hours`, narrow later |
+
+#### When to Skip
+MCP validation may be skipped ONLY if:
+- The change is purely UI/styling with no DQL modifications
+- The query is identical to one already validated in the same session
+- MCP tools are unavailable (document this as a known gap)
+
 ### Important Files
 
 | File | Purpose |

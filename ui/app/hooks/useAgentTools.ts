@@ -6,6 +6,7 @@ import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import type { QueryFilters } from './useDQLQueries';
 import { buildTimeRangeClauseFromTimeframe, AGENT_RETRY_DETECTION_QUERY, AGENT_RETRY_SUMMARY_QUERY } from '../queries/dql-queries';
 import type { AgentRetryTrace, AgentRetrySummary } from '../types';
+import { estimateCost } from '../utils/helpers';
 
 // ============================================
 // Types
@@ -328,11 +329,9 @@ fetch spans, ${buildTimeFilter(filters)}
     llm_calls = countIf(isNotNull(gen_ai.usage.input_tokens)),
     by: { agent_name }
 | fieldsAdd total_tokens = total_input_tokens + total_output_tokens
-| fieldsAdd est_cost_usd = (toDouble(total_input_tokens) * 0.00000015) + (toDouble(total_output_tokens) * 0.0000006)
 | sort total_tokens desc
 `;
 
-// Agent Handoff Query - tracks transfers between agents
 // Agent Handoff Query - tracks transfers between agents (normalized to lowercase for consistency)
 const AGENT_HANDOFF_QUERY = (filters?: QueryFilters) => `
 fetch spans, ${buildTimeFilter(filters)}
@@ -495,7 +494,7 @@ fetch spans, ${buildTimeFilter(filters)}
     input_tokens = sum(input_t),
     output_tokens = sum(output_t),
     total_tokens = sum(input_t + output_t),
-    estimated_cost = sum((toDouble(input_t) * 0.000003) + (toDouble(output_t) * 0.000015)),
+    estimated_cost = sum((toDouble(input_t) * 0.000005) + (toDouble(output_t) * 0.000015)),
     by: { time_bucket = bin(start_time, 1h) }
 | sort time_bucket asc
 `;
@@ -560,7 +559,6 @@ fetch spans, ${buildTimeFilter(filters)}
     error_count = sum(is_error),
     by: { agent_name = agent.agent_name, provider = gen_ai.provider.name, model = gen_ai.request.model }
 | fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)
-| fieldsAdd est_cost_usd = (toDouble(total_input_tokens) * 0.00000015) + (toDouble(total_output_tokens) * 0.0000006)
 | sort call_count desc
 | limit 100
 `;
@@ -881,7 +879,7 @@ export function useAgentTools(filters?: QueryFilters) {
         totalOutputTokens: Number(record.total_output_tokens) || 0,
         totalTokens: Number(record.total_tokens) || 0,
         llmCalls: Number(record.llm_calls) || 0,
-        estimatedCostUsd: Number(record.est_cost_usd) || 0
+        estimatedCostUsd: estimateCost('unknown', Number(record.total_input_tokens) || 0, Number(record.total_output_tokens) || 0)
       }));
       setAgentTokenCosts(processedTokenCosts);
 
@@ -1009,7 +1007,12 @@ export function useAgentTools(filters?: QueryFilters) {
         totalInputTokens: Number(record.total_input_tokens) || 0,
         totalOutputTokens: Number(record.total_output_tokens) || 0,
         errorRate: Number(record.error_rate) || 0,
-        estimatedCostUsd: Number(record.est_cost_usd) || 0
+        estimatedCostUsd: estimateCost(
+          String(record.provider || 'unknown'),
+          Number(record.total_input_tokens) || 0,
+          Number(record.total_output_tokens) || 0,
+          String(record.model || 'unknown')
+        )
       }));
       setAgentLLMProviders(processedLLMProviders);
 

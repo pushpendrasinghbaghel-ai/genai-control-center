@@ -4,6 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
+import { estimateCost } from '../utils/helpers';
 import {
   PROMPT_CACHE_SUMMARY_QUERY,
   PROMPT_CACHE_HIT_RATE_QUERY,
@@ -186,11 +187,13 @@ export function useProviderDeepDive(filters?: QueryFilters): UseProviderDeepDive
       // ---- OTel Tokens ----
       if (otelTokenRecs.length > 0) {
         const r = otelTokenRecs[0] as any;
+        const inputTokens = Number(r['total_input_tokens'] ?? 0);
+        const outputTokens = Number(r['total_output_tokens'] ?? 0);
         setOtelTokens({
-          totalInputTokens: Number(r['total_input_tokens'] ?? 0),
-          totalOutputTokens: Number(r['total_output_tokens'] ?? 0),
+          totalInputTokens: inputTokens,
+          totalOutputTokens: outputTokens,
           totalTokens: Number(r['total_tokens'] ?? 0),
-          estimatedCostUsd: Number(r['estimated_cost_usd'] ?? 0),
+          estimatedCostUsd: estimateCost('unknown', inputTokens, outputTokens),
         });
       }
 

@@ -74,20 +74,26 @@ export const COST_VELOCITY_GUARDRAIL_WORKFLOW = {
 const current = {{ result("query_current_velocity") }};
 const baseline = {{ result("query_baseline") }};
 
-// Simple cost estimation (per 1M tokens)
+// Cost estimation (per 1M tokens) — synced with rate-card-config.ts DEFAULT_RATE_CARDS
+// NOTE: Workflow scripts run in Dynatrace AutomationEngine, not browser — cannot import rate card.
+// Keep these rates in sync with ui/app/config/rate-card-config.ts when updating pricing.
 const PRICING = {
   'gpt-4': { input: 30, output: 60 },
+  'gpt-4-turbo': { input: 10, output: 30 },
   'gpt-4o': { input: 2.5, output: 10 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
   'claude-3-opus': { input: 15, output: 75 },
   'claude-3-sonnet': { input: 3, output: 15 },
   'claude-3.5-sonnet': { input: 3, output: 15 },
+  'claude-3-haiku': { input: 0.25, output: 1.25 },
+  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
   'gemini-pro': { input: 0.5, output: 1.5 },
 };
 
 function estimateCost(model, inputTok, outputTok) {
   const key = Object.keys(PRICING).find(k => model.toLowerCase().includes(k)) || '';
-  const rate = PRICING[key] || { input: 2, output: 6 };
+  const rate = PRICING[key] || { input: 5, output: 15 };
   return (inputTok * rate.input + outputTok * rate.output) / 1000000;
 }
 
@@ -277,17 +283,24 @@ const BUDGET = 1000; // Daily budget in USD — configurable via trigger params
 const daily = {{ result("query_daily_spend") }};
 const hourly = {{ result("query_hourly_trend") }};
 
+// Cost estimation (per 1M tokens) — synced with rate-card-config.ts DEFAULT_RATE_CARDS
 const PRICING = {
   'gpt-4': { input: 30, output: 60 },
+  'gpt-4-turbo': { input: 10, output: 30 },
   'gpt-4o': { input: 2.5, output: 10 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+  'claude-3-opus': { input: 15, output: 75 },
   'claude-3-sonnet': { input: 3, output: 15 },
   'claude-3.5-sonnet': { input: 3, output: 15 },
+  'claude-3-haiku': { input: 0.25, output: 1.25 },
+  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
+  'gemini-pro': { input: 0.5, output: 1.5 },
 };
 
 function estimateCost(model, inputTok, outputTok) {
   const key = Object.keys(PRICING).find(k => model.toLowerCase().includes(k)) || '';
-  const rate = PRICING[key] || { input: 2, output: 6 };
+  const rate = PRICING[key] || { input: 5, output: 15 };
   return (inputTok * rate.input + outputTok * rate.output) / 1000000;
 }
 

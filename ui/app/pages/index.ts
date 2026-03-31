@@ -17,13 +17,11 @@ export { Operations } from './Operations';
 // NEW: AI Topology Visualization
 export { AITopology } from './AITopology';
 
-// NEW: Response Analytics (formerly AI Quality)
+// Response Analytics: Token efficiency, model ranking, output consistency
 export { ResponseAnalytics } from './ResponseAnalytics';
 
 // NEW: Prompt Governance (dedicated page)
 export { PromptGovernance } from './PromptGovernance';
-
-// RealTimeAlerts removed — duplicate of Operations problems section
 
 // NEW: Agent Tools (AI agent workflow monitoring)
 export { AgentTools } from './AgentTools';
@@ -34,16 +32,16 @@ export { ModelDrift } from './ModelDrift';
 // NEW: RAG / Vector DB Observability (Phase 5 - Viatris Gap)
 export { VectorDB } from './VectorDB';
 
-// NEW: Infrastructure Health (Phase 6 - Provider availability + Davis problems)
+// Infrastructure Health: Service config snapshot, model version history
 export { Infrastructure } from './Infrastructure';
 
 // NEW: Security Audit Trail (Phase 2 - Security auto-response, incident mgmt)
 export { SecurityAuditTrail } from './SecurityAuditTrail';
 
-// NEW: AI Quality Dashboard (Phase 2.2 - hallucination scoring)
+// AI Quality Dashboard: Industry-standard scoring
 export { AIQualityDashboard } from './AIQualityDashboard';
 
-// NEW: Conversation Intelligence (Phase 8.2 - session-level AI observability)
+// Conversation Intelligence: Session-level AI observability
 export { ConversationIntelligence } from './ConversationIntelligence';
 
 // NEW: Developer Experience (Phase 3.2 - instrumentation coverage + shadow AI)
@@ -58,15 +56,10 @@ export { Integrations } from './Integrations';
 // NEW: MLOps (Model Registry, AI SLOs, Model Comparison, Cost Attribution)
 export { MLOps } from './MLOps';
 
-// NEW: Agentic Deep Dive (multi-agent trace analysis, step-by-step breakdown)
-export { AgenticDeepDive } from './AgenticDeepDive';
-
 // NEW: Adversarial Prompt Threat Intelligence (Davis AI semantic attack detection)
 export { ThreatIntelligence } from './ThreatIntelligence';
 
-// Legacy pages (kept for backward compatibility)
+// Core pages
 export { AIArchitect } from './AIArchitect';
-export { DavisAssistant } from './DavisAssistant';
-export { RemediationLibrary } from './RemediationLibrary';
 export { Home } from './Home';
 export { Data } from './Data';

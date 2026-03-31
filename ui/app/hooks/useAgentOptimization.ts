@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { formatNumber } from '../utils/formatting';
+import { estimateCost } from '../utils/helpers';
 
 // ============================================
 // Types
@@ -149,29 +150,7 @@ fetch spans, from: now()-6h, to: now()
 | limit 50
 `;
 
-// ============================================
-// Pricing for waste estimation
-// ============================================
-
-const PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-4': { input: 30.0, output: 60.0 },
-  'gpt-4-turbo': { input: 10.0, output: 30.0 },
-  'gpt-4o': { input: 2.5, output: 10.0 },
-  'gpt-4o-mini': { input: 0.15, output: 0.6 },
-  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  'claude-3-opus': { input: 15.0, output: 75.0 },
-  'claude-3-sonnet': { input: 3.0, output: 15.0 },
-  'claude-3-haiku': { input: 0.25, output: 1.25 },
-  'claude-3.5-sonnet': { input: 3.0, output: 15.0 },
-  'gemini-pro': { input: 0.5, output: 1.5 },
-  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
-};
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const key = Object.keys(PRICING).find(k => model.toLowerCase().includes(k)) || '';
-  const rate = PRICING[key] || { input: 2.0, output: 6.0 };
-  return (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000;
-}
+// Cost estimation now uses centralized estimateCost from ../utils/helpers
 
 // ============================================
 // Safe DQL executor
@@ -301,7 +280,7 @@ function detectTokenWastePatterns(tokenRecords: any[]): AgentAntiPattern[] {
     // Oversized context: avg input > 4000 tokens per call
     if (avgInputPerCall > 4000) {
       const wasteTokens = (avgInputPerCall - 2000) * llmCalls;
-      const wasteCost = estimateCost(models[0] || 'gpt-4o', wasteTokens, 0);
+      const wasteCost = estimateCost('unknown', wasteTokens, 0, models[0] || 'gpt-4o');
 
       patterns.push({
         id: `context-${agent}-${Date.now()}`,
@@ -320,8 +299,8 @@ function detectTokenWastePatterns(tokenRecords: any[]): AgentAntiPattern[] {
 
     // Model mismatch: using expensive models for simple tasks
     if (models.some(m => m.includes('gpt-4') && !m.includes('mini')) && avgInputPerCall < 500 && llmCalls > 20) {
-      const currentCost = estimateCost('gpt-4o', totalInput, totalOutput);
-      const miniCost = estimateCost('gpt-4o-mini', totalInput, totalOutput);
+      const currentCost = estimateCost('openai', totalInput, totalOutput, 'gpt-4o');
+      const miniCost = estimateCost('openai', totalInput, totalOutput, 'gpt-4o-mini');
       const savings = currentCost - miniCost;
 
       if (savings > 0.01) {

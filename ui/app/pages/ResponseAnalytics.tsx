@@ -2,7 +2,7 @@
 // For ML Engineers & Developers: Token efficiency, output consistency, model comparison
 // Based on real observable metrics from OpenTelemetry gen_ai.* spans
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text } from '@dynatrace/strato-components/typography';
@@ -11,7 +11,7 @@ import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import type { Timeframe } from '@dynatrace/strato-components/core';
-import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ArrowUpRightIcon, ArrowDownRightIcon } from '@dynatrace/strato-icons';
+import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ArrowUpRightIcon, ArrowDownRightIcon, ChevronLeftIcon, ChevronRightIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
@@ -111,6 +111,7 @@ function EfficiencyRing({ value, maxValue, label, sublabel, size = 80 }: Efficie
           textAnchor="middle"
           fontSize={size / 4}
           fontWeight="bold"
+          fill="var(--dt-colors-text-primary-default)"
         >
           {typeof value === 'number' ? value.toFixed(value < 10 ? 2 : 0) : value}
         </text>
@@ -185,6 +186,64 @@ function ModelCard({ model, rank }: ModelCardProps) {
         </Flex>
       </Flex>
     </Surface>
+  );
+}
+
+// ============================================
+// Model Rankings with Pagination
+// ============================================
+const MODELS_PER_PAGE = 6;
+
+function ModelRankingsPaginated({ models }: { models: ModelComparison[] }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(models.length / MODELS_PER_PAGE));
+  const startIdx = page * MODELS_PER_PAGE;
+  const pageModels = models.slice(startIdx, startIdx + MODELS_PER_PAGE);
+
+  // Reset to first page when models change
+  useEffect(() => {
+    setPage(0);
+  }, [models.length]);
+
+  if (models.length === 0) return null;
+
+  return (
+    <Flex flexDirection="column" gap={16}>
+      <Flex gap={16} flexWrap="wrap">
+        {pageModels.map((model, idx) => (
+          <ModelCard key={`${model.provider}-${model.model}`} model={model} rank={startIdx + idx + 1} />
+        ))}
+      </Flex>
+
+      {totalPages > 1 && (
+        <Flex justifyContent="space-between" alignItems="center">
+          <Text textStyle="small" style={{ opacity: 0.7 }}>
+            Showing {startIdx + 1}–{Math.min(startIdx + MODELS_PER_PAGE, models.length)} of {models.length} models
+          </Text>
+          <Flex alignItems="center" gap={8}>
+            <Button
+              variant="default"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              <Button.Prefix><ChevronLeftIcon /></Button.Prefix>
+              Previous
+            </Button>
+            <Text textStyle="small-emphasized">
+              Page {page + 1} of {totalPages}
+            </Text>
+            <Button
+              variant="default"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+            >
+              Next
+              <Button.Suffix><ChevronRightIcon /></Button.Suffix>
+            </Button>
+          </Flex>
+        </Flex>
+      )}
+    </Flex>
   );
 }
 
@@ -592,19 +651,7 @@ export function ResponseAnalytics() {
               </Flex>
             )}
 
-            <Flex gap={16} flexWrap="wrap">
-              {modelComparisons.slice(0, 6).map((model, idx) => (
-                <ModelCard key={`${model.provider}-${model.model}`} model={model} rank={idx + 1} />
-              ))}
-            </Flex>
-
-            {modelComparisons.length > 6 && (
-              <Surface style={{ padding: '12px' }}>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>
-                  +{modelComparisons.length - 6} more models
-                </Text>
-              </Surface>
-            )}
+            <ModelRankingsPaginated models={modelComparisons} />
           </Flex>
         </Surface>
       )}

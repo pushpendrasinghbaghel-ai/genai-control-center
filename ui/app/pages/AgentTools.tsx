@@ -25,6 +25,7 @@ import { useAgentTools } from '../hooks/useAgentTools';
 import { useFrameworkDetection } from '../hooks/useFrameworkDetection';
 import { useGlobalFilters } from '../context';
 import { formatNumber } from '../utils';
+import { getBlendedCostPerToken } from '../utils/helpers';
 import { OptimizationAdvisor } from '../components/OptimizationAdvisor';
 import { getProviderIcon } from '../utils/providerIcons';
 import type { ToolUsage, AgentFlow, SuspiciousLoop, AgentInfo, AgentTokenCost, AgentHandoff, AgentLatencyBreakdown, AgentToolReliability, ToolCoOccurrence, ToolCallsTrend, AgentActivityTrend, AgentErrorRateTrend, AgentLatencyTrend, AgentTokenTrend, AgentServiceDependency, AgentLLMProvider, AgentEntityMapping } from '../hooks/useAgentTools';
@@ -1756,7 +1757,7 @@ export const AgentTools: React.FC = () => {
     }
     
     if (flowEfficiencyMetrics.wastedTokensEstimate > 10000) {
-      recommendations.push(`~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)}/period.`);
+      recommendations.push(`~${formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)} tokens wasted in repetitive patterns. Estimated savings: $${(flowEfficiencyMetrics.wastedTokensEstimate * getBlendedCostPerToken()).toFixed(2)}/period.`);
     }
     
     if (recommendations.length === 0) {
@@ -3008,7 +3009,7 @@ export const AgentTools: React.FC = () => {
                             {formatNumber(flowEfficiencyMetrics.wastedTokensEstimate)}
                           </Heading>
                           <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                            ~${(flowEfficiencyMetrics.wastedTokensEstimate * 0.00001).toFixed(2)} cost
+                            ~${(flowEfficiencyMetrics.wastedTokensEstimate * getBlendedCostPerToken()).toFixed(2)} cost
                           </Text>
                         </Flex>
                       </Surface>

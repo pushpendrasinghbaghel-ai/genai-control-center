@@ -451,7 +451,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
               </Flex>
             </Flex>
             
-            <Flex style={{ background: 'var(--dt-colors-background-surface-default)', overflow: 'auto', padding: '8px 0' }}>
+            <Flex style={{ overflow: 'auto', padding: '8px 0' }}>
               <svg 
                 width={svgWidth}
                 height={svgHeight}
@@ -462,12 +462,12 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ service, allNod
                   <marker id="arrowhead-modal" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
                     <polygon points="0 0, 6 2.5, 0 5" fill='var(--dt-colors-text-neutral-subdued)' />
                   </marker>
-                  <pattern id="dotPatternModal" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <circle cx="2" cy="2" r="1" fill='var(--dt-colors-border-neutral-default)' opacity="0.3" />
+                  <pattern id="dotPatternModal" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+                    <circle cx="2" cy="2" r="0.6" fill='var(--dt-colors-border-neutral-default)' opacity="0.15" />
                   </pattern>
                 </defs>
 
-                <rect width="100%" height="100%" fill='var(--dt-colors-surface-neutral-default)' />
+                <rect width="100%" height="100%" fill="none" />
                 <rect width="100%" height="100%" fill="url(#dotPatternModal)" />
 
                 {/* Edges: Service → Providers */}
@@ -1095,20 +1095,21 @@ export const AITopology: React.FC = () => {
 
   if (loading && !topologyData) {
     return (
-      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
-        <Flex alignItems="center" gap={12} style={{ 
+      <Flex flexDirection="column" gap={12} padding={16}>
+        <Surface style={{ 
           padding: '12px 16px',
-          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
           borderRadius: 8
         }}>
-          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
-          <Flex flexDirection="column" gap={2}>
-            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
-            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-              Loading real-time visualization...
-            </Text>
+          <Flex alignItems="center" gap={12}>
+            <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+            <Flex flexDirection="column" gap={2}>
+              <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                Loading real-time visualization...
+              </Text>
+            </Flex>
           </Flex>
-        </Flex>
+        </Surface>
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -1119,7 +1120,6 @@ export const AITopology: React.FC = () => {
           availableModels={availableModels || []}
         />
         <Flex justifyContent="center" alignItems="center" padding={64} style={{ 
-          background: 'var(--dt-colors-surface-neutral-default)',
           borderRadius: 8,
           minHeight: 400
         }}>
@@ -1132,20 +1132,21 @@ export const AITopology: React.FC = () => {
 
   if (error) {
     return (
-      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
-        <Flex alignItems="center" gap={12} style={{ 
+      <Flex flexDirection="column" gap={12} padding={16}>
+        <Surface style={{ 
           padding: '12px 16px',
-          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
           borderRadius: 8
         }}>
-          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
-          <Flex flexDirection="column" gap={2}>
-            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
-            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-              Error loading topology
-            </Text>
+          <Flex alignItems="center" gap={12}>
+            <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+            <Flex flexDirection="column" gap={2}>
+              <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                Error loading topology
+              </Text>
+            </Flex>
           </Flex>
-        </Flex>
+        </Surface>
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -1157,7 +1158,6 @@ export const AITopology: React.FC = () => {
         />
         <Surface padding={32} style={{ 
           textAlign: 'center',
-          background: 'var(--dt-colors-surface-neutral-default)',
           borderRadius: 8,
           border: '1px solid var(--dt-colors-border-critical-default)'
         }}>
@@ -1172,20 +1172,21 @@ export const AITopology: React.FC = () => {
 
   if (!topologyData || topologyData.nodes.length === 0) {
     return (
-      <Flex flexDirection="column" gap={12} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
-        <Flex alignItems="center" gap={12} style={{ 
+      <Flex flexDirection="column" gap={12} padding={16}>
+        <Surface style={{ 
           padding: '12px 16px',
-          background: 'linear-gradient(90deg, rgba(20,168,245,0.08) 0%, rgba(111,45,168,0.08) 100%)',
           borderRadius: 8
         }}>
-          <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
-          <Flex flexDirection="column" gap={2}>
-            <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
-            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
-              No services discovered
-            </Text>
+          <Flex alignItems="center" gap={12}>
+            <SmartscapeIcon style={{ width: 28, height: 28, color: 'var(--dt-colors-text-accent-default)' }} />
+            <Flex flexDirection="column" gap={2}>
+              <Heading level={4} style={{ margin: 0 }}>GenAI Topology</Heading>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                No services discovered
+              </Text>
+            </Flex>
           </Flex>
-        </Flex>
+        </Surface>
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -1197,7 +1198,6 @@ export const AITopology: React.FC = () => {
         />
         <Surface padding={32} style={{ 
           textAlign: 'center',
-          background: 'var(--dt-colors-surface-neutral-default)',
           borderRadius: 8,
           minHeight: 300,
           display: 'flex',
@@ -1219,7 +1219,7 @@ export const AITopology: React.FC = () => {
   }
 
   return (
-    <Flex flexDirection="column" gap={16} padding={16} style={{ minHeight: '100vh', background: 'var(--dt-colors-background-base-default)' }}>
+    <Flex flexDirection="column" gap={16} padding={16}>
       {/* Page TitleBar */}
       <TitleBar>
         <TitleBar.Prefix aria-hidden="true">
@@ -1299,7 +1299,6 @@ export const AITopology: React.FC = () => {
         minHeight: 200,
         maxHeight: '100%',
         overflow: 'auto',
-        background: 'var(--dt-colors-surface-neutral-default)',
         borderRadius: 8,
         border: '1px solid var(--dt-colors-border-neutral-default)',
         position: 'relative'
@@ -1336,14 +1335,14 @@ export const AITopology: React.FC = () => {
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            {/* Light dotted pattern for background */}
-            <pattern id="dotPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1" fill='var(--dt-colors-border-neutral-default)' opacity="0.3" />
+            {/* Subtle dotted pattern for background */}
+            <pattern id="dotPattern" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="0.6" fill='var(--dt-colors-border-neutral-default)' opacity="0.15" />
             </pattern>
           </defs>
 
-          {/* Background - subtle canvas distinct from card fills */}
-          <rect width="100%" height="100%" fill='var(--dt-colors-surface-neutral-default)' />
+          {/* Transparent background - Surface handles theming */}
+          <rect width="100%" height="100%" fill="none" />
           <rect width="100%" height="100%" fill="url(#dotPattern)" />
 
           {/* Edges (render first so they're behind nodes) */}

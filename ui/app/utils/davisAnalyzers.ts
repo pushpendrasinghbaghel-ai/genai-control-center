@@ -17,6 +17,7 @@ import { analyzersClient, type AnalyzerResult } from '@dynatrace-sdk/client-davi
 import { queryExecutionClient } from '@dynatrace-sdk/client-query';
 import { convertToTimeseriesBand } from '@dynatrace/strato-components/charts';
 import type { TimeseriesBand, Timeseries } from '@dynatrace/strato-components/charts';
+import { getBlendedCostPerToken } from './helpers';
 
 // ============================================
 // Result Types
@@ -307,8 +308,8 @@ export async function forecastAICost(
       throw new Error('Failed to convert analyzer output to timeseries band');
     }
 
-    // Convert from token-space to cost-space (blended rate $0.000002/token)
-    const costPerToken = 0.000002;
+    // Convert from token-space to cost-space using rate card blended rate
+    const costPerToken = getBlendedCostPerToken();
 
     const costBand: TimeseriesBand = {
       name: 'Cost Forecast (confidence interval)',

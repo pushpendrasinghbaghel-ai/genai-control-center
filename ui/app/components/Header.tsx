@@ -9,21 +9,21 @@ import {
   HomeIcon,            // Home
   ServicesIcon,        // AI Services
   SmartscapeIcon,      // Topology
-  BarChartIcon,        // Response Analytics / Quality
   LockIcon,            // Governance / Security
   MoneyIcon,           // FinOps
   AgentIcon,           // Agent Tools (AI agents)
   DifferenceChartIcon, // Model Drift (deviation/drift)
   CycleIcon,           // MLOps (ML lifecycle)
   DatabaseIcon,        // RAG / Vector DB
-  HostsIcon,           // Infrastructure
   CodeIcon,            // Developer Experience
   AiIcon,              // Intelligence (Dynatrace Intelligence)
   DotMenuIcon,         // Overflow "more" menu
   SyncIcon,            // Provider Failover
   AutomationEngineIcon, // Operations
-  ChatIcon,            // Conversation Intelligence
-  GridIcon,            // AI Quality
+  BarChartIcon,        // Analytics
+  GridIcon,            // Quality
+  ChatIcon,            // Conversations
+  HostsIcon,           // Infrastructure
 } from '@dynatrace/strato-icons';
 
 export const Header = () => {
@@ -75,8 +75,8 @@ export const Header = () => {
         <AppHeader.NavItem as={Link} to="/finops" style={getNavItemStyle('/finops')} aria-label="FinOps Cost Management">
           <MoneyIcon aria-hidden="true" /> FinOps
         </AppHeader.NavItem>
-        
-        {/* 4. Analytics: Token efficiency & response quality */}
+
+        {/* 4. Analytics: Token efficiency, model ranking */}
         <AppHeader.NavItem as={Link} to="/analytics" style={getNavItemStyle('/analytics')} aria-label="Response Analytics">
           <BarChartIcon aria-hidden="true" /> Analytics
         </AppHeader.NavItem>

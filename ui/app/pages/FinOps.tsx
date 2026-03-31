@@ -40,7 +40,12 @@ import {
 import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
 import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 import { useDavisForecast } from '../hooks/useDavisForecast';
-import { formatNumber } from '../utils/formatting';
+import { useTotalCostOfOwnership } from '../hooks/useTotalCostOfOwnership';
+import { useModelArbitrage } from '../hooks/useModelArbitrage';
+import { usePromptCostAttribution } from '../hooks/usePromptCostAttribution';
+import { useTrainingROI } from '../hooks/useTrainingROI';
+import { useCostAnomalyRootCause } from '../hooks/useCostAnomalyRootCause';
+import { formatNumber, formatDateTime, formatPercent } from '../utils/formatting';
 
 // Strato Design Tokens for status colors
 const STATUS_COLORS = {
@@ -139,6 +144,15 @@ export const FinOps: React.FC = () => {
     otelTokens, topExpensivePrompts,
     loading: deepDiveLoading, refetch: deepDiveRefetch,
   } = useProviderDeepDive(queryFilters);
+
+  // ── New FinOps Roadmap hooks ──
+  const { data: tcoaiData, loading: tcoaiLoading } = useTotalCostOfOwnership();
+  const { data: arbitrageData, loading: arbitrageLoading } = useModelArbitrage();
+  const { data: promptAttrData, loading: promptAttrLoading } = usePromptCostAttribution();
+  const { data: trainingData, loading: trainingLoading } = useTrainingROI();
+  // Cost anomaly root-cause fires only when velocity ratio >= 2
+  const velocityRatio = costVelocity?.velocityRatio ?? 0;
+  const { data: anomalyRootCause, loading: anomalyLoading } = useCostAnomalyRootCause(velocityRatio);
   
   const handleRefresh = useCallback(() => {
     void refetch();
@@ -173,10 +187,11 @@ export const FinOps: React.FC = () => {
     }).sort((a, b) => b.estimatedCost - a.estimatedCost);
   }, [providers]);
 
-  // Calculate total costs
+  // Calculate total costs — use TCoAI token cost when available so both tiles agree
   const totalCost = useMemo(() => {
+    if (tcoaiData && tcoaiData.tokenCost > 0) return tcoaiData.tokenCost;
     return costBreakdown.reduce((sum, c) => sum + c.estimatedCost, 0);
-  }, [costBreakdown]);
+  }, [tcoaiData, costBreakdown]);
 
   const totalTokens = useMemo(() => {
     return costBreakdown.reduce((sum, c) => sum + c.totalTokens, 0);
@@ -346,17 +361,118 @@ export const FinOps: React.FC = () => {
       />
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* TABBED LAYOUT: Group content into logical sections */}
+      {/* TABBED LAYOUT: "Follow the Money" Narrative                                */}
+      {/* Tab 1: HOW MUCH? → Executive Summary                                       */}
+      {/* Tab 2: WHERE?    → Cost Intelligence                                        */}
+      {/* Tab 3: WORTH IT? → AI Economics                                             */}
+      {/* Tab 4: PAY LESS? → Optimization Engine                                      */}
+      {/* Tab 5: COMING?   → Forecast & Governance                                    */}
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       <Tabs defaultIndex={0}>
+
         {/* ═══════════════════════════════════════════════════════════════════════ */}
-        {/* TAB 1: Overview — Budget, Alerts, Guardrails, Optimization Insights   */}
+        {/* TAB 1: Executive Summary — "HOW MUCH does AI cost?"                   */}
+        {/* TCoAI Iceberg + Budget hero + Cost Velocity                           */}
         {/* ═══════════════════════════════════════════════════════════════════════ */}
-        <Tab title="Overview" prefixIcon={<MoneyIcon />}>
+        <Tab title="Executive Summary" prefixIcon={<MoneyIcon />}>
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Budget Overview */}
+      {/* NEW: Total Cost of AI Ownership — The Iceberg                                */}
+      {/* Token cost is only the tip. Infrastructure + Training = hidden 60-85%.       */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {tcoaiLoading ? (
+        <Surface style={{ padding: 20 }}>
+          <Flex justifyContent="center" alignItems="center" gap={8} style={{ height: 80 }}>
+            <ProgressCircle size="small" />
+            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Calculating Total Cost of AI Ownership…</Text>
+          </Flex>
+        </Surface>
+      ) : tcoaiData ? (
+        <Surface style={{ padding: 20, borderLeft: `4px solid ${STATUS_COLORS.warning}` }}>
+          <Flex flexDirection="column" gap={16}>
+            <Flex justifyContent="space-between" alignItems="center">
+              <Flex alignItems="center" gap={8}>
+                <MoneyIcon style={{ width: 18, height: 18, color: STATUS_COLORS.warning }} />
+                <Heading level={5}>Total Cost of AI Ownership</Heading>
+                <Text style={{
+                  fontSize: 9, padding: '2px 8px',
+                  background: STATUS_COLORS.warning + '20', color: STATUS_COLORS.warning,
+                  borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px',
+                }}>TCoAI</Text>
+                <Tooltip text="True cost of running AI — token spend is only the tip of the iceberg. Infrastructure (cloud compute) and training (fine-tuning jobs) make up the hidden majority. Only Dynatrace has all three cost layers in the same database.">
+                  <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+                </Tooltip>
+                <AskAIButton
+                  label="Ask AI about total cost of ownership"
+                  onClick={() => openAskAI({
+                    domain: 'FinOps — Total Cost of AI Ownership',
+                    itemLabel: 'TCoAI Breakdown',
+                    data: {
+                      'Total Daily Cost': tcoaiData.totalDailyCost,
+                      'Token Cost': tcoaiData.tokenCost,
+                      'Infrastructure Cost': tcoaiData.infraCost,
+                      'Training Cost': tcoaiData.trainingCost,
+                      'Token %': tcoaiData.tokenPct,
+                      'Infra %': tcoaiData.infraPct,
+                    },
+                    suggestedPrompts: [
+                      'Why is infrastructure cost so much higher than token cost?',
+                      'How can I reduce my total AI ownership cost?',
+                      'Compare my TCoAI breakdown with industry benchmarks',
+                      'What is the ROI of my training investment?',
+                    ],
+                  })}
+                />
+              </Flex>
+              <Heading level={2} style={{ color: Colors.Text.Warning.Default }}>
+                ${formatNumber(tcoaiData.totalDailyCost)}/day
+              </Heading>
+            </Flex>
+
+            {/* Iceberg layers */}
+            <Flex flexDirection="column" gap={8}>
+              <Flex alignItems="center" gap={12}>
+                <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Token Cost ({formatPercent(tcoaiData.tokenPct)})</Text>
+                <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.tokenPct} max={100} /></Flex>
+                <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.tokenCost)}/day</Text>
+              </Flex>
+              <Flex alignItems="center" gap={12}>
+                <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Infrastructure ({formatPercent(tcoaiData.infraPct)})</Text>
+                <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.infraPct} max={100} /></Flex>
+                <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.infraCost)}/day</Text>
+              </Flex>
+              <Flex alignItems="center" gap={12}>
+                <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Training ({formatPercent(tcoaiData.trainingPct)})</Text>
+                <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.trainingPct} max={100} /></Flex>
+                <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.trainingCost)}/day</Text>
+              </Flex>
+            </Flex>
+
+            {/* Infra provider breakdown */}
+            {tcoaiData.infraProviderBreakdown.length > 0 && (
+              <Flex gap={12} flexWrap="wrap">
+                {tcoaiData.infraProviderBreakdown.map((bp, i) => (
+                  <Surface key={i} style={{ flex: '1 1 180px', padding: 10 }}>
+                    <Flex flexDirection="column" gap={2}>
+                      <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'uppercase' }}>{bp.provider}</Text>
+                      <Text style={{ fontWeight: 700, fontSize: 16 }}>${formatNumber(bp.cost)}</Text>
+                      <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{bp.regions} region(s) · {bp.instances} instance type(s)</Text>
+                    </Flex>
+                  </Surface>
+                ))}
+              </Flex>
+            )}
+
+            <Text textStyle="small" style={{ fontStyle: 'italic', color: Colors.Text.Neutral.Subdued }}>
+              Your token cost is only the tip of the iceberg — infrastructure and training make up {formatPercent(tcoaiData.infraPct + tcoaiData.trainingPct)} of true AI cost.
+            </Text>
+          </Flex>
+        </Surface>
+      ) : null}
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION: Budget Overview                                                     */}
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
         <MoneyIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
@@ -371,9 +487,9 @@ export const FinOps: React.FC = () => {
             <Flex alignItems="center" gap={4}>
               <MoneyIcon style={{ width: 18, height: 18, color: Colors.Text.Neutral.Subdued }} />
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, fontWeight: 600 }}>
-                Total Estimated Spend
+                Total Estimated Token Spend
               </Text>
-              <Tooltip text="Estimated cost based on token usage × provider pricing rates. OpenAI: $0.50-$15/MTok, Anthropic: $3-$75/MTok. Actual costs may vary based on your contract.">
+              <Tooltip text="Estimated token/API cost based on usage × provider pricing rates. This matches the Token Cost layer in TCoAI above. Infrastructure and training costs are tracked separately in the TCoAI Iceberg.">
                 <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
               <AskAIButton
@@ -609,200 +725,14 @@ export const FinOps: React.FC = () => {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Cost Trends & Forecasting */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-        <BarChartIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-        <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Trends & Forecasting</Text>
-      </Flex>
-
-      {/* Cost Trend Chart */}
-      <Surface style={{ padding: 16 }}>
-        <Flex flexDirection="column" gap={12}>
-          <Flex justifyContent="space-between" alignItems="center">
-            <Flex alignItems="center" gap={8}>
-              <MoneyIcon style={{ width: 16, height: 16, color: Colors.Charts.Apdex.Good.Default }} />
-              <Heading level={6}>Cost Trend by Provider</Heading>
-              <Tooltip text="Shows estimated costs over time, grouped by AI provider. Use this to identify spending patterns, detect cost spikes, and compare provider costs. Each color represents a different provider.">
-                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-              </Tooltip>
-              <AskAIButton
-                label="Ask AI about cost trends"
-                onClick={() => openAskAI({
-                  domain: 'FinOps — Cost Trends',
-                  itemLabel: 'Cost Trend by Provider',
-                  data: { 'Total Cost': totalCost, 'Providers Tracked': costTimeseriesData.length },
-                  suggestedPrompts: ['Explain the cost trend over the last 7 days', 'Are there any cost anomalies or spikes?', 'Which provider is trending up the most?', 'Predict costs for the next week'],
-                })}
-              />
-            </Flex>
-            {costTimeseriesData.length > 0 && (
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                {costTimeseriesData.length} provider{costTimeseriesData.length > 1 ? 's' : ''} tracked
-              </Text>
-            )}
-          </Flex>
-          {costTrendLoading ? (
-            <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
-              <ProgressCircle size="small" />
-            </Flex>
-          ) : costTimeseriesData.length > 0 ? (
-            <TimeseriesChart
-              data={costTimeseriesData}
-              variant="area"
-              height={180}
-            >
-              <TimeseriesChart.Tooltip variant="shared" />
-              <TimeseriesChart.Legend />
-            </TimeseriesChart>
-          ) : (
-            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
-              <MoneyIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
-              <Text textStyle="small">No cost data available for the selected timeframe</Text>
-            </Flex>
-          )}
-        </Flex>
-      </Surface>
-
-      {/* Budget Projection Strip — compact, actionable forecast summary */}
-      <Surface style={{ padding: 16 }}>
-        <Flex flexDirection="column" gap={12}>
-          <Flex justifyContent="space-between" alignItems="center">
-            <Flex alignItems="center" gap={8}>
-              <AiIcon style={{ width: 16, height: 16, color: isDavisPowered ? Colors.Charts.Status.Good.Default : Colors.Text.Neutral.Subdued }} />
-              <Heading level={6}>Budget Projection</Heading>
-              {isDavisPowered && (
-                <Text style={{ fontSize: 9, padding: '2px 8px', background: Colors.Charts.Status.Good.Default + '20', color: Colors.Charts.Status.Good.Default, borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px' }}>DT INTELLIGENCE</Text>
-              )}
-            </Flex>
-            {isDavisPowered ? (
-              <Text textStyle="small" style={{ color: Colors.Charts.Status.Good.Default }}>
-                Quality: {forecastQuality} &bull; Trend: {forecastTrend}
-              </Text>
-            ) : (
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Linear estimate</Text>
-            )}
-          </Flex>
-
-          <Flex gap={16}>
-            {/* Projected 30-Day Spend */}
-            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color01.Default}` }}>
-              <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Projected 30-Day Spend</Text>
-                <Flex alignItems="baseline" gap={6}>
-                  <Heading level={4}>${forecast30Day?.projectedCost.toFixed(2) || '—'}</Heading>
-                  <Text textStyle="small" style={{
-                    color: forecastTrend === 'increasing' ? Colors.Text.Warning.Default
-                         : forecastTrend === 'decreasing' ? Colors.Text.Success.Default
-                         : Colors.Text.Neutral.Subdued,
-                    fontWeight: 600,
-                  }}>
-                    {forecastTrend === 'increasing' ? '↑' : forecastTrend === 'decreasing' ? '↓' : '→'} {forecastTrend}
-                  </Text>
-                </Flex>
-              </Flex>
-            </Surface>
-
-            {/* Budget Breach ETA */}
-            <Surface style={{
-              flex: 1, padding: 14,
-              borderLeft: `3px solid ${
-                budgetBreachDay
-                  ? budgetBreachDay <= 7 ? Colors.Charts.Status.Critical.Default : Colors.Charts.Status.Warning.Default
-                  : Colors.Charts.Status.Good.Default
-              }`,
-            }}>
-              <Flex flexDirection="column" gap={4}>
-                <Flex alignItems="center" gap={4}>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Budget Breach ETA</Text>
-                  <Tooltip text="Days until projected spend exceeds your budget limit.">
-                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-                  </Tooltip>
-                </Flex>
-                <Heading level={4} style={{
-                  color: budgetBreachDay
-                    ? budgetBreachDay <= 7 ? Colors.Text.Critical.Default : Colors.Text.Warning.Default
-                    : Colors.Text.Success.Default,
-                }}>
-                  {budgetBreachDay
-                    ? budgetBreachDay === 1 ? 'Tomorrow!' : `${budgetBreachDay} days`
-                    : 'On Track ✓'}
-                </Heading>
-              </Flex>
-            </Surface>
-
-            {/* Daily Run Rate */}
-            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color03.Default}` }}>
-              <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Daily Run Rate</Text>
-                <Heading level={4}>${burnRate ? burnRate.projectedDailySpend.toFixed(2) : '—'}/day</Heading>
-              </Flex>
-            </Surface>
-          </Flex>
-        </Flex>
-      </Surface>
-
-      {/* ─── Cost Optimization Insights ─── */}
-      {costInsights.length > 0 && (
-        <Surface style={{ padding: 16, borderLeft: '4px solid ' + STATUS_COLORS.good }}>
-          <Flex flexDirection="column" gap={12}>
-            <Flex alignItems="center" gap={8}>
-              <AiIcon style={{ width: 16, height: 16, color: STATUS_COLORS.good }} />
-              <Heading level={6}>AI-Powered Cost Optimization Insights</Heading>
-              <Text style={{ fontSize: 9, padding: '2px 6px', background: STATUS_COLORS.good + '20', color: STATUS_COLORS.good, borderRadius: 10, fontWeight: 700 }}>LIVE</Text>
-            </Flex>
-            <Flex gap={12} flexWrap="wrap">
-              {costInsights.map((ins, i) => (
-                <Surface key={i} style={{
-                  flex: '1 1 260px', padding: 14, borderRadius: 6,
-                  borderLeft: `3px solid ${
-                    ins.type === 'saving' ? STATUS_COLORS.ideal
-                    : ins.type === 'warning' ? STATUS_COLORS.warning
-                    : STATUS_COLORS.good}`,
-                }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text style={{ fontWeight: 600, fontSize: 12 }}>
-                      {ins.type === 'saving' ? '💡 ' : ins.type === 'warning' ? '⚠️ ' : 'ℹ️ '}{ins.title}
-                    </Text>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{ins.detail}</Text>
-                    {ins.saving != null && ins.saving > 0 && (
-                      <Text style={{ fontSize: 11, fontWeight: 700, color: STATUS_COLORS.ideal }}>Potential saving: ${ins.saving.toFixed(2)}</Text>
-                    )}
-                  </Flex>
-                </Surface>
-              ))}
-            </Flex>
-          </Flex>
-        </Surface>
-      )}
-
-      {/* Budget Alerts */}
-      {budgetAlerts.length > 0 && (
-        <Surface style={{ padding: 16, backgroundColor: budgetAlerts.some(a => a.type === 'critical') ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 165, 0, 0.1)' }}>
-          <Flex flexDirection="column" gap={8}>
-            <Heading level={6}>Budget Alerts</Heading>
-            {budgetAlerts.map((alert) => (
-              <Flex key={alert.id} gap={8} alignItems="center">
-                <Text style={{ color: alert.type === 'critical' ? Colors.Text.Critical.Default : Colors.Text.Warning.Default }}>
-                  {alert.type === 'critical' ? '' : ''} {alert.message}
-                </Text>
-              </Flex>
-            ))}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* Autonomous Cost Guardrails */}
-      <CostGuardrailPanel dailyBudget={budgetLimit} />
-
           </Flex>
         </Tab>
 
         {/* ═══════════════════════════════════════════════════════════════════════ */}
-        {/* TAB 2: Cost Breakdown — Provider, Model, Embedding, Service tables   */}
+        {/* TAB 2: Cost Intelligence — "WHERE does the money go?"                 */}
+        {/* Provider, Model, Embedding, Service tables + Prompt Attribution       */}
         {/* ═══════════════════════════════════════════════════════════════════════ */}
-        <Tab title="Cost Breakdown" prefixIcon={<AiIcon />}>
+        <Tab title="Cost Intelligence" prefixIcon={<AiIcon />}>
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* Cost Breakdown Table */}
@@ -1094,171 +1024,66 @@ export const FinOps: React.FC = () => {
         </Surface>
       </Flex>
 
-          </Flex>
-        </Tab>
-
-        {/* ═══════════════════════════════════════════════════════════════════════ */}
-        {/* TAB 3: Efficiency & Caching — Token analysis, caching, OTel, prompts */}
-        {/* ═══════════════════════════════════════════════════════════════════════ */}
-        <Tab title="Efficiency & Caching" prefixIcon={<WarningIcon />}>
-          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
-
-      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
-      {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator */}
-      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
-      <Surface style={{ padding: 16, borderLeft: `4px solid ${STATUS_COLORS.ideal}` }}>
-        <Flex flexDirection="column" gap={16}>
+      {/* ── Prompt Cost Attribution (from usePromptCostAttribution) ── */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color06.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
           <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
-              <RefreshIcon style={{ width: 18, height: 18, color: STATUS_COLORS.ideal }} />
-              <Heading level={6}>💰 Semantic Cache Savings Calculator</Heading>
-              <Text style={{ 
-                fontSize: 9, 
-                padding: '2px 6px', 
-                backgroundColor: 'rgba(99, 102, 241, 0.15)', 
-                color: 'var(--dt-colors-charts-categorical-color-06-default)',
-                borderRadius: 10,
-                fontWeight: 600
-              }}>
-                UNIQUE GCC
-              </Text>
-              <Tooltip text="Identifies repeated prompts that could be cached. When you implement semantic caching, identical prompts return cached responses instead of calling the LLM again - saving tokens and cost. ROI shows potential savings if caching was implemented.">
+              <DocumentIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color06.Default }} />
+              <Heading level={6}>Prompt Cost Attribution</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+              <Tooltip text="Attributes cost to individual prompt patterns using gen_ai.auditing business events. Identifies which prompts are consuming the most budget so you can optimize or consolidate them.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
             </Flex>
-            {cacheSavings && cacheSavings.totalCandidates > 0 && (
-              <Text style={{
-                padding: '4px 12px',
-                backgroundColor: STATUS_COLORS.ideal + '20',
-                color: STATUS_COLORS.ideal,
-                borderRadius: 16,
-                fontSize: 12,
-                fontWeight: 600
-              }}>
-                ${cacheSavings.totalPotentialSavings.toFixed(2)} potential savings
+            {promptAttrData && (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                {promptAttrData.patterns.length} pattern{promptAttrData.patterns.length !== 1 ? 's' : ''} &bull; ${formatNumber(promptAttrData.totalPromptsCost)} total
               </Text>
             )}
           </Flex>
-
-          {cacheSavingsLoading ? (
+          {promptAttrLoading ? (
             <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
               <ProgressCircle size="small" />
             </Flex>
-          ) : cacheSavings && cacheSavings.totalCandidates > 0 ? (
-            <>
-              {/* Summary Stats Row */}
-              <Flex gap={16} style={{ flexWrap: 'wrap' }}>
-                <Surface style={{ flex: '1 1 160px', padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Savings</Text>
-                    <Heading level={3} style={{ color: STATUS_COLORS.ideal }}>
-                      ${cacheSavings.totalPotentialSavings.toFixed(2)}
-                    </Heading>
-                    <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>
-                      ↓ {((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% of current spend
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Cache Candidates</Text>
-                    <Heading level={3}>{cacheSavings.totalCandidates}</Heading>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                      unique prompt patterns
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Repeated Requests</Text>
-                    <Heading level={3}>{formatNumber(cacheSavings.totalRepetitiveRequests)}</Heading>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                      cacheable invocations
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Cache Hit Rate</Text>
-                    <Heading level={3}>{(cacheSavings.avgPotentialCacheHitRate * 100).toFixed(0)}%</Heading>
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                      of requests cacheable
-                    </Text>
-                  </Flex>
-                </Surface>
+          ) : promptAttrData && promptAttrData.patterns.length > 0 ? (
+            <Flex flexDirection="column" gap={0}>
+              {/* Header */}
+              <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
+                <Text style={{ flex: 3, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>PROMPT PATTERN</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>CALLS</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>TOTAL COST</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>AVG $/CALL</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>% OF TOTAL</Text>
               </Flex>
-
-              {/* Top Cache Candidates Table */}
-              <Flex flexDirection="column" gap={8}>
-                <Text textStyle="small" style={{ fontWeight: 600 }}>Top Cache Candidates (by savings)</Text>
-                <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 6, fontSize: 11, fontWeight: 600 }}>
-                  <Text style={{ flex: 3 }}>Prompt Pattern</Text>
-                  <Text style={{ flex: 1 }}>Model</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Hit Rate</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Current Cost</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Savings</Text>
+              {/* Rows */}
+              {promptAttrData.patterns.slice(0, 10).map((p, i) => (
+                <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                  <Text style={{ flex: 3, fontFamily: 'monospace', fontSize: 11 }}>{p.patternPrefix}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(p.occurrences)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${p.totalCostUsd.toFixed(2)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>${p.avgCostPerCall.toFixed(4)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: p.pctOfTotalCost > 30 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{p.pctOfTotalCost.toFixed(1)}%</Text>
                 </Flex>
-                {cacheSavings.topCandidates.slice(0, 5).map((candidate: SemanticCacheCandidate, idx: number) => (
-                  <Flex 
-                    key={idx} 
-                    style={{ 
-                      padding: '6px 0', 
-                      borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', 
-                      fontSize: 11,
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Text style={{ 
-                      flex: 3, 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis', 
-                      whiteSpace: 'nowrap',
-                      fontFamily: 'monospace',
-                      fontSize: 10,
-                      color: Colors.Text.Neutral.Subdued
-                    }} title={candidate.promptPattern}>
-                      {candidate.promptPattern.substring(0, 50)}...
-                    </Text>
-                    <Text style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>
-                      {(candidate.cacheHitRate * 100).toFixed(0)}%
-                    </Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>
-                      ${candidate.potentialSavings.toFixed(3)}
-                    </Text>
-                  </Flex>
-                ))}
-              </Flex>
-
-              {/* Action Recommendation */}
-              <Surface style={{ padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
-                <Flex alignItems="flex-start" gap={8}>
-                  <CheckmarkIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal, marginTop: 2 }} />
-                  <Flex flexDirection="column" gap={4}>
-                    <Text style={{ fontWeight: 600, color: STATUS_COLORS.ideal }}>Recommended Action</Text>
-                    <Text textStyle="small">
-                      Implement semantic caching for these {cacheSavings.totalCandidates} prompt patterns to save 
-                      <strong> ${cacheSavings.totalPotentialSavings.toFixed(2)}</strong> ({((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% reduction).
-                      Consider tools like GPTCache, LangChain Cache, or Redis-based semantic search.
-                    </Text>
-                  </Flex>
-                </Flex>
-              </Surface>
-            </>
+              ))}
+            </Flex>
           ) : (
-            <Flex flexDirection="column" alignItems="center" gap={8} style={{ padding: 24, opacity: 0.7 }}>
-              <RefreshIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
-              <Text textStyle="small">No repeated prompt patterns detected (5+ occurrences required)</Text>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                This is good! Your prompts are unique, or you may already have caching in place.
-              </Text>
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
+              <DocumentIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No prompt attribution data available — requires gen_ai.auditing business events</Text>
             </Flex>
           )}
         </Flex>
       </Surface>
+
+          </Flex>
+        </Tab>
+
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 3: AI Economics — Token efficiency, Model Arbitrage, Training ROI */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="AI Economics" prefixIcon={<BarChartIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
 
       {/* Token Efficiency Analysis - Find Waste */}
       <Surface style={{ padding: 16 }}>
@@ -1343,6 +1168,278 @@ export const FinOps: React.FC = () => {
           ) : (
             <Flex justifyContent="center" alignItems="center" style={{ height: 100 }}>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No efficiency data available</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
+      {/* ── Model Arbitrage Matrix (from useModelArbitrage) ── */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color06.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <AiIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color06.Default }} />
+              <Heading level={6}>Model Arbitrage Matrix</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+              <Tooltip text="Compares all models across cost, latency, output efficiency, and reliability. Value Score weights: Cost 40%, Latency 20%, Output Efficiency 20%, Reliability 20%. Higher score = better value. Recommendations show where you can switch to a cheaper model with similar quality.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+              <AskAIButton
+                label="Ask AI about model arbitrage"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Model Arbitrage',
+                  itemLabel: 'Model Arbitrage Matrix',
+                  data: { 'Models Compared': arbitrageData?.chatModels?.length || 0, 'Monthly Spend': arbitrageData?.totalMonthlySpend || 0, 'Potential Savings': arbitrageData?.potentialMonthlySavings || 0 },
+                  suggestedPrompts: ['Which models offer the best value for my use cases?', 'Where can I save money by switching models?', 'Compare GPT-4o vs Claude for cost efficiency', 'What is the optimal model mix for my workload?'],
+                })}
+              />
+            </Flex>
+            {arbitrageData && (
+              <Flex gap={12} alignItems="center">
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  ${formatNumber(arbitrageData.totalMonthlySpend)}/mo
+                </Text>
+                {arbitrageData.potentialMonthlySavings > 0 && (
+                  <Text textStyle="small" style={{ color: STATUS_COLORS.ideal, fontWeight: 600 }}>
+                    Save ${formatNumber(arbitrageData.potentialMonthlySavings)}/mo
+                  </Text>
+                )}
+              </Flex>
+            )}
+          </Flex>
+          {arbitrageLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : arbitrageData && arbitrageData.chatModels.length > 0 ? (
+            <Flex flexDirection="column" gap={0}>
+              {/* Header */}
+              <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
+                <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>MODEL</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>PROVIDER</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>$/REQUEST</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>AVG LATENCY</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>OUT/IN RATIO</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>ERROR %</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>VALUE SCORE</Text>
+              </Flex>
+              {/* Rows */}
+              {arbitrageData.chatModels.slice(0, 12).map((m, i) => (
+                <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                  <Text style={{ flex: 2, fontWeight: 500 }}>{m.model}</Text>
+                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{m.provider}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>${m.costPerRequest.toFixed(4)}</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{m.avgDurationMs.toFixed(0)}ms</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>{m.outputInputRatio.toFixed(2)}x</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', color: m.errorRate > 5 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{m.errorRate.toFixed(1)}%</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>
+                    {'⭐'.repeat(Math.min(Math.round(m.valueScore), 5))}
+                    <Text style={{ marginLeft: 4, fontSize: 10, color: Colors.Text.Neutral.Subdued }}>{m.valueScore.toFixed(1)}</Text>
+                  </Text>
+                </Flex>
+              ))}
+              {/* Recommendations */}
+              {arbitrageData.recommendations.length > 0 && (
+                <Surface style={{ padding: 12, marginTop: 8, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
+                  <Flex flexDirection="column" gap={6}>
+                    <Text style={{ fontWeight: 600, fontSize: 12, color: STATUS_COLORS.ideal }}>Arbitrage Recommendations</Text>
+                    {arbitrageData.recommendations.map((rec, i) => (
+                      <Text key={i} textStyle="small">
+                        Switch <strong>{rec.fromModel}</strong> → <strong>{rec.toModel}</strong>: save ${rec.monthlySavings.toFixed(2)}/mo — {rec.qualityImpact}
+                      </Text>
+                    ))}
+                  </Flex>
+                </Surface>
+              )}
+            </Flex>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
+              <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No model arbitrage data — requires multiple models with cost data</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
+      {/* ── Training ROI (from useTrainingROI) ── */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color04.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <ServicesIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color04.Default }} />
+              <Heading level={6}>Training & Fine-Tuning ROI</Heading>
+              <Tooltip text="Tracks fine-tuning and training jobs from gen_ai.auditing business events. Shows investment, job status, and models being trained. Use this to understand your training spend and ensure ROI on custom models.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+            </Flex>
+            {trainingData && (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                {trainingData.totalJobCount} job{trainingData.totalJobCount !== 1 ? 's' : ''} &bull; ${formatNumber(trainingData.totalInvestment)} invested
+              </Text>
+            )}
+          </Flex>
+          {trainingLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 100 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : trainingData && trainingData.totalJobCount > 0 ? (
+            <Flex flexDirection="column" gap={12}>
+              {/* Summary Cards */}
+              <Flex gap={16} flexWrap="wrap">
+                <Surface style={{ flex: '1 1 180px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Investment</Text>
+                    <Heading level={4}>${formatNumber(trainingData.totalInvestment)}</Heading>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 180px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Models Trained</Text>
+                    <Heading level={4}>{trainingData.modelsTrainedCount}</Heading>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 180px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Completed</Text>
+                    <Heading level={4} style={{ color: STATUS_COLORS.good }}>{trainingData.completedJobs}</Heading>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 180px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>In Progress</Text>
+                    <Heading level={4} style={{ color: Colors.Charts.Categorical.Color01.Default }}>{trainingData.inProgressJobs}</Heading>
+                  </Flex>
+                </Surface>
+              </Flex>
+              {/* Jobs Table */}
+              <Flex flexDirection="column" gap={0}>
+                <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
+                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>BASE MODEL</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>STATUS</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>EST. COST</Text>
+                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>STARTED</Text>
+                </Flex>
+                {trainingData.jobs.slice(0, 8).map((job, i) => (
+                  <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                    <Text style={{ flex: 2, fontWeight: 500 }}>{job.baseModel}</Text>
+                    <Text style={{ flex: 1, color: job.status === 'Completed' ? STATUS_COLORS.good : Colors.Charts.Categorical.Color01.Default, fontWeight: 500 }}>{job.status}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>${job.estimatedCostUsd.toFixed(2)}</Text>
+                    <Text style={{ flex: 2, fontSize: 11, color: Colors.Text.Neutral.Subdued }}>{formatDateTime(job.latestTimestamp)}</Text>
+                  </Flex>
+                ))}
+              </Flex>
+            </Flex>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 100 }}>
+              <ServicesIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No training jobs detected — requires gen_ai.auditing business events with type=training</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
+          </Flex>
+        </Tab>
+
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 4: Optimization Engine — Cache, Prompts, OTel, Anomaly, Actions  */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="Optimization Engine" prefixIcon={<RefreshIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
+      {/* 🚀 UNIQUE GCC: Semantic Cache Savings ROI Calculator */}
+      {/* ═══════════════════════════════════════════════════════════════════════════════════════ */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${STATUS_COLORS.ideal}` }}>
+        <Flex flexDirection="column" gap={16}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <RefreshIcon style={{ width: 18, height: 18, color: STATUS_COLORS.ideal }} />
+              <Heading level={6}>Semantic Cache Savings Calculator</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+              <Tooltip text="Identifies repeated prompts that could be cached. When you implement semantic caching, identical prompts return cached responses instead of calling the LLM again - saving tokens and cost. ROI shows potential savings if caching was implemented.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+            </Flex>
+            {cacheSavings && cacheSavings.totalCandidates > 0 && (
+              <Text style={{ padding: '4px 12px', backgroundColor: STATUS_COLORS.ideal + '20', color: STATUS_COLORS.ideal, borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
+                ${cacheSavings.totalPotentialSavings.toFixed(2)} potential savings
+              </Text>
+            )}
+          </Flex>
+          {cacheSavingsLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : cacheSavings && cacheSavings.totalCandidates > 0 ? (
+            <>
+              <Flex gap={16} style={{ flexWrap: 'wrap' }}>
+                <Surface style={{ flex: '1 1 160px', padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)' }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Savings</Text>
+                    <Heading level={3} style={{ color: STATUS_COLORS.ideal }}>${cacheSavings.totalPotentialSavings.toFixed(2)}</Heading>
+                    <Text textStyle="small" style={{ color: Colors.Text.Success.Default }}>↓ {((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% of current spend</Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Cache Candidates</Text>
+                    <Heading level={3}>{cacheSavings.totalCandidates}</Heading>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Repeated Requests</Text>
+                    <Heading level={3}>{formatNumber(cacheSavings.totalRepetitiveRequests)}</Heading>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Potential Cache Hit Rate</Text>
+                    <Heading level={3}>{(cacheSavings.avgPotentialCacheHitRate * 100).toFixed(0)}%</Heading>
+                  </Flex>
+                </Surface>
+              </Flex>
+              <Flex flexDirection="column" gap={8}>
+                <Text textStyle="small" style={{ fontWeight: 600 }}>Top Cache Candidates (by savings)</Text>
+                <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 6, fontSize: 11, fontWeight: 600 }}>
+                  <Text style={{ flex: 3 }}>Prompt Pattern</Text>
+                  <Text style={{ flex: 1 }}>Model</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Hit Rate</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Current Cost</Text>
+                  <Text style={{ flex: 1, textAlign: 'right' }}>Savings</Text>
+                </Flex>
+                {cacheSavings.topCandidates.slice(0, 5).map((candidate: SemanticCacheCandidate, idx: number) => (
+                  <Flex key={idx} style={{ padding: '6px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 11, alignItems: 'center' }}>
+                    <Text style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 10, color: Colors.Text.Neutral.Subdued }} title={candidate.promptPattern}>
+                      {candidate.promptPattern.substring(0, 50)}...
+                    </Text>
+                    <Text style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>{(candidate.cacheHitRate * 100).toFixed(0)}%</Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>${candidate.potentialSavings.toFixed(3)}</Text>
+                  </Flex>
+                ))}
+              </Flex>
+              <Surface style={{ padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
+                <Flex alignItems="flex-start" gap={8}>
+                  <CheckmarkIcon style={{ width: 16, height: 16, color: STATUS_COLORS.ideal, marginTop: 2 }} />
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontWeight: 600, color: STATUS_COLORS.ideal }}>Recommended Action</Text>
+                    <Text textStyle="small">
+                      Implement semantic caching for these {cacheSavings.totalCandidates} prompt patterns to save
+                      <strong> ${cacheSavings.totalPotentialSavings.toFixed(2)}</strong> ({((cacheSavings.totalPotentialSavings / Math.max(totalCost, 0.01)) * 100).toFixed(0)}% reduction).
+                    </Text>
+                  </Flex>
+                </Flex>
+              </Surface>
+            </>
+          ) : (
+            <Flex flexDirection="column" alignItems="center" gap={8} style={{ padding: 24, opacity: 0.7 }}>
+              <RefreshIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small">No repeated prompt patterns detected (5+ occurrences required)</Text>
             </Flex>
           )}
         </Flex>
@@ -1478,6 +1575,56 @@ export const FinOps: React.FC = () => {
         </Surface>
       )}
 
+      {/* ── Cost Anomaly Root Cause (from useCostAnomalyRootCause) ── */}
+      {anomalyRootCause?.detected && (
+        <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Status.Critical.Default}` }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <CriticalIcon style={{ width: 16, height: 16, color: Colors.Charts.Status.Critical.Default }} />
+              <Heading level={6}>Cost Anomaly Root Cause</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(255,0,0,0.1)', color: Colors.Text.Critical.Default, borderRadius: 10, fontWeight: 600 }}>ANOMALY DETECTED</Text>
+              <AskAIButton
+                label="Ask AI about cost anomaly"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Cost Anomaly',
+                  itemLabel: 'Cost Anomaly Root Cause',
+                  data: { 'Root Cause': anomalyRootCause.rootCause, 'Top Shifts': anomalyRootCause.topShifts.length, 'Cost Impact/Hr': anomalyRootCause.costImpactPerHour },
+                  suggestedPrompts: ['Explain this cost anomaly in detail', 'What actions should I take to reduce the spike?', 'Is this anomaly temporary or a trend?', 'How much will this cost if it continues?'],
+                })}
+              />
+            </Flex>
+            <Surface style={{ padding: 12, backgroundColor: 'rgba(255,0,0,0.05)' }}>
+              <Text style={{ fontWeight: 500 }}>{anomalyRootCause.rootCause}</Text>
+              {anomalyRootCause.costImpactPerHour > 0 && (
+                <Text textStyle="small" style={{ color: Colors.Text.Critical.Default, marginTop: 4 }}>
+                  Estimated cost impact: ${anomalyRootCause.costImpactPerHour.toFixed(2)}/hour
+                </Text>
+              )}
+            </Surface>
+            {anomalyRootCause.topShifts.length > 0 && (
+              <Flex flexDirection="column" gap={0}>
+                <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
+                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>MODEL</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>BASELINE %</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>CURRENT %</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>SHIFT</Text>
+                </Flex>
+                {anomalyRootCause.topShifts.map((shift, i) => (
+                  <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
+                    <Text style={{ flex: 2, fontWeight: 500 }}>{shift.model}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>{shift.baselinePct.toFixed(1)}%</Text>
+                    <Text style={{ flex: 1, textAlign: 'right' }}>{shift.currentPct.toFixed(1)}%</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: shift.direction === 'up' ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
+                      {shift.direction === 'up' ? '+' : ''}{(shift.currentPct - shift.baselinePct).toFixed(1)}%
+                    </Text>
+                  </Flex>
+                ))}
+              </Flex>
+            )}
+          </Flex>
+        </Surface>
+      )}
+
       {/* Cost Optimization Recommendations */}
       <Surface style={{ padding: 16 }}>
         <Flex flexDirection="column" gap={12}>
@@ -1520,6 +1667,194 @@ export const FinOps: React.FC = () => {
           </Flex>
         </Flex>
       </Surface>
+
+          </Flex>
+        </Tab>
+
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        {/* TAB 5: Forecast & Governance — Trends, projections, alerts, guardrails */}
+        {/* ═══════════════════════════════════════════════════════════════════════ */}
+        <Tab title="Forecast & Governance" prefixIcon={<MoneyIcon />}>
+          <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+
+      {/* Cost Trend Chart */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <MoneyIcon style={{ width: 16, height: 16, color: Colors.Charts.Apdex.Good.Default }} />
+              <Heading level={6}>Cost Trend by Provider</Heading>
+              <Tooltip text="Shows estimated costs over time, grouped by AI provider. Use this to identify spending patterns, detect cost spikes, and compare provider costs.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+              <AskAIButton
+                label="Ask AI about cost trends"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Cost Trends',
+                  itemLabel: 'Cost Trend by Provider',
+                  data: { 'Total Cost': totalCost, 'Providers Tracked': costTimeseriesData.length },
+                  suggestedPrompts: ['Explain the cost trend over the last 7 days', 'Are there any cost anomalies or spikes?', 'Which provider is trending up the most?', 'Predict costs for the next week'],
+                })}
+              />
+            </Flex>
+            {costTimeseriesData.length > 0 && (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                {costTimeseriesData.length} provider{costTimeseriesData.length > 1 ? 's' : ''} tracked
+              </Text>
+            )}
+          </Flex>
+          {costTrendLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : costTimeseriesData.length > 0 ? (
+            <TimeseriesChart
+              data={costTimeseriesData}
+              variant="area"
+              height={180}
+            >
+              <TimeseriesChart.Tooltip variant="shared" />
+              <TimeseriesChart.Legend />
+            </TimeseriesChart>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
+              <MoneyIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small">No cost data available for the selected timeframe</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
+      {/* Budget Projection Strip */}
+      <Surface style={{ padding: 16 }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <AiIcon style={{ width: 16, height: 16, color: isDavisPowered ? Colors.Charts.Status.Good.Default : Colors.Text.Neutral.Subdued }} />
+              <Heading level={6}>Budget Projection</Heading>
+              {isDavisPowered && (
+                <Text style={{ fontSize: 9, padding: '2px 8px', background: Colors.Charts.Status.Good.Default + '20', color: Colors.Charts.Status.Good.Default, borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px' }}>DT INTELLIGENCE</Text>
+              )}
+            </Flex>
+            {isDavisPowered ? (
+              <Text textStyle="small" style={{ color: Colors.Charts.Status.Good.Default }}>
+                Quality: {forecastQuality} &bull; Trend: {forecastTrend}
+              </Text>
+            ) : (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Linear estimate</Text>
+            )}
+          </Flex>
+
+          <Flex gap={16}>
+            {/* Projected 30-Day Spend */}
+            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color01.Default}` }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Projected 30-Day Spend</Text>
+                <Flex alignItems="baseline" gap={6}>
+                  <Heading level={4}>${forecast30Day?.projectedCost.toFixed(2) || '—'}</Heading>
+                  <Text textStyle="small" style={{
+                    color: forecastTrend === 'increasing' ? Colors.Text.Warning.Default
+                         : forecastTrend === 'decreasing' ? Colors.Text.Success.Default
+                         : Colors.Text.Neutral.Subdued,
+                    fontWeight: 600,
+                  }}>
+                    {forecastTrend === 'increasing' ? '↑' : forecastTrend === 'decreasing' ? '↓' : '→'} {forecastTrend}
+                  </Text>
+                </Flex>
+              </Flex>
+            </Surface>
+
+            {/* Budget Breach ETA */}
+            <Surface style={{
+              flex: 1, padding: 14,
+              borderLeft: `3px solid ${
+                budgetBreachDay
+                  ? budgetBreachDay <= 7 ? Colors.Charts.Status.Critical.Default : Colors.Charts.Status.Warning.Default
+                  : Colors.Charts.Status.Good.Default
+              }`,
+            }}>
+              <Flex flexDirection="column" gap={4}>
+                <Flex alignItems="center" gap={4}>
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Budget Breach ETA</Text>
+                  <Tooltip text="Days until projected spend exceeds your budget limit.">
+                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <Heading level={4} style={{
+                  color: budgetBreachDay
+                    ? budgetBreachDay <= 7 ? Colors.Text.Critical.Default : Colors.Text.Warning.Default
+                    : Colors.Text.Success.Default,
+                }}>
+                  {budgetBreachDay
+                    ? budgetBreachDay === 1 ? 'Tomorrow!' : `${budgetBreachDay} days`
+                    : 'On Track ✓'}
+                </Heading>
+              </Flex>
+            </Surface>
+
+            {/* Daily Run Rate */}
+            <Surface style={{ flex: 1, padding: 14, borderLeft: `3px solid ${Colors.Charts.Categorical.Color03.Default}` }}>
+              <Flex flexDirection="column" gap={4}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Daily Run Rate</Text>
+                <Heading level={4}>${burnRate ? burnRate.projectedDailySpend.toFixed(2) : '—'}/day</Heading>
+              </Flex>
+            </Surface>
+          </Flex>
+        </Flex>
+      </Surface>
+
+      {/* Cost Optimization Insights */}
+      {costInsights.length > 0 && (
+        <Surface style={{ padding: 16, borderLeft: '4px solid ' + STATUS_COLORS.good }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <AiIcon style={{ width: 16, height: 16, color: STATUS_COLORS.good }} />
+              <Heading level={6}>AI-Powered Cost Optimization Insights</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', background: STATUS_COLORS.good + '20', color: STATUS_COLORS.good, borderRadius: 10, fontWeight: 700 }}>LIVE</Text>
+            </Flex>
+            <Flex gap={12} flexWrap="wrap">
+              {costInsights.map((ins, i) => (
+                <Surface key={i} style={{
+                  flex: '1 1 260px', padding: 14, borderRadius: 6,
+                  borderLeft: `3px solid ${
+                    ins.type === 'saving' ? STATUS_COLORS.ideal
+                    : ins.type === 'warning' ? STATUS_COLORS.warning
+                    : STATUS_COLORS.good}`,
+                }}>
+                  <Flex flexDirection="column" gap={4}>
+                    <Text style={{ fontWeight: 600, fontSize: 12 }}>
+                      {ins.type === 'saving' ? '💡 ' : ins.type === 'warning' ? '⚠️ ' : 'ℹ️ '}{ins.title}
+                    </Text>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>{ins.detail}</Text>
+                    {ins.saving != null && ins.saving > 0 && (
+                      <Text style={{ fontSize: 11, fontWeight: 700, color: STATUS_COLORS.ideal }}>Potential saving: ${ins.saving.toFixed(2)}</Text>
+                    )}
+                  </Flex>
+                </Surface>
+              ))}
+            </Flex>
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Budget Alerts */}
+      {budgetAlerts.length > 0 && (
+        <Surface style={{ padding: 16, backgroundColor: budgetAlerts.some(a => a.type === 'critical') ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 165, 0, 0.1)' }}>
+          <Flex flexDirection="column" gap={8}>
+            <Heading level={6}>Budget Alerts</Heading>
+            {budgetAlerts.map((alert) => (
+              <Flex key={alert.id} gap={8} alignItems="center">
+                <Text style={{ color: alert.type === 'critical' ? Colors.Text.Critical.Default : Colors.Text.Warning.Default }}>
+                  {alert.type === 'critical' ? '' : ''} {alert.message}
+                </Text>
+              </Flex>
+            ))}
+          </Flex>
+        </Surface>
+      )}
+
+      {/* Autonomous Cost Guardrails */}
+      <CostGuardrailPanel dailyBudget={budgetLimit} />
 
           </Flex>
         </Tab>

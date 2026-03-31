@@ -14,14 +14,14 @@ import {
   Operations,
   AIArchitect,
   AITopology,
-  ResponseAnalytics,
   PromptGovernance,
   AgentTools,
   ModelDrift,
   VectorDB,
-  Infrastructure,
+  ResponseAnalytics,
   AIQualityDashboard,
   ConversationIntelligence,
+  Infrastructure,
   DeveloperExperience,
   SecurityAuditTrail,
   ProviderStatus,
@@ -30,7 +30,6 @@ import {
   Data,
   ThreatIntelligence,
 } from "./pages";
-// RealTimeAlerts removed — duplicate of Operations problems section
 
 export const App = () => {
   // Sync rate card config from Grail on startup
@@ -77,7 +76,7 @@ export const App = () => {
                 {/* AI Topology Map - Visual representation of GenAI flows */}
                 <Route path="/topology" element={<AITopology />} />
                 
-                {/* Response Analytics - Token efficiency and model comparison */}
+                {/* Response Analytics: Token efficiency, model ranking, output consistency */}
                 <Route path="/analytics" element={<ResponseAnalytics />} />
                 
                 {/* Prompt Governance - PII, injection, Davis AI scoring */}
@@ -95,13 +94,13 @@ export const App = () => {
                 {/* RAG / Vector DB Observability - Pinecone + Embeddings + TTFT + Retries */}
                 <Route path="/vector-db" element={<VectorDB />} />
 
-                {/* Infrastructure Health - Provider availability, Davis problems, deployments */}
+                {/* Infrastructure Health: Service config snapshot, model version history */}
                 <Route path="/infrastructure" element={<Infrastructure />} />
 
-                {/* AI Quality Dashboard - Hallucination scoring, quality dimensions */}
+                {/* AI Quality Dashboard: Industry-standard quality scoring */}
                 <Route path="/quality" element={<AIQualityDashboard />} />
 
-                {/* Conversation Intelligence - Session-level AI observability */}
+                {/* Conversation Intelligence: Session-level AI observability */}
                 <Route path="/conversation" element={<ConversationIntelligence />} />
 
                 {/* Developer Experience - Instrumentation coverage, shadow AI, code attribution */}

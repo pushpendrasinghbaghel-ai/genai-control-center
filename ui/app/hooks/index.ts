@@ -30,3 +30,8 @@ export * from './useAskAI';
 export * from './useAgenticDeepDive';
 export * from './useAdversarialThreatDetection';
 export * from './useResponseContent';
+export * from './useTotalCostOfOwnership';
+export * from './useModelArbitrage';
+export * from './usePromptCostAttribution';
+export * from './useTrainingROI';
+export * from './useCostAnomalyRootCause';

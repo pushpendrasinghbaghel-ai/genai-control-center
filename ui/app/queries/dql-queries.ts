@@ -1683,7 +1683,7 @@ timeseries input_tokens = sum(gen_ai.client.token.usage), ${timeClause},
   total_output_tokens = takeMax(total_output)
 }
 | fieldsAdd total_tokens = total_input_tokens + total_output_tokens,
-  estimated_cost_usd = (toDouble(total_input_tokens) * 0.02 + toDouble(total_output_tokens) * 0.01)
+  estimated_cost_usd = (toDouble(total_input_tokens) * 0.000005 + toDouble(total_output_tokens) * 0.000015)
 `.trim();
 };
 
@@ -2247,7 +2247,7 @@ fetch spans, ${timeClause}
     tool_calls_made = countIf(isNotNull(gen_ai.completion.0.tool_calls.0.name)),
     by: { agent_name = gen_ai.agent.name }
 | fieldsAdd total_tokens = total_input + total_output
-| fieldsAdd est_cost_usd = (toDouble(total_input) * 0.000003) + (toDouble(total_output) * 0.000015)
+| fieldsAdd est_cost_usd = (toDouble(total_input) * 0.000005) + (toDouble(total_output) * 0.000015)
 | fieldsAdd tool_call_rate = if(llm_calls > 0, 100.0 * toDouble(tool_calls_made) / toDouble(llm_calls), else: 0.0)
 | sort total_tokens desc
 `.trim();
@@ -2359,7 +2359,7 @@ fetch spans, ${timeClause}
 | fieldsAdd
     input_t = toLong(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
     output_t = toLong(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0))
-| fieldsAdd estimated_cost = (toDouble(input_t) * 0.000003) + (toDouble(output_t) * 0.000015)
+| fieldsAdd estimated_cost = (toDouble(input_t) * 0.000005) + (toDouble(output_t) * 0.000015)
 | summarize
     hourly_cost = sum(estimated_cost),
     hourly_requests = count(),

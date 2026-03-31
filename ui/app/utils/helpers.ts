@@ -102,6 +102,19 @@ export function estimateCost(
 }
 
 /**
+ * Get blended cost-per-token from the rate card's fallback rate.
+ * Use this when provider/model are unknown (e.g., forecasting, DQL-side constants).
+ * Returns per-token rate in USD (not per 1M).
+ * Assumes roughly equal input/output split for blending.
+ */
+export function getBlendedCostPerToken(): number {
+  const config = getRateCardConfig();
+  const fallback = getEffectiveRate(config, 'unknown', 'unknown');
+  // Blended: average of input and output per-1M rates, converted to per-token
+  return ((fallback.inputPer1M + fallback.outputPer1M) / 2) / 1_000_000;
+}
+
+/**
  * Calculate health status based on metrics
  * Enhanced for GenAI with quality metrics:
  * - errorRate: Traditional span errors

@@ -35,6 +35,8 @@ npm run deploy # Deploy to Dynatrace
 ## Dynatrace MCP Server
 **IMPORTANT:** Always use the **Demo Dynatrace MCP Server** (`mcp_demo_dynatrac_*` tools) for querying Dynatrace data. Do NOT use the `mcp_io_github_dyn_*` tools.
 
+> **MCP Data Validation is MANDATORY for every implementation that writes or modifies DQL queries.** See the full workflow, pitfalls table, and validation steps in [`AGENTS.md` → MCP Data Validation](../AGENTS.md).
+
 ## Important Files
 - `app.config.json` - App configuration and scopes
 - `ui/app/App.tsx` - Main app with routing
