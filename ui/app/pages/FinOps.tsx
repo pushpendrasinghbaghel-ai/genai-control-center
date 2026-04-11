@@ -12,6 +12,7 @@ import { TimeseriesChart, DonutChart } from '@dynatrace/strato-components/charts
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { Tabs, Tab } from '@dynatrace/strato-components/navigation';
+import { DataTable } from '@dynatrace/strato-components/tables';
 
 import { DocumentIcon, WarningIcon, CriticalIcon, MoneyIcon, AiIcon, ServicesIcon, HelpIcon, BarChartIcon, RefreshIcon, CheckmarkIcon, EditIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
@@ -37,7 +38,7 @@ import {
   useTokenEfficiency,
   useSemanticCacheSavings
 } from '../hooks/useDQLQueries';
-import type { QueryFilters, SemanticCacheCandidate } from '../hooks/useDQLQueries';
+import type { QueryFilters } from '../hooks/useDQLQueries';
 import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 import { useDavisForecast } from '../hooks/useDavisForecast';
 import { useTotalCostOfOwnership } from '../hooks/useTotalCostOfOwnership';
@@ -138,11 +139,10 @@ export const FinOps: React.FC = () => {
   const { data: tokenEfficiency, loading: efficiencyLoading } = useTokenEfficiency(queryFilters);
   const { data: cacheSavings, loading: cacheSavingsLoading } = useSemanticCacheSavings(queryFilters);
 
-  // Cross-provider deep observability — prompt caching + OTel token metrics
+  // Cross-provider deep observability — prompt caching metrics
   const {
-    cacheSummary, cacheHitRate, cacheTrend, cacheTimeSaved,
-    otelTokens, topExpensivePrompts,
-    loading: deepDiveLoading, refetch: deepDiveRefetch,
+    cacheSummary, cacheHitRate, cacheTimeSaved,
+    loading: _deepDiveLoading, refetch: deepDiveRefetch,
   } = useProviderDeepDive(queryFilters);
 
   // ── New FinOps Roadmap hooks ──
@@ -298,6 +298,113 @@ export const FinOps: React.FC = () => {
   // Budget breach prediction (from Davis or local)
   const budgetBreachDay = davisBudgetBreachDay;
 
+  // ── DataTable column definitions ──
+
+  const providerCostColumns = useMemo(
+    () => [
+      { id: 'provider', header: 'Provider', accessor: 'provider', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'totalTokens', header: 'Total Tokens', accessor: 'totalTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'inputTokens', header: 'Input', accessor: 'inputTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'outputTokens', header: 'Output', accessor: 'outputTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'estimatedCost', header: 'Est. Cost', accessor: 'estimatedCost', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>${(value as number).toFixed(2)}</Text> },
+      { id: 'requestCount', header: 'Requests', accessor: 'requestCount', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatRequestCount(value)}</Text> },
+      { id: 'costPer1K', header: '$/1K Req', accessor: 'avgCostPerRequest', columnType: 'number' as const, cell: ({ value }: any) => <Text>${((value as number) * 1000).toFixed(2)}</Text> },
+    ],
+    []
+  );
+
+  const modelCostColumns = useMemo(
+    () => [
+      { id: 'model', header: 'Model', accessor: 'model', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'provider', header: 'Provider', accessor: 'provider', cell: ({ value }: any) => <Text style={{ color: Colors.Text.Neutral.Subdued }}>{value || '-'}</Text> },
+      { id: 'inputTokens', header: 'Input Tokens', accessor: 'inputTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'outputTokens', header: 'Output Tokens', accessor: 'outputTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'estimatedCost', header: 'Est. Cost', accessor: 'estimatedCost', columnType: 'number' as const, cell: ({ value, row }: any) => <Text style={{ fontWeight: 600, color: (value as number) > 1 ? Colors.Text.Warning.Default : undefined }}>${(value as number).toFixed(2)}</Text> },
+      { id: 'totalRequests', header: 'Requests', accessor: 'totalRequests', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatRequestCount(value)}</Text> },
+      { id: 'costPerRequest', header: '$/1K Req', accessor: 'costPerRequest', columnType: 'number' as const, cell: ({ value }: any) => <Text>${((value as number) * 1000).toFixed(2)}</Text> },
+    ],
+    []
+  );
+
+  const serviceCostColumns = useMemo(
+    () => [
+      { id: 'serviceId', header: 'Service', accessor: 'serviceId', cell: ({ value }: any) => <Text style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }} title={value}>{(value as string).replace('SERVICE-', '').substring(0, 12)}...</Text> },
+      { id: 'totalRequests', header: 'Requests', accessor: 'totalRequests', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatRequestCount(value)}</Text> },
+      { id: 'totalTokens', header: 'Tokens', accessor: 'totalTokens', columnType: 'number' as const, cell: ({ value }: any) => <Text>{((value as number) / 1000).toFixed(1)}K</Text> },
+      { id: 'estimatedCost', header: 'Cost', accessor: 'estimatedCost', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>${(value as number).toFixed(2)}</Text> },
+    ],
+    []
+  );
+
+  const tokenEfficiencyColumns = useMemo(
+    () => [
+      { id: 'model', header: 'Model', accessor: 'model', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'provider', header: 'Provider', accessor: 'provider', cell: ({ value }: any) => <Text style={{ color: Colors.Text.Neutral.Subdued }}>{value || '-'}</Text> },
+      { id: 'requests', header: 'Requests', accessor: 'requests', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'avgInput', header: 'Avg In', accessor: 'avgInput', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(0)}</Text> },
+      { id: 'avgOutput', header: 'Avg Out', accessor: 'avgOutput', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(0)}</Text> },
+      { id: 'efficiency', header: 'Efficiency', accessor: 'efficiency', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>{(value as number).toFixed(2)}x</Text> },
+      { id: 'status', header: 'Status', accessor: (r: any) => ({ isWasteful: r.isWasteful, efficiency: r.efficiency }), cell: ({ value }: any) => value?.isWasteful ? <Text style={{ color: Colors.Text.Warning.Default, fontWeight: 600 }}>⚠️ Wasteful</Text> : (value?.efficiency || 0) < 1.0 ? <Text style={{ color: Colors.Text.Neutral.Subdued }}>Fair</Text> : <Text style={{ color: Colors.Text.Success.Default }}>✓ Efficient</Text> },
+    ],
+    []
+  );
+
+  const arbitrageColumns = useMemo(
+    () => [
+      { id: 'model', header: 'Model', accessor: 'model', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'provider', header: 'Provider', accessor: 'provider', cell: ({ value }: any) => <Text style={{ color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' as const }}>{value}</Text> },
+      { id: 'costPerRequest', header: '$/Request', accessor: 'costPerRequest', columnType: 'number' as const, cell: ({ value }: any) => <Text>${(value as number).toFixed(4)}</Text> },
+      { id: 'avgDurationMs', header: 'Avg Latency', accessor: 'avgDurationMs', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(0)}ms</Text> },
+      { id: 'outputInputRatio', header: 'Out/In Ratio', accessor: 'outputInputRatio', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(2)}x</Text> },
+      { id: 'errorRate', header: 'Error %', accessor: 'errorRate', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: (value as number) > 5 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{(value as number).toFixed(1)}%</Text> },
+      { id: 'valueScore', header: 'Value Score', accessor: 'valueScore', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>{'⭐'.repeat(Math.min(Math.round(value as number), 5))} <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>{(value as number).toFixed(1)}</Text></Text> },
+    ],
+    []
+  );
+
+  const trainingJobColumns = useMemo(
+    () => [
+      { id: 'baseModel', header: 'Base Model', accessor: 'baseModel', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'status', header: 'Status', accessor: 'status', cell: ({ value }: any) => <Text style={{ color: value === 'Completed' ? STATUS_COLORS.good : Colors.Charts.Categorical.Color01.Default, fontWeight: 500 }}>{value}</Text> },
+      { id: 'estimatedCostUsd', header: 'Est. Cost', accessor: 'estimatedCostUsd', columnType: 'number' as const, cell: ({ value }: any) => <Text>${(value as number).toFixed(2)}</Text> },
+      { id: 'latestTimestamp', header: 'Started', accessor: 'latestTimestamp', cell: ({ value }: any) => <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>{formatDateTime(value)}</Text> },
+    ],
+    []
+  );
+
+  const promptAttrColumns = useMemo(
+    () => [
+      { id: 'patternPrefix', header: 'Prompt Pattern', accessor: 'patternPrefix', cell: ({ value }: any) => <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>{value}</Text> },
+      { id: 'occurrences', header: 'Calls', accessor: 'occurrences', columnType: 'number' as const, cell: ({ value }: any) => <Text>{formatNumber(value)}</Text> },
+      { id: 'totalCostUsd', header: 'Total Cost', accessor: 'totalCostUsd', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600 }}>${(value as number).toFixed(2)}</Text> },
+      { id: 'avgCostPerCall', header: 'Avg $/Call', accessor: 'avgCostPerCall', columnType: 'number' as const, cell: ({ value }: any) => <Text>${(value as number).toFixed(4)}</Text> },
+      { id: 'pctOfTotalCost', header: '% of Total', accessor: 'pctOfTotalCost', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600, color: (value as number) > 30 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{(value as number).toFixed(1)}%</Text> },
+    ],
+    []
+  );
+
+  const cacheCandidateColumns = useMemo(
+    () => [
+      { id: 'promptPattern', header: 'Prompt Pattern', accessor: 'promptPattern', cell: ({ value }: any) => <Text style={{ fontFamily: 'monospace', fontSize: 10, color: Colors.Text.Neutral.Subdued }} title={value}>{(value as string).substring(0, 50)}...</Text> },
+      { id: 'model', header: 'Model', accessor: 'model', cell: ({ value }: any) => <Text style={{ fontSize: 10 }}>{(value as string).split('/').pop()}</Text> },
+      { id: 'requestCount', header: 'Requests', accessor: 'requestCount', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}x</Text> },
+      { id: 'cacheHitRate', header: 'Hit Rate', accessor: 'cacheHitRate', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ color: STATUS_COLORS.ideal }}>{((value as number) * 100).toFixed(0)}%</Text> },
+      { id: 'totalCost', header: 'Current Cost', accessor: 'totalCost', columnType: 'number' as const, cell: ({ value }: any) => <Text>${(value as number).toFixed(3)}</Text> },
+      { id: 'potentialSavings', header: 'Savings', accessor: 'potentialSavings', columnType: 'number' as const, cell: ({ value }: any) => <Text style={{ fontWeight: 600, color: STATUS_COLORS.ideal }}>${(value as number).toFixed(3)}</Text> },
+    ],
+    []
+  );
+
+  const anomalyShiftColumns = useMemo(
+    () => [
+      { id: 'model', header: 'Model', accessor: 'model', cell: ({ value }: any) => <Text style={{ fontWeight: 500 }}>{value}</Text> },
+      { id: 'baselinePct', header: 'Baseline %', accessor: 'baselinePct', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(1)}%</Text> },
+      { id: 'currentPct', header: 'Current %', accessor: 'currentPct', columnType: 'number' as const, cell: ({ value }: any) => <Text>{(value as number).toFixed(1)}%</Text> },
+      { id: 'shift', header: 'Shift', accessor: (r: any) => ({ direction: r.direction, currentPct: r.currentPct, baselinePct: r.baselinePct }), cell: ({ value }: any) => { const d = value?.direction; const diff = ((value?.currentPct || 0) - (value?.baselinePct || 0)).toFixed(1); return <Text style={{ fontWeight: 600, color: d === 'up' ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>{d === 'up' ? '+' : ''}{diff}%</Text>; } },
+    ],
+    []
+  );
+
   const loading = providersLoading;
 
   return (
@@ -362,17 +469,17 @@ export const FinOps: React.FC = () => {
 
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       {/* TABBED LAYOUT: "Follow the Money" Narrative                                */}
-      {/* Tab 1: HOW MUCH? → Executive Summary                                       */}
-      {/* Tab 2: WHERE?    → Cost Intelligence                                        */}
-      {/* Tab 3: WORTH IT? → AI Economics                                             */}
-      {/* Tab 4: PAY LESS? → Optimization Engine                                      */}
-      {/* Tab 5: COMING?   → Forecast & Governance                                    */}
+      {/* Tab 1: HOW MUCH? → Executive Summary (TCoAI + Budget + Anomaly RCA)       */}
+      {/* Tab 2: WHERE?    → Cost Intelligence (Provider/Model/Service tables)        */}
+      {/* Tab 3: WORTH IT? → AI Economics (Efficiency, Arbitrage, Training)           */}
+      {/* Tab 4: PAY LESS? → Optimization Engine (Cache + Prompt Attribution)         */}
+      {/* Tab 5: COMING?   → Forecast & Governance (Trends + Velocity + Guardrails)  */}
       {/* ══════════════════════════════════════════════════════════════════════════════ */}
       <Tabs defaultIndex={0}>
 
         {/* ═══════════════════════════════════════════════════════════════════════ */}
         {/* TAB 1: Executive Summary — "HOW MUCH does AI cost?"                   */}
-        {/* TCoAI Iceberg + Budget hero + Cost Velocity                           */}
+        {/* TCoAI Iceberg + Budget hero + Anomaly Root Cause                      */}
         {/* ═══════════════════════════════════════════════════════════════════════ */}
         <Tab title="Executive Summary" prefixIcon={<MoneyIcon />}>
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
@@ -623,106 +730,37 @@ export const FinOps: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Cost Velocity — $/min with trend detection */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {costVelocity && (
-        <>
-          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-            <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Velocity</Text>
+      {/* ── Cost Anomaly Root Cause (moved from Optimization Engine) ── */}
+      {anomalyRootCause?.detected && (
+        <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Status.Critical.Default}` }}>
+          <Flex flexDirection="column" gap={12}>
+            <Flex alignItems="center" gap={8}>
+              <CriticalIcon style={{ width: 16, height: 16, color: Colors.Charts.Status.Critical.Default }} />
+              <Heading level={6}>Cost Anomaly Root Cause</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(255,0,0,0.1)', color: Colors.Text.Critical.Default, borderRadius: 10, fontWeight: 600 }}>ANOMALY DETECTED</Text>
+              <AskAIButton
+                label="Ask AI about cost anomaly"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Cost Anomaly',
+                  itemLabel: 'Cost Anomaly Root Cause',
+                  data: { 'Root Cause': anomalyRootCause.rootCause, 'Top Shifts': anomalyRootCause.topShifts.length, 'Cost Impact/Hr': anomalyRootCause.costImpactPerHour },
+                  suggestedPrompts: ['Explain this cost anomaly in detail', 'What actions should I take to reduce the spike?', 'Is this anomaly temporary or a trend?', 'How much will this cost if it continues?'],
+                })}
+              />
+            </Flex>
+            <Surface style={{ padding: 12, backgroundColor: 'rgba(255,0,0,0.05)' }}>
+              <Text style={{ fontWeight: 500 }}>{anomalyRootCause.rootCause}</Text>
+              {anomalyRootCause.costImpactPerHour > 0 && (
+                <Text textStyle="small" style={{ color: Colors.Text.Critical.Default, marginTop: 4 }}>
+                  Estimated cost impact: ${anomalyRootCause.costImpactPerHour.toFixed(2)}/hour
+                </Text>
+              )}
+            </Surface>
+            {anomalyRootCause.topShifts.length > 0 && (
+              <DataTable data={anomalyRootCause.topShifts} columns={anomalyShiftColumns} fullWidth variant={{ rowDensity: 'condensed' }} />
+            )}
           </Flex>
-
-          <Flex gap={16}>
-            {/* Current $/min */}
-            <Surface style={{
-              flex: 1,
-              padding: 16,
-              borderLeft: `4px solid ${costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good}`,
-            }}>
-              <Flex flexDirection="column" gap={6}>
-                <Flex alignItems="center" gap={4}>
-                  <MoneyIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Current $/min</Text>
-                  <Tooltip text="Real-time cost velocity based on the latest 5-minute window. Compares against baseline to detect runaway spend.">
-                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-                  </Tooltip>
-                </Flex>
-                <Heading level={4} style={{ color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : undefined }}>
-                  ${costVelocity.currentCostPerMinute.toFixed(4)}
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Baseline: ${costVelocity.baselineCostPerMinute.toFixed(4)}/min
-                </Text>
-              </Flex>
-            </Surface>
-
-            {/* Velocity Ratio */}
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Velocity Ratio</Text>
-                <Heading level={4}>
-                  {costVelocity.velocityRatio.toFixed(1)}x
-                </Heading>
-                <Text textStyle="small" style={{
-                  fontWeight: 600,
-                  color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good,
-                }}>
-                  {costVelocity.status === 'critical' ? '🔴 CRITICAL' : costVelocity.status === 'warning' ? '🟠 WARNING' : costVelocity.status === 'elevated' ? '🟡 ELEVATED' : '🟢 NORMAL'}
-                </Text>
-              </Flex>
-            </Surface>
-
-            {/* Trend */}
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Trend</Text>
-                <Heading level={4}>
-                  {costVelocity.trendDirection === 'spike' ? '⚡ Spike' : costVelocity.trendDirection === 'rising' ? '📈 Rising' : costVelocity.trendDirection === 'falling' ? '📉 Falling' : '→ Stable'}
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Max: ${costVelocity.maxCostPerMinute.toFixed(4)}/min
-                </Text>
-              </Flex>
-            </Surface>
-
-            {/* Token Velocity */}
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Token Velocity</Text>
-                <Heading level={4}>
-                  {costVelocity.byProvider.reduce((sum, p) => sum + p.tokenVelocity, 0).toFixed(0)}/min
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Across {costVelocity.byProvider.length} providers
-                </Text>
-              </Flex>
-            </Surface>
-          </Flex>
-
-          {/* Velocity Timeseries Chart */}
-          {velocityTimeseries.length > 0 && (
-            <Surface style={{ padding: 16 }}>
-              <Flex flexDirection="column" gap={8}>
-                <Flex alignItems="center" gap={8}>
-                  <BarChartIcon style={{ width: 14, height: 14 }} />
-                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Cost Velocity Over Time ($/min)</Text>
-                </Flex>
-                <Flex style={{ height: 200 }}>
-                  <TimeseriesChart data={[{
-                    name: 'Cost $/min',
-                    datapoints: velocityTimeseries.map(p => ({
-                      start: new Date(p.timestamp),
-                      value: p.costPerMinute,
-                    })),
-                  }]}>
-                    <TimeseriesChart.Legend hidden />
-                  </TimeseriesChart>
-                </Flex>
-              </Flex>
-            </Surface>
-          )}
-        </>
+        </Surface>
       )}
 
           </Flex>
@@ -758,54 +796,9 @@ export const FinOps: React.FC = () => {
           ) : costBreakdown.length === 0 ? (
             <Text>No cost data available</Text>
           ) : (
-            <Flex flexDirection="column" gap={8}>
-              {/* Table Header */}
-              <Flex style={{ 
-                borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
-                paddingBottom: 8,
-                fontWeight: 600,
-                fontSize: 12
-              }}>
-                <Text style={{ flex: 1 }}>Provider</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Total Tokens</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Input</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Output</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Est. Cost</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>$/1K Req</Text>
-                <Text style={{ width: 28 }}></Text>
-              </Flex>
-              {/* Table Rows */}
-              {costBreakdown.map((row, idx) => (
-                <Flex 
-                  key={idx}
-                  style={{ 
-                    padding: '8px 0',
-                    borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)',
-                    fontSize: 13
-                  }}
-                >
-                  <Text style={{ flex: 1, fontWeight: 500 }}>{row.provider}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.totalTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.inputTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.outputTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${row.estimatedCost.toFixed(2)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.requestCount)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>${(row.avgCostPerRequest * 1000).toFixed(2)}</Text>
-                  <Text style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
-                    <AskAIButton
-                      label={`Ask AI about ${row.provider}`}
-                      onClick={() => openAskAI({
-                        domain: 'FinOps — Provider',
-                        itemLabel: row.provider,
-                        data: { 'Est. Cost': row.estimatedCost, 'Total Tokens': row.totalTokens, 'Input Tokens': row.inputTokens, 'Output Tokens': row.outputTokens, 'Requests': row.requestCount, '$/1K Req': row.avgCostPerRequest * 1000 },
-                        suggestedPrompts: [`Why is ${row.provider} costing $${row.estimatedCost.toFixed(2)}?`, `Compare ${row.provider} with other providers`, `How to optimize ${row.provider} token usage?`, `Show ${row.provider} error rate and latency`],
-                      })}
-                    />
-                  </Text>
-                </Flex>
-              ))}
-            </Flex>
+            <DataTable data={costBreakdown} columns={providerCostColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }}>
+              <DataTable.Pagination defaultPageSize={10} />
+            </DataTable>
           )}
         </Flex>
       </Surface>
@@ -832,80 +825,9 @@ export const FinOps: React.FC = () => {
           ) : !modelCosts || modelCosts.length === 0 ? (
             <Text>No model cost data available</Text>
           ) : (
-            <Flex flexDirection="column" gap={8}>
-              {/* Table Header */}
-              <Flex style={{ 
-                borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
-                paddingBottom: 8,
-                fontWeight: 600,
-                fontSize: 12
-              }}>
-                <Text style={{ flex: 2 }}>Model</Text>
-                <Text style={{ flex: 1 }}>Provider</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Input Tokens</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Output Tokens</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Est. Cost</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>$/1K Req</Text>
-                <Text style={{ width: 28 }}></Text>
-              </Flex>
-              {/* Table Rows */}
-              {modelCosts.map((row: any, idx: number) => (
-                <Flex 
-                  key={idx}
-                  style={{ 
-                    padding: '8px 0',
-                    borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)',
-                    fontSize: 13
-                  }}
-                >
-                  <Text style={{ flex: 2, fontWeight: 500 }}>{row.model}</Text>
-                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{row.provider || '-'}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.inputTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(row.outputTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: row.estimatedCost > 1 ? Colors.Text.Warning.Default : 'inherit' }}>
-                    ${row.estimatedCost.toFixed(2)}
-                  </Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(row.totalRequests)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>${(row.costPerRequest * 1000).toFixed(2)}</Text>
-                  <Text style={{ width: 28, display: 'flex', justifyContent: 'center' }}>
-                    <AskAIButton
-                      label={`Ask AI about ${row.model}`}
-                      onClick={() => openAskAI({
-                        domain: 'FinOps — Model Cost',
-                        itemLabel: row.model,
-                        data: { 'Provider': row.provider || 'Unknown', 'Est. Cost': row.estimatedCost, 'Input Tokens': row.inputTokens, 'Output Tokens': row.outputTokens, 'Requests': row.totalRequests, '$/1K Req': row.costPerRequest * 1000 },
-                        suggestedPrompts: [`Why is ${row.model} costing $${row.estimatedCost.toFixed(2)}?`, `Is there a cheaper alternative to ${row.model}?`, `Analyze token efficiency for ${row.model}`, `Show latency distribution for ${row.model}`],
-                      })}
-                    />
-                  </Text>
-                </Flex>
-              ))}
-              {/* Summary Row */}
-              <Flex style={{ 
-                padding: '8px 0',
-                borderTop: '2px solid var(--dt-colors-border-neutral-default)',
-                fontWeight: 600,
-                fontSize: 13,
-                backgroundColor: 'rgba(99, 102, 241, 0.05)'
-              }}>
-                <Text style={{ flex: 2 }}>Total ({modelCosts.length} models)</Text>
-                <Text style={{ flex: 1 }}></Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>
-                  {formatNumber(modelCosts.reduce((sum: number, r: any) => sum + r.inputTokens, 0))}
-                </Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>
-                  {formatNumber(modelCosts.reduce((sum: number, r: any) => sum + r.outputTokens, 0))}
-                </Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>
-                  ${modelCosts.reduce((sum: number, r: any) => sum + r.estimatedCost, 0).toFixed(2)}
-                </Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>
-                  {formatRequestCount(modelCosts.reduce((sum: number, r: any) => sum + r.totalRequests, 0))}
-                </Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>-</Text>
-              </Flex>
-            </Flex>
+            <DataTable data={modelCosts} columns={modelCostColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }}>
+              <DataTable.Pagination defaultPageSize={15} />
+            </DataTable>
           )}
         </Flex>
       </Surface>
@@ -996,25 +918,7 @@ export const FinOps: React.FC = () => {
                 <ProgressCircle size="small" />
               </Flex>
             ) : serviceCosts && serviceCosts.length > 0 ? (
-              <Flex flexDirection="column" gap={4} style={{ maxHeight: 200, overflowY: 'auto' }}>
-                {/* Header */}
-                <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
-                  <Text style={{ flex: 2 }}>Service</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Tokens</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Cost</Text>
-                </Flex>
-                {serviceCosts.map((svc: any, idx: number) => (
-                  <Flex key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 12 }}>
-                    <Text style={{ flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={svc.serviceId}>
-                      {svc.serviceId.replace('SERVICE-', '').substring(0, 12)}...
-                    </Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>{formatRequestCount(svc.totalRequests)}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>{(svc.totalTokens / 1000).toFixed(1)}K</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${svc.estimatedCost.toFixed(2)}</Text>
-                  </Flex>
-                ))}
-              </Flex>
+              <DataTable data={serviceCosts} columns={serviceCostColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }} />
             ) : (
               <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                 <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No service data available</Text>
@@ -1023,58 +927,6 @@ export const FinOps: React.FC = () => {
           </Flex>
         </Surface>
       </Flex>
-
-      {/* ── Prompt Cost Attribution (from usePromptCostAttribution) ── */}
-      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color06.Default}` }}>
-        <Flex flexDirection="column" gap={12}>
-          <Flex justifyContent="space-between" alignItems="center">
-            <Flex alignItems="center" gap={8}>
-              <DocumentIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color06.Default }} />
-              <Heading level={6}>Prompt Cost Attribution</Heading>
-              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
-              <Tooltip text="Attributes cost to individual prompt patterns using gen_ai.auditing business events. Identifies which prompts are consuming the most budget so you can optimize or consolidate them.">
-                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-              </Tooltip>
-            </Flex>
-            {promptAttrData && (
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                {promptAttrData.patterns.length} pattern{promptAttrData.patterns.length !== 1 ? 's' : ''} &bull; ${formatNumber(promptAttrData.totalPromptsCost)} total
-              </Text>
-            )}
-          </Flex>
-          {promptAttrLoading ? (
-            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
-              <ProgressCircle size="small" />
-            </Flex>
-          ) : promptAttrData && promptAttrData.patterns.length > 0 ? (
-            <Flex flexDirection="column" gap={0}>
-              {/* Header */}
-              <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
-                <Text style={{ flex: 3, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>PROMPT PATTERN</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>CALLS</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>TOTAL COST</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>AVG $/CALL</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>% OF TOTAL</Text>
-              </Flex>
-              {/* Rows */}
-              {promptAttrData.patterns.slice(0, 10).map((p, i) => (
-                <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                  <Text style={{ flex: 3, fontFamily: 'monospace', fontSize: 11 }}>{p.patternPrefix}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(p.occurrences)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>${p.totalCostUsd.toFixed(2)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>${p.avgCostPerCall.toFixed(4)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: p.pctOfTotalCost > 30 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{p.pctOfTotalCost.toFixed(1)}%</Text>
-                </Flex>
-              ))}
-            </Flex>
-          ) : (
-            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
-              <DocumentIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No prompt attribution data available — requires gen_ai.auditing business events</Text>
-            </Flex>
-          )}
-        </Flex>
-      </Surface>
 
           </Flex>
         </Tab>
@@ -1114,57 +966,9 @@ export const FinOps: React.FC = () => {
               <ProgressCircle size="small" />
             </Flex>
           ) : tokenEfficiency && tokenEfficiency.length > 0 ? (
-            <Flex flexDirection="column" gap={4}>
-              {/* Header */}
-              <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 8, fontWeight: 600, fontSize: 12 }}>
-                <Text style={{ flex: 2 }}>Model</Text>
-                <Text style={{ flex: 1 }}>Provider</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Avg In</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Avg Out</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Efficiency</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Status</Text>
-              </Flex>
-              {tokenEfficiency.slice(0, 10).map((item: any, idx: number) => (
-                <Flex 
-                  key={idx} 
-                  style={{ 
-                    padding: '6px 0', 
-                    borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', 
-                    fontSize: 12,
-                    backgroundColor: item.isWasteful ? 'rgba(255, 165, 0, 0.1)' : 'transparent'
-                  }}
-                >
-                  <Text style={{ flex: 2, fontWeight: 500 }}>{item.model}</Text>
-                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued }}>{item.provider || '-'}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{formatNumber(item.requests)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{item.avgInput.toFixed(0)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{item.avgOutput.toFixed(0)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{item.efficiency.toFixed(2)}x</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>
-                    {item.isWasteful ? (
-                      <Text style={{ color: Colors.Text.Warning.Default, fontWeight: 600 }}>⚠️ Wasteful</Text>
-                    ) : item.efficiency < 1.0 ? (
-                      <Text style={{ color: Colors.Text.Neutral.Subdued }}>Fair</Text>
-                    ) : (
-                      <Text style={{ color: Colors.Text.Success.Default }}>✓ Efficient</Text>
-                    )}
-                  </Text>
-                </Flex>
-              ))}
-              {/* Summary */}
-              {tokenEfficiency.some((item: any) => item.isWasteful) && (
-                <Surface style={{ padding: 12, marginTop: 8, backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
-                  <Text textStyle="small">
-                    <strong>💡 Optimization Opportunity:</strong> {tokenEfficiency.filter((item: any) => item.isWasteful).length} model(s) have 
-                    efficiency &lt;0.5x (output tokens &lt; 50% of input). Consider:
-                    <br />• Reviewing prompt design to reduce input length
-                    <br />• Using smaller context windows for simple queries
-                    <br />• Implementing prompt caching for repeated queries
-                  </Text>
-                </Surface>
-              )}
-            </Flex>
+            <DataTable data={tokenEfficiency.slice(0, 10)} columns={tokenEfficiencyColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }}>
+              <DataTable.Pagination defaultPageSize={10} />
+            </DataTable>
           ) : (
             <Flex justifyContent="center" alignItems="center" style={{ height: 100 }}>
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No efficiency data available</Text>
@@ -1212,46 +1016,23 @@ export const FinOps: React.FC = () => {
               <ProgressCircle size="small" />
             </Flex>
           ) : arbitrageData && arbitrageData.chatModels.length > 0 ? (
-            <Flex flexDirection="column" gap={0}>
-              {/* Header */}
-              <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
-                <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>MODEL</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>PROVIDER</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>$/REQUEST</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>AVG LATENCY</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>OUT/IN RATIO</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>ERROR %</Text>
-                <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>VALUE SCORE</Text>
-              </Flex>
-              {/* Rows */}
-              {arbitrageData.chatModels.slice(0, 12).map((m, i) => (
-                <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                  <Text style={{ flex: 2, fontWeight: 500 }}>{m.model}</Text>
-                  <Text style={{ flex: 1, color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{m.provider}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>${m.costPerRequest.toFixed(4)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{m.avgDurationMs.toFixed(0)}ms</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{m.outputInputRatio.toFixed(2)}x</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', color: m.errorRate > 5 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>{m.errorRate.toFixed(1)}%</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>
-                    {'⭐'.repeat(Math.min(Math.round(m.valueScore), 5))}
-                    <Text style={{ marginLeft: 4, fontSize: 10, color: Colors.Text.Neutral.Subdued }}>{m.valueScore.toFixed(1)}</Text>
-                  </Text>
+            <>
+            <DataTable data={arbitrageData.chatModels.slice(0, 12)} columns={arbitrageColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }}>
+              <DataTable.Pagination defaultPageSize={12} />
+            </DataTable>
+            {arbitrageData.recommendations.length > 0 && (
+              <Surface style={{ padding: 12, marginTop: 8, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
+                <Flex flexDirection="column" gap={6}>
+                  <Text style={{ fontWeight: 600, fontSize: 12, color: STATUS_COLORS.ideal }}>Arbitrage Recommendations</Text>
+                  {arbitrageData.recommendations.map((rec, i) => (
+                    <Text key={i} textStyle="small">
+                      Switch <strong>{rec.fromModel}</strong> → <strong>{rec.toModel}</strong>: save ${rec.monthlySavings.toFixed(2)}/mo — {rec.qualityImpact}
+                    </Text>
+                  ))}
                 </Flex>
-              ))}
-              {/* Recommendations */}
-              {arbitrageData.recommendations.length > 0 && (
-                <Surface style={{ padding: 12, marginTop: 8, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
-                  <Flex flexDirection="column" gap={6}>
-                    <Text style={{ fontWeight: 600, fontSize: 12, color: STATUS_COLORS.ideal }}>Arbitrage Recommendations</Text>
-                    {arbitrageData.recommendations.map((rec, i) => (
-                      <Text key={i} textStyle="small">
-                        Switch <strong>{rec.fromModel}</strong> → <strong>{rec.toModel}</strong>: save ${rec.monthlySavings.toFixed(2)}/mo — {rec.qualityImpact}
-                      </Text>
-                    ))}
-                  </Flex>
-                </Surface>
-              )}
-            </Flex>
+              </Surface>
+            )}
+            </>
           ) : (
             <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
               <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
@@ -1311,23 +1092,7 @@ export const FinOps: React.FC = () => {
                   </Flex>
                 </Surface>
               </Flex>
-              {/* Jobs Table */}
-              <Flex flexDirection="column" gap={0}>
-                <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
-                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>BASE MODEL</Text>
-                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>STATUS</Text>
-                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>EST. COST</Text>
-                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>STARTED</Text>
-                </Flex>
-                {trainingData.jobs.slice(0, 8).map((job, i) => (
-                  <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                    <Text style={{ flex: 2, fontWeight: 500 }}>{job.baseModel}</Text>
-                    <Text style={{ flex: 1, color: job.status === 'Completed' ? STATUS_COLORS.good : Colors.Charts.Categorical.Color01.Default, fontWeight: 500 }}>{job.status}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>${job.estimatedCostUsd.toFixed(2)}</Text>
-                    <Text style={{ flex: 2, fontSize: 11, color: Colors.Text.Neutral.Subdued }}>{formatDateTime(job.latestTimestamp)}</Text>
-                  </Flex>
-                ))}
-              </Flex>
+              <DataTable data={trainingData.jobs.slice(0, 8)} columns={trainingJobColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }} />
             </Flex>
           ) : (
             <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 100 }}>
@@ -1342,7 +1107,7 @@ export const FinOps: React.FC = () => {
         </Tab>
 
         {/* ═══════════════════════════════════════════════════════════════════════ */}
-        {/* TAB 4: Optimization Engine — Cache, Prompts, OTel, Anomaly, Actions  */}
+        {/* TAB 4: Optimization Engine — Cache, Prompt Attribution, Recommendations */}
         {/* ═══════════════════════════════════════════════════════════════════════ */}
         <Tab title="Optimization Engine" prefixIcon={<RefreshIcon />}>
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
@@ -1402,26 +1167,7 @@ export const FinOps: React.FC = () => {
               </Flex>
               <Flex flexDirection="column" gap={8}>
                 <Text textStyle="small" style={{ fontWeight: 600 }}>Top Cache Candidates (by savings)</Text>
-                <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 6, fontSize: 11, fontWeight: 600 }}>
-                  <Text style={{ flex: 3 }}>Prompt Pattern</Text>
-                  <Text style={{ flex: 1 }}>Model</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Requests</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Hit Rate</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Current Cost</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>Savings</Text>
-                </Flex>
-                {cacheSavings.topCandidates.slice(0, 5).map((candidate: SemanticCacheCandidate, idx: number) => (
-                  <Flex key={idx} style={{ padding: '6px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 11, alignItems: 'center' }}>
-                    <Text style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 10, color: Colors.Text.Neutral.Subdued }} title={candidate.promptPattern}>
-                      {candidate.promptPattern.substring(0, 50)}...
-                    </Text>
-                    <Text style={{ flex: 1, fontSize: 10 }}>{candidate.model.split('/').pop()}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 500 }}>{candidate.requestCount}x</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', color: STATUS_COLORS.ideal }}>{(candidate.cacheHitRate * 100).toFixed(0)}%</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>${candidate.totalCost.toFixed(3)}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: STATUS_COLORS.ideal }}>${candidate.potentialSavings.toFixed(3)}</Text>
-                  </Flex>
-                ))}
+                <DataTable data={cacheSavings.topCandidates.slice(0, 5)} columns={cacheCandidateColumns} fullWidth variant={{ rowDensity: 'condensed' }} />
               </Flex>
               <Surface style={{ padding: 12, backgroundColor: 'rgba(34, 197, 94, 0.08)', borderRadius: 6 }}>
                 <Flex alignItems="flex-start" gap={8}>
@@ -1489,141 +1235,40 @@ export const FinOps: React.FC = () => {
         </Surface>
       </Flex>
 
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: OTel Token Consumption Metrics */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {otelTokens && otelTokens.totalTokens > 0 && (
-        <>
-          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-            <BarChartIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>
-              OTel Token Consumption Metrics
-            </Text>
-          </Flex>
-          <Flex gap={16} flexWrap="wrap">
-            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Input Tokens (OTel)</Text>
-              <Heading level={2}>{(otelTokens.totalInputTokens / 1000).toFixed(0)}K</Heading>
-              <Text textStyle="small">gen_ai.client.token.usage (input)</Text>
-            </Surface>
-            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Output Tokens (OTel)</Text>
-              <Heading level={2}>{(otelTokens.totalOutputTokens / 1000).toFixed(0)}K</Heading>
-              <Text textStyle="small">gen_ai.client.token.usage (output)</Text>
-            </Surface>
-            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Tokens (OTel)</Text>
-              <Heading level={2} style={{ color: STATUS_COLORS.neutral }}>
-                {(otelTokens.totalTokens / 1000).toFixed(0)}K
-              </Heading>
-              <Text textStyle="small">aggregated metric-based count</Text>
-            </Surface>
-            <Surface style={{ flex: '1 1 210px', padding: 16 }}>
-              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Est. Cost (OTel)</Text>
-              <Heading level={2} style={{ color: STATUS_COLORS.warning }}>
-                ${otelTokens.estimatedCostUsd.toFixed(2)}
-              </Heading>
-              <Text textStyle="small">based on metric aggregation</Text>
-            </Surface>
-          </Flex>
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {/* SECTION: Top Expensive Prompts */}
-      {/* ══════════════════════════════════════════════════════════════════════════════ */}
-      {topExpensivePrompts.length > 0 && (
-        <Surface style={{ padding: 16 }}>
-          <Flex flexDirection="column" gap={12}>
+      {/* ── Prompt Cost Attribution (moved from Cost Intelligence) ── */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color06.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
             <Flex alignItems="center" gap={8}>
-              <MoneyIcon style={{ width: 16, height: 16, color: STATUS_COLORS.warning }} />
-              <Heading level={6}>Top Expensive Prompts</Heading>
-              <Tooltip text="The prompts consuming the most tokens (input + output). Optimizing these can yield significant cost savings.">
+              <DocumentIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color06.Default }} />
+              <Heading level={6}>Prompt Cost Attribution</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+              <Tooltip text="Attributes cost to individual prompt patterns using gen_ai.auditing business events. Identifies which prompts are consuming the most budget so you can optimize or consolidate them.">
                 <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
               </Tooltip>
-              <AskAIButton
-                label="Ask AI about expensive prompts"
-                onClick={() => openAskAI({
-                  domain: 'FinOps — Expensive Prompts',
-                  itemLabel: 'Top Expensive Prompts',
-                  data: { 'Prompts Listed': topExpensivePrompts.length },
-                  suggestedPrompts: ['How can I optimize these expensive prompts?', 'Which prompts are candidates for caching?', 'Suggest prompt engineering techniques to reduce tokens', 'What is the cost impact of optimizing top 3 prompts?'],
-                })}
-              />
             </Flex>
-            <Flex flexDirection="column" gap={4}>
-              <Flex style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4, fontWeight: 600, fontSize: 11 }}>
-                <Text style={{ flex: 3 }}>Prompt</Text>
-                <Text style={{ flex: 1 }}>Provider</Text>
-                <Text style={{ flex: 1 }}>Model</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Tokens</Text>
-                <Text style={{ flex: 1, textAlign: 'right' }}>Duration</Text>
-              </Flex>
-              {topExpensivePrompts.slice(0, 10).map((p, idx) => (
-                <Flex key={idx} style={{ padding: '4px 0', borderBottom: '1px solid var(--dt-colors-border-neutral-subdued)', fontSize: 12 }}>
-                  <Text style={{ flex: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.prompt}>
-                    {p.prompt.substring(0, 80)}{p.prompt.length > 80 ? '…' : ''}
-                  </Text>
-                  <Text style={{ flex: 1, textTransform: 'capitalize' }}>{p.provider}</Text>
-                  <Text style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}>{p.model}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>{formatNumber(p.totalTokens)}</Text>
-                  <Text style={{ flex: 1, textAlign: 'right' }}>{p.durationMs.toFixed(0)}ms</Text>
-                </Flex>
-              ))}
-            </Flex>
-          </Flex>
-        </Surface>
-      )}
-
-      {/* ── Cost Anomaly Root Cause (from useCostAnomalyRootCause) ── */}
-      {anomalyRootCause?.detected && (
-        <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Status.Critical.Default}` }}>
-          <Flex flexDirection="column" gap={12}>
-            <Flex alignItems="center" gap={8}>
-              <CriticalIcon style={{ width: 16, height: 16, color: Colors.Charts.Status.Critical.Default }} />
-              <Heading level={6}>Cost Anomaly Root Cause</Heading>
-              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(255,0,0,0.1)', color: Colors.Text.Critical.Default, borderRadius: 10, fontWeight: 600 }}>ANOMALY DETECTED</Text>
-              <AskAIButton
-                label="Ask AI about cost anomaly"
-                onClick={() => openAskAI({
-                  domain: 'FinOps — Cost Anomaly',
-                  itemLabel: 'Cost Anomaly Root Cause',
-                  data: { 'Root Cause': anomalyRootCause.rootCause, 'Top Shifts': anomalyRootCause.topShifts.length, 'Cost Impact/Hr': anomalyRootCause.costImpactPerHour },
-                  suggestedPrompts: ['Explain this cost anomaly in detail', 'What actions should I take to reduce the spike?', 'Is this anomaly temporary or a trend?', 'How much will this cost if it continues?'],
-                })}
-              />
-            </Flex>
-            <Surface style={{ padding: 12, backgroundColor: 'rgba(255,0,0,0.05)' }}>
-              <Text style={{ fontWeight: 500 }}>{anomalyRootCause.rootCause}</Text>
-              {anomalyRootCause.costImpactPerHour > 0 && (
-                <Text textStyle="small" style={{ color: Colors.Text.Critical.Default, marginTop: 4 }}>
-                  Estimated cost impact: ${anomalyRootCause.costImpactPerHour.toFixed(2)}/hour
-                </Text>
-              )}
-            </Surface>
-            {anomalyRootCause.topShifts.length > 0 && (
-              <Flex flexDirection="column" gap={0}>
-                <Flex gap={8} style={{ padding: '8px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)', backgroundColor: 'var(--dt-colors-surface-default)' }}>
-                  <Text style={{ flex: 2, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued }}>MODEL</Text>
-                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>BASELINE %</Text>
-                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>CURRENT %</Text>
-                  <Text style={{ flex: 1, fontSize: 11, fontWeight: 700, color: Colors.Text.Neutral.Subdued, textAlign: 'right' }}>SHIFT</Text>
-                </Flex>
-                {anomalyRootCause.topShifts.map((shift, i) => (
-                  <Flex key={i} gap={8} alignItems="center" style={{ padding: '10px 12px', borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
-                    <Text style={{ flex: 2, fontWeight: 500 }}>{shift.model}</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>{shift.baselinePct.toFixed(1)}%</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>{shift.currentPct.toFixed(1)}%</Text>
-                    <Text style={{ flex: 1, textAlign: 'right', fontWeight: 600, color: shift.direction === 'up' ? Colors.Text.Critical.Default : Colors.Text.Success.Default }}>
-                      {shift.direction === 'up' ? '+' : ''}{(shift.currentPct - shift.baselinePct).toFixed(1)}%
-                    </Text>
-                  </Flex>
-                ))}
-              </Flex>
+            {promptAttrData && (
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                {promptAttrData.patterns.length} pattern{promptAttrData.patterns.length !== 1 ? 's' : ''} &bull; ${formatNumber(promptAttrData.totalPromptsCost)} total
+              </Text>
             )}
           </Flex>
-        </Surface>
-      )}
+          {promptAttrLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : promptAttrData && promptAttrData.patterns.length > 0 ? (
+            <DataTable data={promptAttrData.patterns.slice(0, 10)} columns={promptAttrColumns} sortable fullWidth variant={{ rowDensity: 'condensed' }}>
+              <DataTable.Pagination defaultPageSize={10} />
+            </DataTable>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
+              <DocumentIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No prompt attribution data available — requires gen_ai.auditing business events</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
 
       {/* Cost Optimization Recommendations */}
       <Surface style={{ padding: 16 }}>
@@ -1851,6 +1496,99 @@ export const FinOps: React.FC = () => {
             ))}
           </Flex>
         </Surface>
+      )}
+
+      {/* ── Cost Velocity (moved from Executive Summary) ── */}
+      {costVelocity && (
+        <>
+          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
+            <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
+            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Velocity</Text>
+          </Flex>
+
+          <Flex gap={16}>
+            <Surface style={{
+              flex: 1,
+              padding: 16,
+              borderLeft: `4px solid ${costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good}`,
+            }}>
+              <Flex flexDirection="column" gap={6}>
+                <Flex alignItems="center" gap={4}>
+                  <MoneyIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
+                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Current $/min</Text>
+                  <Tooltip text="Real-time cost velocity based on the latest 5-minute window. Compares against baseline to detect runaway spend.">
+                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <Heading level={4} style={{ color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : undefined }}>
+                  ${costVelocity.currentCostPerMinute.toFixed(4)}
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Baseline: ${costVelocity.baselineCostPerMinute.toFixed(4)}/min
+                </Text>
+              </Flex>
+            </Surface>
+
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Velocity Ratio</Text>
+                <Heading level={4}>{costVelocity.velocityRatio.toFixed(1)}x</Heading>
+                <Text textStyle="small" style={{
+                  fontWeight: 600,
+                  color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good,
+                }}>
+                  {costVelocity.status === 'critical' ? '🔴 CRITICAL' : costVelocity.status === 'warning' ? '🟠 WARNING' : costVelocity.status === 'elevated' ? '🟡 ELEVATED' : '🟢 NORMAL'}
+                </Text>
+              </Flex>
+            </Surface>
+
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Trend</Text>
+                <Heading level={4}>
+                  {costVelocity.trendDirection === 'spike' ? '⚡ Spike' : costVelocity.trendDirection === 'rising' ? '📈 Rising' : costVelocity.trendDirection === 'falling' ? '📉 Falling' : '→ Stable'}
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Max: ${costVelocity.maxCostPerMinute.toFixed(4)}/min
+                </Text>
+              </Flex>
+            </Surface>
+
+            <Surface style={{ flex: 1, padding: 16 }}>
+              <Flex flexDirection="column" gap={6}>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Token Velocity</Text>
+                <Heading level={4}>
+                  {costVelocity.byProvider.reduce((sum, p) => sum + p.tokenVelocity, 0).toFixed(0)}/min
+                </Heading>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Across {costVelocity.byProvider.length} providers
+                </Text>
+              </Flex>
+            </Surface>
+          </Flex>
+
+          {velocityTimeseries.length > 0 && (
+            <Surface style={{ padding: 16 }}>
+              <Flex flexDirection="column" gap={8}>
+                <Flex alignItems="center" gap={8}>
+                  <BarChartIcon style={{ width: 14, height: 14 }} />
+                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Cost Velocity Over Time ($/min)</Text>
+                </Flex>
+                <Flex style={{ height: 200 }}>
+                  <TimeseriesChart data={[{
+                    name: 'Cost $/min',
+                    datapoints: velocityTimeseries.map(p => ({
+                      start: new Date(p.timestamp),
+                      value: p.costPerMinute,
+                    })),
+                  }]}>
+                    <TimeseriesChart.Legend hidden />
+                  </TimeseriesChart>
+                </Flex>
+              </Flex>
+            </Surface>
+          )}
+        </>
       )}
 
       {/* Autonomous Cost Guardrails */}
