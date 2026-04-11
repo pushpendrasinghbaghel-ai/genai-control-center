@@ -47,6 +47,7 @@ import type {
   ChartBlock,
   AnalyzerBlock,
   FollowUpChip,
+  OrchestrationResult,
 } from '../agent';
 import {
   listSessions,
@@ -981,6 +982,9 @@ export const Intelligence: React.FC = () => {
   const [loadingPhase, setLoadingPhase] = useState(0);
   const recognitionRef = useRef<any>(null);
   const loadingPhaseRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  /** Accumulate orchestration results for multi-turn scratchpad context */
+  const priorResultsRef = useRef<OrchestrationResult[]>([]);
 
   /** Resolve timeframe to string for orchestrator */
   const timeframeStr = useMemo(() => timeframeToString(timeframe), [timeframe]);
@@ -997,6 +1001,11 @@ export const Intelligence: React.FC = () => {
     setMessages(loadMessages(active.id));
     // Refresh sessions list to include the potentially new one
     setSessions(listSessions());
+  }, []);
+
+  // Abort in-flight orchestration on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
   }, []);
 
   // Scroll to bottom when messages change
@@ -1113,11 +1122,13 @@ export const Intelligence: React.FC = () => {
     setSessions(listSessions());
     setActiveSessionId(session.id);
     setMessages([]);
+    priorResultsRef.current = [];
   }, []);
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id);
     setMessages(loadMessages(id));
+    priorResultsRef.current = [];
   }, []);
 
   const handleDeleteSession = useCallback((id: string) => {
@@ -1141,6 +1152,11 @@ export const Intelligence: React.FC = () => {
 
   const sendQuery = useCallback(async (query: string) => {
     if (!query.trim() || isLoading) return;
+
+    // Cancel any in-flight orchestration from a previous query
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
@@ -1168,8 +1184,11 @@ export const Intelligence: React.FC = () => {
 
       // Orchestrate � AI tool selection + execution
       console.log(`[Intelligence] Sending to orchestrator: "${query.trim()}" timeframe=${timeframeStr}`);
-      const result = await orchestrate(query.trim(), timeframeStr, history);
+      const result = await orchestrate(query.trim(), timeframeStr, history, controller.signal, priorResultsRef.current);
       console.log(`[Intelligence] Orchestrator result: handled=${result.handled}, tools=${result.toolsUsed.join(',')}, blocks=${result.blocks.length}, method=${result.selectionMethod}, path=${result.selectionPath}`);
+
+      // Accumulate for multi-turn context (keep last 5)
+      priorResultsRef.current = [...priorResultsRef.current, result].slice(-5);
 
       const assistantMsg: ChatMessage = {
         id: `msg-${Date.now()}-assistant`,

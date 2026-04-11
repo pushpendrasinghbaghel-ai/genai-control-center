@@ -37,7 +37,7 @@ export interface TCoAISummary {
 
 /** Token cost: aggregate gen_ai spans by provider + model for rate-card pricing */
 const TOKEN_COST_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.request.model)
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "unknown"),
             model = coalesce(gen_ai.request.model, "unknown"),
@@ -51,7 +51,7 @@ fetch spans, from: now()-24h, to: now()
 
 /** Infrastructure cost: real cloud pricing from cost.list.price BizEvents */
 const INFRA_COST_QUERY = `
-fetch bizevents, from: now()-24h, to: now()
+fetch bizevents, from: now()-2h, to: now()
 | filter event.type == "cost.list.price"
 | summarize total_cost = sum(toDouble(price.total)),
             instance_count = countDistinct(resource.instance.type),
@@ -61,12 +61,12 @@ fetch bizevents, from: now()-24h, to: now()
 
 /** Training cost: fine-tuning jobs from gen_ai.auditing BizEvents */
 const TRAINING_JOBS_QUERY = `
-fetch bizevents, from: now()-24h, to: now()
+fetch bizevents, from: now()-2h, to: now()
 | filter event.type == "gen_ai.auditing"
 | filter gen_ai.type == "training"
 | filter isNotNull(eventName)
 | fieldsAdd params = toString(requestParameters)
-| parse params, "ld 'baseModelIdentifier\":\"' ld:base_model '\"'"
+| fieldsAdd base_model = coalesce(requestParameters.baseModelIdentifier, "unknown")
 | fieldsAdd status = coalesce(eventName, "unknown")
 | summarize job_count = count(),
             models_trained = countDistinct(base_model),

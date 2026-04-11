@@ -51,7 +51,7 @@ export const FINOPS_DIGEST_WORKFLOW = {
 | summarize {
     requests = count(),
     tokens = sum(coalesce(gen_ai.usage.prompt_tokens, gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.completion_tokens, gen_ai.usage.output_tokens, 0))
-  }, by: { day = bin(start_time, 1d) }
+  }, by: { day = bin(timestamp, 1d) }
 | sort day asc`
       },
       position: { x: 0, y: 2 },
@@ -129,7 +129,7 @@ export const TOKEN_BUDGET_ALERT_WORKFLOW = {
       description: "Query current token usage against budget",
       action: "dynatrace.automations:execute-dql-query",
       input: {
-        query: `fetch spans, from: now()-24h, to: now()
+        query: `fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | summarize {
     total_tokens = sum(coalesce(gen_ai.usage.prompt_tokens, gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.completion_tokens, gen_ai.usage.output_tokens, 0))

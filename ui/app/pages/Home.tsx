@@ -70,17 +70,17 @@ const CATEGORICAL_PALETTE = [
   Colors.Charts.Categorical.Color12.Default,
 ];
 
-/** Create a default Timeframe object (last 24 hours) */
+/** Create a default Timeframe object (last 2 hours) */
 const createDefaultTimeframe = (): Timeframe => ({
-  from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
+  from: { value: 'now()-2h', type: 'expression', absoluteDate: new Date().toISOString() },
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
 
 
 /** Get display label for timeframe */
 const getTimeframeLabel = (timeframe: Timeframe): string => {
-  const from = timeframe.from?.value || 'now()-24h';
-  if (from === 'now()-24h') return 'Last 24 Hours';
+  const from = timeframe.from?.value || 'now()-2h';
+  if (from === 'now()-2h') return 'Last 24 Hours';
   if (from === 'now()-1h') return 'Last Hour';
   if (from === 'now()-6h') return 'Last 6 Hours';
   if (from === 'now()-12h') return 'Last 12 Hours';
@@ -600,10 +600,10 @@ export const Home = () => {
             <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Usage & Cost Trends</Text>
           </Flex>
 
-          {/* Usage & Cost Grid - 2x2 */}
+          {/* Usage & Cost Grid - 2 per row for readability */}
           <Flex style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 600px), 1fr))', 
             gap: 16,
           }}>
             {/* Token Trend - Real DQL Timeseries */}
@@ -620,7 +620,7 @@ export const Home = () => {
                 <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.primary }}>{formatNumber(chartTotals.tokens)}</Text>
               </Flex>
               {trendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" aria-label="Loading token data" />
                 </Flex>
               ) : tokenTimeseriesData.length > 0 ? (
@@ -634,7 +634,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <BarChartIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No token data in timeframe</Text>
                 </Flex>
@@ -656,7 +656,7 @@ export const Home = () => {
                 <Text style={{ fontSize: 12, fontWeight: 600, color: CHART_COLORS.warning }}>{formatCurrency(chartTotals.cost)}</Text>
               </Flex>
               {trendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : costTimeseriesData.length > 0 ? (
@@ -670,7 +670,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <MoneyIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No cost data in timeframe</Text>
                 </Flex>
@@ -694,7 +694,7 @@ export const Home = () => {
                 </Text>
               </Flex>
               {trendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : requestTimeseriesData.length > 0 ? (
@@ -708,7 +708,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ServicesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No request data in timeframe</Text>
                 </Flex>
@@ -727,7 +727,7 @@ export const Home = () => {
                 </Tooltip>
               </Flex>
               {providerLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : donutChartSlices.length > 0 ? (
@@ -756,7 +756,7 @@ export const Home = () => {
                   </Flex>
                 </Flex>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No provider data available</Text>
                 </Flex>
@@ -773,10 +773,10 @@ export const Home = () => {
             <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--dt-colors-text-secondary-default)', letterSpacing: '0.5px' }}>Performance & Quality</Text>
           </Flex>
 
-          {/* Performance Grid - 2x2 */}
+          {/* Performance Grid - 2 per row for readability */}
           <Flex style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 600px), 1fr))', 
             gap: 16,
           }}>
             {/* Error Rate Trend by Provider - Line Chart */}
@@ -797,7 +797,7 @@ export const Home = () => {
                 )}
               </Flex>
               {errorTrendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : errorRateTimeseriesData.length > 0 ? (
@@ -811,7 +811,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <WarningIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No errors in timeframe 🎉</Text>
                 </Flex>
@@ -837,7 +837,7 @@ export const Home = () => {
                 )}
               </Flex>
               {latencyTrendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : latencyTimeseriesData.length > 0 ? (
@@ -851,7 +851,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ClockIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No latency data available</Text>
                 </Flex>
@@ -877,7 +877,7 @@ export const Home = () => {
                 )}
               </Flex>
               {efficiencyTrendLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : efficiencyTimeseriesData.length > 0 ? (
@@ -891,7 +891,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <ServiceLevelObjectivesIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No token data available</Text>
                 </Flex>
@@ -917,7 +917,7 @@ export const Home = () => {
                 )}
               </Flex>
               {modelUsageLoading ? (
-                <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+                <Flex justifyContent="center" alignItems="center" style={{ height: 180 }}>
                   <ProgressCircle size="small" />
                 </Flex>
               ) : modelUsageTimeseriesData.length > 0 ? (
@@ -931,7 +931,7 @@ export const Home = () => {
                   <TimeseriesChart.Legend hidden />
                 </TimeseriesChart>
               ) : (
-                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120, color: 'var(--dt-colors-text-secondary-default)' }}>
+                <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 180, color: 'var(--dt-colors-text-secondary-default)' }}>
                   <AiIcon style={{ width: 24, height: 24, opacity: 0.3 }} />
                   <Text style={{ fontSize: 11 }}>No model usage data available</Text>
                 </Flex>
@@ -978,8 +978,8 @@ export const Home = () => {
             </Flex>
           </Flex>
 
-          {/* Coverage checks — compact horizontal grid */}
-          <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+          {/* Coverage checks — responsive horizontal grid */}
+          <Flex style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
             {aiInsights.coverageChecks.map((check) => (
               <Tooltip key={check.label} text={check.detail}>
                 <Flex

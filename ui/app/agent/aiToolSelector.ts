@@ -143,14 +143,16 @@ const INTENT_MAP: Array<{ signals: string[]; toolNames: string[]; boost: number 
   { signals: ["executive", "summary", "report", "brief", "overall", "everything", "full"],
     toolNames: ["executive_summary"], boost: 2 },
   // New intent signals for inventory & discovery tools
-  { signals: ["inventory", "how many", "count", "total", "assets", "landscape", "footprint", "discovery", "deployed"],
+  { signals: ["inventory", "assets", "landscape", "footprint", "discovery", "deployed", "everything"],
     toolNames: ["inventory_overview"], boost: 3 },
-  { signals: ["agent", "agents", "agentic", "langchain", "langgraph", "agent task", "chain", "rag", "orchestrat"],
-    toolNames: ["agent_overview"], boost: 3 },
-  { signals: ["list models", "what models", "model list", "model catalog", "model inventory", "all models", "llms", "deployed models"],
-    toolNames: ["model_inventory"], boost: 3 },
-  { signals: ["list providers", "what providers", "provider list", "provider inventory", "all providers", "vendors", "which vendor"],
-    toolNames: ["provider_inventory"], boost: 3 },
+  { signals: ["how many agents", "count agents", "total agents", "agent", "agents", "agentic", "langchain", "langgraph", "agent task", "chain", "orchestrat"],
+    toolNames: ["agent_overview"], boost: 4 },
+  { signals: ["how many models", "count models", "total models", "list models", "what models", "model list", "model catalog", "model inventory", "all models", "llms", "deployed models"],
+    toolNames: ["model_inventory"], boost: 4 },
+  { signals: ["how many providers", "count providers", "total providers", "list providers", "what providers", "provider list", "provider inventory", "all providers", "vendors", "which vendor"],
+    toolNames: ["provider_inventory"], boost: 4 },
+  { signals: ["how many", "count", "total"],
+    toolNames: ["inventory_overview"], boost: 2 },
   { signals: ["trend", "trends", "over time", "timeline", "history", "growing", "increasing", "decreasing", "pattern", "volume", "traffic", "throughput"],
     toolNames: ["usage_trends"], boost: 3 },
   { signals: ["tell me", "describe", "explain", "info", "about", "detail", "details", "general"],
@@ -217,9 +219,29 @@ function semanticSelect(
     return { tools: [], confidence: 0 };
   }
 
-  // Take the top tool, plus any close runner-ups (within 60% of top score)
-  const threshold = topScore * 0.6;
-  const selected = scored.filter(s => s.score >= threshold && s.score > 0).slice(0, 3);
+  // Minimum absolute score — reject if even the best tool barely matches.
+  // Below this threshold, fall through to general_qa via the orchestrator.
+  const MIN_ABSOLUTE_SCORE = 3;
+  if (topScore < MIN_ABSOLUTE_SCORE) {
+    return { tools: [], confidence: Math.min(100, topScore * 10) };
+  }
+
+  // Take the top tool, plus any close runner-ups (within 75% of top score)
+  const threshold = topScore * 0.75;
+  let selected = scored.filter(s => s.score >= threshold && s.score > 0).slice(0, 3);
+
+  // Specificity deduplication: when a specific tool and its generic parent
+  // both match, suppress the generic one to avoid diluting the answer.
+  const SPECIFICITY_MAP: Record<string, string[]> = {
+    inventory_overview: ["agent_overview", "model_inventory", "provider_inventory"],
+  };
+  const selectedNames = new Set(selected.map(s => s.tool.name));
+  for (const [generic, specifics] of Object.entries(SPECIFICITY_MAP)) {
+    if (selectedNames.has(generic) && specifics.some(s => selectedNames.has(s))) {
+      selected = selected.filter(s => s.tool.name !== generic);
+    }
+  }
+
   const confidence = Math.min(100, topScore * 10);
 
   return { tools: selected, confidence };

@@ -7,9 +7,9 @@ import type { Timeframe } from '@dynatrace/strato-components/core';
  */
 export const buildTimeRangeClauseFromTimeframe = (timeframe?: Timeframe | null): string => {
   if (!timeframe) {
-    return 'from: now()-24h, to: now()';
+    return 'from: now()-2h, to: now()';
   }
-  const fromValue = timeframe.from?.value || 'now()-24h';
+  const fromValue = timeframe.from?.value || 'now()-2h';
   const toValue = timeframe.to?.value || 'now()';
   return `from: ${fromValue}, to: ${toValue}`;
 };
@@ -24,12 +24,12 @@ export const buildTimeRangeClause = (timeRange: string): string => {
     '3h': 'from: now()-3h, to: now()',
     '6h': 'from: now()-6h, to: now()',
     '12h': 'from: now()-12h, to: now()',
-    '24h': 'from: now()-24h, to: now()',
+    '24h': 'from: now()-2h, to: now()',
     '2d': 'from: now()-2d, to: now()',
     '7d': 'from: now()-7d, to: now()',
     '30d': 'from: now()-30d, to: now()',
   };
-  return timeMap[timeRange] || 'from: now()-24h, to: now()';
+  return timeMap[timeRange] || 'from: now()-2h, to: now()';
 };
 
 /**
@@ -406,7 +406,7 @@ ${modelFilter}
     sample_full_prompt = takeLast(prompt),
     sample_full_response = takeLast(response),
     sample_response = takeLast(response_preview),
-    sample_timestamp = takeLast(start_time),
+    sample_timestamp = takeLast(timestamp),
     sample_error_type = takeLast(error.type),
     sample_status_message = takeLast(status.message)
   }, by: { 
@@ -438,10 +438,10 @@ ${modelFilter}
 | fieldsAdd prompt = coalesce(gen_ai.prompt.1.content, gen_ai.prompt.0.content)
 | fieldsAdd response = gen_ai.completion.0.content
 | fields 
+    timestamp,
     trace_id = trace.id,
     span_id = span.id,
     span_name = span.name,
-    timestamp = start_time,
     provider = gen_ai.provider.name,
     model = gen_ai.request.model,
     service = dt.entity.service,
@@ -581,7 +581,7 @@ fetch spans, ${timeClause}
     has_generate = countIf(step_type == "generate") > 0,
     sample_trace_id = takeLast(trace.id),
     service_name = takeFirst(service.name),
-    trace_start = min(start_time)
+    trace_start = min(timestamp)
   , by: { trace.id }
 | filter span_count >= 2
 | sort total_duration_ms desc
@@ -741,7 +741,7 @@ fetch spans, ${timeClause}
     unique_agents = countDistinct(traceloop.entity.name),
     agents_list = collectDistinct(traceloop.entity.name),
     total_duration_ms = sum(duration) / 1000000,
-    min_start = min(start_time)
+    min_start = min(timestamp)
   , by: { trace.id }
 | fieldsAdd retry_count = task_count - unique_agents
 | filter retry_count > 0
@@ -863,7 +863,6 @@ fetch spans, ${timeClause}
     OR db.operation == "index")
 | makeTimeseries
     upserts = count(),
-    avg_upsert_latency_ms = avg(duration) / 1000000,
     interval: 1h
 `;
 };
@@ -973,7 +972,7 @@ fetch spans, ${timeClause}
     p95_latency_ms = percentile(duration, 95) / 1000000,
     p99_latency_ms = percentile(duration, 99) / 1000000,
     query_count = count()
-  , by: { hour_bucket = bin(start_time, 1h) }
+  , by: { hour_bucket = bin(timestamp, 1h) }
 | fieldsAdd
     anomaly_ratio = if(avg_latency_ms > 0, then: p99_latency_ms / avg_latency_ms, else: 0.0),
     is_anomalous = p99_latency_ms / avg_latency_ms > 3.0
@@ -1044,7 +1043,7 @@ fetch spans, ${timeClause}
     total_count = count(),
     avg_latency_ms = avg(duration) / 1000000,
     p95_latency_ms = percentile(duration, 95) / 1000000
-  , by: { hour_of_day = getHour(start_time), day_of_week = getDayOfWeek(start_time) }
+  , by: { hour_of_day = getHour(timestamp), day_of_week = getDayOfWeek(timestamp) }
 | sort day_of_week asc, hour_of_day asc
 `;
 };
@@ -1151,7 +1150,7 @@ fetch spans, ${timeClause}
 | fieldsAdd is_slow = latency_ms > 2000
 | fieldsAdd has_error = span.status_code == "error" OR isNotNull(error.type)
 | fields
-    timestamp = start_time,
+    timestamp,
     stage,
     model = coalesce(gen_ai.request.model, db.system, span.name),
     provider = coalesce(gen_ai.provider.name, db.system, "unknown"),
@@ -1235,7 +1234,7 @@ ${serviceFilter}
 ${providerFilter}
 ${modelFilter}
 | fields 
-    timestamp = start_time,
+    timestamp,
     provider = gen_ai.provider.name,
     model = gen_ai.request.model,
     input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
@@ -1257,7 +1256,7 @@ ${modelFilter}
  * Provider availability: error rate per provider from AI spans.
  * Availability = 1 - (errors / total).
  */
-export const INFRA_PROVIDER_AVAILABILITY_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
+export const INFRA_PROVIDER_AVAILABILITY_QUERY = (timeClause = 'from: now()-2h, to: now()'): string => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name)
@@ -1274,7 +1273,7 @@ fetch spans, ${timeClause}
 /**
  * K8s-style workload summary for AI services: group by service name, count spans, errors, models used.
  */
-export const INFRA_SERVICE_WORKLOAD_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
+export const INFRA_SERVICE_WORKLOAD_QUERY = (timeClause = 'from: now()-2h, to: now()'): string => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
@@ -1283,7 +1282,7 @@ fetch spans, ${timeClause}
     error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
     model_count = countDistinct(gen_ai.request.model),
     avg_latency_ms = avg(toLong(duration)) / 1000000,
-    last_seen = max(start_time),
+    last_seen = max(timestamp),
     provider = takeFirst(gen_ai.provider.name),
     by: { service_name = service.name }
 | fieldsAdd error_rate = round(100.0 * toDouble(error_count) / toDouble(span_count), 2)
@@ -1295,15 +1294,15 @@ fetch spans, ${timeClause}
 /**
  * Recent deployment events (pushed or observed by Dynatrace OneAgent).
  */
-export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
+export const INFRA_DEPLOYMENT_EVENTS_QUERY = (timeClause = 'from: now()-2h, to: now()'): string => {
   return `
 fetch events, ${timeClause}
 | filter event.kind == "DEPLOYMENT_EVENT"
 | fields
+    timestamp,
     event_id = id,
     title = event.name,
     entity = dt.entity.name,
-    timestamp = timestamp,
     version = dt.event.deployment.version,
     artifact = dt.event.deployment.artifact_version
 | sort timestamp desc
@@ -1315,7 +1314,7 @@ fetch events, ${timeClause}
  * Current model + provider configuration per service (config snapshot).
  * Shows which service is calling which LLM model/provider right now.
  */
-export const INFRA_SERVICE_CONFIG_QUERY = (timeClause = 'from: now()-24h, to: now()'): string => {
+export const INFRA_SERVICE_CONFIG_QUERY = (timeClause = 'from: now()-2h, to: now()'): string => {
   return `
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.request.model) OR isNotNull(gen_ai.provider.name)
@@ -1324,7 +1323,7 @@ fetch spans, ${timeClause}
     provider = takeFirst(gen_ai.provider.name),
     model_versions = countDistinct(gen_ai.request.model),
     request_count = count(),
-    last_seen = max(start_time),
+    last_seen = max(timestamp),
     by: { service_name = service.name }
 | sort last_seen desc
 | limit 40
@@ -1342,8 +1341,8 @@ fetch spans, from: now()-7d, to: now()
 | filter isNotNull(gen_ai.request.model)
 | summarize
     request_count = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time),
+    first_seen = min(timestamp),
+    last_seen = max(timestamp),
     by: { service_name = service.name, model = gen_ai.request.model, provider = gen_ai.provider.name }
 | sort last_seen desc
 | limit 60
@@ -1371,8 +1370,8 @@ fetch spans, ${timeClause}
     models_used = collectDistinct(gen_ai.request.model),
     total_input_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), toLong(gen_ai.usage.prompt_tokens), 0)),
     total_output_tokens = sum(coalesce(toLong(gen_ai.usage.output_tokens), toLong(gen_ai.usage.completion_tokens), 0)),
-    session_start = min(start_time),
-    session_end = max(start_time),
+    session_start = min(timestamp),
+    session_end = max(timestamp),
     error_turns = countIf(span.status_code == "error" OR isNotNull(error.type)),
     handoff_count = countIf(contains(lower(span.name), "transfer_to")),
     task_count = countIf(traceloop.span.kind == "task"),
@@ -1536,6 +1535,7 @@ fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) AND span.status_code == "error"
 ${serviceFilter}
 | fields
+    timestamp,
     trace_id = trace.id,
     span_id = span.id,
     service = dt.entity.service,
@@ -1546,8 +1546,7 @@ ${serviceFilter}
     code_function = code.function,
     code_namespace = code.namespace,
     code_filepath = code.filepath,
-    duration_ms = duration / 1000000,
-    timestamp = start_time
+    duration_ms = duration / 1000000
 | sort timestamp desc
 | limit 100
 `.trim();
@@ -1725,7 +1724,7 @@ ${providerFilter}
 | filter isNotNull(response) AND response != ""
 | summarize {
     total_tokens = sum(tokens),
-    trace = takeAny(record(trace.id, end_time, start_time, gen_ai.provider.name, gen_ai.response.model, duration))
+    trace = takeAny(record(trace.id, end_time, timestamp, gen_ai.provider.name, gen_ai.response.model, duration))
   }, by: { prompt, response }
 | sort total_tokens desc
 | fields prompt, response,
@@ -1759,7 +1758,7 @@ ${providerFilter}
 | fieldsAdd response = gen_ai.completion.0.content
 | filter isNotNull(response) AND response != ""
 | summarize {
-    trace = takeAny(record(trace.id, end_time, start_time, gen_ai.provider.name, gen_ai.response.model, duration, tokens))
+    trace = takeAny(record(trace.id, end_time, timestamp, gen_ai.provider.name, gen_ai.response.model, duration, tokens))
   }, by: { prompt, response }
 | sort trace[duration] desc
 | fields prompt, response,
@@ -1851,8 +1850,8 @@ fetch spans, ${timeClause}
     span_count = count(),
     error_rate = toDouble(countIf(span.status_code == "error")) / toDouble(count()) * 100,
     total_tokens = sum(coalesce(toLong(gen_ai.usage.input_tokens), 0) + coalesce(toLong(gen_ai.usage.output_tokens), 0)),
-    first_seen = min(start_time),
-    last_seen = max(start_time),
+    first_seen = min(timestamp),
+    last_seen = max(timestamp),
     sample_trace = takeLast(trace.id)
   , by: { service = dt.entity.service, gen_ai.provider.name, gen_ai.request.model }
 | sort span_count desc
@@ -1917,8 +1916,8 @@ ${providerFilter}
     total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
     services = collectDistinct(entityName(dt.entity.service)),
-    first_seen = min(start_time),
-    last_seen = max(start_time)
+    first_seen = min(timestamp),
+    last_seen = max(timestamp)
   , by: { model = gen_ai.request.model, provider = gen_ai.provider.name }
 | fieldsAdd error_rate = if(requests > 0, 100.0 * toDouble(error_count) / toDouble(requests), else: 0.0)
 | sort requests desc
@@ -1977,7 +1976,7 @@ ${serviceFilter}
     total = count(),
     fast = countIf(duration <= ${latencyNs}),
     errors = countIf(span.status_code == "error" OR isNotNull(error.type))
-  , by: { time_bucket = bin(start_time, 1h) }
+  , by: { time_bucket = bin(timestamp, 1h) }
 | fieldsAdd
     latency_compliance = if(total > 0, 100.0 * toDouble(fast) / toDouble(total), else: 100.0),
     error_rate = if(total > 0, 100.0 * toDouble(errors) / toDouble(total), else: 0.0)
@@ -2085,7 +2084,7 @@ ${serviceFilter}
 | summarize
     requests = count(),
     total_tokens = sum(coalesce(gen_ai.usage.input_tokens, 0) + coalesce(gen_ai.usage.output_tokens, 0))
-  , by: { model = gen_ai.request.model, time_bucket = bin(start_time, 1h) }
+  , by: { model = gen_ai.request.model, time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc
 `.trim();
 };
@@ -2098,19 +2097,19 @@ ${serviceFilter}
 
 /**
  * 12.1 Agent Trace Waterfall — All spans in a single agent trace, ordered by time.
- * MCP Finding: parent_span_id is NULL — use start_time ordering.
+ * MCP Finding: parent_span_id is NULL — use timestamp ordering.
  * MCP Finding: No traceloop.span.kind=="agent" — agents identified via gen_ai.agent.name.
  */
 export const AGENT_TRACE_WATERFALL_QUERY = (traceId: string): string => {
   return `
 fetch spans
 | filter trace.id == "${traceId}"
-| fields start_time, span.name, traceloop.span.kind, traceloop.entity.name,
+| fields timestamp, span.name, traceloop.span.kind, traceloop.entity.name,
     gen_ai.agent.name, gen_ai.request.model, gen_ai.provider.name,
     gen_ai.usage.input_tokens, gen_ai.usage.output_tokens,
     gen_ai.completion.0.content, gen_ai.completion.0.tool_calls.0.name,
     duration, otel.status_code, span.id, trace.id
-| sort start_time asc
+| sort timestamp asc
 `.trim();
 };
 
@@ -2190,7 +2189,7 @@ fetch spans, ${timeClause}
     total_output_tokens = sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
     total_duration_ms = sum(duration) / 1000000,
     error_count = countIf(otel.status_code == "ERROR"),
-    min_start = min(start_time),
+    min_start = min(timestamp),
     by: { trace_id = trace.id }
 | filter agent_count > 1
 | sort min_start desc
@@ -2200,7 +2199,7 @@ fetch spans, ${timeClause}
 
 /**
  * 12.3 Agent Parallelism Detection — Are agents running sequentially or concurrently?
- * MCP: Overlap detection via start_time + duration per agent within trace.
+ * MCP: Overlap detection via timestamp + duration per agent within trace.
  */
 export const AGENT_PARALLELISM_QUERY = (filters?: QueryFilters): string => {
   const timeClause = getTimeClause(filters);
@@ -2209,8 +2208,8 @@ fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.agent.name) AND traceloop.span.kind == "task" AND traceloop.entity.name == "agent"
 | summarize
     agent_count = countDistinct(gen_ai.agent.name),
-    min_start = min(start_time),
-    max_end = max(start_time + duration),
+    min_start = min(timestamp),
+    max_end = max(timestamp + duration),
     total_agent_time_ms = sum(duration) / 1000000,
     by: { trace_id = trace.id }
 | filter agent_count > 1
@@ -2269,8 +2268,8 @@ fetch spans, ${timeClause}
     total_input = sum(toLong(gen_ai.usage.input_tokens)),
     total_output = sum(toLong(gen_ai.usage.output_tokens)),
     total_tokens = sum(toLong(gen_ai.usage.input_tokens)) + sum(toLong(gen_ai.usage.output_tokens)),
-    duration_ms = (max(start_time) - min(start_time)) / 1000000,
-    min_start = min(start_time),
+    duration_ms = (max(timestamp) - min(timestamp)) / 1000000,
+    min_start = min(timestamp),
     agents = collectDistinct(gen_ai.agent.name),
     by: { trace_id = trace.id }
 | filter turns > 1
@@ -2293,7 +2292,7 @@ fetch spans, ${timeClause}
     turns = count(),
     errors = countIf(otel.status_code == "ERROR"),
     total_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0))) + sum(toLong(coalesce(gen_ai.usage.output_tokens, 0))),
-    duration_ms = (max(start_time) - min(start_time)) / 1000000,
+    duration_ms = (max(timestamp) - min(timestamp)) / 1000000,
     by: { trace_id = trace.id }
 | fieldsAdd state = if(errors > 0 AND errors == turns, "errored",
     else: if(errors > 0, "partial_failure",
@@ -2364,7 +2363,7 @@ fetch spans, ${timeClause}
     hourly_cost = sum(estimated_cost),
     hourly_requests = count(),
     hourly_tokens = sum(input_t + output_t),
-    by: { time_bucket = bin(start_time, 1h) }
+    by: { time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc
 `.trim();
 };

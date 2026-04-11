@@ -340,22 +340,23 @@ function ServiceRow({ metric }: ServiceRowProps) {
 // Main Response Analytics Page
 // ============================================
 
-/** Create a default Timeframe object (last 24 hours) */
+/** Create a default Timeframe object (last 2 hours) */
 const createDefaultTimeframe = (): Timeframe => ({
-  from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
+  from: { value: 'now()-2h', type: 'expression', absoluteDate: new Date().toISOString() },
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
 
 /** Convert Timeframe to simple string for hook */
 const getTimeframeString = (timeframe: Timeframe): string => {
-  const from = timeframe.from?.value || 'now()-24h';
+  const from = timeframe.from?.value || 'now()-2h';
   if (from === 'now()-1h') return '1h';
   if (from === 'now()-6h') return '6h';
   if (from === 'now()-12h') return '12h';
-  if (from === 'now()-24h') return '24h';
+  if (from === 'now()-2h') return '24h';
+  if (from === 'now()-2h') return '2h';
   if (from === 'now()-7d') return '7d';
   if (from === 'now()-30d') return '30d';
-  return '24h';
+  return '2h';
 };
 
 export function ResponseAnalytics() {

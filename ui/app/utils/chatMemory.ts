@@ -5,7 +5,7 @@
  * Supports multiple sessions with auto-pruning to stay within storage limits.
  */
 
-import type { ChatMessage, FollowUpChip } from "../agent/types";
+import type { ChatMessage, FollowUpChip, MessageBlock } from "../agent/types";
 
 const STORAGE_KEY = "gcc-intelligence-sessions";
 const SESSION_INDEX_KEY = "gcc-intelligence-session-index";
@@ -32,7 +32,8 @@ interface StoredMessage {
   toolsUsed?: string[];
   selectionMethod?: "semantic" | "ai" | "keyword";
   followUps?: FollowUpChip[];
-  // blocks are NOT stored (too large, re-run if needed)
+  /** Lightweight serialized blocks (table rows capped, chart data stripped) */
+  blocks?: MessageBlock[];
 }
 
 // ============================================
@@ -127,6 +128,39 @@ export function getOrCreateActiveSession(): ChatSession {
 }
 
 // ============================================
+// Block Serialization (size-safe)
+// ============================================
+
+/** Max table rows to persist per block */
+const MAX_STORED_TABLE_ROWS = 20;
+
+/**
+ * Create a storage-safe copy of blocks.
+ * - Table rows capped at MAX_STORED_TABLE_ROWS
+ * - Chart data arrays stripped (re-queryable)
+ * - Text, alert, metric, analyzer blocks kept as-is
+ */
+function compactBlocks(blocks: MessageBlock[] | undefined): MessageBlock[] | undefined {
+  if (!blocks || blocks.length === 0) return undefined;
+  return blocks.map((block): MessageBlock => {
+    if (block.type === "table") {
+      return {
+        ...block,
+        rows: block.rows.slice(0, MAX_STORED_TABLE_ROWS),
+      };
+    }
+    if (block.type === "chart") {
+      // Strip data to avoid bloating storage; keep metadata
+      return {
+        ...block,
+        data: [],
+      };
+    }
+    return block;
+  });
+}
+
+// ============================================
 // Message CRUD
 // ============================================
 
@@ -141,6 +175,7 @@ export function loadMessages(sessionId: string): ChatMessage[] {
     return stored.map(m => ({
       ...m,
       timestamp: new Date(m.timestamp),
+      blocks: m.blocks,
     }));
   } catch {
     return [];
@@ -159,6 +194,7 @@ export function saveMessages(sessionId: string, messages: ChatMessage[]): void {
     toolsUsed: m.toolsUsed,
     selectionMethod: m.selectionMethod,
     followUps: m.followUps,
+    blocks: compactBlocks(m.blocks),
   }));
 
   try {

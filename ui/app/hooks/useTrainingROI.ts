@@ -37,7 +37,7 @@ fetch bizevents, from: now()-7d, to: now()
 | filter gen_ai.type == "training"
 | filter isNotNull(eventName)
 | fieldsAdd params = toString(requestParameters)
-| parse params, "ld 'baseModelIdentifier\":\"' ld:base_model '\"'"
+| fieldsAdd base_model = coalesce(requestParameters.baseModelIdentifier, "unknown")
 | fieldsAdd status = coalesce(eventName, "unknown")
 | summarize job_count = count(),
             latest = max(timestamp),

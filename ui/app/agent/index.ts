@@ -19,6 +19,7 @@ export type {
   ChartBlock,
   FollowUpChip,
   ChatMessage,
+  ConversationContext,
   OrchestratorPlan,
   OrchestratorStep,
 } from "./types";

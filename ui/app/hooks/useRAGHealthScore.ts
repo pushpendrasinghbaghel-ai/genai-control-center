@@ -75,8 +75,8 @@ const HEALTH_FRESHNESS_QUERY = `
 fetch spans, from: now()-4h, to: now()
 | filter db.system == "pinecone" OR matchesPhrase(span.name, "pinecone") OR matchesPhrase(span.name, "vector") OR matchesPhrase(span.name, "embed")
 | summarize
-    latest_query = max(start_time),
-    earliest_query = min(start_time),
+    latest_query = max(timestamp),
+    earliest_query = min(timestamp),
     total_spans = count(),
     distinct_services = countDistinct(service.name)
 `;
@@ -127,7 +127,7 @@ fetch spans, from: now()-2h, to: now()
 
 /** Health score trend (hourly buckets over 24h) */
 const HEALTH_TREND_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter db.system == "pinecone" OR matchesPhrase(span.name, "pinecone") OR matchesPhrase(span.name, "vector") OR matchesPhrase(span.name, "embed") OR isNotNull(gen_ai.request.model)
 | fieldsAdd is_vector = (db.system == "pinecone" OR matchesPhrase(span.name, "pinecone") OR matchesPhrase(span.name, "vector"))
 | fieldsAdd is_error = (otel.status_code == "ERROR")
@@ -136,7 +136,7 @@ fetch spans, from: now()-24h, to: now()
     vector_count = countIf(is_vector),
     error_count = countIf(is_error),
     total_count = count(),
-    by: { hour = bin(start_time, 1h) }
+    by: { hour = bin(timestamp, 1h) }
 | sort hour asc
 `;
 

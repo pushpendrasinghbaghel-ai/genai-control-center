@@ -37,7 +37,7 @@ export const SECURITY_INCIDENT_WORKFLOW = {
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown")
 | fieldsAdd prompt_text = toString(gen_ai.prompt)
 | fieldsAdd response_text = coalesce(toString(gen_ai.completion), toString(gen_ai.response), "")
-| fields service_name, provider, model, prompt_text, response_text, trace_id, span_id, start_time, duration
+| fields service_name, provider, model, prompt_text, response_text, trace_id, span_id, timestamp, duration
 | limit 200`,
       },
       position: { x: 0, y: 1 },
@@ -206,8 +206,8 @@ export const PII_CIRCUIT_BREAKER_WORKFLOW = {
       input: {
         query: `fetch spans, from: now()-10m, to: now()
 | filter trace_id == "{{ $.event.trace_id }}"
-| fields span.name, service.name, gen_ai.prompt, gen_ai.completion, gen_ai.request.model, gen_ai.provider.name, otel.status_code, duration, start_time
-| sort start_time asc`,
+| fields span.name, service.name, gen_ai.prompt, gen_ai.completion, gen_ai.request.model, gen_ai.provider.name, otel.status_code, duration, timestamp
+| sort timestamp asc`,
       },
       position: { x: 0, y: 1 },
     },

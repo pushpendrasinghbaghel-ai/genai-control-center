@@ -260,7 +260,7 @@ export function useAgenticDeepDive(filters?: QueryFilters) {
       const records = res.result?.records || [];
       setTraceWaterfall(
         records.map((r: any) => ({
-          startTime: r.start_time ? new Date(r.start_time).toISOString() : '',
+          startTime: r.timestamp ? new Date(r.timestamp).toISOString() : '',
           spanName: String(r['span.name'] || ''),
           spanKind: String(r['traceloop.span.kind'] || ''),
           entityName: String(r['traceloop.entity.name'] || ''),

@@ -372,7 +372,7 @@ export function useResponseQualityTrends() {
                 error_count = countIf(otel.status_code == "ERROR" OR isNotNull(error.type)),
                 avg_latency = avg(duration) / 1000000,
                 p95_latency = percentile(duration / 1000000, 95)
-              }, by: { time_bucket = bin(start_time, ${bucketSize}) }
+              }, by: { time_bucket = bin(timestamp, ${bucketSize}) }
             | sort time_bucket asc
           `,
           requestTimeoutMilliseconds: 60000,
@@ -390,7 +390,7 @@ export function useResponseQualityTrends() {
         const errorCount = Number(r.error_count) || 0;
         
         return {
-          timestamp: new Date(r.time_bucket || r['bin(start_time)'] || Date.now()),
+          timestamp: new Date(r.time_bucket || r['bin(timestamp)'] || Date.now()),
           totalRequests: total,
           emptyResponseCount: emptyCount,
           truncatedCount: truncatedCount,

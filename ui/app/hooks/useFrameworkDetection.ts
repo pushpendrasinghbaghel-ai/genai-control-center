@@ -184,24 +184,24 @@ const DETECTION_PATTERNS: Record<string, { spanPatterns: string[]; attributePatt
 
 /** Query span names and attributes to detect frameworks */
 const FRAMEWORK_DETECTION_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model) OR span.kind == "INTERNAL"
 | fieldsAdd service_name = coalesce(service.name, "Unknown")
-| fieldsAdd span_name_lower = toLower(span.name)
+| fieldsAdd span_name_lower = lower(span.name)
 | fieldsAdd system = toString(gen_ai.system)
 | summarize
     span_count = count(),
     sample_span_names = collectDistinct(span.name, maxLength:20),
     sample_systems = collectDistinct(gen_ai.system, maxLength:10),
     unique_traces = countDistinct(trace_id),
-    first = min(start_time),
-    last = max(start_time),
+    first = min(timestamp),
+    last = max(timestamp),
     by: { service_name }
 `;
 
 /** Query tool names associated with agents */
 const AGENT_TOOL_NAMES_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter span.kind == "INTERNAL" OR span.kind == "CLIENT"
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model) OR matchesPhrase(span.name, "tool") OR matchesPhrase(span.name, "agent")
 | fieldsAdd tool_name = span.name

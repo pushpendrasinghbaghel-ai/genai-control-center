@@ -19,7 +19,7 @@ fetch spans, from: now()-${mins}m, to: now()
     p50_ms     = percentile(duration, 50) / 1000000,
     p95_ms     = percentile(duration, 95) / 1000000,
     p99_ms     = percentile(duration, 99) / 1000000,
-    last_seen  = max(start_time)
+    last_seen  = max(timestamp)
   , by: { provider = gen_ai.provider.name }
 | fieldsAdd error_rate = if(total > 0, 100.0 * toDouble(errors) / toDouble(total), else: 0.0)
 | fieldsAdd availability = round(100.0 * (1.0 - toDouble(errors) / toDouble(total)), decimals: 2)
@@ -54,7 +54,7 @@ fetch spans, from: now()-${mins}m, to: now()
 | filter isNotNull(gen_ai.provider.name) AND span.status_code == "error"
 | summarize
     count = count(),
-    last_seen = max(start_time)
+    last_seen = max(timestamp)
   , by: { provider = gen_ai.provider.name, error_msg = coalesce(span.status_message, "unknown") }
 | sort count desc
 | limit 50
@@ -68,7 +68,7 @@ fetch spans, from: now()-${mins}m, to: now()
     requests = count(),
     errors   = countIf(span.status_code == "error"),
     avg_ms   = avg(duration) / 1000000,
-    last_seen = max(start_time)
+    last_seen = max(timestamp)
   , by: { provider = gen_ai.provider.name, model = gen_ai.request.model }
 | fieldsAdd error_rate = if(requests > 0, 100.0 * toDouble(errors) / toDouble(requests), else: 0.0)
 | sort provider asc, requests desc

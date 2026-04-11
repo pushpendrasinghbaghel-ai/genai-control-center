@@ -225,7 +225,7 @@ fetch spans, ${buildTimeFilter(filters)}
     error_count = sum(is_error),
     span_count = count(),
     sample_trace_id = takeFirst(trace.id),
-    last_seen = max(start_time),
+    last_seen = max(timestamp),
     by: { agent_name }
 | fieldsAdd avg_duration = if(span_count > 0, then: total_duration / span_count, else: 0.0)
 | fieldsAdd error_rate = if(span_count > 0, then: toDouble(error_count) / toDouble(span_count) * 100, else: 0.0)
@@ -260,7 +260,7 @@ fetch spans, ${buildTimeFilter(filters)}
 | summarize 
     tool_calls = count(),
     total_duration = sum(duration) / 1000000,
-    detected_at = max(start_time),
+    detected_at = max(timestamp),
     by: { trace_id = trace.id, tool_name }
 | filter tool_calls > 10
 | sort tool_calls desc
@@ -276,7 +276,7 @@ fetch spans, ${buildTimeFilter(filters)}
     tool_sequence = collectDistinct(tool_name),
     call_count = count(),
     avg_duration = avg(duration) / 1000000,
-    latest_timestamp = max(start_time),
+    latest_timestamp = max(timestamp),
     by: { trace_id = trace.id }
 | lookup [
     fetch spans, ${buildTimeFilter(filters)}
@@ -440,7 +440,7 @@ fetch spans, ${buildTimeFilter(filters)}
 | summarize 
     call_count = count(),
     unique_tools = countDistinct(tool_name),
-    by: { time_bucket = bin(start_time, 1h) }
+    by: { time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc
 `;
 
@@ -452,7 +452,7 @@ fetch spans, ${buildTimeFilter(filters)}
 | summarize 
     invocation_count = countDistinct(trace.id),
     avg_duration_ms = avg(duration) / 1000000,
-    by: { agent_name, time_bucket = bin(start_time, 1h) }
+    by: { agent_name, time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc, invocation_count desc
 | limit 500
 `;
@@ -465,7 +465,7 @@ fetch spans, ${buildTimeFilter(filters)}
 | summarize 
     total_spans = count(),
     error_count = sum(is_error),
-    by: { time_bucket = bin(start_time, 1h) }
+    by: { time_bucket = bin(timestamp, 1h) }
 | fieldsAdd error_rate = if(total_spans > 0, then: 100.0 * toDouble(error_count) / toDouble(total_spans), else: 0.0)
 | sort time_bucket asc
 `;
@@ -479,7 +479,7 @@ fetch spans, ${buildTimeFilter(filters)}
     avg_ms = avg(duration_ms),
     p50_ms = percentile(duration_ms, 50),
     p95_ms = percentile(duration_ms, 95),
-    by: { time_bucket = bin(start_time, 1h) }
+    by: { time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc
 `;
 
@@ -495,7 +495,7 @@ fetch spans, ${buildTimeFilter(filters)}
     output_tokens = sum(output_t),
     total_tokens = sum(input_t + output_t),
     estimated_cost = sum((toDouble(input_t) * 0.000005) + (toDouble(output_t) * 0.000015)),
-    by: { time_bucket = bin(start_time, 1h) }
+    by: { time_bucket = bin(timestamp, 1h) }
 | sort time_bucket asc
 `;
 
@@ -530,7 +530,7 @@ fetch spans, ${buildTimeFilter(filters)}
     call_count = count(),
     avg_latency_ms = avg(duration) / 1000000,
     error_count = sum(is_error),
-    last_seen = max(start_time),
+    last_seen = max(timestamp),
     entity_id = takeFirst(dt.entity.service),
     by: { agent_name = agent.agent_name, service_name, service_type }
 | fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)

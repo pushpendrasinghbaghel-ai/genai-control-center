@@ -43,7 +43,7 @@ export interface PromptCostAttributionResult {
 
 /** Stage 1: Prompt patterns with occurrence counts and model info */
 const PROMPT_PATTERNS_QUERY = `
-fetch bizevents, from: now()-24h, to: now()
+fetch bizevents, from: now()-2h, to: now()
 | filter event.type == "gen_ai.auditing"
 | filter gen_ai.type == "prompt.input"
 | fieldsAdd prompt_prefix = substring(toString(gen_ai.prompt), from:0, to:80),
@@ -57,7 +57,7 @@ fetch bizevents, from: now()-24h, to: now()
 
 /** Stage 2: Average tokens per model (for cost estimation) */
 const MODEL_AVG_TOKENS_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.request.model)
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown"),
             provider = coalesce(gen_ai.provider.name, "unknown"),

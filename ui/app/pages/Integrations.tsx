@@ -48,8 +48,8 @@ import type { ConversationMessage } from '../types';
 function extractTimeframeString(tf: unknown): string {
   if (!tf || typeof tf !== 'object') return '24h';
   const t = tf as { from?: { value?: string }; to?: { value?: string } };
-  const fromVal = t.from?.value || 'now()-24h';
-  // Extract the duration part: "now()-24h" → "24h"
+  const fromVal = t.from?.value || 'now()-2h';
+  // Extract the duration part: "now()-2h" → "24h"
   const m = fromVal.match(/now\(\)-(.+)/);
   return m ? m[1] : '24h';
 }

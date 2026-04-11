@@ -51,6 +51,24 @@ export interface ToolExecutionContext {
   timeframe: string;
   /** Additional parameters extracted from the question */
   params: Record<string, string | number | boolean>;
+  /** Abort signal for cancelling in-flight requests */
+  signal?: AbortSignal;
+  /** Summary of previous tool results for multi-turn context */
+  conversationContext?: ConversationContext;
+}
+
+/** Lightweight scratchpad from prior turns — no raw data, just key facts */
+export interface ConversationContext {
+  /** Last tools that ran (and their summaries) */
+  previousTools: Array<{ tool: string; summary: string }>;
+  /** Entities mentioned/discovered in prior turns */
+  entities: {
+    providers?: string[];
+    models?: string[];
+    services?: string[];
+  };
+  /** Turn count in this session */
+  turnCount: number;
 }
 
 // ============================================

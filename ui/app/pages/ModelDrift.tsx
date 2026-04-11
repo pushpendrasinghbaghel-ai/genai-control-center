@@ -283,7 +283,7 @@ const DriftDetailModal: React.FC<DriftDetailModalProps> = ({
                   avg_latency = avg(duration) / 1000000,
                   error_count = sum(is_error),
                   total_tokens = sum(toLong(coalesce(gen_ai.usage.input_tokens, 0)) + toLong(coalesce(gen_ai.usage.output_tokens, 0))),
-                  last_seen = max(start_time)
+                  last_seen = max(timestamp)
                 }, by: { agent_name = agent.agent_name }
               | fieldsAdd error_rate = if(call_count > 0, then: 100.0 * toDouble(error_count) / toDouble(call_count), else: 0.0)
               | sort call_count desc

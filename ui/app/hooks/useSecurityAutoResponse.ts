@@ -100,7 +100,7 @@ const INJECTION_PATTERNS = [
 
 /** Recent prompts with potential security issues */
 const SECURITY_EVENTS_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter isNotNull(gen_ai.prompt.0.content)
 | fieldsAdd service_name = coalesce(service.name, "Unknown")
@@ -109,14 +109,14 @@ fetch spans, from: now()-24h, to: now()
 | fieldsAdd prompt_text = toString(gen_ai.prompt.0.content)
 | fieldsAdd response_text = coalesce(toString(gen_ai.response.0.content), toString(gen_ai.completion.0.content), "")
 | filter prompt_text != ""
-| fields service_name, provider, model, prompt_text, response_text, trace_id, start_time, duration
-| sort start_time desc
+| fields service_name, provider, model, prompt_text, response_text, trace_id, timestamp, duration
+| sort timestamp desc
 | limit 500
 `;
 
 /** Security event summary by service */
 const SECURITY_SUMMARY_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd service_name = coalesce(service.name, "Unknown")
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
@@ -132,14 +132,14 @@ fetch spans, from: now()-24h, to: now()
 
 /** Prompt governance alerts from existing governance scoring */
 const GOVERNANCE_ALERTS_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter span.status_code == "error" OR (duration / 1000000) > 30000
 | fieldsAdd service_name = coalesce(service.name, "Unknown")
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown")
-| fields service_name, provider, model, trace_id, span.status_code, span.status_message, duration, start_time
-| sort start_time desc
+| fields service_name, provider, model, trace_id, span.status_code, span.status_message, duration, timestamp
+| sort timestamp desc
 | limit 100
 `;
 
@@ -229,7 +229,7 @@ export function useSecurityAutoResponse() {
 
           secEvents.push({
             id: `se-${idx}-${Date.now()}`,
-            timestamp: new Date(r.start_time).getTime(),
+            timestamp: new Date(r.timestamp).getTime(),
             type: risk.type,
             severity: risk.severity,
             serviceName: service,
@@ -250,7 +250,7 @@ export function useSecurityAutoResponse() {
         if (r['span.status_code'] === 'error') {
           secEvents.push({
             id: `ae-${idx}-${Date.now()}`,
-            timestamp: new Date(r.start_time).getTime(),
+            timestamp: new Date(r.timestamp).getTime(),
             type: 'policy_violation',
             severity: 'medium',
             serviceName: String(r.service_name || 'Unknown'),

@@ -32,11 +32,13 @@ import type {
 // Helper: Execute DQL and return records
 // ============================================
 
-async function executeDql(query: string): Promise<any[]> {
+async function executeDql(query: string, signal?: AbortSignal): Promise<any[]> {
   const MAX_POLL_ATTEMPTS = 10;
   const POLL_INTERVAL_MS = 3000;
 
   try {
+    // Bail early if already aborted
+    if (signal?.aborted) return [];
     console.log("[Tools] Executing DQL:", query.slice(0, 120) + (query.length > 120 ? "..." : ""));
     const response = await queryExecutionClient.queryExecute({
       body: {
@@ -95,9 +97,10 @@ async function executeDql(query: string): Promise<any[]> {
 /** Alias for executeDql â€” both are now safe (return [] on failure) */
 const safeDql = executeDql;
 
-/** Format number with locale and optional decimals */
+/** Format number using centralized locale-aware formatter */
 function fmt(n: number, decimals = 0): string {
-  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: decimals }) : "â€”";
+  if (!Number.isFinite(n)) return String.fromCharCode(8212);
+  return formatNumber(n, { maximumFractionDigits: decimals });
 }
 
 /** Format latency from nanoseconds to ms */
@@ -824,14 +827,14 @@ const errorInvestigation: AgentTool = {
     const errorDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter span.status_code == "error" OR isNotNull(error.type)
-| summarize error_count = count(), by: { bin(start_time, 1h), gen_ai.provider.name }`;
+| summarize error_count = count(), by: { time_bucket = bin(timestamp, 1h), gen_ai.provider.name }`;
 
     // Get recent errors with details
     const detailDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter span.status_code == "error" OR isNotNull(error.type)
-| fields start_time, dt.entity.service, gen_ai.provider.name, gen_ai.request.model, error.type, span.status_code, duration
-| sort start_time desc
+| fields timestamp, dt.entity.service, gen_ai.provider.name, gen_ai.request.model, error.type, span.status_code, duration
+| sort timestamp desc
 | limit 20`;
 
     const [trendRecords, detailRecords] = await Promise.all([
@@ -865,7 +868,7 @@ const errorInvestigation: AgentTool = {
       type: "table",
       headers: ["Time", "Service", "Provider", "Model", "Error Type", "Latency"],
       rows: detailRecords.slice(0, 10).map((r: any) => [
-        r.start_time ? formatDateTime(String(r.start_time)) : "â€”",
+        r.timestamp ? formatDateTime(String(r.timestamp)) : "â€”",
         String(r["dt.entity.service"] || "â€”"),
         r["gen_ai.provider.name"] || "â€”",
         r["gen_ai.request.model"] || "â€”",
@@ -1118,8 +1121,8 @@ const inventoryOverview: AgentTool = {
   name: "inventory_overview",
   label: "Inventory Overview",
   description: "Show a high-level inventory of all GenAI assets â€” total services, providers, models, agents, and request volumes",
-  triggers: ["inventory", "how many", "count", "total", "assets", "what do i have", "landscape", "footprint", "discovery"],
-  examples: ["How many agents do I have?", "What's my GenAI inventory?", "How many models am I using?", "Show me my AI landscape"],
+  triggers: ["inventory", "count", "total", "assets", "what do i have", "landscape", "footprint", "discovery"],
+  examples: ["What's my GenAI inventory?", "Show me my AI landscape", "What AI assets do I have?"],
   parameters: [],
   tier: 1,
   execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
@@ -1235,8 +1238,8 @@ const agentOverview: AgentTool = {
   name: "agent_overview",
   label: "Agent Overview",
   description: "Show AI agent activity â€” agent task executions, frameworks (Langchain, etc.), tool usage, and agent performance",
-  triggers: ["agent", "agents", "agentic", "langchain", "agent task", "tool usage", "chain", "rag", "orchestration", "workflow"],
-  examples: ["How many agents do I have?", "Tell me about my AI agents", "Show agent activity", "What Langchain agents are running?"],
+  triggers: ["agent", "agents", "agentic", "langchain", "agent task", "tool usage", "chain", "orchestration", "workflow", "how many agents", "count agents"],
+  examples: ["How many agents do I have?", "Tell me about my AI agents", "Show agent activity", "What Langchain agents are running?", "How many agents are there in my env?"],
   parameters: [],
   tier: 1,
   execute: async (ctx: ToolExecutionContext): Promise<ToolResult> => {
@@ -1259,8 +1262,8 @@ const agentOverview: AgentTool = {
     // Query 2: Agent activity timeseries (for chart)
     const trendDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter span.name == "agent.task" OR gen_ai.provider.name == "Langchain"
-| summarize executions = count(), by: { bin(start_time, 1h) }
-| sort start_time asc`;
+| summarize executions = count(), by: { time_bucket = bin(timestamp, 1h) }
+| sort time_bucket asc`;
 
     // Query 3: Models used by agents
     const agentModelsDql = `fetch spans, from:now()-${ctx.timeframe}
@@ -1354,7 +1357,7 @@ const agentOverview: AgentTool = {
         data: trendRecords.map((r: any) => ({
           label: "Agent Executions",
           value: Number(r.executions || 0),
-          timestamp: r.start_time ? new Date(r.start_time).toISOString() : undefined,
+          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
         })),
         unit: "executions",
       });
@@ -1591,14 +1594,14 @@ const usageTrends: AgentTool = {
     errors = countIf(span.status_code == "error" OR isNotNull(error.type)),
     avg_latency = avg(duration),
     providers = countDistinct(gen_ai.provider.name)
-  }, by: { bin(start_time, ${bucket}) }
-| sort start_time asc`;
+  }, by: { time_bucket = bin(timestamp, ${bucket}) }
+| sort time_bucket asc`;
 
     // Also get per-provider trends
     const providerTrendDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| summarize requests = count(), by: { gen_ai.provider.name, bin(start_time, ${bucket}) }
-| sort start_time asc`;
+| summarize requests = count(), by: { gen_ai.provider.name, time_bucket = bin(timestamp, ${bucket}) }
+| sort time_bucket asc`;
 
     const [records, providerTrendRecords] = await Promise.all([
       safeDql(dql),
@@ -1645,7 +1648,7 @@ const usageTrends: AgentTool = {
       data: records.map((r: any) => ({
         label: "Requests",
         value: Number(r.requests || 0),
-        timestamp: r.start_time ? new Date(r.start_time).toISOString() : undefined,
+        timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
       })),
       unit: "requests",
       dql,
@@ -1659,7 +1662,7 @@ const usageTrends: AgentTool = {
       data: records.map((r: any) => ({
         label: "Tokens",
         value: Number(r.tokens || 0),
-        timestamp: r.start_time ? new Date(r.start_time).toISOString() : undefined,
+        timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
       })),
       unit: "tokens",
     });
@@ -1861,8 +1864,8 @@ const embeddingAnalytics: AgentTool = {
     // Query 3: Embedding throughput over time
     const trendDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter contains(span.name, "embed")
-| summarize requests = count(), tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), by: { bin(start_time, 1h) }
-| sort start_time asc`;
+| summarize requests = count(), tokens = sum(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)), by: { time_bucket = bin(timestamp, 1h) }
+| sort time_bucket asc`;
 
     const [modelRecords, overviewRecords, trendRecords] = await Promise.all([
       safeDql(modelDql),
@@ -1961,7 +1964,7 @@ const embeddingAnalytics: AgentTool = {
         data: trendRecords.map((r: any) => ({
           label: "Embedding Requests",
           value: Number(r.requests || 0),
-          timestamp: r.start_time ? new Date(r.start_time).toISOString() : undefined,
+          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : undefined,
         })),
         unit: "requests/hr",
       });
@@ -2028,8 +2031,8 @@ const ragPipeline: AgentTool = {
     const timelineDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd operation_type = if(contains(span.name, "embed"), "embedding", else: "generation")
-| summarize requests = count(), by: { operation_type, bin(start_time, 1h) }
-| sort start_time asc`;
+| summarize requests = count(), by: { operation_type, time_bucket = bin(timestamp, 1h) }
+| sort time_bucket asc`;
 
     const [splitRecords, embedModels, genModels, timelineRecords] = await Promise.all([
       safeDql(splitDql),
@@ -2474,8 +2477,8 @@ const modelDrift: AgentTool = {
 | filter isNotNull(gen_ai.request.model) AND gen_ai.request.model != "" AND gen_ai.request.model != "null"
 | summarize {
     request_count = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time),
+    first_seen = min(timestamp),
+    last_seen = max(timestamp),
     avg_latency = avg(duration) / 1000000,
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
@@ -2489,8 +2492,8 @@ const modelDrift: AgentTool = {
 | filter isNotNull(gen_ai.response.model) AND gen_ai.response.model != gen_ai.request.model
 | summarize {
     occurrences = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time)
+    first_seen = min(timestamp),
+    last_seen = max(timestamp)
   }, by: { gen_ai.request.model, gen_ai.response.model, gen_ai.provider.name }
 | sort last_seen desc`;
 
@@ -2502,8 +2505,8 @@ const modelDrift: AgentTool = {
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
     request_count = count()
-  }, by: { gen_ai.request.model, gen_ai.provider.name, bin(start_time, 1h) }
-| sort start_time asc`;
+  }, by: { gen_ai.request.model, gen_ai.provider.name, time_bucket = bin(timestamp, 1h) }
+| sort time_bucket asc`;
 
     const [versions, versionChanges, trends] = await Promise.all([
       safeDql(versionsDql),
@@ -2557,7 +2560,7 @@ const modelDrift: AgentTool = {
       // Group by timestamp, average latency across models
       const tsMap: Record<string, { latency: number[]; count: number }> = {};
       trends.forEach((r: any) => {
-        const ts = r.start_time ? new Date(r.start_time).toISOString() : "";
+        const ts = r.timestamp ? new Date(r.timestamp).toISOString() : "";
         if (!ts) return;
         if (!tsMap[ts]) tsMap[ts] = { latency: [], count: 0 };
         tsMap[ts].latency.push(Number(r.avg_latency || 0));
@@ -2617,9 +2620,9 @@ const infrastructure: AgentTool = {
 | filter event.kind == "DEPLOYMENT_EVENT"
 | fields
     event_id = id,
+    timestamp,
     title = event.name,
     entity = dt.entity.name,
-    timestamp = timestamp,
     version = dt.event.deployment.version,
     artifact = dt.event.deployment.artifact_version
 | sort timestamp desc
@@ -2633,7 +2636,7 @@ const infrastructure: AgentTool = {
     provider = takeFirst(gen_ai.provider.name),
     model_versions = countDistinct(gen_ai.request.model),
     request_count = count(),
-    last_seen = max(start_time),
+    last_seen = max(timestamp),
     by: { service_name = service.name }
 | sort last_seen desc
 | limit 40`;
@@ -2644,8 +2647,8 @@ const infrastructure: AgentTool = {
 | filter gen_ai.request.model != gen_ai.response.model
 | summarize
     mismatch_count = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time)
+    first_seen = min(timestamp),
+    last_seen = max(timestamp)
   , by: { gen_ai.request.model, gen_ai.response.model, gen_ai.provider.name }
 | sort last_seen desc
 | limit 20`;
@@ -2869,8 +2872,8 @@ const conversationIntelligence: AgentTool = {
     total_output_tokens = sum(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     total_latency_ms = sum(duration) / 1000000,
     error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
-    first_turn = min(start_time),
-    last_turn = max(start_time),
+    first_turn = min(timestamp),
+    last_turn = max(timestamp),
     models_used = collectDistinct(gen_ai.request.model),
     providers_used = collectDistinct(gen_ai.provider.name)
   }, by: { session_id }
@@ -3135,7 +3138,7 @@ const governance: AgentTool = {
     const auditDql = `fetch spans, from:now()-${ctx.timeframe}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fields
-    timestamp = start_time,
+    timestamp,
     provider = gen_ai.provider.name,
     model = gen_ai.request.model,
     input_tokens = coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0),
@@ -3436,7 +3439,7 @@ const liveProblems: AgentTool = {
           r.status || "â€”",
           r.severity || "â€”",
           r.root_cause || "â€”",
-          r.start_time ? formatDateTime(String(r.start_time)) : "â€”",
+          r.timestamp ? formatDateTime(String(r.timestamp)) : "â€”",
         ]),
         caption: "Recent Problems",
       });
@@ -3633,7 +3636,7 @@ const securityPosture: AgentTool = {
 | filter isNotNull(gen_ai.provider.name)
 | filter span.status_code == "error"
 | filter matchesPhrase(error.message, "pii") OR matchesPhrase(error.message, "injection") OR matchesPhrase(error.message, "blocked") OR matchesPhrase(error.message, "denied") OR matchesPhrase(error.message, "unauthorized")
-| summarize count = count(), last_seen = max(start_time), by: { error_type = error.message, service = service.name, provider = gen_ai.provider.name }
+| summarize count = count(), last_seen = max(timestamp), by: { error_type = error.message, service = service.name, provider = gen_ai.provider.name }
 | sort count desc
 | limit 30`;
 

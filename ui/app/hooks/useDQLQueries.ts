@@ -1246,7 +1246,7 @@ export function useAIServicesTrend(timeframe?: Timeframe): UseQueryResult<{
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
     // Determine interval based on timeframe
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     let interval = '1h'; // default for 24h
     if (from.includes('1h')) interval = '5m';
     else if (from.includes('6h')) interval = '15m';
@@ -1442,7 +1442,7 @@ export function useErrorRateTrendByModel(timeframe?: Timeframe): UseQueryResult<
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
     // Determine interval based on timeframe
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     let interval = '1h'; // default for 24h
     if (from.includes('1h')) interval = '5m';
     else if (from.includes('6h')) interval = '15m';
@@ -1546,7 +1546,7 @@ fetch spans, ${timeClause}
 export function useLatencyTrendByProvider(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     let interval = '1h';
     if (from.includes('1h')) interval = '5m';
     else if (from.includes('6h')) interval = '15m';
@@ -1634,7 +1634,7 @@ fetch spans, ${timeClause}
 export function useTokenEfficiencyByProvider(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     let interval = '1h';
     if (from.includes('1h')) interval = '5m';
     else if (from.includes('6h')) interval = '15m';
@@ -1736,7 +1736,7 @@ fetch spans, ${timeClause}
 export function useModelUsageTrend(timeframe?: Timeframe): UseQueryResult<TimeseriesData[]> {
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     let interval = '1h';
     if (from.includes('1h')) interval = '5m';
     else if (from.includes('6h')) interval = '15m';
@@ -1823,7 +1823,7 @@ fetch spans, ${timeClause}
 export function useCostTrend(timeframe?: Timeframe) {
   const query = useMemo(() => {
     const timeClause = buildTimeRangeClauseFromTimeframe(timeframe);
-    const from = timeframe?.from?.value || 'now()-24h';
+    const from = timeframe?.from?.value || 'now()-2h';
     
     // Determine interval based on timeframe
     let interval = '1h';

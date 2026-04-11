@@ -49,7 +49,7 @@ export interface ModelArbitrageResult {
 // ============================================
 
 const MODEL_ARBITRAGE_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.request.model)
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "unknown"),
             model = coalesce(gen_ai.request.model, "unknown"),

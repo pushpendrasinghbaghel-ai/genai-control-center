@@ -89,7 +89,7 @@ fetch spans, from: now()-2h, to: now()
     total_input = sum(input_tok),
     total_output = sum(output_tok),
     request_count = count(),
-    by: { provider, model, time_bucket = bin(start_time, 5m) }
+    by: { provider, model, time_bucket = bin(timestamp, 5m) }
 | sort time_bucket asc
 `;
 
@@ -110,7 +110,7 @@ fetch spans, from: now()-24h, to: now()-2h
 
 /** Today's spend for budget tracking */
 const DAILY_SPEND_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown")
@@ -125,7 +125,7 @@ fetch spans, from: now()-24h, to: now()
 
 /** Hourly spend for burn rate calculation */
 const HOURLY_SPEND_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd provider = coalesce(gen_ai.provider.name, "Unknown")
 | fieldsAdd input_tok = toDouble(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0))
@@ -135,7 +135,7 @@ fetch spans, from: now()-24h, to: now()
     total_input = sum(input_tok),
     total_output = sum(output_tok),
     request_count = count(),
-    by: { time_bucket = bin(start_time, 1h), provider, model }
+    by: { time_bucket = bin(timestamp, 1h), provider, model }
 | sort time_bucket asc
 `;
 

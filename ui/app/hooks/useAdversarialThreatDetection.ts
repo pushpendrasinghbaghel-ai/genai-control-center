@@ -99,7 +99,7 @@ export interface ThreatTrend {
 
 /** Fetch recent prompts — sort ASC to catch oldest first (C2: volume evasion defense) */
 const PROMPTS_WITH_CONTEXT_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter isNotNull(gen_ai.prompt.0.content)
 | fieldsAdd service_name = coalesce(dt.entity.service, "Unknown")
@@ -108,8 +108,8 @@ fetch spans, from: now()-24h, to: now()
 | fieldsAdd prompt_text = toString(gen_ai.prompt.0.content)
 | fieldsAdd response_text = coalesce(toString(gen_ai.completion.0.content), "")
 | filter prompt_text != ""
-| fields service_name, provider, model, prompt_text, response_text, trace_id, start_time
-| sort start_time asc
+| fields service_name, provider, model, prompt_text, response_text, trace_id, timestamp
+| sort timestamp asc
 | limit 200
 `;
 
@@ -117,17 +117,17 @@ fetch spans, from: now()-24h, to: now()
 const HOURLY_DISTRIBUTION_QUERY = `
 fetch spans, from: now()-2d, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| fieldsAdd hour_of_day = getHour(start_time)
+| fieldsAdd hour_of_day = getHour(timestamp)
 | summarize request_count = count(), by: { hour_of_day }
 | sort hour_of_day asc
 `;
 
 /** Request velocity per service — H4: bin() aliased to time_bucket */
 const VELOCITY_QUERY = `
-fetch spans, from: now()-24h, to: now()
+fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd service_name = coalesce(dt.entity.service, "Unknown")
-| summarize request_count = count(), by: { service_name, time_bucket = bin(start_time, 1h) }
+| summarize request_count = count(), by: { service_name, time_bucket = bin(timestamp, 1h) }
 | sort time_bucket desc
 `;
 
@@ -489,7 +489,7 @@ export function useAdversarialThreatDetection() {
         if (!classification || classification.technique === 'safe') return;
 
         // H6: Validate date before using
-        const promptTime = new Date(r.start_time);
+        const promptTime = new Date(r.timestamp);
         if (isNaN(promptTime.getTime())) return;
 
         const serviceName = String(r.service_name || 'Unknown');

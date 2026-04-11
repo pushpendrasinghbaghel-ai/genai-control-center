@@ -419,14 +419,13 @@ export function useVectorDB(filters?: QueryFilters): UseVectorDBReturn {
         const rangeStart = new Date(tf?.start ?? 0).getTime();
         const intervalMs = Number(r['interval'] ?? 0) / 1_000_000;
         const upsertsArr: any[] = Array.isArray(r['upserts']) ? r['upserts'] : [];
-        const latArr: any[] = Array.isArray(r['avg_upsert_latency_ms']) ? r['avg_upsert_latency_ms'] : [];
         const errArr: any[] = Array.isArray(r['errors']) ? r['errors'] : [];
         upsertsArr.forEach((val: any, i: number) => {
           const ts = rangeStart + i * intervalMs;
           if (ts > 0) ingestion.push({
             timestamp: ts,
             upserts: Number(val ?? 0),
-            avgUpsertLatencyMs: Number(latArr[i] ?? 0),
+            avgUpsertLatencyMs: 0,
             errors: Number(errArr[i] ?? 0),
           });
         });

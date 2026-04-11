@@ -145,8 +145,8 @@ fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.request.model) AND gen_ai.request.model != "" AND gen_ai.request.model != "null"
 | summarize {
     request_count = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time),
+    first_seen = min(timestamp),
+    last_seen = max(timestamp),
     avg_latency = avg(duration) / 1000000,
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
@@ -185,10 +185,10 @@ const DRIFT_TREND_QUERY = (timeframe?: Timeframe | null) => {
 fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.request.model) AND gen_ai.request.model != "" AND gen_ai.request.model != "null"
 | makeTimeseries {
-    avg_latency = avg(duration) / 1000000,
+    avg_latency_ns = avg(duration),
     avg_output_tokens = avg(coalesce(gen_ai.usage.output_tokens, gen_ai.usage.completion_tokens, 0)),
     avg_input_tokens = avg(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0)),
-    error_rate = toDouble(countIf(span.status_code == "error" OR isNotNull(error.type))) / toDouble(count()) * 100.0,
+    error_count = countIf(span.status_code == "error" OR isNotNull(error.type)),
     request_count = count()
   }, by: { gen_ai.request.model, gen_ai.provider.name }, interval: 1h
 `;
@@ -201,8 +201,8 @@ fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.response.model) AND gen_ai.response.model != gen_ai.request.model
 | summarize {
     occurrences = count(),
-    first_seen = min(start_time),
-    last_seen = max(start_time)
+    first_seen = min(timestamp),
+    last_seen = max(timestamp)
   }, by: { gen_ai.request.model, gen_ai.response.model, gen_ai.provider.name }
 | sort last_seen desc
 `;

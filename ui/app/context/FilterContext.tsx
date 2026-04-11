@@ -19,7 +19,7 @@ export interface FilterOptions {
 
 /** Create a default Timeframe object (last 24 hours) */
 export const createDefaultTimeframe = (): Timeframe => ({
-  from: { value: 'now()-24h', type: 'expression', absoluteDate: new Date().toISOString() },
+  from: { value: 'now()-2h', type: 'expression', absoluteDate: new Date().toISOString() },
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
 
@@ -35,9 +35,9 @@ export const DEFAULT_FILTERS: FilterOptions = {
 /** Convert a Timeframe to DQL-compatible from clause */
 export const getTimeframeDqlClause = (timeframe: Timeframe | null): string => {
   if (!timeframe) {
-    return 'from: now()-24h, to: now()';
+    return 'from: now()-2h, to: now()';
   }
-  const fromValue = timeframe.from?.value || 'now()-24h';
+  const fromValue = timeframe.from?.value || 'now()-2h';
   const toValue = timeframe.to?.value || 'now()';
   return `from: ${fromValue}, to: ${toValue}`;
 };

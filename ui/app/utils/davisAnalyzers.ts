@@ -431,7 +431,6 @@ export async function detectErrorRateAnomaly(
           expression: metricExpression,
         },
         alertCondition: 'ABOVE',
-        violatingDataPointsToAlert: 1,
       } as any,
     });
 
@@ -563,7 +562,7 @@ export async function detectLatencyNovelty(
   const metricExpression = `
     fetch spans, from: now()-${timeRangeHours}h, to: now()
     | filter isNotNull(gen_ai.provider.name)
-    | makeTimeseries avg_latency = avg(duration) / 1000000, interval: 5m
+    | makeTimeseries avg_latency_ns = avg(duration), interval: 5m
   `.trim();
 
   try {
@@ -645,7 +644,6 @@ export async function detectRequestVolumeSeasonalAnomaly(
           expression: metricExpression,
         },
         alertCondition: 'ABOVE',
-        violatingDataPointsToAlert: 2,
       } as any,
     });
 

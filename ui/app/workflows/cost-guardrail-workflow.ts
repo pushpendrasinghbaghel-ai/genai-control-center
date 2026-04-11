@@ -239,7 +239,7 @@ export const BUDGET_EXHAUSTION_WORKFLOW = {
       description: "Query today's total GenAI spend",
       action: "dynatrace.automations:execute-dql-query",
       input: {
-        query: `fetch spans, from: now()-24h, to: now()
+        query: `fetch spans, from: now()-2h, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd model = coalesce(gen_ai.request.model, "unknown")
 | fieldsAdd input_tok = toDouble(coalesce(gen_ai.usage.input_tokens, gen_ai.usage.prompt_tokens, 0))
@@ -267,7 +267,7 @@ export const BUDGET_EXHAUSTION_WORKFLOW = {
     total_input = sum(input_tok),
     total_output = sum(output_tok),
     request_count = count(),
-    by: { hour = bin(start_time, 1h), model }
+    by: { hour = bin(timestamp, 1h), model }
 | sort hour asc`,
       },
       position: { x: 1, y: 1 },

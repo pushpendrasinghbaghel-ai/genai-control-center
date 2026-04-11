@@ -15,6 +15,7 @@ import type {
   ToolResult,
   MessageBlock,
   FollowUpChip,
+  ConversationContext,
 } from "./types";
 
 // ============================================
@@ -46,6 +47,135 @@ export interface OrchestrationResult {
   selectionConfidence?: number;
   /** Follow-up suggestion chips */
   followUps?: FollowUpChip[];
+}
+
+// ============================================
+// Security: Timeframe Validation
+// ============================================
+
+/** Whitelist pattern for safe DQL timeframes (e.g., '2h', '30m', '7d') */
+const SAFE_TIMEFRAME_RE = /^\d{1,4}[mhd]$/;
+const DEFAULT_TIMEFRAME = "2h";
+
+/**
+ * Sanitize a timeframe string to prevent DQL injection.
+ * Only allows patterns like '30m', '2h', '7d'. Anything else falls back to default.
+ */
+function sanitizeTimeframe(tf: string): string {
+  const trimmed = tf.trim();
+  if (SAFE_TIMEFRAME_RE.test(trimmed)) return trimmed;
+  console.warn(`[Orchestrator] Invalid timeframe "${trimmed}" rejected, using default "${DEFAULT_TIMEFRAME}"`);
+  return DEFAULT_TIMEFRAME;
+}
+
+// ============================================
+// Multi-Turn Context (Scratchpad)
+// ============================================
+
+/** Max summaries to carry from prior turns */
+const MAX_PRIOR_SUMMARIES = 5;
+
+/**
+ * Build a lightweight conversation context from prior orchestration results.
+ * This is cheap to construct and gives tools enough context for pronoun resolution
+ * and follow-up questions without sending raw data.
+ */
+function buildConversationContext(
+  priorResults: OrchestrationResult[],
+  conversationHistory: Array<{ role: string; content: string }>
+): ConversationContext {
+  const previousTools: ConversationContext["previousTools"] = [];
+  const providers = new Set<string>();
+  const models = new Set<string>();
+  const services = new Set<string>();
+
+  // Extract entities and summaries from prior orchestration results
+  for (const result of priorResults.slice(-MAX_PRIOR_SUMMARIES)) {
+    for (const toolName of result.toolsUsed) {
+      const summary = result.markdown?.slice(0, 200) || "";
+      previousTools.push({ tool: toolName, summary });
+    }
+    // Scan blocks for entity names
+    for (const block of result.blocks) {
+      if (block.type === "table") {
+        for (const row of block.rows) {
+          for (const cell of row) {
+            if (typeof cell === "string") {
+              // Known provider names
+              if (/\b(openai|anthropic|google|azure|bedrock|cohere|langchain|mistral)\b/i.test(cell)) {
+                providers.add(cell.toLowerCase().trim());
+              }
+            }
+          }
+        }
+      }
+    }
+    // Extract entities from DQL result patterns in markdown
+    const dql = result.dql || "";
+    const providerMatches = dql.match(/gen_ai\.provider\.name/g);
+    if (providerMatches) {
+      // Provider was queried — entities are present in blocks
+    }
+  }
+
+  // Also extract entities mentioned in conversation history
+  for (const msg of conversationHistory.slice(-6)) {
+    const text = msg.content.toLowerCase();
+    for (const p of ["openai", "anthropic", "google", "azure", "bedrock", "cohere", "langchain", "mistral"]) {
+      if (text.includes(p)) providers.add(p);
+    }
+    const modelMatch = text.match(/\b(gpt-4[o]?(?:-mini|-turbo)?|gpt-3\.5-turbo|claude-3[.\-]?\w*|gemini-\w+|llama[\s-]?\d+)\b/i);
+    if (modelMatch) models.add(modelMatch[1].toLowerCase());
+  }
+
+  return {
+    previousTools: previousTools.slice(-MAX_PRIOR_SUMMARIES),
+    entities: {
+      providers: providers.size > 0 ? Array.from(providers) : undefined,
+      models: models.size > 0 ? Array.from(models) : undefined,
+      services: services.size > 0 ? Array.from(services) : undefined,
+    },
+    turnCount: conversationHistory.filter(m => m.role === "user").length,
+  };
+}
+
+// ============================================
+// Per-Tool Timeout
+// ============================================
+
+/** Maximum time (ms) a single tool is allowed to run before being cut off.
+ *  Must exceed the DQL polling budget (10 polls × 3s = 30s) plus network overhead. */
+const PER_TOOL_TIMEOUT_MS = 45_000;
+
+/**
+ * Race a tool execution against a timeout.
+ * Returns partial result on timeout instead of failing.
+ */
+function executeWithTimeout(
+  toolName: string,
+  promise: Promise<ToolResult>,
+  timeoutMs = PER_TOOL_TIMEOUT_MS
+): Promise<ToolResult> {
+  return Promise.race([
+    promise,
+    new Promise<ToolResult>((resolve) =>
+      setTimeout(() => {
+        console.warn(`[Orchestrator] Tool "${toolName}" timed out after ${timeoutMs}ms`);
+        resolve({
+          success: false,
+          toolName,
+          summary: `${toolName} timed out after ${(timeoutMs / 1000).toFixed(0)}s.`,
+          blocks: [{
+            type: "alert" as const,
+            severity: "warning" as const,
+            title: "Tool Timed Out",
+            message: `The ${toolName} tool exceeded the ${(timeoutMs / 1000).toFixed(0)}s time limit. Try narrowing the timeframe or simplifying the query.`,
+          }],
+          executionTimeMs: timeoutMs,
+        });
+      }, timeoutMs)
+    ),
+  ]);
 }
 
 // ============================================
@@ -103,9 +233,14 @@ function extractParams(question: string): Record<string, string | number | boole
 export async function orchestrate(
   question: string,
   timeframe: string,
-  conversationHistory: Array<{ role: string; content: string }> = []
+  conversationHistory: Array<{ role: string; content: string }> = [],
+  signal?: AbortSignal,
+  priorResults: OrchestrationResult[] = []
 ): Promise<OrchestrationResult> {
   const startTime = Date.now();
+
+  // Build multi-turn context from prior results
+  const conversationContext = buildConversationContext(priorResults, conversationHistory);
 
   // --- AI-based tool selection ---
   const aiSelection = await selectToolWithAI(question, conversationHistory);
@@ -115,10 +250,10 @@ export async function orchestrate(
     const generalTool = TOOL_REGISTRY.find(t => t.name === "general_qa");
     if (generalTool) {
       const extractedParams = extractParams(question);
-      const resolvedTimeframe = typeof extractedParams.timeHint === "string" ? extractedParams.timeHint : timeframe;
-      const ctx: ToolExecutionContext = { question, timeframe: resolvedTimeframe, params: extractedParams };
+      const resolvedTimeframe = sanitizeTimeframe(typeof extractedParams.timeHint === "string" ? extractedParams.timeHint : timeframe);
+      const ctx: ToolExecutionContext = { question, timeframe: resolvedTimeframe, params: extractedParams, signal, conversationContext };
       try {
-        const result = await generalTool.execute(ctx);
+        const result = await executeWithTimeout(generalTool.name, generalTool.execute(ctx));
         return {
           markdown: renderBlocksAsMarkdown(result),
           blocks: result.blocks,
@@ -162,20 +297,24 @@ export async function orchestrate(
   const extractedParams = extractParams(question);
 
   // Use resolved timeframe from params if available
-  const resolvedTimeframe = typeof extractedParams.timeHint === "string"
-    ? extractedParams.timeHint
-    : timeframe;
+  const resolvedTimeframe = sanitizeTimeframe(
+    typeof extractedParams.timeHint === "string"
+      ? extractedParams.timeHint
+      : timeframe
+  );
 
   const executionPromises = aiSelection.tools.map(({ tool, params }) => {
     const ctx: ToolExecutionContext = {
       question,
       timeframe: resolvedTimeframe,
       params: { ...extractedParams, ...params },
+      signal,
+      conversationContext,
     };
     console.log(
       `[Orchestrator] Executing: ${tool.name} (method: ${aiSelection.method}, path: ${aiSelection.selectionPath})`
     );
-    return tool.execute(ctx).then(result => ({ tool, result }));
+    return executeWithTimeout(tool.name, tool.execute(ctx)).then(result => ({ tool, result }));
   });
 
   const settled = await Promise.allSettled(executionPromises);

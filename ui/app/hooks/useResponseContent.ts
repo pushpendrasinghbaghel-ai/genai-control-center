@@ -87,7 +87,7 @@ export function useContentViewer() {
             | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
             | filter isNotNull(gen_ai.completion.0.content) OR isNotNull(gen_ai.prompt.0.content)
             | fields
-                timestamp = start_time,
+                timestamp,
                 provider = gen_ai.provider.name,
                 request_model = gen_ai.request.model,
                 response_model = gen_ai.response.model,
@@ -353,7 +353,7 @@ export function usePromptLengthTrends() {
                 request_count = count(),
                 max_prompt_len = max(prompt_len),
                 max_resp_len = max(resp_len)
-              }, by: { time_bucket = bin(start_time, ${bucketSize}) }
+              }, by: { time_bucket = bin(timestamp, ${bucketSize}) }
             | sort time_bucket asc
           `,
           requestTimeoutMilliseconds: 60000,

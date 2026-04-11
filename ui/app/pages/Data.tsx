@@ -21,13 +21,13 @@ import { useDql } from "@dynatrace-sdk/react-hooks";
 const PRESET_QUERIES = [
   {
     name: 'GenAI Requests Over Time',
-    query: `fetch spans, from: now()-24h
+    query: `fetch spans, from: now()-2h
 | filter isNotNull(gen_ai.request.model)
 | summarize count(), by:{bin(timestamp, 1h)}`,
   },
   {
     name: 'Token Usage by Model',
-    query: `fetch spans, from: now()-24h
+    query: `fetch spans, from: now()-2h
 | filter isNotNull(gen_ai.request.model)
 | summarize 
     total_input = sum(gen_ai.usage.input_tokens),
@@ -37,7 +37,7 @@ const PRESET_QUERIES = [
   },
   {
     name: 'Average Latency by Provider',
-    query: `fetch spans, from: now()-24h
+    query: `fetch spans, from: now()-2h
 | filter isNotNull(gen_ai.provider.name)
 | summarize avg_latency_ms = avg(duration) / 1000000
   by:{gen_ai.provider.name}
@@ -45,7 +45,7 @@ const PRESET_QUERIES = [
   },
   {
     name: 'Slow Requests (>5s)',
-    query: `fetch spans, from: now()-24h
+    query: `fetch spans, from: now()-2h
 | filter isNotNull(gen_ai.request.model) AND duration > 5000000000
 | fields timestamp, dt.entity.service, gen_ai.request.model, duration / 1000000000 [as] "duration_seconds"
 | sort duration desc
@@ -53,7 +53,7 @@ const PRESET_QUERIES = [
   },
   {
     name: 'Error Rate by Service',
-    query: `fetch spans, from: now()-24h
+    query: `fetch spans, from: now()-2h
 | filter isNotNull(gen_ai.request.model)
 | summarize 
     total = count(),
