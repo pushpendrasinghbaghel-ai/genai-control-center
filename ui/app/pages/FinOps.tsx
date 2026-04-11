@@ -515,7 +515,7 @@ export const FinOps: React.FC = () => {
                   background: STATUS_COLORS.warning + '20', color: STATUS_COLORS.warning,
                   borderRadius: 10, fontWeight: 700, letterSpacing: '0.5px',
                 }}>TCoAI</Text>
-                <Tooltip text="True cost of running AI — token spend is only the tip of the iceberg. Infrastructure (cloud compute) and training (fine-tuning jobs) make up the hidden majority. Only Dynatrace has all three cost layers in the same database.">
+                <Tooltip text="TCoAI shows three cost layers. Token cost is REAL — calculated from gen_ai.* span data × rate card pricing. Infrastructure cost requires cost.list.price BizEvent ingestion (not set up in all environments). Training cost is ESTIMATED — real fine-tuning job count from gen_ai.auditing events, multiplied by a hardcoded rate table.">
                   <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
                 </Tooltip>
                 <AskAIButton
@@ -547,18 +547,54 @@ export const FinOps: React.FC = () => {
 
             {/* Iceberg layers */}
             <Flex flexDirection="column" gap={8}>
+              {/* Token Cost — REAL data from gen_ai.* spans */}
               <Flex alignItems="center" gap={12}>
                 <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Token Cost ({formatPercent(tcoaiData.tokenPct)})</Text>
                 <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.tokenPct} max={100} /></Flex>
                 <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.tokenCost)}/day</Text>
               </Flex>
+
+              {/* Infrastructure Cost — may have no data if cost.list.price BizEvents not ingested */}
               <Flex alignItems="center" gap={12}>
-                <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Infrastructure ({formatPercent(tcoaiData.infraPct)})</Text>
-                <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.infraPct} max={100} /></Flex>
-                <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.infraCost)}/day</Text>
+                <Flex alignItems="center" gap={4} style={{ width: 140 }}>
+                  <Text style={{ fontSize: 12, fontWeight: 500 }}>Infrastructure ({formatPercent(tcoaiData.infraPct)})</Text>
+                  {!tcoaiData.infraHasData && (
+                    <Tooltip text="No cost.list.price BizEvents found in this environment. Infrastructure cost cannot be calculated from Dynatrace data. Ingest cloud billing events to enable this layer.">
+                      <Text style={{
+                        fontSize: 9, padding: '1px 5px',
+                        background: 'var(--dt-colors-background-field-neutral-default)',
+                        color: 'var(--dt-colors-text-neutral-subdued)',
+                        border: '1px solid var(--dt-colors-border-neutral-default)',
+                        borderRadius: 8, fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap',
+                      }}>NO DATA</Text>
+                    </Tooltip>
+                  )}
+                </Flex>
+                <Flex style={{ flex: 1 }}>
+                  {tcoaiData.infraHasData
+                    ? <ProgressBar value={tcoaiData.infraPct} max={100} />
+                    : <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', fontStyle: 'italic' }}>not available — ingest cloud billing BizEvents</Text>
+                  }
+                </Flex>
+                <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13, color: tcoaiData.infraHasData ? undefined : 'var(--dt-colors-text-neutral-subdued)' }}>
+                  {tcoaiData.infraHasData ? `$${formatNumber(tcoaiData.infraCost)}/day` : '—'}
+                </Text>
               </Flex>
+
+              {/* Training Cost — REAL job count, ESTIMATED cost via hardcoded rate table */}
               <Flex alignItems="center" gap={12}>
-                <Text style={{ width: 140, fontSize: 12, fontWeight: 500 }}>Training ({formatPercent(tcoaiData.trainingPct)})</Text>
+                <Flex alignItems="center" gap={4} style={{ width: 140 }}>
+                  <Text style={{ fontSize: 12, fontWeight: 500 }}>Training ({formatPercent(tcoaiData.trainingPct)})</Text>
+                  <Tooltip text={`Cost is estimated: ${tcoaiData.trainingJobCount} real fine-tuning jobs detected via gen_ai.auditing events, but per-job cost uses a hardcoded AWS Bedrock rate table (not actual billing). Actual cost may differ.`}>
+                    <Text style={{
+                      fontSize: 9, padding: '1px 5px',
+                      background: 'var(--dt-colors-background-status-warning-subdued)',
+                      color: 'var(--dt-colors-text-warning-default)',
+                      border: '1px solid var(--dt-colors-border-warning-default)',
+                      borderRadius: 8, fontWeight: 700, cursor: 'help', whiteSpace: 'nowrap',
+                    }}>ESTIMATED</Text>
+                  </Tooltip>
+                </Flex>
                 <Flex style={{ flex: 1 }}><ProgressBar value={tcoaiData.trainingPct} max={100} /></Flex>
                 <Text style={{ width: 100, textAlign: 'right', fontWeight: 600, fontSize: 13 }}>${formatNumber(tcoaiData.trainingCost)}/day</Text>
               </Flex>
@@ -579,8 +615,11 @@ export const FinOps: React.FC = () => {
               </Flex>
             )}
 
-            <Text textStyle="small" style={{ fontStyle: 'italic', color: Colors.Text.Neutral.Subdued }}>
-              Your token cost is only the tip of the iceberg — infrastructure and training make up {formatPercent(tcoaiData.infraPct + tcoaiData.trainingPct)} of true AI cost.
+            <Text textStyle="small" style={{ fontStyle: 'italic', color: 'var(--dt-colors-text-neutral-subdued)' }}>
+              {tcoaiData.infraHasData
+                ? `Your token cost is only the tip of the iceberg — infrastructure and training make up ${formatPercent(tcoaiData.infraPct + tcoaiData.trainingPct)} of true AI cost.`
+                : `Token cost is the only confirmed layer — infrastructure data requires cloud billing BizEvent ingestion. Training cost is estimated from ${tcoaiData.trainingJobCount} detected fine-tuning job(s).`
+              }
             </Text>
           </Flex>
         </Surface>

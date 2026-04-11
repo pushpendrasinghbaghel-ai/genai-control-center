@@ -29,6 +29,10 @@ export interface TCoAISummary {
   trainingPct: number;
   infraProviderBreakdown: { provider: string; cost: number; regions: number; instances: number }[];
   trainingJobCount: number;
+  /** True only if cost.list.price BizEvents were found in the environment */
+  infraHasData: boolean;
+  /** Always true — training cost is estimated from a hardcoded per-job rate table */
+  trainingIsEstimated: boolean;
 }
 
 // ============================================
@@ -201,6 +205,8 @@ export function useTotalCostOfOwnership() {
         trainingPct: (trainingCost / safeTotal) * 100,
         infraProviderBreakdown: infraBreakdown,
         trainingJobCount,
+        infraHasData: infraRecords.length > 0,
+        trainingIsEstimated: true,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err : new Error(String(err)));
