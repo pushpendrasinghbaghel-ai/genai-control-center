@@ -35,3 +35,6 @@ export * from './useModelArbitrage';
 export * from './usePromptCostAttribution';
 export * from './useTrainingROI';
 export * from './useCostAnomalyRootCause';
+export * from './useContextWindowCreep';
+export * from './useTimeOfDayUsage';
+export * from './useModelQualityNeedMatching';

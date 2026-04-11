@@ -1,4 +1,4 @@
-﻿// Response Analytics Dashboard — Redesigned
+// Response Analytics Dashboard � Redesigned
 // Story: "Your AI services cost more than they should, deliver inconsistent answers,
 // and one provider may be silently downgrading your model. Here are the services to fix today."
 // Personas: SREs (error/latency), FinOps (token waste/cost), ML Engineers (model behavior), Product (truncation UX)
@@ -243,7 +243,7 @@ function ModelRankingsPaginated({ models }: { models: ModelComparison[] }) {
       {totalPages > 1 && (
         <Flex justifyContent="space-between" alignItems="center">
           <Text textStyle="small" style={{ opacity: 0.7 }}>
-            Showing {startIdx + 1}–{Math.min(startIdx + MODELS_PER_PAGE, models.length)} of {models.length} models
+            Showing {startIdx + 1}�{Math.min(startIdx + MODELS_PER_PAGE, models.length)} of {models.length} models
           </Text>
           <Flex alignItems="center" gap={8}>
             <Button
@@ -313,7 +313,7 @@ function ServiceRow({ metric }: ServiceRowProps) {
               </Tooltip>
             )}
           </Flex>
-          <Text textStyle="small" style={{ opacity: 0.7 }}>{metric.model} • {metric.provider}</Text>
+          <Text textStyle="small" style={{ opacity: 0.7 }}>{metric.model} � {metric.provider}</Text>
         </Flex>
 
         <Flex gap={24} alignItems="center" flexWrap="wrap">
@@ -334,7 +334,7 @@ function ServiceRow({ metric }: ServiceRowProps) {
           </Flex>
           <Flex flexDirection="column" alignItems="flex-end">
             <Text textStyle="small" style={{ opacity: 0.7 }}>Avg In/Out</Text>
-            <Text textStyle="small">{metric.avgInputTokens.toFixed(0)} → {metric.avgOutputTokens.toFixed(0)}</Text>
+            <Text textStyle="small">{metric.avgInputTokens.toFixed(0)} ? {metric.avgOutputTokens.toFixed(0)}</Text>
           </Flex>
           <Flex flexDirection="column" alignItems="flex-end">
             <Tooltip text={METRIC_TOOLTIPS.variance}>
@@ -384,15 +384,13 @@ function useStreamingColumns() {
           {value}
         </Text>
       ),
-      ratioWidth: 0.8,
     },
-    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
-    { id: 'model', header: 'Model', accessor: 'model', ratioWidth: 1.5 },
+    { id: 'provider', header: 'Provider', accessor: 'provider' },
+    { id: 'model', header: 'Model', accessor: 'model' },
     {
       id: 'requests',
       header: 'Requests',
       accessor: (row: StreamingBatchEntry) => formatNumber(row.requestCount),
-      ratioWidth: 0.8,
     },
     {
       id: 'avgLatency',
@@ -400,7 +398,6 @@ function useStreamingColumns() {
       accessor: (row: StreamingBatchEntry) => row.avgLatencyMs >= 1000
         ? `${(row.avgLatencyMs / 1000).toFixed(2)}s`
         : `${Math.round(row.avgLatencyMs)}ms`,
-      ratioWidth: 1,
     },
     {
       id: 'p95Latency',
@@ -408,13 +405,11 @@ function useStreamingColumns() {
       accessor: (row: StreamingBatchEntry) => row.p95LatencyMs >= 1000
         ? `${(row.p95LatencyMs / 1000).toFixed(2)}s`
         : `${Math.round(row.p95LatencyMs)}ms`,
-      ratioWidth: 1,
     },
     {
       id: 'avgOutput',
       header: 'Avg Output',
       accessor: (row: StreamingBatchEntry) => Math.round(row.avgOutputTokens),
-      ratioWidth: 0.8,
     },
     {
       id: 'errorRate',
@@ -429,7 +424,6 @@ function useStreamingColumns() {
           {value.toFixed(2)}%
         </Text>
       ),
-      ratioWidth: 0.8,
     },
   ], []);
 }
@@ -443,40 +437,35 @@ function useContentColumns() {
       id: 'timestamp',
       header: 'Time',
       accessor: (row: PromptResponseEntry) => formatTime(row.timestamp),
-      ratioWidth: 1,
     },
-    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 0.8 },
-    { id: 'requestModel', header: 'Model', accessor: 'requestModel', ratioWidth: 1.2 },
+    { id: 'provider', header: 'Provider', accessor: 'provider' },
+    { id: 'requestModel', header: 'Model', accessor: 'requestModel' },
     {
       id: 'finishReason',
       header: 'Finish',
       accessor: (row: PromptResponseEntry) => row.finishReason,
       cell: ({ value }: { value: string }) => (
         <Text style={{ color: value === 'length' ? STATUS_COLORS.fair : 'inherit', fontWeight: value === 'length' ? 600 : 400 }}>
-          {value || '—'}
+          {value || '�'}
         </Text>
       ),
-      ratioWidth: 0.7,
     },
-    { id: 'promptPreview', header: 'Prompt (preview)', accessor: 'promptPreview', ratioWidth: 3 },
-    { id: 'responsePreview', header: 'Response (preview)', accessor: 'responsePreview', ratioWidth: 3 },
+    { id: 'promptPreview', header: 'Prompt (preview)', accessor: 'promptPreview' },
+    { id: 'responsePreview', header: 'Response (preview)', accessor: 'responsePreview' },
     {
       id: 'inputTokens',
       header: 'In Tokens',
       accessor: (row: PromptResponseEntry) => row.inputTokens,
-      ratioWidth: 0.7,
     },
     {
       id: 'outputTokens',
       header: 'Out Tokens',
       accessor: (row: PromptResponseEntry) => row.outputTokens,
-      ratioWidth: 0.7,
     },
     {
       id: 'duration',
       header: 'Duration',
       accessor: (row: PromptResponseEntry) => `${(row.durationMs / 1000).toFixed(2)}s`,
-      ratioWidth: 0.7,
     },
   ], []);
 }
@@ -567,7 +556,7 @@ export function ResponseAnalytics() {
       <TitleBar>
         <TitleBar.Title>Response Analytics</TitleBar.Title>
         <TitleBar.Subtitle>
-          Token efficiency, truncation detection, model integrity, and response health — for SREs, FinOps, ML Engineers, and Product
+          Token efficiency, truncation detection, model integrity, and response health � for SREs, FinOps, ML Engineers, and Product
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
@@ -584,7 +573,7 @@ export function ResponseAnalytics() {
         </TitleBar.Suffix>
       </TitleBar>
 
-      {/* ── Model Aliasing Alert Banner ─────────────────────────── */}
+      {/* -- Model Aliasing Alert Banner --------------------------- */}
       {aliasMismatches.length > 0 && (
         <Surface style={{
           padding: '12px 20px',
@@ -609,7 +598,7 @@ export function ResponseAnalytics() {
         </Surface>
       )}
 
-      {/* ── Summary KPI Row ─────────────────────────────────────── */}
+      {/* -- Summary KPI Row --------------------------------------- */}
       {summary && (
         <Flex gap={16} flexWrap="wrap">
           <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
@@ -639,7 +628,7 @@ export function ResponseAnalytics() {
           </Surface>
           <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Tooltip text="Models where finish_reason = 'length' accounts for ≥5% of their responses. Users received cut-off answers.">
+              <Tooltip text="Models where finish_reason = 'length' accounts for =5% of their responses. Users received cut-off answers.">
                 <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
                   <Text textStyle="small" style={{ opacity: 0.7 }}>Truncation Rate</Text>
                   <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
@@ -662,7 +651,7 @@ export function ResponseAnalytics() {
         </Flex>
       )}
 
-      {/* ── Tab Navigation ──────────────────────────────────────── */}
+      {/* -- Tab Navigation ---------------------------------------- */}
       <Flex gap={8} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: '8px' }} flexWrap="wrap">
         <Button variant={activeTab === 'alerts' ? 'accent' : 'default'} onClick={() => setActiveTab('alerts')}>
           <Button.Prefix><WarningIcon /></Button.Prefix>
@@ -690,9 +679,9 @@ export function ResponseAnalytics() {
         </Button>
       </Flex>
 
-      {/* ════════════════════════════════════════════════════════════
-          TAB 1: ALERTS — Unified triage view
-          ════════════════════════════════════════════════════════════ */}
+      {/* ------------------------------------------------------------
+          TAB 1: ALERTS � Unified triage view
+          ------------------------------------------------------------ */}
       {activeTab === 'alerts' && (
         <Flex flexDirection="column" gap={16}>
           {anyLoading && (
@@ -708,20 +697,20 @@ export function ResponseAnalytics() {
             </Surface>
           )}
 
-          {/* ── A. Provider Override: Model Aliasing Mismatches ─── */}
+          {/* -- A. Provider Override: Model Aliasing Mismatches --- */}
           {aliasMismatches.length > 0 && (
             <Surface style={{ padding: '20px', borderLeft: `3px solid ${STATUS_COLORS.poor}` }}>
               <Flex flexDirection="column" gap={16}>
                 <Flex alignItems="center" gap={8}>
                   <CriticalIcon style={{ color: STATUS_COLORS.poor }} />
-                  <Heading level={4}>Provider Override — Model Mismatch</Heading>
-                  <Tooltip text="You requested a specific model, but the provider silently served a different one. This can mean worse quality, different pricing, and unpredictable behavior — all invisible to traditional monitoring.">
+                  <Heading level={4}>Provider Override � Model Mismatch</Heading>
+                  <Tooltip text="You requested a specific model, but the provider silently served a different one. This can mean worse quality, different pricing, and unpredictable behavior � all invisible to traditional monitoring.">
                     <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
                 <Text style={{ opacity: 0.8 }}>
                   The following requests received a <strong>different model</strong> than what was requested.
-                  Your provider substituted a model — often during peak load or without notification.
+                  Your provider substituted a model � often during peak load or without notification.
                 </Text>
                 {aliasMismatches.map((a, idx) => (
                   <Surface key={idx} style={{ padding: '12px', borderLeft: `2px solid ${STATUS_COLORS.fair}` }}>
@@ -731,7 +720,7 @@ export function ResponseAnalytics() {
                           <Text textStyle="base-emphasized" style={{ color: STATUS_COLORS.poor }}>
                             {a.requestModel}
                           </Text>
-                          <Text style={{ opacity: 0.5 }}>→ served as →</Text>
+                          <Text style={{ opacity: 0.5 }}>? served as ?</Text>
                           <Text textStyle="base-emphasized">{a.responseModel}</Text>
                         </Flex>
                         <Text textStyle="small" style={{ opacity: 0.7 }}>Provider: {a.provider}</Text>
@@ -757,14 +746,14 @@ export function ResponseAnalytics() {
             </Surface>
           )}
 
-          {/* ── B. Truncated Responses ─────────────────────────── */}
+          {/* -- B. Truncated Responses --------------------------- */}
           {truncationAlerts.length > 0 && (
             <Surface style={{ padding: '20px', borderLeft: `3px solid ${STATUS_COLORS.fair}` }}>
               <Flex flexDirection="column" gap={16}>
                 <Flex alignItems="center" gap={8}>
                   <WarningIcon style={{ color: STATUS_COLORS.fair }} />
-                  <Heading level={4}>Truncated Responses — Users Received Incomplete Answers</Heading>
-                  <Tooltip text="finish_reason = 'length' means the model hit the token limit mid-response. Error rate is 0%, latency looks fine — but users got cut-off answers. Traditional monitoring misses this entirely.">
+                  <Heading level={4}>Truncated Responses � Users Received Incomplete Answers</Heading>
+                  <Tooltip text="finish_reason = 'length' means the model hit the token limit mid-response. Error rate is 0%, latency looks fine � but users got cut-off answers. Traditional monitoring misses this entirely.">
                     <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
@@ -803,13 +792,13 @@ export function ResponseAnalytics() {
             </Surface>
           )}
 
-          {/* ── C. Inefficient Services ───────────────────────── */}
+          {/* -- C. Inefficient Services ------------------------- */}
           {inefficientServices.length > 0 && (
             <Surface style={{ padding: '20px' }}>
               <Flex flexDirection="column" gap={16}>
                 <Flex alignItems="center" gap={8}>
                   <WarningIcon style={{ color: STATUS_COLORS.poor }} />
-                  <Heading level={4}>Token Inefficiency — Paying for Input, Getting Minimal Output</Heading>
+                  <Heading level={4}>Token Inefficiency � Paying for Input, Getting Minimal Output</Heading>
                   <Tooltip text="Token ratio < 0.5x with > 100 avg input tokens. Large prompts generating tiny responses = money wasted. Consider prompt compression, few-shot removal, or semantic caching.">
                     <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
@@ -819,7 +808,7 @@ export function ResponseAnalytics() {
                     <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
                       <Flex flexDirection="column" gap={4}>
                         <Text textStyle="base-emphasized">{m.serviceName}</Text>
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} · {m.provider}</Text>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} � {m.provider}</Text>
                       </Flex>
                       <Flex gap={24} flexWrap="wrap">
                         <Flex flexDirection="column" alignItems="flex-end">
@@ -828,14 +817,14 @@ export function ResponseAnalytics() {
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
                           <Text textStyle="small" style={{ opacity: 0.7 }}>Avg In / Out</Text>
-                          <Text textStyle="small">{m.avgInputTokens.toFixed(0)} → {m.avgOutputTokens.toFixed(0)}</Text>
+                          <Text textStyle="small">{m.avgInputTokens.toFixed(0)} ? {m.avgOutputTokens.toFixed(0)}</Text>
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
                           <Text textStyle="small" style={{ opacity: 0.7 }}>Period Cost</Text>
                           <Text>${m.estimatedCost.toFixed(2)}</Text>
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
-                          <Tooltip text="Rough 30-day projection at current rate — makes the cost impact concrete.">
+                          <Tooltip text="Rough 30-day projection at current rate � makes the cost impact concrete.">
                             <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
                               <Text textStyle="small" style={{ opacity: 0.7 }}>Est. Monthly Waste</Text>
                               <HelpIcon style={{ width: 10, height: 10, opacity: 0.5 }} />
@@ -854,14 +843,14 @@ export function ResponseAnalytics() {
             </Surface>
           )}
 
-          {/* ── D. Inconsistent Services ────────────────────── */}
+          {/* -- D. Inconsistent Services ---------------------- */}
           {inconsistentServices.length > 0 && (
             <Surface style={{ padding: '20px' }}>
               <Flex flexDirection="column" gap={16}>
                 <Flex alignItems="center" gap={8}>
                   <WarningIcon style={{ color: STATUS_COLORS.fair }} />
-                  <Heading level={4}>Output Inconsistency — Unpredictable Response Lengths</Heading>
-                  <Tooltip text="High standard deviation in output token counts. Some requests get long responses, others get almost nothing — from the same service. Indicates non-deterministic prompts or unguarded open-ended questions.">
+                  <Heading level={4}>Output Inconsistency � Unpredictable Response Lengths</Heading>
+                  <Tooltip text="High standard deviation in output token counts. Some requests get long responses, others get almost nothing � from the same service. Indicates non-deterministic prompts or unguarded open-ended questions.">
                     <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
                   </Tooltip>
                 </Flex>
@@ -870,7 +859,7 @@ export function ResponseAnalytics() {
                     <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
                       <Flex flexDirection="column" gap={4}>
                         <Text textStyle="base-emphasized">{m.serviceName}</Text>
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} · {m.provider}</Text>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} � {m.provider}</Text>
                       </Flex>
                       <Flex gap={24} flexWrap="wrap">
                         <Flex flexDirection="column" alignItems="flex-end">
@@ -898,9 +887,9 @@ export function ResponseAnalytics() {
         </Flex>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          TAB 2: RESPONSE QUALITY — Health + Finish Reasons merged
-          ════════════════════════════════════════════════════════════ */}
+      {/* ------------------------------------------------------------
+          TAB 2: RESPONSE QUALITY � Health + Finish Reasons merged
+          ------------------------------------------------------------ */}
       {activeTab === 'quality' && (
         <Flex flexDirection="column" gap={16}>
           {qualityLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
@@ -914,7 +903,7 @@ export function ResponseAnalytics() {
                   <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
                 </Flex>
               </Surface>
-              <Tooltip text="% of requests where otel.status_code = ERROR — standard SRE reliability metric.">
+              <Tooltip text="% of requests where otel.status_code = ERROR � standard SRE reliability metric.">
                 <Surface style={{
                   padding: '20px', flex: '1 1 160px', cursor: 'help',
                   borderLeft: qualitySummary.errorRate > 5 ? `4px solid ${STATUS_COLORS.poor}` : undefined,
@@ -947,7 +936,7 @@ export function ResponseAnalytics() {
                   </Flex>
                 </Surface>
               </Tooltip>
-              <Tooltip text="finish_reason = 'length' — model hit the token limit without completing the response. Users got cut-off answers.">
+              <Tooltip text="finish_reason = 'length' � model hit the token limit without completing the response. Users got cut-off answers.">
                 <Surface style={{
                   padding: '20px', flex: '1 1 160px', cursor: 'help',
                   borderLeft: overallTruncationPct > 5 ? `4px solid ${STATUS_COLORS.fair}` : undefined,
@@ -1000,8 +989,8 @@ export function ResponseAnalytics() {
               <Flex flexDirection="column" gap={12}>
                 <Heading level={5}>Finish Reasons by Model</Heading>
                 <DataTable data={finishBreakdown} columns={[
-                  { id: 'provider', header: 'Provider', accessor: 'provider' as const, ratioWidth: 1 },
-                  { id: 'model', header: 'Model', accessor: 'model' as const, ratioWidth: 1.5 },
+                  { id: 'provider', header: 'Provider', accessor: 'provider' as const },
+                  { id: 'model', header: 'Model', accessor: 'model' as const },
                   {
                     id: 'finishReason',
                     header: 'Finish Reason',
@@ -1016,11 +1005,10 @@ export function ResponseAnalytics() {
                         {value}
                       </Text>
                     ),
-                    ratioWidth: 1,
                   },
-                  { id: 'count', header: 'Count', accessor: (row: FinishReasonBreakdown) => formatNumber(row.count), ratioWidth: 0.7 },
-                  { id: 'avgDuration', header: 'Avg Duration', accessor: (row: FinishReasonBreakdown) => `${(row.avgDurationMs / 1000).toFixed(2)}s`, ratioWidth: 0.9 },
-                  { id: 'avgOutTokens', header: 'Avg Out Tokens', accessor: (row: FinishReasonBreakdown) => Math.round(row.avgOutputTokens), ratioWidth: 1 },
+                  { id: 'count', header: 'Count', accessor: (row: FinishReasonBreakdown) => formatNumber(row.count) },
+                  { id: 'avgDuration', header: 'Avg Duration', accessor: (row: FinishReasonBreakdown) => `${(row.avgDurationMs / 1000).toFixed(2)}s` },
+                  { id: 'avgOutTokens', header: 'Avg Out Tokens', accessor: (row: FinishReasonBreakdown) => Math.round(row.avgOutputTokens) },
                 ]} sortable>
                   <DataTable.Pagination defaultPageSize={10} />
                 </DataTable>
@@ -1034,9 +1022,9 @@ export function ResponseAnalytics() {
         </Flex>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          TAB 3: MODEL INTELLIGENCE — Rankings + Streaming
-          ════════════════════════════════════════════════════════════ */}
+      {/* ------------------------------------------------------------
+          TAB 3: MODEL INTELLIGENCE � Rankings + Streaming
+          ------------------------------------------------------------ */}
       {activeTab === 'intelligence' && (
         <Flex flexDirection="column" gap={16}>
           <Surface style={{ padding: '20px' }}>
@@ -1111,7 +1099,7 @@ export function ResponseAnalytics() {
           {metrics.length > 0 && (
             <Surface style={{ padding: '20px' }}>
               <Flex flexDirection="column" gap={12}>
-                <Heading level={5}>All Services — Token Efficiency Detail</Heading>
+                <Heading level={5}>All Services � Token Efficiency Detail</Heading>
                 {metrics.map(metric => (
                   <ServiceRow key={metric.serviceId} metric={metric} />
                 ))}
@@ -1121,9 +1109,9 @@ export function ResponseAnalytics() {
         </Flex>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          TAB 4: TRENDS — Quality + Content Length over time
-          ════════════════════════════════════════════════════════════ */}
+      {/* ------------------------------------------------------------
+          TAB 4: TRENDS � Quality + Content Length over time
+          ------------------------------------------------------------ */}
       {activeTab === 'trends' && (
         <Flex flexDirection="column" gap={16}>
           <Surface style={{ padding: '20px' }}>
@@ -1172,9 +1160,9 @@ export function ResponseAnalytics() {
         </Flex>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          TAB 5: EVIDENCE — Raw I/O for debugging
-          ════════════════════════════════════════════════════════════ */}
+      {/* ------------------------------------------------------------
+          TAB 5: EVIDENCE � Raw I/O for debugging
+          ------------------------------------------------------------ */}
       {activeTab === 'evidence' && (
         <Flex flexDirection="column" gap={16}>
           <Surface style={{

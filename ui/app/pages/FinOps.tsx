@@ -46,6 +46,9 @@ import { useModelArbitrage } from '../hooks/useModelArbitrage';
 import { usePromptCostAttribution } from '../hooks/usePromptCostAttribution';
 import { useTrainingROI } from '../hooks/useTrainingROI';
 import { useCostAnomalyRootCause } from '../hooks/useCostAnomalyRootCause';
+import { useContextWindowCreep } from '../hooks/useContextWindowCreep';
+import { useTimeOfDayUsage } from '../hooks/useTimeOfDayUsage';
+import { useModelQualityNeedMatching } from '../hooks/useModelQualityNeedMatching';
 import { formatNumber, formatDateTime, formatPercent } from '../utils/formatting';
 
 // Strato Design Tokens for status colors
@@ -99,7 +102,7 @@ export const FinOps: React.FC = () => {
   const { data: burnRate } = useBudgetBurnRate(budgetLimit);
 
   // Cost velocity — $/min with trend & spike detection
-  const { data: costVelocity, timeseries: velocityTimeseries } = useCostVelocity();
+  const { data: costVelocity } = useCostVelocity();
   
   // Get available service options (with entity IDs)
   const { data: availableServiceOptions } = useDistinctServices();
@@ -153,6 +156,11 @@ export const FinOps: React.FC = () => {
   // Cost anomaly root-cause fires only when velocity ratio >= 2
   const velocityRatio = costVelocity?.velocityRatio ?? 0;
   const { data: anomalyRootCause, loading: anomalyLoading } = useCostAnomalyRootCause(velocityRatio);
+
+  // ── FinOps Foundation features ──
+  const { data: contextCreepData, loading: contextCreepLoading } = useContextWindowCreep();
+  const { data: timeOfDayData, loading: timeOfDayLoading } = useTimeOfDayUsage();
+  const { data: qualityMatchData, loading: qualityMatchLoading } = useModelQualityNeedMatching();
   
   const handleRefresh = useCallback(() => {
     void refetch();
@@ -928,6 +936,107 @@ export const FinOps: React.FC = () => {
         </Surface>
       </Flex>
 
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* FINOPS FOUNDATION: Time-of-Day Usage Heatmap — "WHEN does the money go?"     */}
+      {/* Best Practice: Monitor usage patterns to identify peak waste + idle periods   */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color05.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <BarChartIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color05.Default }} />
+              <Heading level={6}>Time-of-Day Usage Pattern</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--dt-colors-charts-categorical-color-05-default)', borderRadius: 10, fontWeight: 600 }}>FINOPS.ORG</Text>
+              <Tooltip text="FinOps Foundation recommends monitoring usage patterns to detect peak/off-peak waste. If most cost concentrates in a few hours, consider scheduling batch workloads during quieter periods or right-sizing auto-scaling. UTC timezone.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+              <AskAIButton
+                label="Ask AI about usage patterns"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Time-of-Day Usage',
+                  itemLabel: 'Usage Heatmap',
+                  data: {
+                    'Peak Hour (UTC)': timeOfDayData ? `${String(timeOfDayData.peakHour).padStart(2, '0')}:00` : 'N/A',
+                    'Quietest Hour (UTC)': timeOfDayData ? `${String(timeOfDayData.quietHour).padStart(2, '0')}:00` : 'N/A',
+                    'Peak/Trough Ratio': timeOfDayData?.peakToTroughRatio?.toFixed(1) || 'N/A',
+                    'Top 4 Hours Cost %': timeOfDayData?.top4HoursCostPct?.toFixed(0) || 'N/A',
+                  },
+                  suggestedPrompts: ['Why is usage concentrated in certain hours?', 'How can I flatten my usage curve?', 'What workloads can be shifted to off-peak hours?', 'Should I implement auto-scaling for AI workloads?'],
+                })}
+              />
+            </Flex>
+            {timeOfDayData && (
+              <Flex gap={12} alignItems="center">
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  Peak: {String(timeOfDayData.peakHour).padStart(2, '0')}:00 UTC
+                </Text>
+                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                  {timeOfDayData.peakToTroughRatio.toFixed(1)}x peak/trough
+                </Text>
+              </Flex>
+            )}
+          </Flex>
+          {timeOfDayLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : timeOfDayData ? (
+            <Flex flexDirection="column" gap={12}>
+              {/* Bar heatmap — each hour is a bar, color intensity by request count */}
+              <Flex gap={2} alignItems="flex-end" style={{ height: 100 }}>
+                {timeOfDayData.hours.map((h) => {
+                  const maxReqs = Math.max(...timeOfDayData.hours.map(x => x.requestCount), 1);
+                  const heightPct = (h.requestCount / maxReqs) * 100;
+                  const isPeak = h.hour === timeOfDayData.peakHour;
+                  const isQuiet = h.hour === timeOfDayData.quietHour;
+                  const barColor = isPeak ? Colors.Charts.Status.Critical.Default
+                    : isQuiet ? Colors.Charts.Status.Neutral.Default
+                    : heightPct > 80 ? Colors.Charts.Status.Warning.Default
+                    : heightPct > 40 ? Colors.Charts.Categorical.Color05.Default
+                    : Colors.Charts.Status.Good.Default;
+                  return (
+                    <Tooltip key={h.hour} text={`${h.label} UTC — ${formatNumber(h.requestCount)} requests, $${h.estimatedCost.toFixed(2)} est. cost (${h.topProvider})`}>
+                      <Flex
+                        flexDirection="column"
+                        alignItems="center"
+                        style={{ flex: 1, minWidth: 0, cursor: 'help' }}
+                      >
+                        <Flex style={{
+                          width: '100%',
+                          height: `${Math.max(heightPct, 4)}%`,
+                          backgroundColor: barColor,
+                          borderRadius: '2px 2px 0 0',
+                          minHeight: 4,
+                          transition: 'height 0.3s ease',
+                        }} />
+                      </Flex>
+                    </Tooltip>
+                  );
+                })}
+              </Flex>
+              {/* Hour labels */}
+              <Flex gap={2}>
+                {timeOfDayData.hours.map((h) => (
+                  <Flex key={h.hour} style={{ flex: 1, minWidth: 0 }} justifyContent="center">
+                    <Text style={{ fontSize: 8, color: Colors.Text.Neutral.Subdued }}>
+                      {h.hour % 3 === 0 ? `${String(h.hour).padStart(2, '0')}` : ''}
+                    </Text>
+                  </Flex>
+                ))}
+              </Flex>
+              {/* Top 4 hours callout */}
+              <Surface style={{ padding: 10, backgroundColor: 'rgba(245, 158, 11, 0.06)' }}>
+                <Text textStyle="small">{timeOfDayData.insight}</Text>
+              </Surface>
+            </Flex>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No time-of-day data available</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
           </Flex>
         </Tab>
 
@@ -936,6 +1045,140 @@ export const FinOps: React.FC = () => {
         {/* ═══════════════════════════════════════════════════════════════════════ */}
         <Tab title="AI Economics" prefixIcon={<BarChartIcon />}>
           <Flex flexDirection="column" gap={16} style={{ paddingTop: 16 }}>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* FINOPS FOUNDATION: Context Window Creep Tracker                               */}
+      {/* #1 hidden cost in GenAI — the compounding input tokens from conversation      */}
+      {/* history resent every turn. Sets the stage for WHY efficiency is low below.    */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Status.Warning.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <WarningIcon style={{ width: 16, height: 16, color: Colors.Charts.Status.Warning.Default }} />
+              <Heading level={6}>Context Window Creep</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--dt-colors-charts-status-warning-default)', borderRadius: 10, fontWeight: 600 }}>FINOPS.ORG #1 HIDDEN COST</Text>
+              <Tooltip text="The FinOps Foundation identifies Context Window Creep as the #1 hidden cost in GenAI. LLM APIs are stateless — every turn resends the entire conversation history, causing input tokens to compound exponentially. A high input/output ratio (>5:1) signals context bloat eating your budget. Fix: implement conversation summarization, sliding window context, or prompt compression.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+              <AskAIButton
+                label="Ask AI about context window creep"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Context Window Creep',
+                  itemLabel: 'Context Window Analysis',
+                  data: {
+                    'Overall In/Out Ratio': contextCreepData?.overallRatio?.toFixed(1) || 'N/A',
+                    'Creeping Requests %': contextCreepData?.creepingPct?.toFixed(0) || 'N/A',
+                    'Est. Waste Cost': contextCreepData?.totalWasteCost?.toFixed(2) || 'N/A',
+                    'Models Analysed': contextCreepData?.byModel?.length || 0,
+                  },
+                  suggestedPrompts: [
+                    'Why is my input/output ratio so high?',
+                    'How do I implement conversation summarization to reduce context?',
+                    'What is the optimal context window strategy for my workloads?',
+                    'How much can I save by reducing context window size?',
+                  ],
+                })}
+              />
+            </Flex>
+            {contextCreepData && (
+              <Flex gap={16} alignItems="center">
+                <Flex flexDirection="column" alignItems="flex-end">
+                  <Flex alignItems="baseline" gap={4}>
+                    <Text style={{ fontSize: 24, fontWeight: 700, color: contextCreepData.overallRatio > 10 ? Colors.Text.Critical.Default : contextCreepData.overallRatio > 5 ? Colors.Text.Warning.Default : Colors.Text.Neutral.Default }}>
+                      {contextCreepData.overallRatio.toFixed(1)}:1
+                    </Text>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>avg ratio</Text>
+                  </Flex>
+                </Flex>
+              </Flex>
+            )}
+          </Flex>
+          {contextCreepLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : contextCreepData ? (
+            <Flex flexDirection="column" gap={12}>
+              {/* Summary strip */}
+              <Flex gap={16} flexWrap="wrap">
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={2}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Total Requests</Text>
+                    <Text style={{ fontWeight: 700, fontSize: 18 }}>{formatNumber(contextCreepData.totalRequests)}</Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={2}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Creeping (ratio &gt;5:1)</Text>
+                    <Text style={{ fontWeight: 700, fontSize: 18, color: contextCreepData.creepingPct > 50 ? Colors.Text.Critical.Default : Colors.Text.Warning.Default }}>
+                      {formatPercent(contextCreepData.creepingPct)}
+                    </Text>
+                  </Flex>
+                </Surface>
+                <Surface style={{ flex: '1 1 160px', padding: 12 }}>
+                  <Flex flexDirection="column" gap={2}>
+                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Est. Waste from Bloat</Text>
+                    <Text style={{ fontWeight: 700, fontSize: 18, color: Colors.Text.Warning.Default }}>
+                      ${contextCreepData.totalWasteCost.toFixed(2)}
+                    </Text>
+                  </Flex>
+                </Surface>
+              </Flex>
+
+              {/* Ratio distribution buckets */}
+              <Flex gap={4} alignItems="flex-end" style={{ height: 60 }}>
+                {contextCreepData.buckets.map((b) => {
+                  const maxPct = Math.max(...contextCreepData.buckets.map(x => x.pctOfTotal), 1);
+                  const heightPct = (b.pctOfTotal / maxPct) * 100;
+                  const bgColor = b.severity === 'critical' ? Colors.Charts.Status.Critical.Default
+                    : b.severity === 'high' ? Colors.Charts.Status.Warning.Default
+                    : b.severity === 'medium' ? Colors.Charts.Categorical.Color05.Default
+                    : Colors.Charts.Status.Good.Default;
+                  return (
+                    <Tooltip key={b.label} text={`${b.label}: ${formatNumber(b.requestCount)} requests (${b.pctOfTotal.toFixed(1)}%)`}>
+                      <Flex flexDirection="column" alignItems="center" gap={4} style={{ flex: 1, cursor: 'help' }}>
+                        <Flex style={{ width: '100%', height: `${Math.max(heightPct, 8)}%`, backgroundColor: bgColor, borderRadius: 3, minHeight: 6 }} />
+                        <Text style={{ fontSize: 8, color: Colors.Text.Neutral.Subdued, textAlign: 'center' }}>{b.label.split(' ')[0]}</Text>
+                      </Flex>
+                    </Tooltip>
+                  );
+                })}
+              </Flex>
+
+              {/* Per-model breakdown — top offenders */}
+              {contextCreepData.byModel.length > 0 && (
+                <Flex flexDirection="column" gap={6}>
+                  <Text textStyle="small" style={{ fontWeight: 600, color: Colors.Text.Neutral.Subdued }}>Top Models by Context Bloat</Text>
+                  {contextCreepData.byModel.filter(m => m.severity !== 'low').slice(0, 5).map((m, i) => (
+                    <Flex key={i} justifyContent="space-between" alignItems="center" style={{ padding: '4px 0', borderBottom: `1px solid var(--dt-colors-border-neutral-default)` }}>
+                      <Flex gap={8} alignItems="center">
+                        <Text style={{ fontSize: 9, padding: '1px 5px', backgroundColor: m.severity === 'critical' ? 'rgba(255,0,0,0.1)' : m.severity === 'high' ? 'rgba(255,165,0,0.1)' : 'rgba(245,158,11,0.1)', color: m.severity === 'critical' ? Colors.Text.Critical.Default : Colors.Text.Warning.Default, borderRadius: 8, fontWeight: 600 }}>{m.severity.toUpperCase()}</Text>
+                        <Text style={{ fontWeight: 500, fontSize: 12 }}>{m.model}</Text>
+                        <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>{m.provider}</Text>
+                      </Flex>
+                      <Flex gap={16} alignItems="center">
+                        <Text style={{ fontSize: 11, fontWeight: 600 }}>{m.avgInputOutputRatio.toFixed(1)}:1</Text>
+                        <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued }}>{formatNumber(m.requestCount)} req</Text>
+                        <Text style={{ fontSize: 11, fontWeight: 600, color: Colors.Text.Warning.Default }}>${m.estimatedWasteCost.toFixed(2)} waste</Text>
+                      </Flex>
+                    </Flex>
+                  ))}
+                </Flex>
+              )}
+
+              {/* Insight */}
+              <Surface style={{ padding: 10, backgroundColor: 'rgba(245, 158, 11, 0.06)' }}>
+                <Text textStyle="small">{contextCreepData.insight}</Text>
+              </Surface>
+            </Flex>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No context window data available (requires spans with both input and output tokens)</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
 
       {/* Token Efficiency Analysis - Find Waste */}
       <Surface style={{ padding: 16 }}>
@@ -1037,6 +1280,113 @@ export const FinOps: React.FC = () => {
             <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
               <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
               <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No model arbitrage data — requires multiple models with cost data</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Surface>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      {/* FINOPS FOUNDATION: Model Quality-Need Matching (KPI #10)                      */}
+      {/* "Are you using a flagship model for tasks a balanced model could handle?"      */}
+      {/* Narrative flow: Arbitrage shows VALUE, this shows OVER-PROVISIONING.           */}
+      {/* ══════════════════════════════════════════════════════════════════════════════ */}
+      <Surface style={{ padding: 16, borderLeft: `4px solid ${Colors.Charts.Categorical.Color03.Default}` }}>
+        <Flex flexDirection="column" gap={12}>
+          <Flex justifyContent="space-between" alignItems="center">
+            <Flex alignItems="center" gap={8}>
+              <AiIcon style={{ width: 16, height: 16, color: Colors.Charts.Categorical.Color03.Default }} />
+              <Heading level={6}>Model Quality-Need Matching</Heading>
+              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--dt-colors-charts-categorical-color-03-default)', borderRadius: 10, fontWeight: 600 }}>FINOPS.ORG KPI #10</Text>
+              <Tooltip text="FinOps Foundation KPI #10: Are your models over-qualified for their tasks? Flagship models (MMLU 86+) cost 10-50x more than efficient models (MMLU <75). If your prompts are simple (short input), you may be paying for reasoning capability you don't need. Tier recommendation is based on average prompt complexity.">
+                <HelpIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
+              </Tooltip>
+              <AskAIButton
+                label="Ask AI about model quality matching"
+                onClick={() => openAskAI({
+                  domain: 'FinOps — Model Quality Matching',
+                  itemLabel: 'Quality-Need Analysis',
+                  data: {
+                    'Over-Provisioned Models': qualityMatchData?.overProvisionedCount || 0,
+                    'Potential Savings': qualityMatchData?.totalPotentialSavings?.toFixed(2) || '0',
+                    'Models Analysed': qualityMatchData?.models?.length || 0,
+                  },
+                  suggestedPrompts: [
+                    'Which models should I downgrade to save money?',
+                    'What MMLU score do I actually need for my workloads?',
+                    'How do I implement model routing by prompt complexity?',
+                    'What is the cost difference between flagship and efficient models?',
+                  ],
+                })}
+              />
+            </Flex>
+            {qualityMatchData && qualityMatchData.overProvisionedCount > 0 && (
+              <Flex gap={8} alignItems="center">
+                <Text textStyle="small" style={{ color: Colors.Text.Warning.Default, fontWeight: 600 }}>
+                  {qualityMatchData.overProvisionedCount} over-provisioned
+                </Text>
+                <Text textStyle="small" style={{ color: STATUS_COLORS.ideal, fontWeight: 600 }}>
+                  Save ${qualityMatchData.totalPotentialSavings.toFixed(2)}
+                </Text>
+              </Flex>
+            )}
+          </Flex>
+          {qualityMatchLoading ? (
+            <Flex justifyContent="center" alignItems="center" style={{ height: 120 }}>
+              <ProgressCircle size="small" />
+            </Flex>
+          ) : qualityMatchData && qualityMatchData.models.length > 0 ? (
+            <Flex flexDirection="column" gap={12}>
+              {/* Model quality cards — only non-embedding models */}
+              {qualityMatchData.models.filter(m => m.tier !== 'embedding').slice(0, 10).map((m, i) => {
+                const tierColor = m.tier === 'flagship' ? Colors.Charts.Categorical.Color06.Default
+                  : m.tier === 'balanced' ? Colors.Charts.Categorical.Color05.Default
+                  : m.tier === 'efficient' ? Colors.Charts.Status.Good.Default
+                  : Colors.Text.Neutral.Subdued;
+                const recTierColor = m.recommendedTier === 'flagship' ? Colors.Charts.Categorical.Color06.Default
+                  : m.recommendedTier === 'balanced' ? Colors.Charts.Categorical.Color05.Default
+                  : Colors.Charts.Status.Good.Default;
+                return (
+                  <Flex key={i} justifyContent="space-between" alignItems="center" style={{ padding: '6px 0', borderBottom: `1px solid var(--dt-colors-border-neutral-default)` }}>
+                    <Flex gap={8} alignItems="center" style={{ flex: 2 }}>
+                      <Text style={{ fontWeight: 500, fontSize: 12 }}>{m.model}</Text>
+                      <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>{m.provider}</Text>
+                    </Flex>
+                    <Flex gap={12} alignItems="center" style={{ flex: 3 }} justifyContent="flex-end">
+                      <Flex gap={4} alignItems="center">
+                        <Text style={{ fontSize: 9, padding: '1px 6px', backgroundColor: tierColor + '20', color: tierColor, borderRadius: 8, fontWeight: 600 }}>{m.tier.toUpperCase()}</Text>
+                        {m.mmluScore > 0 && <Text style={{ fontSize: 10, color: Colors.Text.Neutral.Subdued }}>MMLU {m.mmluScore}</Text>}
+                      </Flex>
+                      {m.isOverProvisioned && (
+                        <Flex gap={4} alignItems="center">
+                          <Text style={{ fontSize: 10, color: Colors.Text.Warning.Default }}>→</Text>
+                          <Text style={{ fontSize: 9, padding: '1px 6px', backgroundColor: recTierColor + '20', color: recTierColor, borderRadius: 8, fontWeight: 600 }}>{m.recommendedTier.toUpperCase()}</Text>
+                        </Flex>
+                      )}
+                      <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued, minWidth: 50, textAlign: 'right' }}>{formatNumber(m.requestCount)} req</Text>
+                      <Text style={{ fontSize: 11, minWidth: 60, textAlign: 'right' }}>${m.estimatedCost.toFixed(2)}</Text>
+                      {m.isOverProvisioned ? (
+                        <Text style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLORS.ideal, minWidth: 70, textAlign: 'right' }}>
+                          Save ${m.potentialSavings.toFixed(2)}
+                        </Text>
+                      ) : (
+                        <Text style={{ fontSize: 11, color: Colors.Text.Neutral.Subdued, minWidth: 70, textAlign: 'right' }}>
+                          <CheckmarkIcon style={{ width: 10, height: 10 }} /> Right-sized
+                        </Text>
+                      )}
+                    </Flex>
+                  </Flex>
+                );
+              })}
+
+              {/* Insight */}
+              <Surface style={{ padding: 10, backgroundColor: 'rgba(34, 197, 94, 0.06)' }}>
+                <Text textStyle="small">{qualityMatchData.insight}</Text>
+              </Surface>
+            </Flex>
+          ) : (
+            <Flex justifyContent="center" alignItems="center" flexDirection="column" gap={4} style={{ height: 120 }}>
+              <AiIcon style={{ width: 32, height: 32, opacity: 0.3 }} />
+              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>No model quality data available</Text>
             </Flex>
           )}
         </Flex>
@@ -1498,100 +1848,7 @@ export const FinOps: React.FC = () => {
         </Surface>
       )}
 
-      {/* ── Cost Velocity (moved from Executive Summary) ── */}
-      {costVelocity && (
-        <>
-          <Flex alignItems="center" gap={8} style={{ marginTop: 8 }}>
-            <RefreshIcon style={{ width: 16, height: 16, color: Colors.Text.Neutral.Subdued }} />
-            <Text style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: Colors.Text.Neutral.Subdued, letterSpacing: '0.5px' }}>Cost Velocity</Text>
-          </Flex>
-
-          <Flex gap={16}>
-            <Surface style={{
-              flex: 1,
-              padding: 16,
-              borderLeft: `4px solid ${costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good}`,
-            }}>
-              <Flex flexDirection="column" gap={6}>
-                <Flex alignItems="center" gap={4}>
-                  <MoneyIcon style={{ width: 14, height: 14, color: Colors.Text.Neutral.Subdued }} />
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Current $/min</Text>
-                  <Tooltip text="Real-time cost velocity based on the latest 5-minute window. Compares against baseline to detect runaway spend.">
-                    <HelpIcon style={{ width: 12, height: 12, color: Colors.Text.Neutral.Subdued, cursor: 'help' }} />
-                  </Tooltip>
-                </Flex>
-                <Heading level={4} style={{ color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : undefined }}>
-                  ${costVelocity.currentCostPerMinute.toFixed(4)}
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Baseline: ${costVelocity.baselineCostPerMinute.toFixed(4)}/min
-                </Text>
-              </Flex>
-            </Surface>
-
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Velocity Ratio</Text>
-                <Heading level={4}>{costVelocity.velocityRatio.toFixed(1)}x</Heading>
-                <Text textStyle="small" style={{
-                  fontWeight: 600,
-                  color: costVelocity.status === 'critical' ? STATUS_COLORS.critical : costVelocity.status === 'warning' ? STATUS_COLORS.warning : STATUS_COLORS.good,
-                }}>
-                  {costVelocity.status === 'critical' ? '🔴 CRITICAL' : costVelocity.status === 'warning' ? '🟠 WARNING' : costVelocity.status === 'elevated' ? '🟡 ELEVATED' : '🟢 NORMAL'}
-                </Text>
-              </Flex>
-            </Surface>
-
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Trend</Text>
-                <Heading level={4}>
-                  {costVelocity.trendDirection === 'spike' ? '⚡ Spike' : costVelocity.trendDirection === 'rising' ? '📈 Rising' : costVelocity.trendDirection === 'falling' ? '📉 Falling' : '→ Stable'}
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Max: ${costVelocity.maxCostPerMinute.toFixed(4)}/min
-                </Text>
-              </Flex>
-            </Surface>
-
-            <Surface style={{ flex: 1, padding: 16 }}>
-              <Flex flexDirection="column" gap={6}>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Token Velocity</Text>
-                <Heading level={4}>
-                  {costVelocity.byProvider.reduce((sum, p) => sum + p.tokenVelocity, 0).toFixed(0)}/min
-                </Heading>
-                <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                  Across {costVelocity.byProvider.length} providers
-                </Text>
-              </Flex>
-            </Surface>
-          </Flex>
-
-          {velocityTimeseries.length > 0 && (
-            <Surface style={{ padding: 16 }}>
-              <Flex flexDirection="column" gap={8}>
-                <Flex alignItems="center" gap={8}>
-                  <BarChartIcon style={{ width: 14, height: 14 }} />
-                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Cost Velocity Over Time ($/min)</Text>
-                </Flex>
-                <Flex style={{ height: 200 }}>
-                  <TimeseriesChart data={[{
-                    name: 'Cost $/min',
-                    datapoints: velocityTimeseries.map(p => ({
-                      start: new Date(p.timestamp),
-                      value: p.costPerMinute,
-                    })),
-                  }]}>
-                    <TimeseriesChart.Legend hidden />
-                  </TimeseriesChart>
-                </Flex>
-              </Flex>
-            </Surface>
-          )}
-        </>
-      )}
-
-      {/* Autonomous Cost Guardrails */}
+      {/* Autonomous Cost Guardrails — includes Cost Velocity, sparkline, and per-provider breakdown */}
       <CostGuardrailPanel dailyBudget={budgetLimit} />
 
           </Flex>
