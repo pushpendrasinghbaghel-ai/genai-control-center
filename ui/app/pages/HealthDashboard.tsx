@@ -6,13 +6,14 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
-import { Heading, Text } from '@dynatrace/strato-components/typography';
+import { Heading, Text, Strong } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressCircle, Chip } from '@dynatrace/strato-components/content';
+import { ProgressCircle, Chip } from '@dynatrace/strato-components-preview/content';
+import { Accordion } from '@dynatrace/strato-components/content';
 import { Tooltip, Modal } from '@dynatrace/strato-components/overlays';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
-import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon, AIModelIcon, LargeLanguageModelIcon } from '@dynatrace/strato-icons';
+import { ExternalLinkIcon, CheckmarkIcon, WarningIcon, CriticalIcon, HelpIcon, ServicesIcon, BarChartIcon, MoneyIcon, ClockIcon, AnalyticsIcon, LargeLanguageModelIcon } from '@dynatrace/strato-icons';
 import { getIntentLink } from '@dynatrace-sdk/navigation';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { useAIServicesDiscovery, useDistinctServices, useDistinctProviders, useDistinctModels, QueryFilters } from '../hooks';
@@ -487,7 +488,7 @@ const HealthOverviewTab: React.FC = () => {
         <TitleBar.Title>AI Services</TitleBar.Title>
         <TitleBar.Subtitle>Auto-discovered services using GenAI APIs with health and performance metrics</TitleBar.Subtitle>
         <TitleBar.Suffix>
-          <Button variant="accent" onClick={() => navigate('/architect')} aria-label="View AI Architect recommendations">
+          <Button variant="accent" onClick={() => navigate('/ai-architect')} aria-label="View AI Architect recommendations">
             Recommendations
           </Button>
         </TitleBar.Suffix>
@@ -582,6 +583,46 @@ const HealthOverviewTab: React.FC = () => {
         />
       </Flex>
 
+      {/* Attention Callout — leading narrative */}
+      {(healthMetrics.criticalCount > 0 || healthMetrics.warningCount > 0) && (
+        <Surface style={{
+          padding: '12px 16px',
+          borderLeft: `4px solid ${
+            healthMetrics.criticalCount > 0
+              ? STATUS_COLORS.critical
+              : STATUS_COLORS.warning
+          }`,
+        }}>
+          <Flex alignItems="center" gap={12} justifyContent="space-between">
+            <Flex alignItems="center" gap={8}>
+              {healthMetrics.criticalCount > 0
+                ? <CriticalIcon style={{ width: 18, height: 18, color: STATUS_COLORS.critical }} />
+                : <WarningIcon style={{ width: 18, height: 18, color: STATUS_COLORS.warning }} />
+              }
+              <Flex flexDirection="column" gap={2}>
+                <Text style={{ fontWeight: 700, fontSize: 14 }}>
+                  {healthMetrics.criticalCount > 0
+                    ? `${healthMetrics.criticalCount} service${healthMetrics.criticalCount !== 1 ? 's' : ''} in critical state — immediate attention required`
+                    : `${healthMetrics.warningCount} service${healthMetrics.warningCount !== 1 ? 's' : ''} need attention`
+                  }
+                </Text>
+                <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  {healthMetrics.criticalCount > 0 && healthMetrics.warningCount > 0
+                    ? `${healthMetrics.criticalCount} critical, ${healthMetrics.warningCount} warning — services sorted by severity below`
+                    : healthMetrics.criticalCount > 0
+                    ? 'Services with error rate >10%, latency >6s, or high issue score — sorted to top below'
+                    : 'Services with error rate >5% or latency >3s — sorted to top below'
+                  }
+                </Text>
+              </Flex>
+            </Flex>
+            <Button variant="accent" onClick={() => setHealthModalOpen(true)}>
+              View Health Breakdown
+            </Button>
+          </Flex>
+        </Surface>
+      )}
+
       {/* Davis Anomaly Alerts */}
       {anomalies.length > 0 && (
         <Surface style={{ padding: 12, borderLeft: `4px solid ${STATUS_COLORS.critical}` }}>
@@ -589,7 +630,7 @@ const HealthOverviewTab: React.FC = () => {
             <Flex alignItems="center" gap={6}>
               <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.critical }} />
               <Text style={{ fontWeight: 600, fontSize: 13 }}>Davis AI Anomaly Detection</Text>
-              <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+              <Text style={{ fontSize: 9, padding: '2px 6px', background: 'var(--dt-colors-surface-primary-default)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
             </Flex>
             {anomalies.map((a, i) => (
               <Flex key={i} alignItems="center" gap={8} style={{ padding: '4px 0' }}>
@@ -598,12 +639,13 @@ const HealthOverviewTab: React.FC = () => {
                   background: a.severity === 'critical' ? STATUS_COLORS.critical : a.severity === 'high' ? STATUS_COLORS.warning : STATUS_COLORS.neutral
                 }} />
                 <Text style={{ fontSize: 12 }}>
-                  <strong>{a.metric === 'token_usage' ? 'Token Usage' : a.metric === 'error_rate' ? 'Error Rate' : a.metric === 'latency' ? 'Latency' : a.metric === 'request_volume' ? 'Request Volume' : a.metric}:</strong> {a.description}
+                  <Strong>{a.metric === 'token_usage' ? 'Token Usage' : a.metric === 'error_rate' ? 'Error Rate' : a.metric === 'latency' ? 'Latency' : a.metric === 'request_volume' ? 'Request Volume' : a.metric}:</Strong> {a.description}
                 </Text>
                 {a.severity !== 'none' && (
                   <Text style={{
                     fontSize: 9, padding: '1px 5px', borderRadius: 4, fontWeight: 600,
-                    backgroundColor: a.severity === 'critical' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                    background: 'var(--dt-colors-surface-default)',
+                    border: `1px solid ${a.severity === 'critical' ? STATUS_COLORS.critical : STATUS_COLORS.warning}`,
                     color: a.severity === 'critical' ? 'var(--dt-colors-charts-status-critical-default)' : 'var(--dt-colors-charts-status-warning-default)'
                   }}>
                     {a.severity.toUpperCase()}
@@ -615,130 +657,87 @@ const HealthOverviewTab: React.FC = () => {
         </Surface>
       )}
 
-      {/* Request Type Breakdown (chat/completion/embeddings) */}
-      {requestTypes.length > 0 && (
-        <Flex gap={16} flexWrap="wrap">
-          {requestTypes.map(rt => {
-            const totalReqs = requestTypes.reduce((s, r) => s + r.count, 0);
-            const pct = totalReqs > 0 ? ((rt.count / totalReqs) * 100).toFixed(1) : '0';
-            return (
-              <Surface key={rt.type} style={{ flex: '1 1 180px', padding: 16 }}>
-                <Flex flexDirection="column" gap={6}>
-                  <Flex alignItems="center" gap={6}>
-                    <LargeLanguageModelIcon style={{ width: 14, height: 14 }} />
-                    <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{rt.type}</Text>
-                  </Flex>
-                  <Heading level={4}>{formatNumber(rt.count)}</Heading>
-                  <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-                    {pct}% &bull; avg {rt.avgDuration.toFixed(0)}ms
-                  </Text>
-                </Flex>
-              </Surface>
-            );
-          })}
-        </Flex>
-      )}
-
-      {/* Top Consumers - Quick insight into highest usage services */}
-      {services.length > 1 && (
-        <Surface>
-          <Flex padding={16} flexDirection="column" gap={12}>
-            <Flex alignItems="center" gap={8}>
-              <AnalyticsIcon style={{ width: 16, height: 16 }} />
-              <Text style={{ fontWeight: 600 }}>Top Consumers</Text>
-              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                Services with highest AI usage
-              </Text>
-            </Flex>
-            <Flex gap={16} flexWrap="wrap">
-              {services
-                .sort((a, b) => b.estimatedCost - a.estimatedCost)
-                .slice(0, 3)
-                .map((service, idx) => (
-                  <Flex 
-                    key={`top-${idx}`}
-                    padding={12}
-                    gap={12}
-                    alignItems="center"
-                    style={{ 
-                      background: 'var(--dt-colors-background-default-secondary)',
-                      borderRadius: 6,
-                      flex: '1 1 200px',
-                      minWidth: 200
-                    }}
-                  >
-                    <Flex style={{ 
-                      width: 24, 
-                      height: 24, 
-                      borderRadius: '50%', 
-                      background: idx === 0 ? 'var(--dt-colors-feedback-warning-default)' : 'var(--dt-colors-border-neutral-default)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: idx === 0 ? '#000' : 'inherit'
-                    }}>
-                      {idx + 1}
-                    </Flex>
-                    <Flex style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: 600, fontSize: 13 }}>{service.serviceName}</Text>
-                      <Flex gap={12} style={{ marginTop: 2 }}>
-                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                          {formatCurrency(service.estimatedCost)} cost
-                        </Text>
-                        <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
-                          {formatNumber(service.totalTokens)} tokens
-                        </Text>
-                      </Flex>
-                    </Flex>
-                  </Flex>
-                ))}
-            </Flex>
-          </Flex>
-        </Surface>
-      )}
-
-      {/* OTel Native Metrics — Pre-aggregated, 0 GB query cost */}
-      {(otelTokens.length > 0 || otelDuration.length > 0) && (
-        <Flex gap={16} flexWrap="wrap">
-          {otelTokens.length > 0 && (
-            <Surface style={{ flex: '1 1 400px', padding: 16 }}>
-              <Flex flexDirection="column" gap={8}>
-                <Flex alignItems="center" gap={6}>
-                  <BarChartIcon style={{ width: 14, height: 14 }} />
-                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Usage (OTel Metric)</Text>
-                  <Tooltip text="Pre-aggregated gen_ai.client.token.usage metric — zero query cost">
-                    <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
-                  </Tooltip>
-                </Flex>
-                <Flex style={{ height: 180 }}>
-                  <TimeseriesChart data={otelTokens}>
-                    <TimeseriesChart.Legend hidden />
-                  </TimeseriesChart>
-                </Flex>
+      {/* Details — Request type breakdown + OTel trend charts (collapsible) */}
+      {(requestTypes.length > 0 || otelTokens.length > 0 || otelDuration.length > 0) && (
+        <Accordion>
+          <Accordion.Section id="otel-details">
+            <Accordion.SectionLabel>
+              <Flex alignItems="center" gap={8}>
+                <AnalyticsIcon style={{ width: 14, height: 14 }} />
+                <Text style={{ fontWeight: 600, fontSize: 13 }}>Request Breakdown &amp; OTel Trends</Text>
+                <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                  Request types and pre-aggregated metric timeseries
+                </Text>
               </Flex>
-            </Surface>
-          )}
-          {otelDuration.length > 0 && (
-            <Surface style={{ flex: '1 1 400px', padding: 16 }}>
-              <Flex flexDirection="column" gap={8}>
-                <Flex alignItems="center" gap={6}>
-                  <ClockIcon style={{ width: 14, height: 14 }} />
-                  <Text style={{ fontWeight: 600, fontSize: 13 }}>Operation Duration (OTel Metric)</Text>
-                  <Tooltip text="Pre-aggregated gen_ai.client.operation.duration metric — zero query cost">
-                    <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
-                  </Tooltip>
-                </Flex>
-                <Flex style={{ height: 180 }}>
-                  <TimeseriesChart data={otelDuration}>
-                    <TimeseriesChart.Legend hidden />
-                  </TimeseriesChart>
-                </Flex>
+            </Accordion.SectionLabel>
+            <Accordion.SectionContent>
+              <Flex flexDirection="column" gap={16} padding={8}>
+                {requestTypes.length > 0 && (
+                  <Flex gap={16} flexWrap="wrap">
+                    {requestTypes.map(rt => {
+                      const totalReqs = requestTypes.reduce((s, r) => s + r.count, 0);
+                      const pct = totalReqs > 0 ? ((rt.count / totalReqs) * 100).toFixed(1) : '0';
+                      return (
+                        <Surface key={rt.type} style={{ flex: '1 1 180px', padding: 16 }}>
+                          <Flex flexDirection="column" gap={6}>
+                            <Flex alignItems="center" gap={6}>
+                              <LargeLanguageModelIcon style={{ width: 14, height: 14 }} />
+                              <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued, textTransform: 'capitalize' }}>{rt.type}</Text>
+                            </Flex>
+                            <Heading level={4}>{formatNumber(rt.count)}</Heading>
+                            <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+                              {pct}% &bull; avg {rt.avgDuration.toFixed(0)}ms
+                            </Text>
+                          </Flex>
+                        </Surface>
+                      );
+                    })}
+                  </Flex>
+                )}
+                {(otelTokens.length > 0 || otelDuration.length > 0) && (
+                  <Flex gap={16} flexWrap="wrap">
+                    {otelTokens.length > 0 && (
+                      <Surface style={{ flex: '1 1 400px', padding: 16 }}>
+                        <Flex flexDirection="column" gap={8}>
+                          <Flex alignItems="center" gap={6}>
+                            <BarChartIcon style={{ width: 14, height: 14 }} />
+                            <Text style={{ fontWeight: 600, fontSize: 13 }}>Token Usage (OTel Metric)</Text>
+                            <Tooltip text="Pre-aggregated gen_ai.client.token.usage metric — zero query cost">
+                              <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
+                            </Tooltip>
+                          </Flex>
+                          <Flex style={{ height: 180 }}>
+                            <TimeseriesChart data={otelTokens}>
+                              <TimeseriesChart.Legend hidden />
+                            </TimeseriesChart>
+                          </Flex>
+                        </Flex>
+                      </Surface>
+                    )}
+                    {otelDuration.length > 0 && (
+                      <Surface style={{ flex: '1 1 400px', padding: 16 }}>
+                        <Flex flexDirection="column" gap={8}>
+                          <Flex alignItems="center" gap={6}>
+                            <ClockIcon style={{ width: 14, height: 14 }} />
+                            <Text style={{ fontWeight: 600, fontSize: 13 }}>Operation Duration (OTel Metric)</Text>
+                            <Tooltip text="Pre-aggregated gen_ai.client.operation.duration metric — zero query cost">
+                              <HelpIcon style={{ width: 12, height: 12, opacity: 0.5, cursor: 'help' }} />
+                            </Tooltip>
+                          </Flex>
+                          <Flex style={{ height: 180 }}>
+                            <TimeseriesChart data={otelDuration}>
+                              <TimeseriesChart.Legend hidden />
+                            </TimeseriesChart>
+                          </Flex>
+                        </Flex>
+                      </Surface>
+                    )}
+                  </Flex>
+                )}
               </Flex>
-            </Surface>
-          )}
-        </Flex>
+            </Accordion.SectionContent>
+          </Accordion.Section>
+        </Accordion>
       )}
 
       {/* Service List - Table Style */}
@@ -796,9 +795,14 @@ const HealthOverviewTab: React.FC = () => {
             <Flex style={{ width: 90 }} />
           </Flex>
           
-          {/* Service Rows */}
+          {/* Service Rows — sorted by severity first, then by token volume */}
           {services
-            .sort((a, b) => b.totalTokens - a.totalTokens)
+            .slice()
+            .sort((a, b) => {
+              const order: Record<string, number> = { critical: 0, warning: 1, healthy: 2, unknown: 3 };
+              const diff = (order[a.healthStatus] ?? 3) - (order[b.healthStatus] ?? 3);
+              return diff !== 0 ? diff : b.totalTokens - a.totalTokens;
+            })
             .map((service, index) => (
               <ServiceRow 
                 key={`${service.serviceName}-${service.modelName}-${index}`} 
