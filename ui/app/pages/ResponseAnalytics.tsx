@@ -1,6 +1,7 @@
-// Response Analytics Dashboard
-// For ML Engineers & Developers: Token efficiency, output consistency, model comparison
-// Based on real observable metrics from OpenTelemetry gen_ai.* spans
+﻿// Response Analytics Dashboard — Redesigned
+// Story: "Your AI services cost more than they should, deliver inconsistent answers,
+// and one provider may be silently downgrading your model. Here are the services to fix today."
+// Personas: SREs (error/latency), FinOps (token waste/cost), ML Engineers (model behavior), Product (truncation UX)
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
@@ -11,21 +12,20 @@ import { ProgressCircle } from '@dynatrace/strato-components/content';
 import { Tooltip } from '@dynatrace/strato-components/overlays';
 import { TimeframeSelector } from '@dynatrace/strato-components/filters';
 import type { Timeframe } from '@dynatrace/strato-components/core';
-import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ArrowUpRightIcon, ArrowDownRightIcon, ChevronLeftIcon, ChevronRightIcon } from '@dynatrace/strato-icons';
+import { RefreshIcon, BarChartIcon, ServicesIcon, WarningIcon, CheckmarkIcon, HelpIcon, ChevronLeftIcon, ChevronRightIcon, CriticalIcon } from '@dynatrace/strato-icons';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { TimeseriesChart } from '@dynatrace/strato-components/charts';
 import type { Timeseries } from '@dynatrace/strato-components/charts';
 import { DataTable } from '@dynatrace/strato-components-preview/tables';
 import { formatTime, formatNumber } from '../utils/formatting';
 
-import { 
-  useResponseAnalytics, 
+import {
+  useResponseAnalytics,
   useResponseQualityTrends,
   useStreamingAnalysis,
-  TokenEfficiencyMetrics, 
-  ModelComparison,
-  QualityTrendDataPoint,
-  QualityAnomaly
+  type TokenEfficiencyMetrics,
+  type ModelComparison,
+  type StreamingBatchEntry,
 } from '../hooks/useResponseAnalytics';
 
 import {
@@ -33,6 +33,8 @@ import {
   useFinishReasonAnalytics,
   useModelAliasing,
   usePromptLengthTrends,
+  type FinishReasonBreakdown,
+  type PromptResponseEntry,
 } from '../hooks/useResponseContent';
 
 // Status colors from Strato design tokens
@@ -41,6 +43,29 @@ const STATUS_COLORS = {
   fair: Colors.Charts.Apdex.Fair.Default,
   poor: Colors.Charts.Apdex.Poor.Default,
 };
+
+// ============================================
+// Helper: compute per-model truncation alerts
+// ============================================
+interface TruncationAlert extends FinishReasonBreakdown {
+  truncationRate: number;
+}
+
+function computeTruncationAlerts(finishBreakdown: FinishReasonBreakdown[]): TruncationAlert[] {
+  const totalByModel = new Map<string, number>();
+  finishBreakdown.forEach(f => {
+    const key = `${f.provider}:${f.model}`;
+    totalByModel.set(key, (totalByModel.get(key) || 0) + f.count);
+  });
+  return finishBreakdown
+    .filter(f => f.finishReason === 'length')
+    .map(f => ({
+      ...f,
+      truncationRate: ((f.count / (totalByModel.get(`${f.provider}:${f.model}`) || f.count)) * 100),
+    }))
+    .filter(f => f.truncationRate >= 5)
+    .sort((a, b) => b.truncationRate - a.truncationRate);
+}
 
 // Metric explanations for tooltips
 const METRIC_TOOLTIPS = {
@@ -337,6 +362,126 @@ function ServiceRow({ metric }: ServiceRowProps) {
 }
 
 // ============================================
+// Streaming DataTable column definitions
+// ============================================
+function useStreamingColumns() {
+  return useMemo(() => [
+    {
+      id: 'mode',
+      header: 'Mode',
+      accessor: (row: StreamingBatchEntry) => row.mode,
+      cell: ({ value }: { value: string }) => (
+        <Text style={{
+          padding: '2px 8px',
+          borderRadius: 4,
+          fontSize: 11,
+          fontWeight: 600,
+          backgroundColor: value === 'Streaming'
+            ? 'var(--dt-colors-surface-statusok-subdued)'
+            : 'var(--dt-colors-surface-neutral-default)',
+          color: value === 'Streaming' ? STATUS_COLORS.excellent : 'inherit',
+        }}>
+          {value}
+        </Text>
+      ),
+      ratioWidth: 0.8,
+    },
+    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
+    { id: 'model', header: 'Model', accessor: 'model', ratioWidth: 1.5 },
+    {
+      id: 'requests',
+      header: 'Requests',
+      accessor: (row: StreamingBatchEntry) => formatNumber(row.requestCount),
+      ratioWidth: 0.8,
+    },
+    {
+      id: 'avgLatency',
+      header: 'Avg Latency',
+      accessor: (row: StreamingBatchEntry) => row.avgLatencyMs >= 1000
+        ? `${(row.avgLatencyMs / 1000).toFixed(2)}s`
+        : `${Math.round(row.avgLatencyMs)}ms`,
+      ratioWidth: 1,
+    },
+    {
+      id: 'p95Latency',
+      header: 'P95 Latency',
+      accessor: (row: StreamingBatchEntry) => row.p95LatencyMs >= 1000
+        ? `${(row.p95LatencyMs / 1000).toFixed(2)}s`
+        : `${Math.round(row.p95LatencyMs)}ms`,
+      ratioWidth: 1,
+    },
+    {
+      id: 'avgOutput',
+      header: 'Avg Output',
+      accessor: (row: StreamingBatchEntry) => Math.round(row.avgOutputTokens),
+      ratioWidth: 0.8,
+    },
+    {
+      id: 'errorRate',
+      header: 'Error Rate',
+      accessor: (row: StreamingBatchEntry) => row.errorRate,
+      cell: ({ value }: { value: number }) => (
+        <Text style={{
+          color: value > 5 ? STATUS_COLORS.poor
+            : value > 1 ? STATUS_COLORS.fair
+            : STATUS_COLORS.excellent,
+        }}>
+          {value.toFixed(2)}%
+        </Text>
+      ),
+      ratioWidth: 0.8,
+    },
+  ], []);
+}
+
+// ============================================
+// Content viewer DataTable column definitions
+// ============================================
+function useContentColumns() {
+  return useMemo(() => [
+    {
+      id: 'timestamp',
+      header: 'Time',
+      accessor: (row: PromptResponseEntry) => formatTime(row.timestamp),
+      ratioWidth: 1,
+    },
+    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 0.8 },
+    { id: 'requestModel', header: 'Model', accessor: 'requestModel', ratioWidth: 1.2 },
+    {
+      id: 'finishReason',
+      header: 'Finish',
+      accessor: (row: PromptResponseEntry) => row.finishReason,
+      cell: ({ value }: { value: string }) => (
+        <Text style={{ color: value === 'length' ? STATUS_COLORS.fair : 'inherit', fontWeight: value === 'length' ? 600 : 400 }}>
+          {value || '—'}
+        </Text>
+      ),
+      ratioWidth: 0.7,
+    },
+    { id: 'promptPreview', header: 'Prompt (preview)', accessor: 'promptPreview', ratioWidth: 3 },
+    { id: 'responsePreview', header: 'Response (preview)', accessor: 'responsePreview', ratioWidth: 3 },
+    {
+      id: 'inputTokens',
+      header: 'In Tokens',
+      accessor: (row: PromptResponseEntry) => row.inputTokens,
+      ratioWidth: 0.7,
+    },
+    {
+      id: 'outputTokens',
+      header: 'Out Tokens',
+      accessor: (row: PromptResponseEntry) => row.outputTokens,
+      ratioWidth: 0.7,
+    },
+    {
+      id: 'duration',
+      header: 'Duration',
+      accessor: (row: PromptResponseEntry) => `${(row.durationMs / 1000).toFixed(2)}s`,
+      ratioWidth: 0.7,
+    },
+  ], []);
+}
+
+// ============================================
 // Main Response Analytics Page
 // ============================================
 
@@ -346,14 +491,13 @@ const createDefaultTimeframe = (): Timeframe => ({
   to: { value: 'now()', type: 'expression', absoluteDate: new Date().toISOString() }
 });
 
+
 /** Convert Timeframe to simple string for hook */
 const getTimeframeString = (timeframe: Timeframe): string => {
   const from = timeframe.from?.value || 'now()-2h';
   if (from === 'now()-1h') return '1h';
   if (from === 'now()-6h') return '6h';
   if (from === 'now()-12h') return '12h';
-  if (from === 'now()-2h') return '24h';
-  if (from === 'now()-2h') return '2h';
   if (from === 'now()-7d') return '7d';
   if (from === 'now()-30d') return '30d';
   return '2h';
@@ -361,120 +505,69 @@ const getTimeframeString = (timeframe: Timeframe): string => {
 
 export function ResponseAnalytics() {
   const { metrics, modelComparisons, loading, error, summary, analyzeResponses } = useResponseAnalytics();
-  const { 
-    trendData, 
-    summary: qualitySummary, 
-    loading: qualityLoading, 
-    analyzeQualityTrends 
-  } = useResponseQualityTrends();
-  const {
-    entries: streamingEntries,
-    summary: streamingSummary,
-    loading: streamingLoading,
-    analyze: analyzeStreaming
-  } = useStreamingAnalysis();
-
-  // New content-based hooks
+  const { trendData, summary: qualitySummary, loading: qualityLoading, analyzeQualityTrends } = useResponseQualityTrends();
+  const { entries: streamingEntries, summary: streamingSummary, loading: streamingLoading, analyze: analyzeStreaming } = useStreamingAnalysis();
   const { entries: contentEntries, loading: contentLoading, fetchContent } = useContentViewer();
   const { breakdown: finishBreakdown, summary: finishSummary, loading: finishLoading, analyze: analyzeFinish } = useFinishReasonAnalytics();
   const { aliases, loading: aliasLoading, detect: detectAliases } = useModelAliasing();
   const { trends: lengthTrends, loading: trendsLoading, fetchTrends } = usePromptLengthTrends();
-  
+
   const [timeframe, setTimeframe] = useState<Timeframe>(createDefaultTimeframe());
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'inefficient' | 'quality' | 'streaming' | 'content' | 'finish' | 'aliasing' | 'lengths'>('overview');
-  const [showQualityHelp, setShowQualityHelp] = useState(false);
+  const [activeTab, setActiveTab] = useState<'alerts' | 'quality' | 'intelligence' | 'trends' | 'evidence'>('alerts');
 
   const timeframeString = useMemo(() => getTimeframeString(timeframe), [timeframe]);
+  const streamingColumns = useStreamingColumns();
+  const contentColumns = useContentColumns();
 
-  useEffect(() => {
-    analyzeResponses(timeframeString);
-    analyzeQualityTrends(timeframeString);
-    analyzeStreaming(timeframeString);
-    fetchContent(timeframeString);
-    analyzeFinish(timeframeString);
-    detectAliases(timeframeString);
-    fetchTrends(timeframeString);
-  }, [timeframeString, analyzeResponses, analyzeQualityTrends, analyzeStreaming, fetchContent, analyzeFinish, detectAliases, fetchTrends]);
+  const refreshAll = useCallback((tf: string) => {
+    analyzeResponses(tf);
+    analyzeQualityTrends(tf);
+    analyzeStreaming(tf);
+    fetchContent(tf);
+    analyzeFinish(tf);
+    detectAliases(tf);
+    fetchTrends(tf);
+  }, [analyzeResponses, analyzeQualityTrends, analyzeStreaming, fetchContent, analyzeFinish, detectAliases, fetchTrends]);
 
-  // Transform trend data for TimeseriesChart
+  useEffect(() => { refreshAll(timeframeString); }, [timeframeString, refreshAll]);
+
+  // Derived alert data
+  const aliasMismatches = useMemo(() => aliases.filter(a => a.isMismatch), [aliases]);
+  const truncationAlerts = useMemo(() => computeTruncationAlerts(finishBreakdown), [finishBreakdown]);
+  const inefficientServices = useMemo(() => summary?.topInefficient ?? [], [summary]);
+  const inconsistentServices = useMemo(() => summary?.topInconsistent ?? [], [summary]);
+  const totalAlerts = aliasMismatches.length + truncationAlerts.length + inefficientServices.length + inconsistentServices.length;
+
+  const overallTruncationPct = useMemo(() => {
+    const lengthItem = finishSummary?.finishReasonDistribution.find(d => d.reason === 'length');
+    return lengthItem?.pct ?? 0;
+  }, [finishSummary]);
+
+  // Chart data
   const qualityChartData: Timeseries[] = useMemo(() => {
     if (!trendData || trendData.length === 0) return [];
-    
     return [
-      {
-        name: 'Error Rate (%)',
-        datapoints: trendData.map(d => ({
-          start: new Date(d.timestamp),
-          value: d.errorRate
-        }))
-      },
-      {
-        name: 'Avg Latency (s)',
-        datapoints: trendData.map(d => ({
-          start: new Date(d.timestamp),
-          value: d.avgLatencyMs / 1000
-        }))
-      }
+      { name: 'Error Rate (%)', datapoints: trendData.map(d => ({ start: new Date(d.timestamp), value: d.errorRate })) },
+      { name: 'Avg Latency (s)', datapoints: trendData.map(d => ({ start: new Date(d.timestamp), value: d.avgLatencyMs / 1000 })) },
     ];
   }, [trendData]);
 
-  // Transform prompt length trends for TimeseriesChart
   const lengthChartData: Timeseries[] = useMemo(() => {
     if (!lengthTrends || lengthTrends.length === 0) return [];
     return [
-      {
-        name: 'Avg Prompt Length (chars)',
-        datapoints: lengthTrends.map(d => ({ start: d.timeBucket, value: d.avgPromptLength }))
-      },
-      {
-        name: 'Avg Response Length (chars)',
-        datapoints: lengthTrends.map(d => ({ start: d.timeBucket, value: d.avgResponseLength }))
-      },
+      { name: 'Avg Prompt Length (chars)', datapoints: lengthTrends.map(d => ({ start: d.timeBucket, value: d.avgPromptLength })) },
+      { name: 'Avg Response Length (chars)', datapoints: lengthTrends.map(d => ({ start: d.timeBucket, value: d.avgResponseLength })) },
     ];
   }, [lengthTrends]);
 
-  // Content table columns
-  const contentColumns = useMemo(() => [
-    { id: 'timestamp', header: 'Time', accessor: (row: any) => formatTime(row.timestamp), ratioWidth: 1 },
-    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
-    { id: 'requestModel', header: 'Model', accessor: 'requestModel', ratioWidth: 1.2 },
-    { id: 'promptPreview', header: 'Prompt', accessor: 'promptPreview', ratioWidth: 3 },
-    { id: 'responsePreview', header: 'Response', accessor: 'responsePreview', ratioWidth: 3 },
-    { id: 'finishReason', header: 'Finish', accessor: 'finishReason', ratioWidth: 0.7 },
-    { id: 'inputTokens', header: 'In Tokens', accessor: 'inputTokens', ratioWidth: 0.7 },
-    { id: 'outputTokens', header: 'Out Tokens', accessor: 'outputTokens', ratioWidth: 0.7 },
-    { id: 'durationMs', header: 'Duration', accessor: (row: any) => `${(row.durationMs / 1000).toFixed(2)}s`, ratioWidth: 0.7 },
-  ], []);
-
-  // Finish reason table columns
-  const finishColumns = useMemo(() => [
-    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
-    { id: 'model', header: 'Model', accessor: 'model', ratioWidth: 1.5 },
-    { id: 'finishReason', header: 'Finish Reason', accessor: 'finishReason', ratioWidth: 1 },
-    { id: 'count', header: 'Count', accessor: 'count', ratioWidth: 0.7 },
-    { id: 'avgDurationMs', header: 'Avg Duration', accessor: (row: any) => `${(row.avgDurationMs / 1000).toFixed(2)}s`, ratioWidth: 1 },
-    { id: 'avgOutputTokens', header: 'Avg Out Tokens', accessor: (row: any) => Math.round(row.avgOutputTokens), ratioWidth: 1 },
-    { id: 'avgResponseLength', header: 'Avg Resp Length', accessor: (row: any) => `${Math.round(row.avgResponseLength)} chars`, ratioWidth: 1 },
-  ], []);
-
-  // Model aliasing table columns
-  const aliasColumns = useMemo(() => [
-    { id: 'provider', header: 'Provider', accessor: 'provider', ratioWidth: 1 },
-    { id: 'requestModel', header: 'Request Model', accessor: 'requestModel', ratioWidth: 1.5 },
-    { id: 'responseModel', header: 'Response Model', accessor: 'responseModel', ratioWidth: 1.5 },
-    { id: 'isMismatch', header: 'Mismatch', accessor: (row: any) => row.isMismatch ? '⚠️ Yes' : '✓ Match', ratioWidth: 0.8 },
-    { id: 'count', header: 'Requests', accessor: 'count', ratioWidth: 0.7 },
-    { id: 'avgDurationMs', header: 'Avg Duration', accessor: (row: any) => `${(row.avgDurationMs / 1000).toFixed(2)}s`, ratioWidth: 1 },
-    { id: 'avgInputTokens', header: 'Avg In Tokens', accessor: (row: any) => Math.round(row.avgInputTokens), ratioWidth: 0.8 },
-    { id: 'avgOutputTokens', header: 'Avg Out Tokens', accessor: (row: any) => Math.round(row.avgOutputTokens), ratioWidth: 0.8 },
-  ], []);
+  const anyLoading = loading || aliasLoading || finishLoading;
 
   return (
     <Flex flexDirection="column" gap={16} padding={16}>
       <TitleBar>
         <TitleBar.Title>Response Analytics</TitleBar.Title>
         <TitleBar.Subtitle>
-          Token efficiency, output consistency, and model performance for ML Engineers
+          Token efficiency, truncation detection, model integrity, and response health — for SREs, FinOps, ML Engineers, and Product
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Flex gap={8} alignItems="center">
@@ -483,934 +576,629 @@ export function ResponseAnalytics() {
               onChange={(tf) => tf && setTimeframe(tf)}
               aria-label="Select time range"
             />
-            <Button 
-              onClick={() => analyzeResponses(timeframeString)}
-              aria-label="Refresh analytics"
-            >
-              <RefreshIcon /> Refresh
+            <Button onClick={() => refreshAll(timeframeString)} aria-label="Refresh analytics">
+              <Button.Prefix><RefreshIcon /></Button.Prefix>
+              Refresh
             </Button>
           </Flex>
         </TitleBar.Suffix>
       </TitleBar>
 
-      {error && (
-        <Surface style={{ padding: '16px', backgroundColor: STATUS_COLORS.poor }}>
-          <Text style={{ color: 'white' }}>Error loading analytics: {error.message}</Text>
+      {/* ── Model Aliasing Alert Banner ─────────────────────────── */}
+      {aliasMismatches.length > 0 && (
+        <Surface style={{
+          padding: '12px 20px',
+          borderLeft: `4px solid ${STATUS_COLORS.poor}`,
+          backgroundColor: 'var(--dt-colors-surface-critical-subdued)',
+        }}>
+          <Flex alignItems="center" gap={12} flexWrap="wrap">
+            <CriticalIcon style={{ color: STATUS_COLORS.poor, flexShrink: 0 }} />
+            <Flex flexDirection="column" gap={2} style={{ flex: 1 }}>
+              <Text textStyle="base-emphasized" style={{ color: STATUS_COLORS.poor }}>
+                Provider Override Detected: {aliasMismatches.length} model {aliasMismatches.length === 1 ? 'mismatch' : 'mismatches'} found
+              </Text>
+              <Text textStyle="small">
+                You requested one model, but the provider served a different one.
+                This may affect response quality and cost. See the <strong>Alerts</strong> tab for details.
+              </Text>
+            </Flex>
+            <Button variant="default" onClick={() => setActiveTab('alerts')}>
+              View Alerts
+            </Button>
+          </Flex>
         </Surface>
       )}
 
-      {/* Summary Cards */}
+      {/* ── Summary KPI Row ─────────────────────────────────────── */}
       {summary && (
         <Flex gap={16} flexWrap="wrap">
-          <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
-            <Flex flexDirection="column" gap={8}>
+          <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
+            <Flex flexDirection="column" gap={4}>
               <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
-              <Heading level={2}>{formatNumber(summary.totalRequests)}</Heading>
+              <Heading level={3}>{formatNumber(summary.totalRequests)}</Heading>
             </Flex>
           </Surface>
-          <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
-            <Flex flexDirection="column" gap={8}>
+          <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
+            <Flex flexDirection="column" gap={4}>
               <Text textStyle="small" style={{ opacity: 0.7 }}>Total Tokens</Text>
-              <Heading level={2}>{(summary.totalTokens / 1000000).toFixed(2)}M</Heading>
+              <Heading level={3}>{(summary.totalTokens / 1_000_000).toFixed(2)}M</Heading>
             </Flex>
           </Surface>
-          <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
-            <Flex flexDirection="column" gap={8}>
-              <Tooltip text={METRIC_TOOLTIPS.tokenRatio}>
+          <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Tooltip text="Services with token ratio < 0.5x and >100 avg input tokens. High input, low output = prompt optimization opportunity.">
                 <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
-                  <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Token Ratio</Text>
+                  <Text textStyle="small" style={{ opacity: 0.7 }}>Inefficient Services</Text>
                   <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
                 </Flex>
               </Tooltip>
-              <Heading level={2}>{summary.avgTokenRatio.toFixed(2)}x</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>output/input</Text>
+              <Heading level={3} style={{ color: summary.inefficientServices > 0 ? STATUS_COLORS.poor : 'inherit' }}>
+                {summary.inefficientServices}
+              </Heading>
             </Flex>
           </Surface>
-          <Surface style={{ padding: '20px', flex: '1 1 200px', minWidth: '200px' }}>
-            <Flex flexDirection="column" gap={8}>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>Needs Attention</Text>
-              <Flex gap={8} alignItems="baseline">
-                <Heading level={2} style={{ 
-                  color: summary.inefficientServices > 0 ? STATUS_COLORS.poor : 'inherit' 
-                }}>
-                  {summary.inefficientServices}
-                </Heading>
-                <Tooltip text={METRIC_TOOLTIPS.inefficient}>
-                  <Text textStyle="small" style={{ cursor: 'help', textDecoration: 'underline dotted' }}>inefficient</Text>
-                </Tooltip>
-                <Heading level={2} style={{ 
-                  color: summary.inconsistentServices > 0 ? STATUS_COLORS.fair : 'inherit' 
-                }}>
-                  {summary.inconsistentServices}
-                </Heading>
-                <Tooltip text={METRIC_TOOLTIPS.inconsistent}>
-                  <Text textStyle="small" style={{ cursor: 'help', textDecoration: 'underline dotted' }}>inconsistent</Text>
-                </Tooltip>
-              </Flex>
+          <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Tooltip text="Models where finish_reason = 'length' accounts for ≥5% of their responses. Users received cut-off answers.">
+                <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
+                  <Text textStyle="small" style={{ opacity: 0.7 }}>Truncation Rate</Text>
+                  <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
+                </Flex>
+              </Tooltip>
+              <Heading level={3} style={{ color: overallTruncationPct > 5 ? STATUS_COLORS.fair : 'inherit' }}>
+                {overallTruncationPct.toFixed(1)}%
+              </Heading>
+              <Text textStyle="small" style={{ opacity: 0.7 }}>responses cut off</Text>
+            </Flex>
+          </Surface>
+          <Surface style={{ padding: '16px 20px', flex: '1 1 180px' }}>
+            <Flex flexDirection="column" gap={4}>
+              <Text textStyle="small" style={{ opacity: 0.7 }}>Active Alerts</Text>
+              <Heading level={3} style={{ color: totalAlerts > 0 ? STATUS_COLORS.poor : STATUS_COLORS.excellent }}>
+                {totalAlerts}
+              </Heading>
             </Flex>
           </Surface>
         </Flex>
       )}
 
-      {/* Tab Navigation */}
-      <Flex gap={8} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: '8px' }}>
-        <Button
-          variant={activeTab === 'overview' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('overview')}
-        >
-          <BarChartIcon /> Model Rankings
-        </Button>
-        <Button
-          variant={activeTab === 'services' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('services')}
-        >
-          <ServicesIcon /> Service Analysis
-        </Button>
-        <Button
-          variant={activeTab === 'quality' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('quality')}
-        >
-          <BarChartIcon /> Response Health
-        </Button>
-        <Button
-          variant={activeTab === 'inefficient' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('inefficient')}
-        >
-          <WarningIcon /> Needs Attention
-        </Button>
-        <Button
-          variant={activeTab === 'streaming' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('streaming')}
-        >
-          Streaming vs Batch
-          {streamingSummary && streamingSummary.streamingCount > 0 && (
-            <Text style={{ 
-              padding: '2px 6px', 
-              borderRadius: '4px', 
-              backgroundColor: Colors.Charts.Categorical.Color06.Default,
-              color: 'white',
-              fontSize: '9px',
-              marginLeft: '4px',
-              fontWeight: 600
-            }}>
-              LIVE
+      {/* ── Tab Navigation ──────────────────────────────────────── */}
+      <Flex gap={8} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: '8px' }} flexWrap="wrap">
+        <Button variant={activeTab === 'alerts' ? 'accent' : 'default'} onClick={() => setActiveTab('alerts')}>
+          <Button.Prefix><WarningIcon /></Button.Prefix>
+          Alerts
+          {totalAlerts > 0 && (
+            <Text style={{ padding: '1px 6px', borderRadius: 10, backgroundColor: STATUS_COLORS.poor, color: 'var(--dt-colors-text-inversed-default)', fontSize: 10, fontWeight: 700, marginLeft: 4 }}>
+              {totalAlerts}
             </Text>
           )}
         </Button>
-        <Button
-          variant={activeTab === 'content' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('content')}
-        >
-          Prompt/Response Content
+        <Button variant={activeTab === 'quality' ? 'accent' : 'default'} onClick={() => setActiveTab('quality')}>
+          <Button.Prefix><CheckmarkIcon /></Button.Prefix>
+          Response Quality
         </Button>
-        <Button
-          variant={activeTab === 'finish' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('finish')}
-        >
-          Finish Reasons
+        <Button variant={activeTab === 'intelligence' ? 'accent' : 'default'} onClick={() => setActiveTab('intelligence')}>
+          <Button.Prefix><BarChartIcon /></Button.Prefix>
+          Model Intelligence
         </Button>
-        <Button
-          variant={activeTab === 'aliasing' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('aliasing')}
-        >
-          Model Aliasing
-          {aliases.filter(a => a.isMismatch).length > 0 && (
-            <Text style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: STATUS_COLORS.fair, color: 'white', fontSize: '9px', marginLeft: '4px', fontWeight: 600 }}>
-              {aliases.filter(a => a.isMismatch).length}
-            </Text>
-          )}
+        <Button variant={activeTab === 'trends' ? 'accent' : 'default'} onClick={() => setActiveTab('trends')}>
+          <Button.Prefix><ServicesIcon /></Button.Prefix>
+          Trends
         </Button>
-        <Button
-          variant={activeTab === 'lengths' ? 'accent' : 'default'}
-          onClick={() => setActiveTab('lengths')}
-        >
-          Content Length Trends
+        <Button variant={activeTab === 'evidence' ? 'accent' : 'default'} onClick={() => setActiveTab('evidence')}>
+          Evidence
         </Button>
       </Flex>
 
-      {/* Model Rankings Tab */}
-      {activeTab === 'overview' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <BarChartIcon />
-              <Heading level={4}>Model Efficiency Rankings</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Based on token ratio, latency, and cost efficiency
-              </Text>
-            </Flex>
-
-            {modelComparisons.length === 0 && !loading && (
-              <Text style={{ opacity: 0.7 }}>
-                No model data available. Ensure your services have gen_ai.* span attributes.
-              </Text>
-            )}
-
-            {loading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
+      {/* ════════════════════════════════════════════════════════════
+          TAB 1: ALERTS — Unified triage view
+          ════════════════════════════════════════════════════════════ */}
+      {activeTab === 'alerts' && (
+        <Flex flexDirection="column" gap={16}>
+          {anyLoading && (
+            <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>
+          )}
+          {!anyLoading && totalAlerts === 0 && (
+            <Surface style={{ padding: '32px' }}>
+              <Flex flexDirection="column" alignItems="center" gap={12}>
+                <CheckmarkIcon style={{ color: STATUS_COLORS.excellent, width: 32, height: 32 }} />
+                <Heading level={4} style={{ color: STATUS_COLORS.excellent }}>All Clear</Heading>
+                <Text style={{ opacity: 0.7 }}>No model mismatches, truncation alerts, or inefficiency flags detected in this time window.</Text>
               </Flex>
-            )}
+            </Surface>
+          )}
 
-            <ModelRankingsPaginated models={modelComparisons} />
-          </Flex>
-        </Surface>
-      )}
-
-      {/* Services Tab */}
-      {activeTab === 'services' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <ServicesIcon />
-              <Heading level={4}>Service-Level Analysis</Heading>
-            </Flex>
-
-            {loading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {!loading && metrics.length === 0 && (
-              <Text style={{ opacity: 0.7 }}>
-                No service data available. Ensure your services emit gen_ai.* span attributes.
-              </Text>
-            )}
-
-            {metrics.map(metric => (
-              <ServiceRow key={metric.serviceId} metric={metric} />
-            ))}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* Inefficient Requests Tab */}
-      {activeTab === 'inefficient' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Heading level={4}>⚠️ Services Needing Optimization</Heading>
-            <Text style={{ opacity: 0.7 }}>
-              These services have low token efficiency (high input, low output) or high variance in outputs.
-              This may indicate prompt optimization opportunities.
-            </Text>
-
-            {loading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {summary?.topInefficient && summary.topInefficient.length > 0 ? (
-              <Flex flexDirection="column" gap={12}>
-                <Heading level={5}>Low Token Efficiency</Heading>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>
-                  High input tokens with low output - may benefit from prompt compression or caching
+          {/* ── A. Provider Override: Model Aliasing Mismatches ─── */}
+          {aliasMismatches.length > 0 && (
+            <Surface style={{ padding: '20px', borderLeft: `3px solid ${STATUS_COLORS.poor}` }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex alignItems="center" gap={8}>
+                  <CriticalIcon style={{ color: STATUS_COLORS.poor }} />
+                  <Heading level={4}>Provider Override — Model Mismatch</Heading>
+                  <Tooltip text="You requested a specific model, but the provider silently served a different one. This can mean worse quality, different pricing, and unpredictable behavior — all invisible to traditional monitoring.">
+                    <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <Text style={{ opacity: 0.8 }}>
+                  The following requests received a <strong>different model</strong> than what was requested.
+                  Your provider substituted a model — often during peak load or without notification.
                 </Text>
-                {summary.topInefficient.map(m => (
+                {aliasMismatches.map((a, idx) => (
+                  <Surface key={idx} style={{ padding: '12px', borderLeft: `2px solid ${STATUS_COLORS.fair}` }}>
+                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
+                      <Flex flexDirection="column" gap={4}>
+                        <Flex alignItems="center" gap={8}>
+                          <Text textStyle="base-emphasized" style={{ color: STATUS_COLORS.poor }}>
+                            {a.requestModel}
+                          </Text>
+                          <Text style={{ opacity: 0.5 }}>→ served as →</Text>
+                          <Text textStyle="base-emphasized">{a.responseModel}</Text>
+                        </Flex>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>Provider: {a.provider}</Text>
+                      </Flex>
+                      <Flex gap={24} flexWrap="wrap">
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Affected Requests</Text>
+                          <Text textStyle="base-emphasized">{formatNumber(a.count)}</Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
+                          <Text>{a.avgDurationMs.toFixed(0)}ms</Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Output Tokens</Text>
+                          <Text>{Math.round(a.avgOutputTokens)}</Text>
+                        </Flex>
+                      </Flex>
+                    </Flex>
+                  </Surface>
+                ))}
+              </Flex>
+            </Surface>
+          )}
+
+          {/* ── B. Truncated Responses ─────────────────────────── */}
+          {truncationAlerts.length > 0 && (
+            <Surface style={{ padding: '20px', borderLeft: `3px solid ${STATUS_COLORS.fair}` }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex alignItems="center" gap={8}>
+                  <WarningIcon style={{ color: STATUS_COLORS.fair }} />
+                  <Heading level={4}>Truncated Responses — Users Received Incomplete Answers</Heading>
+                  <Tooltip text="finish_reason = 'length' means the model hit the token limit mid-response. Error rate is 0%, latency looks fine — but users got cut-off answers. Traditional monitoring misses this entirely.">
+                    <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                <Text style={{ opacity: 0.8 }}>
+                  These models are hitting the <strong>max_tokens limit</strong> before completing their response.
+                  Your uptime monitor shows green. Your users see a sentence that ends mid-word.
+                </Text>
+                {truncationAlerts.map((t, idx) => (
+                  <Surface key={idx} style={{ padding: '12px' }}>
+                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
+                      <Flex flexDirection="column" gap={4}>
+                        <Text textStyle="base-emphasized">{t.model}</Text>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>{t.provider}</Text>
+                      </Flex>
+                      <Flex gap={24} flexWrap="wrap">
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Truncation Rate</Text>
+                          <Text style={{ color: STATUS_COLORS.fair, fontWeight: 600 }}>{t.truncationRate.toFixed(1)}%</Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Requests Cut Off</Text>
+                          <Text>{formatNumber(t.count)}</Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Output Tokens</Text>
+                          <Text>{Math.round(t.avgOutputTokens)}</Text>
+                        </Flex>
+                      </Flex>
+                    </Flex>
+                  </Surface>
+                ))}
+                <Text textStyle="small" style={{ opacity: 0.6 }}>
+                  Fix: Increase max_tokens in your API call, or shorten the system prompt to leave more room for the response.
+                </Text>
+              </Flex>
+            </Surface>
+          )}
+
+          {/* ── C. Inefficient Services ───────────────────────── */}
+          {inefficientServices.length > 0 && (
+            <Surface style={{ padding: '20px' }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex alignItems="center" gap={8}>
+                  <WarningIcon style={{ color: STATUS_COLORS.poor }} />
+                  <Heading level={4}>Token Inefficiency — Paying for Input, Getting Minimal Output</Heading>
+                  <Tooltip text="Token ratio < 0.5x with > 100 avg input tokens. Large prompts generating tiny responses = money wasted. Consider prompt compression, few-shot removal, or semantic caching.">
+                    <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {inefficientServices.map(m => (
                   <Surface key={m.serviceId} style={{ padding: '12px' }}>
-                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={16}>
+                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
                       <Flex flexDirection="column" gap={4}>
                         <Text textStyle="base-emphasized">{m.serviceName}</Text>
-                        <Text textStyle="small">{m.model} • {m.provider}</Text>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} · {m.provider}</Text>
                       </Flex>
-                      <Flex gap={24} alignItems="center" flexWrap="wrap">
+                      <Flex gap={24} flexWrap="wrap">
                         <Flex flexDirection="column" alignItems="flex-end">
                           <Text textStyle="small" style={{ opacity: 0.7 }}>Token Ratio</Text>
                           <Text style={{ color: STATUS_COLORS.poor, fontWeight: 600 }}>{m.tokenRatio.toFixed(2)}x</Text>
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Input</Text>
-                          <Text>{m.avgInputTokens.toFixed(0)}</Text>
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg In / Out</Text>
+                          <Text textStyle="small">{m.avgInputTokens.toFixed(0)} → {m.avgOutputTokens.toFixed(0)}</Text>
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Output</Text>
-                          <Text>{m.avgOutputTokens.toFixed(0)}</Text>
-                        </Flex>
-                        <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Est. Cost</Text>
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Period Cost</Text>
                           <Text>${m.estimatedCost.toFixed(2)}</Text>
                         </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Tooltip text="Rough 30-day projection at current rate — makes the cost impact concrete.">
+                            <Flex alignItems="center" gap={4} style={{ cursor: 'help' }}>
+                              <Text textStyle="small" style={{ opacity: 0.7 }}>Est. Monthly Waste</Text>
+                              <HelpIcon style={{ width: 10, height: 10, opacity: 0.5 }} />
+                            </Flex>
+                          </Tooltip>
+                          <Text style={{ color: STATUS_COLORS.poor, fontWeight: 600 }}>${(m.estimatedCost * 30).toFixed(0)}</Text>
+                        </Flex>
                       </Flex>
                     </Flex>
                   </Surface>
                 ))}
-              </Flex>
-            ) : !loading && (
-              <Flex alignItems="center" gap={8}>
-                <CheckmarkIcon style={{ color: STATUS_COLORS.excellent }} />
-                <Text style={{ color: STATUS_COLORS.excellent }}>
-                  No inefficient services detected - all services have healthy token ratios!
+                <Text textStyle="small" style={{ opacity: 0.6 }}>
+                  Fix: Shorten system prompts, remove redundant context, implement semantic caching for repeated query patterns.
                 </Text>
               </Flex>
-            )}
+            </Surface>
+          )}
 
-            {summary?.topInconsistent && summary.topInconsistent.length > 0 && (
-              <Flex flexDirection="column" gap={12} style={{ marginTop: '16px' }}>
-                <Heading level={5}>High Output Variance</Heading>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>
-                  Inconsistent output lengths may indicate unpredictable model behavior
-                </Text>
-                {summary.topInconsistent.map(m => (
-                  <Surface key={`inconsistent-${m.serviceId}`} style={{ padding: '12px' }}>
-                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={16}>
+          {/* ── D. Inconsistent Services ────────────────────── */}
+          {inconsistentServices.length > 0 && (
+            <Surface style={{ padding: '20px' }}>
+              <Flex flexDirection="column" gap={16}>
+                <Flex alignItems="center" gap={8}>
+                  <WarningIcon style={{ color: STATUS_COLORS.fair }} />
+                  <Heading level={4}>Output Inconsistency — Unpredictable Response Lengths</Heading>
+                  <Tooltip text="High standard deviation in output token counts. Some requests get long responses, others get almost nothing — from the same service. Indicates non-deterministic prompts or unguarded open-ended questions.">
+                    <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Flex>
+                {inconsistentServices.map(m => (
+                  <Surface key={`inc-${m.serviceId}`} style={{ padding: '12px' }}>
+                    <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={12}>
                       <Flex flexDirection="column" gap={4}>
                         <Text textStyle="base-emphasized">{m.serviceName}</Text>
-                        <Text textStyle="small">{m.model} • {m.provider}</Text>
+                        <Text textStyle="small" style={{ opacity: 0.7 }}>{m.model} · {m.provider}</Text>
                       </Flex>
-                      <Flex gap={24} alignItems="center" flexWrap="wrap">
+                      <Flex gap={24} flexWrap="wrap">
                         <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Variance</Text>
-                          <Text style={{ color: STATUS_COLORS.fair, fontWeight: 600 }}>{m.outputVariance.toFixed(0)}</Text>
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Output Std Dev</Text>
+                          <Text style={{ color: STATUS_COLORS.fair, fontWeight: 600 }}>{m.outputStdDev.toFixed(1)} tokens</Text>
                         </Flex>
                         <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Std Dev</Text>
-                          <Text>{m.outputStdDev.toFixed(1)}</Text>
-                        </Flex>
-                        <Flex flexDirection="column" alignItems="flex-end">
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>Low Output %</Text>
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Low Output Rate</Text>
                           <Text>{m.lowOutputRate.toFixed(1)}%</Text>
+                        </Flex>
+                        <Flex flexDirection="column" alignItems="flex-end">
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>Requests</Text>
+                          <Text>{formatNumber(m.requestCount)}</Text>
                         </Flex>
                       </Flex>
                     </Flex>
                   </Surface>
                 ))}
+                <Text textStyle="small" style={{ opacity: 0.6 }}>
+                  Fix: Add explicit output format instructions, use structured outputs, or set temperature to a lower value.
+                </Text>
               </Flex>
-            )}
-          </Flex>
-        </Surface>
+            </Surface>
+          )}
+        </Flex>
       )}
 
-      {/* Streaming vs Batch Tab */}
-      {activeTab === 'streaming' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <Heading level={4}>Streaming vs Batch Analysis</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Real-time breakdown using llm.is_streaming attribute from OpenTelemetry spans
-              </Text>
-            </Flex>
-
-            {streamingLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {/* Summary KPIs */}
-            {streamingSummary && (
-              <Flex gap={16} flexWrap="wrap">
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Streaming Requests</Text>
-                    <Heading level={3}>{formatNumber(streamingSummary.streamingCount)}</Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>
-                      {streamingSummary.streamingPct.toFixed(1)}% of total
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Batch Requests</Text>
-                    <Heading level={3}>{formatNumber(streamingSummary.batchCount)}</Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>
-                      {(100 - streamingSummary.streamingPct).toFixed(1)}% of total
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Streaming Avg Latency</Text>
-                    <Heading level={3}>
-                      {streamingSummary.streamingAvgLatency >= 1000 
-                        ? `${(streamingSummary.streamingAvgLatency / 1000).toFixed(1)}s`
-                        : `${Math.round(streamingSummary.streamingAvgLatency)}ms`}
-                    </Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Batch Avg Latency</Text>
-                    <Heading level={3}>
-                      {streamingSummary.batchAvgLatency >= 1000 
-                        ? `${(streamingSummary.batchAvgLatency / 1000).toFixed(1)}s`
-                        : `${Math.round(streamingSummary.batchAvgLatency)}ms`}
-                    </Heading>
-                  </Flex>
-                </Surface>
-              </Flex>
-            )}
-
-            {/* Per-model breakdown */}
-            {streamingEntries.length > 0 ? (
-              <Flex flexDirection="column" gap={8}>
-                <Heading level={5}>Per-Model Breakdown</Heading>
-                <Flex style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid var(--dt-colors-border-neutral-default)' }}>
-                        <th style={{ textAlign: 'left', padding: '8px 12px' }}>Mode</th>
-                        <th style={{ textAlign: 'left', padding: '8px 12px' }}>Provider</th>
-                        <th style={{ textAlign: 'left', padding: '8px 12px' }}>Model</th>
-                        <th style={{ textAlign: 'right', padding: '8px 12px' }}>Requests</th>
-                        <th style={{ textAlign: 'right', padding: '8px 12px' }}>Avg Latency</th>
-                        <th style={{ textAlign: 'right', padding: '8px 12px' }}>P95 Latency</th>
-                        <th style={{ textAlign: 'right', padding: '8px 12px' }}>Avg Output Tokens</th>
-                        <th style={{ textAlign: 'right', padding: '8px 12px' }}>Error Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {streamingEntries.slice(0, 30).map((entry, idx) => (
-                        <tr key={idx} style={{ 
-                          borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
-                          backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--dt-colors-surface-default-secondary)'
-                        }}>
-                          <td style={{ padding: '8px 12px' }}>
-                            <Text style={{
-                              padding: '2px 8px',
-                              borderRadius: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              backgroundColor: entry.mode === 'Streaming' 
-                                ? 'rgba(59, 130, 246, 0.15)' 
-                                : 'rgba(156, 163, 175, 0.15)',
-                              color: entry.mode === 'Streaming'
-                                ? Colors.Charts.Categorical.Color06.Default
-                                : 'inherit'
-                            }}>
-                              {entry.mode}
-                            </Text>
-                          </td>
-                          <td style={{ padding: '8px 12px' }}>{entry.provider}</td>
-                          <td style={{ padding: '8px 12px' }}>
-                            <Text textStyle="small-emphasized">{entry.model}</Text>
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>{formatNumber(entry.requestCount)}</td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            {entry.avgLatencyMs >= 1000 
-                              ? `${(entry.avgLatencyMs / 1000).toFixed(2)}s`
-                              : `${Math.round(entry.avgLatencyMs)}ms`}
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            {entry.p95LatencyMs >= 1000 
-                              ? `${(entry.p95LatencyMs / 1000).toFixed(2)}s`
-                              : `${Math.round(entry.p95LatencyMs)}ms`}
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>{Math.round(entry.avgOutputTokens)}</td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            <Text style={{ 
-                              color: entry.errorRate > 5 ? STATUS_COLORS.poor 
-                                : entry.errorRate > 1 ? STATUS_COLORS.fair 
-                                : STATUS_COLORS.excellent 
-                            }}>
-                              {entry.errorRate.toFixed(2)}%
-                            </Text>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </Flex>
-              </Flex>
-            ) : !streamingLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No streaming data available. Ensure your services have the llm.is_streaming span attribute.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* Response Health Tab */}
+      {/* ════════════════════════════════════════════════════════════
+          TAB 2: RESPONSE QUALITY — Health + Finish Reasons merged
+          ════════════════════════════════════════════════════════════ */}
       {activeTab === 'quality' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={20}>
-            {/* Header with Help Button */}
-            <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={8}>
-              <Flex alignItems="center" gap={8}>
-                <BarChartIcon />
-                <Heading level={4}>Response Health</Heading>
-              </Flex>
-              <Flex alignItems="center" gap={8}>
-                <Tooltip text="Learn about the metrics displayed">
-                  <Button
-                    variant={showQualityHelp ? 'accent' : 'default'}
-                    onClick={() => setShowQualityHelp(!showQualityHelp)}
-                  >
-                    <HelpIcon /> {showQualityHelp ? 'Hide' : 'How It Works'}
-                  </Button>
-                </Tooltip>
-                <Tooltip text="Refresh quality data">
-                  <Button
-                    variant="default"
-                    onClick={() => analyzeQualityTrends(timeframeString)}
-                    disabled={qualityLoading}
-                  >
-                    <RefreshIcon /> Refresh
-                  </Button>
-                </Tooltip>
-              </Flex>
-            </Flex>
+        <Flex flexDirection="column" gap={16}>
+          {qualityLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
 
-            {/* Expandable Help Panel */}
-            {showQualityHelp && (
-              <Surface style={{ 
-                padding: 16, 
-                borderRadius: 8, 
-                backgroundColor: 'var(--dt-colors-surface-neutral-default)',
-                border: '1px solid var(--dt-colors-border-neutral-default)'
-              }}>
-                <Flex flexDirection="column" gap={16}>
-                  <Flex justifyContent="space-between" alignItems="flex-start">
-                    <Text style={{ fontWeight: 600, fontSize: 15 }}>📊 RESPONSE HEALTH METRICS</Text>
-                    <Button variant="default" style={{ padding: '2px 6px', minHeight: 'auto' }} onClick={() => setShowQualityHelp(false)}>✕</Button>
-                  </Flex>
-                  <Text style={{ fontSize: 13, opacity: 0.85 }}>
-                    Industry-standard observability metrics from OpenTelemetry gen_ai.* semantic conventions. All metrics are directly measured - no derived scores.
-                  </Text>
-                  
-                  <Flex gap={32} flexWrap="wrap">
-                    {/* Metrics Explained */}
-                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 280px', minWidth: 280 }}>
-                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>METRICS</Text>
-                      <Flex flexDirection="column" gap={8} style={{ fontSize: 12 }}>
-                        <Text>• <strong>Error Rate:</strong> % of requests with otel.status_code = ERROR</Text>
-                        <Text>• <strong>Avg Latency:</strong> Mean response time (duration field)</Text>
-                        <Text>• <strong>P95 Latency:</strong> 95th percentile response time</Text>
-                        <Text>• <strong>Request Count:</strong> Total GenAI span count</Text>
-                      </Flex>
-                    </Flex>
-                    
-                    {/* Data Source */}
-                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
-                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>DATA SOURCE</Text>
-                      <Flex flexDirection="column" gap={4} style={{ fontSize: 12 }}>
-                        <Text>• OpenTelemetry spans with gen_ai.* attributes</Text>
-                        <Text>• Bucketed by time for trend analysis</Text>
-                        <Text>• Filtered by gen_ai.provider.name or gen_ai.request.model</Text>
-                      </Flex>
-                    </Flex>
-                    
-                    {/* Thresholds */}
-                    <Flex flexDirection="column" gap={8} style={{ flex: '1 1 200px', minWidth: 200 }}>
-                      <Text style={{ fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--dt-colors-border-neutral-default)', paddingBottom: 4 }}>ALERT THRESHOLDS</Text>
-                      <Flex flexDirection="column" gap={4} style={{ fontSize: 12 }}>
-                        <Text>• <strong>Error Rate &gt; 5%:</strong> Highlighted red</Text>
-                        <Text>• <strong>Latency &gt; 5s:</strong> Highlighted yellow</Text>
-                      </Flex>
-                      <Text style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-                        Thresholds are configurable based on your SLOs.
-                      </Text>
-                    </Flex>
-                  </Flex>
+          {qualitySummary && (
+            <Flex gap={16} flexWrap="wrap">
+              <Surface style={{ padding: '20px', flex: '1 1 160px' }}>
+                <Flex flexDirection="column" gap={8}>
+                  <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
+                  <Heading level={3}>{formatNumber(qualitySummary.totalRequests)}</Heading>
+                  <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
                 </Flex>
               </Surface>
-            )}
-
-            {qualityLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {/* Response Health Metrics - Industry Standard Only */}
-            {qualitySummary && (
-              <Flex gap={16} flexWrap="wrap">
-                {/* Total Requests Card */}
-                <Surface style={{ padding: '20px', flex: '1 1 150px', minWidth: '150px' }}>
+              <Tooltip text="% of requests where otel.status_code = ERROR — standard SRE reliability metric.">
+                <Surface style={{
+                  padding: '20px', flex: '1 1 160px', cursor: 'help',
+                  borderLeft: qualitySummary.errorRate > 5 ? `4px solid ${STATUS_COLORS.poor}` : undefined,
+                }}>
                   <Flex flexDirection="column" gap={8}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Total Requests</Text>
-                    <Heading level={3}>
-                      {formatNumber(qualitySummary!.totalRequests)}
+                    <Flex alignItems="center" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Error Rate</Text>
+                      <HelpIcon style={{ width: 11, height: 11, opacity: 0.4 }} />
+                    </Flex>
+                    <Heading level={3} style={{ color: qualitySummary.errorRate > 5 ? STATUS_COLORS.poor : 'inherit' }}>
+                      {qualitySummary.errorRate.toFixed(1)}%
                     </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>in timeframe</Text>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>otel.status_code = ERROR</Text>
                   </Flex>
                 </Surface>
-
-                {/* Error Rate Card */}
-                <Tooltip text={METRIC_TOOLTIPS.errorRate}>
-                  <Surface style={{ 
-                    padding: '20px', 
-                    flex: '1 1 150px', 
-                    minWidth: '150px', 
-                    cursor: 'help',
-                    borderLeft: qualitySummary!.errorRate > 5 ? `4px solid ${STATUS_COLORS.poor}` : undefined
-                  }}>
-                    <Flex flexDirection="column" gap={8}>
-                      <Flex alignItems="center" gap={4}>
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>Error Rate</Text>
-                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
-                      </Flex>
-                      <Heading level={3} style={{ 
-                        color: qualitySummary!.errorRate > 5 ? STATUS_COLORS.poor : 'inherit'
-                      }}>
-                        {qualitySummary!.errorRate.toFixed(1)}%
-                      </Heading>
-                      <Text textStyle="small" style={{ opacity: 0.7 }}>otel.status_code = ERROR</Text>
+              </Tooltip>
+              <Tooltip text="Average response time for all GenAI span operations.">
+                <Surface style={{
+                  padding: '20px', flex: '1 1 160px', cursor: 'help',
+                  borderLeft: qualitySummary.avgLatencyMs > 5000 ? `4px solid ${STATUS_COLORS.fair}` : undefined,
+                }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Flex alignItems="center" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
+                      <HelpIcon style={{ width: 11, height: 11, opacity: 0.4 }} />
                     </Flex>
-                  </Surface>
-                </Tooltip>
-
-                {/* Avg Latency Card */}
-                <Tooltip text={METRIC_TOOLTIPS.avgLatency}>
-                  <Surface style={{ 
-                    padding: '20px', 
-                    flex: '1 1 150px', 
-                    minWidth: '150px', 
-                    cursor: 'help',
-                    borderLeft: qualitySummary!.avgLatencyMs > 5000 ? `4px solid ${STATUS_COLORS.fair}` : undefined
-                  }}>
-                    <Flex flexDirection="column" gap={8}>
-                      <Flex alignItems="center" gap={4}>
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Latency</Text>
-                        <HelpIcon style={{ width: 12, height: 12, opacity: 0.5 }} />
-                      </Flex>
-                      <Heading level={3} style={{ 
-                        color: qualitySummary!.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit'
-                      }}>
-                        {(qualitySummary!.avgLatencyMs / 1000).toFixed(2)}s
-                      </Heading>
-                      <Text textStyle="small" style={{ opacity: 0.7 }}>mean response time</Text>
+                    <Heading level={3} style={{ color: qualitySummary.avgLatencyMs > 5000 ? STATUS_COLORS.fair : 'inherit' }}>
+                      {(qualitySummary.avgLatencyMs / 1000).toFixed(2)}s
+                    </Heading>
+                  </Flex>
+                </Surface>
+              </Tooltip>
+              <Tooltip text="finish_reason = 'length' — model hit the token limit without completing the response. Users got cut-off answers.">
+                <Surface style={{
+                  padding: '20px', flex: '1 1 160px', cursor: 'help',
+                  borderLeft: overallTruncationPct > 5 ? `4px solid ${STATUS_COLORS.fair}` : undefined,
+                }}>
+                  <Flex flexDirection="column" gap={8}>
+                    <Flex alignItems="center" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Truncation Rate</Text>
+                      <HelpIcon style={{ width: 11, height: 11, opacity: 0.4 }} />
                     </Flex>
-                  </Surface>
-                </Tooltip>
-              </Flex>
-            )}
-
-            {/* Quality Trend Chart */}
-            {qualityChartData.length > 0 && trendData.length > 0 && (
-              <Surface style={{ padding: '20px' }}>
-                <Flex flexDirection="column" gap={12}>
-                  <Flex alignItems="center" gap={8}>
-                    <Heading level={5}>Quality Metrics Over Time</Heading>
-                    <Tooltip text="Error Rate plotted over time. Look for spikes that correlate with deployments or traffic changes.">
-                      <HelpIcon style={{ width: 14, height: 14, opacity: 0.5, cursor: 'help' }} />
-                    </Tooltip>
+                    <Heading level={3} style={{ color: overallTruncationPct > 5 ? STATUS_COLORS.fair : 'inherit' }}>
+                      {overallTruncationPct.toFixed(1)}%
+                    </Heading>
+                    <Text textStyle="small" style={{ opacity: 0.7 }}>responses cut off</Text>
                   </Flex>
-                  <Flex style={{ height: '300px' }}>
-                    <TimeseriesChart
-                      data={qualityChartData}
-                    >
-                      <TimeseriesChart.Legend />
-                    </TimeseriesChart>
-                  </Flex>
-                </Flex>
-              </Surface>
-            )}
-
-            {!qualitySummary && !qualityLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No data available. Ensure your services emit gen_ai.* span attributes.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* ============================================ */}
-      {/* Prompt/Response Content Viewer Tab */}
-      {/* ============================================ */}
-      {activeTab === 'content' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <Heading level={4}>Prompt & Response Content Viewer</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Browse actual LLM input/output from gen_ai.prompt.*.content and gen_ai.completion.0.content
-              </Text>
+                </Surface>
+              </Tooltip>
             </Flex>
+          )}
 
-            {contentLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {contentEntries.length > 0 ? (
-              <DataTable
-                data={contentEntries}
-                columns={contentColumns}
-                sortable
-                resizable
-              >
-                <DataTable.Pagination defaultPageSize={10} />
-              </DataTable>
-            ) : !contentLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No prompt/response content available. Spans need gen_ai.prompt.0.content or gen_ai.completion.0.content attributes.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* ============================================ */}
-      {/* Finish Reason Analytics Tab */}
-      {/* ============================================ */}
-      {activeTab === 'finish' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <Heading level={4}>Finish Reason Analytics</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Distribution of gen_ai.completion.0.finish_reason across providers and models
-              </Text>
-            </Flex>
-
-            {finishLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {/* Coverage KPIs */}
-            {finishSummary && (
-              <Flex gap={16} flexWrap="wrap">
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Spans with Content</Text>
-                    <Heading level={3}>{formatNumber(finishSummary.totalWithContent)}</Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>gen_ai.completion.0.content</Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Spans with Finish Reason</Text>
-                    <Heading level={3}>{formatNumber(finishSummary.totalWithFinishReason)}</Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>gen_ai.completion.0.finish_reason</Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Response Length</Text>
-                    <Heading level={3}>{Math.round(finishSummary.avgResponseLength)} chars</Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Prompt Length</Text>
-                    <Heading level={3}>{Math.round(finishSummary.avgPromptLength)} chars</Heading>
-                  </Flex>
-                </Surface>
-              </Flex>
-            )}
-
-            {/* Finish Reason Distribution */}
-            {finishSummary && finishSummary.finishReasonDistribution.length > 0 && (
-              <Surface style={{ padding: '16px' }}>
-                <Flex flexDirection="column" gap={12}>
-                  <Heading level={5}>Finish Reason Distribution</Heading>
-                  <Flex gap={8} flexWrap="wrap">
-                    {finishSummary.finishReasonDistribution.map(d => (
-                      <Surface key={d.reason} style={{ padding: '12px 16px', minWidth: '120px' }}>
-                        <Flex flexDirection="column" gap={4} alignItems="center">
-                          <Text textStyle="base-emphasized">{d.reason}</Text>
-                          <Heading level={4}>{formatNumber(d.count)}</Heading>
-                          <Text textStyle="small" style={{ opacity: 0.7 }}>{d.pct.toFixed(1)}%</Text>
-                          <Flex style={{
-                            width: '100%',
-                            height: '4px',
-                            borderRadius: '2px',
-                            backgroundColor: 'var(--dt-colors-border-neutral-default)',
-                            overflow: 'hidden'
-                          }}>
-                            <Flex style={{
-                              width: `${Math.min(d.pct, 100)}%`,
-                              height: '100%',
-                              borderRadius: '2px',
-                              backgroundColor: d.reason === 'stop' ? STATUS_COLORS.excellent
-                                : d.reason === 'length' ? STATUS_COLORS.fair
-                                : STATUS_COLORS.poor,
-                            }} />
-                          </Flex>
+          {finishSummary && finishSummary.finishReasonDistribution.length > 0 && (
+            <Surface style={{ padding: '20px' }}>
+              <Flex flexDirection="column" gap={16}>
+                <Heading level={5}>Finish Reason Distribution</Heading>
+                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                  How responses ended. <strong>stop</strong> = complete. <strong>length</strong> = cut off by token limit.
+                  <strong> content_filter</strong> = blocked. Other = model-specific signal.
+                </Text>
+                <Flex gap={12} flexWrap="wrap">
+                  {finishSummary.finishReasonDistribution.map(item => {
+                    const isStop = item.reason === 'stop';
+                    const isLength = item.reason === 'length';
+                    const borderColor = isStop ? STATUS_COLORS.excellent : isLength ? STATUS_COLORS.fair : STATUS_COLORS.poor;
+                    return (
+                      <Surface key={item.reason} style={{ padding: '12px 20px', flex: '1 1 140px', borderLeft: `3px solid ${borderColor}` }}>
+                        <Flex flexDirection="column" gap={4}>
+                          <Text textStyle="base-emphasized">{item.reason}</Text>
+                          <Heading level={4}>{item.pct.toFixed(1)}%</Heading>
+                          <Text textStyle="small" style={{ opacity: 0.7 }}>{formatNumber(item.count)} requests</Text>
                         </Flex>
                       </Surface>
-                    ))}
-                  </Flex>
+                    );
+                  })}
                 </Flex>
-              </Surface>
-            )}
+              </Flex>
+            </Surface>
+          )}
 
-            {/* Per-model breakdown table */}
-            {finishBreakdown.length > 0 ? (
-              <>
-                <Heading level={5}>Per-Model Finish Reason Breakdown</Heading>
-                <DataTable
-                  data={finishBreakdown}
-                  columns={finishColumns}
-                  sortable
-                  resizable
-                >
+          {finishBreakdown.length > 0 && (
+            <Surface style={{ padding: '20px' }}>
+              <Flex flexDirection="column" gap={12}>
+                <Heading level={5}>Finish Reasons by Model</Heading>
+                <DataTable data={finishBreakdown} columns={[
+                  { id: 'provider', header: 'Provider', accessor: 'provider' as const, ratioWidth: 1 },
+                  { id: 'model', header: 'Model', accessor: 'model' as const, ratioWidth: 1.5 },
+                  {
+                    id: 'finishReason',
+                    header: 'Finish Reason',
+                    accessor: (row: FinishReasonBreakdown) => row.finishReason,
+                    cell: ({ value }: { value: string }) => (
+                      <Text style={{
+                        color: value === 'stop' ? STATUS_COLORS.excellent
+                          : value === 'length' ? STATUS_COLORS.fair
+                          : STATUS_COLORS.poor,
+                        fontWeight: value !== 'stop' ? 600 : 400,
+                      }}>
+                        {value}
+                      </Text>
+                    ),
+                    ratioWidth: 1,
+                  },
+                  { id: 'count', header: 'Count', accessor: (row: FinishReasonBreakdown) => formatNumber(row.count), ratioWidth: 0.7 },
+                  { id: 'avgDuration', header: 'Avg Duration', accessor: (row: FinishReasonBreakdown) => `${(row.avgDurationMs / 1000).toFixed(2)}s`, ratioWidth: 0.9 },
+                  { id: 'avgOutTokens', header: 'Avg Out Tokens', accessor: (row: FinishReasonBreakdown) => Math.round(row.avgOutputTokens), ratioWidth: 1 },
+                ]} sortable>
+                  <DataTable.Pagination defaultPageSize={10} />
+                </DataTable>
+              </Flex>
+            </Surface>
+          )}
+
+          {!qualityLoading && !finishLoading && !qualitySummary && finishBreakdown.length === 0 && (
+            <Text style={{ opacity: 0.7 }}>No data available. Ensure your services emit gen_ai.* span attributes.</Text>
+          )}
+        </Flex>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          TAB 3: MODEL INTELLIGENCE — Rankings + Streaming
+          ════════════════════════════════════════════════════════════ */}
+      {activeTab === 'intelligence' && (
+        <Flex flexDirection="column" gap={16}>
+          <Surface style={{ padding: '20px' }}>
+            <Flex flexDirection="column" gap={16}>
+              <Flex alignItems="center" gap={8}>
+                <BarChartIcon />
+                <Heading level={4}>Model Efficiency Rankings</Heading>
+                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                  Composite score: token ratio (40%), latency (30%), cost (30%)
+                </Text>
+              </Flex>
+              {loading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
+              {!loading && modelComparisons.length === 0 && (
+                <Text style={{ opacity: 0.7 }}>No model data available. Ensure your services emit gen_ai.* span attributes.</Text>
+              )}
+              <ModelRankingsPaginated models={modelComparisons} />
+            </Flex>
+          </Surface>
+
+          <Surface style={{ padding: '20px' }}>
+            <Flex flexDirection="column" gap={16}>
+              <Flex alignItems="center" gap={8}>
+                <Heading level={4}>Streaming vs Batch</Heading>
+                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                  Latency and throughput by mode (llm.is_streaming attribute)
+                </Text>
+              </Flex>
+              {streamingLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
+              {streamingSummary && (
+                <Flex gap={16} flexWrap="wrap">
+                  <Surface style={{ padding: '16px', flex: '1 1 160px' }}>
+                    <Flex flexDirection="column" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Streaming</Text>
+                      <Heading level={3}>{streamingSummary.streamingPct.toFixed(1)}%</Heading>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>{formatNumber(streamingSummary.streamingCount)} requests</Text>
+                    </Flex>
+                  </Surface>
+                  <Surface style={{ padding: '16px', flex: '1 1 160px' }}>
+                    <Flex flexDirection="column" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Streaming Avg Latency</Text>
+                      <Heading level={3}>
+                        {streamingSummary.streamingAvgLatency >= 1000
+                          ? `${(streamingSummary.streamingAvgLatency / 1000).toFixed(1)}s`
+                          : `${Math.round(streamingSummary.streamingAvgLatency)}ms`}
+                      </Heading>
+                    </Flex>
+                  </Surface>
+                  <Surface style={{ padding: '16px', flex: '1 1 160px' }}>
+                    <Flex flexDirection="column" gap={4}>
+                      <Text textStyle="small" style={{ opacity: 0.7 }}>Batch Avg Latency</Text>
+                      <Heading level={3}>
+                        {streamingSummary.batchAvgLatency >= 1000
+                          ? `${(streamingSummary.batchAvgLatency / 1000).toFixed(1)}s`
+                          : `${Math.round(streamingSummary.batchAvgLatency)}ms`}
+                      </Heading>
+                    </Flex>
+                  </Surface>
+                </Flex>
+              )}
+              {streamingEntries.length > 0 ? (
+                <DataTable data={streamingEntries} columns={streamingColumns} sortable>
                   <DataTable.Pagination defaultPageSize={15} />
                 </DataTable>
-              </>
-            ) : !finishLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No finish reason data available. Spans need gen_ai.completion.0.finish_reason attribute.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
+              ) : !streamingLoading && (
+                <Text style={{ opacity: 0.7 }}>
+                  No streaming data. Ensure your services have the llm.is_streaming span attribute.
+                </Text>
+              )}
+            </Flex>
+          </Surface>
+
+          {metrics.length > 0 && (
+            <Surface style={{ padding: '20px' }}>
+              <Flex flexDirection="column" gap={12}>
+                <Heading level={5}>All Services — Token Efficiency Detail</Heading>
+                {metrics.map(metric => (
+                  <ServiceRow key={metric.serviceId} metric={metric} />
+                ))}
+              </Flex>
+            </Surface>
+          )}
+        </Flex>
       )}
 
-      {/* ============================================ */}
-      {/* Model Aliasing Detection Tab */}
-      {/* ============================================ */}
-      {activeTab === 'aliasing' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <Heading level={4}>Model Aliasing Detection</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Compares gen_ai.request.model vs gen_ai.response.model to detect server-side model substitution
-              </Text>
-            </Flex>
-
-            {aliasLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
+      {/* ════════════════════════════════════════════════════════════
+          TAB 4: TRENDS — Quality + Content Length over time
+          ════════════════════════════════════════════════════════════ */}
+      {activeTab === 'trends' && (
+        <Flex flexDirection="column" gap={16}>
+          <Surface style={{ padding: '20px' }}>
+            <Flex flexDirection="column" gap={12}>
+              <Flex alignItems="center" gap={8}>
+                <Heading level={4}>Response Health Over Time</Heading>
+                <Tooltip text="Error rate and latency plotted over time. Spikes correlate with deployments, traffic changes, or provider incidents.">
+                  <HelpIcon style={{ width: 14, height: 14, opacity: 0.4, cursor: 'help' }} />
+                </Tooltip>
               </Flex>
-            )}
-
-            {/* Mismatch Summary */}
-            {aliases.length > 0 && (
-              <Flex gap={16} flexWrap="wrap">
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Total Model Pairs</Text>
-                    <Heading level={3}>{aliases.length}</Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ 
-                  padding: '16px', flex: '1 1 180px', minWidth: '180px',
-                  borderLeft: aliases.filter(a => a.isMismatch).length > 0 ? `4px solid ${STATUS_COLORS.fair}` : undefined
-                }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Mismatches Detected</Text>
-                    <Heading level={3} style={{ color: aliases.filter(a => a.isMismatch).length > 0 ? STATUS_COLORS.fair : STATUS_COLORS.excellent }}>
-                      {aliases.filter(a => a.isMismatch).length}
-                    </Heading>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>
-                      request model ≠ response model
-                    </Text>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Affected Requests</Text>
-                    <Heading level={3}>
-                      {formatNumber(aliases.filter(a => a.isMismatch).reduce((s, a) => s + a.count, 0))}
-                    </Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Exact Matches</Text>
-                    <Heading level={3} style={{ color: STATUS_COLORS.excellent }}>
-                      {aliases.filter(a => !a.isMismatch).length}
-                    </Heading>
-                  </Flex>
-                </Surface>
-              </Flex>
-            )}
-
-            {aliases.length > 0 ? (
-              <DataTable
-                data={aliases}
-                columns={aliasColumns}
-                sortable
-                resizable
-              >
-                <DataTable.Pagination defaultPageSize={15} />
-              </DataTable>
-            ) : !aliasLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No model aliasing data available. Spans need both gen_ai.request.model and gen_ai.response.model attributes.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
-      )}
-
-      {/* ============================================ */}
-      {/* Content Length Trends Tab */}
-      {/* ============================================ */}
-      {activeTab === 'lengths' && (
-        <Surface style={{ padding: '20px' }}>
-          <Flex flexDirection="column" gap={16}>
-            <Flex alignItems="center" gap={8}>
-              <Heading level={4}>Content Length Trends</Heading>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
-                Track prompt and response content size over time from gen_ai.prompt/completion content attributes
-              </Text>
-            </Flex>
-
-            {trendsLoading && (
-              <Flex justifyContent="center" padding={32}>
-                <ProgressCircle />
-              </Flex>
-            )}
-
-            {/* Summary KPIs */}
-            {lengthTrends.length > 0 && (
-              <Flex gap={16} flexWrap="wrap">
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Prompt Length</Text>
-                    <Heading level={3}>
-                      {Math.round(lengthTrends.reduce((s, t) => s + t.avgPromptLength * t.requestCount, 0) / Math.max(lengthTrends.reduce((s, t) => s + t.requestCount, 0), 1))} chars
-                    </Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Avg Response Length</Text>
-                    <Heading level={3}>
-                      {Math.round(lengthTrends.reduce((s, t) => s + t.avgResponseLength * t.requestCount, 0) / Math.max(lengthTrends.reduce((s, t) => s + t.requestCount, 0), 1))} chars
-                    </Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Max Prompt Length</Text>
-                    <Heading level={3}>
-                      {formatNumber(Math.max(...lengthTrends.map(t => t.maxPromptLength)))} chars
-                    </Heading>
-                  </Flex>
-                </Surface>
-                <Surface style={{ padding: '16px', flex: '1 1 180px', minWidth: '180px' }}>
-                  <Flex flexDirection="column" gap={4}>
-                    <Text textStyle="small" style={{ opacity: 0.7 }}>Max Response Length</Text>
-                    <Heading level={3}>
-                      {formatNumber(Math.max(...lengthTrends.map(t => t.maxResponseLength)))} chars
-                    </Heading>
-                  </Flex>
-                </Surface>
-              </Flex>
-            )}
-
-            {/* Timeseries chart */}
-            {lengthChartData.length > 0 && lengthTrends.length > 0 && (
-              <Surface style={{ padding: '20px' }}>
-                <Flex flexDirection="column" gap={12}>
-                  <Heading level={5}>Prompt & Response Length Over Time</Heading>
-                  <Flex style={{ height: '300px' }}>
-                    <TimeseriesChart data={lengthChartData}>
-                      <TimeseriesChart.Legend />
-                    </TimeseriesChart>
-                  </Flex>
+              {qualityLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
+              {qualityChartData.length > 0 ? (
+                <Flex style={{ height: 280 }}>
+                  <TimeseriesChart data={qualityChartData}>
+                    <TimeseriesChart.Legend />
+                  </TimeseriesChart>
                 </Flex>
-              </Surface>
-            )}
+              ) : !qualityLoading && (
+                <Text style={{ opacity: 0.7 }}>No trend data. Ensure gen_ai.* span attributes are present.</Text>
+              )}
+            </Flex>
+          </Surface>
 
-            {lengthTrends.length === 0 && !trendsLoading && (
-              <Text style={{ opacity: 0.7 }}>
-                No content length data available. Spans need gen_ai.prompt.0.content or gen_ai.completion.0.content attributes.
-              </Text>
-            )}
-          </Flex>
-        </Surface>
+          <Surface style={{ padding: '20px' }}>
+            <Flex flexDirection="column" gap={12}>
+              <Flex alignItems="center" gap={8}>
+                <Heading level={4}>Prompt & Response Length Over Time</Heading>
+                <Tooltip text="Average character length of prompts and responses over time. Rising prompt length drives token cost. Rising response length may indicate verbosity drift.">
+                  <HelpIcon style={{ width: 14, height: 14, opacity: 0.4, cursor: 'help' }} />
+                </Tooltip>
+              </Flex>
+              {trendsLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
+              {lengthChartData.length > 0 ? (
+                <Flex style={{ height: 280 }}>
+                  <TimeseriesChart data={lengthChartData}>
+                    <TimeseriesChart.Legend />
+                  </TimeseriesChart>
+                </Flex>
+              ) : !trendsLoading && (
+                <Text style={{ opacity: 0.7 }}>
+                  No length trend data. Spans need gen_ai.prompt.0.content or gen_ai.completion.0.content attributes.
+                </Text>
+              )}
+            </Flex>
+          </Surface>
+        </Flex>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          TAB 5: EVIDENCE — Raw I/O for debugging
+          ════════════════════════════════════════════════════════════ */}
+      {activeTab === 'evidence' && (
+        <Flex flexDirection="column" gap={16}>
+          <Surface style={{
+            padding: '12px 20px',
+            borderLeft: `4px solid ${STATUS_COLORS.fair}`,
+            backgroundColor: 'var(--dt-colors-surface-warning-subdued)',
+          }}>
+            <Text textStyle="small">
+              <strong>For debugging flagged services only.</strong> This view shows raw LLM prompts and responses.
+              Do not share screenshots of this tab publicly. Content is truncated at 300 / 500 chars for display.
+            </Text>
+          </Surface>
+          {contentLoading && <Flex justifyContent="center" padding={32}><ProgressCircle /></Flex>}
+          {contentEntries.length > 0 ? (
+            <DataTable data={contentEntries} columns={contentColumns} sortable resizable>
+              <DataTable.Pagination defaultPageSize={10} />
+            </DataTable>
+          ) : !contentLoading && (
+            <Text style={{ opacity: 0.7 }}>
+              No prompt/response content available.
+              Spans need gen_ai.prompt.0.content or gen_ai.completion.0.content attributes.
+            </Text>
+          )}
+        </Flex>
       )}
     </Flex>
   );
