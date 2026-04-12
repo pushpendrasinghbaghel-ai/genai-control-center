@@ -631,7 +631,7 @@ const QualityAlertsTab: React.FC<{
                   >
                     <Flex alignItems="center" gap={4}>
                       <AiIcon style={{ width: 14, height: 14 }} />
-                      Analyze with Davis
+                      Analyze
                     </Flex>
                   </Button>
                 </Flex>
