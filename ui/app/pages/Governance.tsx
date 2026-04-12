@@ -1,18 +1,19 @@
 // GenAI Control Center - Governance Dashboard
 // AI Governance, Compliance, and Risk Management
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Flex, Surface } from '@dynatrace/strato-components/layouts';
 import { TitleBar } from '@dynatrace/strato-components/layouts';
 import { Heading, Text, Link } from '@dynatrace/strato-components/typography';
 import { Button } from '@dynatrace/strato-components/buttons';
-import { ProgressBar } from '@dynatrace/strato-components/content';
+import { ProgressBar, MessageContainer } from '@dynatrace/strato-components/content';
+import { DataTable, DataTableColumnDef } from '@dynatrace/strato-components/tables';
 import { ExternalLinkIcon, DocumentIcon, WarningIcon, CheckmarkIcon, CriticalIcon, SecurityIcon, MoneyIcon, AiIcon, RefreshIcon, StopIcon } from '@dynatrace/strato-icons';
 import { openTraceInDistributedTraces } from '../utils/traceLink';
 import { useAIServicesDiscovery, useProviderComparison, usePromptAnalysis, useDistinctServices, useDistinctProviders, useDistinctModels, useAuditTrail } from '../hooks/useDQLQueries';
 import { useProviderDeepDive } from '../hooks/useProviderDeepDive';
 import { useDavisPromptScoring, type DavisPromptScore } from '../hooks/useDavisAI';
-import type { QueryFilters, PromptFlag } from '../hooks/useDQLQueries';
+import type { QueryFilters, PromptFlag, AuditTrailEvent } from '../hooks/useDQLQueries';
 import { Colors } from '@dynatrace/strato-design-tokens';
 import { FilterBar, SampleDataBadge } from '../components';
 import { useGlobalFilters } from '../context';
@@ -69,6 +70,8 @@ export const Governance: React.FC = () => {
 
   const [selectedTab, setSelectedTab] = useState<'policies' | 'providers' | 'prompts' | 'audit'>('policies');
   const [promptFilter, setPromptFilter] = useState<'all' | 'error' | 'pii' | 'injection' | 'expensive' | 'hallucination' | 'ungrounded' | 'repetitive' | 'bias'>('all');
+  const [promptPage, setPromptPage] = useState(0);
+  const PROMPT_PAGE_SIZE = 20;
   
   // Configurable threshold for cache-eligible prompts (minimum requests in timeframe)
   const CACHE_THRESHOLD = 15;
@@ -187,6 +190,16 @@ export const Governance: React.FC = () => {
     if (promptFilter === 'all') return groupedPromptsWithDavisScores;
     return groupedPromptsWithDavisScores.filter(p => p.flagTypes.has(promptFilter));
   }, [groupedPromptsWithDavisScores, promptFilter]);
+
+  // Reset to page 0 when filter changes
+  useEffect(() => { setPromptPage(0); }, [promptFilter]);
+
+  // Paginated slice of filtered prompts
+  const pagedPrompts = useMemo(
+    () => filteredPrompts.slice(promptPage * PROMPT_PAGE_SIZE, (promptPage + 1) * PROMPT_PAGE_SIZE),
+    [filteredPrompts, promptPage]
+  );
+  const promptTotalPages = Math.ceil(filteredPrompts.length / PROMPT_PAGE_SIZE);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -366,8 +379,9 @@ export const Governance: React.FC = () => {
 
   // Helper to get status icon
   const getStatusIcon = (status: string) => {
-    const icons: Record<string, string> = { compliant: '[OK]', warning: '[!]', violation: '[X]' };
-    return icons[status] || '[?]';
+    if (status === 'compliant') return <CheckmarkIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-success-default)' }} />;
+    if (status === 'warning') return <WarningIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-warning-default)' }} />;
+    return <CriticalIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-feedback-critical-default)' }} />;
   };
 
   // Helper to get risk color
@@ -377,27 +391,12 @@ export const Governance: React.FC = () => {
     return Colors.Text.Success.Default;
   };
 
-  // Helper to get flag badge style
-  const getFlagStyle = (flag: PromptFlag) => {
-    const baseStyle = {
-      padding: '2px 8px',
-      borderRadius: 4,
-      fontSize: 11,
-      fontWeight: 500,
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 4,
-    };
-    
-    const colors: Record<string, { bg: string; text: string }> = {
-      critical: { bg: 'rgba(255, 50, 50, 0.2)', text: Colors.Text.Critical.Default },
-      high: { bg: 'rgba(255, 150, 50, 0.2)', text: Colors.Text.Warning.Default },
-      medium: { bg: 'rgba(255, 200, 50, 0.2)', text: 'var(--dt-colors-charts-status-warning-default)' },
-      low: { bg: 'rgba(100, 180, 255, 0.2)', text: Colors.Text.Primary.Default },
-    };
-    
-    const color = colors[flag.severity] || colors.medium;
-    return { ...baseStyle, backgroundColor: color.bg, color: color.text };
+  // Severity → Strato CSS variable background tokens
+  const SEVERITY_BG: Record<string, string> = {
+    critical: 'var(--dt-colors-background-status-critical-subdued)',
+    high: 'var(--dt-colors-background-status-warning-subdued)',
+    medium: 'var(--dt-colors-background-status-warning-subdued)',
+    low: 'var(--dt-colors-background-status-info-subdued)',
   };
 
   // Helper to get flag icon
@@ -429,7 +428,7 @@ export const Governance: React.FC = () => {
       </TitleBar>
 
       {/* Provider Data Disclaimer */}
-      <Surface style={{ padding: 10, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 6 }}>
+      <Surface style={{ padding: 10, borderLeft: '3px solid var(--dt-colors-border-neutral-default)' }}>
         <Flex alignItems="center" gap={8}>
           <DocumentIcon aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)' }} />
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
@@ -449,6 +448,17 @@ export const Governance: React.FC = () => {
         availableProviders={availableProviders || []}
         availableModels={availableModels || []}
       />
+
+      {/* Value Narrative */}
+      <Surface style={{ padding: '12px 16px', borderLeft: '4px solid var(--dt-colors-border-primary-default)' }}>
+        <Flex flexDirection="column" gap={4}>
+          <Text style={{ fontWeight: 600, fontSize: 14 }}>AI Governance — Observe, Audit, Enforce</Text>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
+            Track compliance across all AI services in real time: detect prompt security issues (PII, injections, hallucinations), assess provider risk, and audit every model invocation — all from genuine gen_ai.* OpenTelemetry span data, not estimates.
+          </Text>
+        </Flex>
+      </Surface>
+
       {/* Compliance Overview */}
       <Flex gap={16}>
         <Surface style={{ flex: 1, padding: 16 }}>
@@ -578,7 +588,7 @@ export const Governance: React.FC = () => {
                     <Flex justifyContent="space-between" alignItems="flex-start">
                       <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
                         <Flex alignItems="center" gap={8}>
-                          <Text>{getStatusIcon(policy.status)}</Text>
+                          {getStatusIcon(policy.status)}
                           <Text style={{ fontWeight: 600 }}>{policy.name}</Text>
                           <Text textStyle="small" style={{ 
                             padding: '2px 6px', 
@@ -864,16 +874,16 @@ export const Governance: React.FC = () => {
                 {promptsLoading && <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>Loading...</Text>}
               </Flex>
               {!promptsLoading && (!filteredPrompts || filteredPrompts.length === 0) && (
-                <Surface style={{ padding: 16, backgroundColor: 'rgba(0, 150, 255, 0.1)' }}>
-                  <Text>No prompts found for this filter. This could mean:</Text>
-                  <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
-                    <li><Text textStyle="small">No GenAI spans with prompt content in the selected timeframe</Text></li>
-                    <li><Text textStyle="small">No prompts match the "{promptFilter}" category</Text></li>
-                    <li><Text textStyle="small">Try selecting "All" to see all prompts</Text></li>
-                  </ul>
-                </Surface>
+                <MessageContainer variant="neutral">
+                  <Text>No prompts found for this filter.</Text>
+                  <Flex flexDirection="column" gap={4} style={{ marginTop: 8 }}>
+                    <Text textStyle="small">- No GenAI spans with prompt content in the selected timeframe</Text>
+                    <Text textStyle="small">- No prompts match the "{promptFilter}" category</Text>
+                    <Text textStyle="small">- Try selecting "All" to see all prompts</Text>
+                  </Flex>
+                </MessageContainer>
               )}
-              {(filteredPrompts || []).map((prompt) => {
+              {pagedPrompts.map((prompt) => {
                 const davisScore = prompt.davisScore;
                 return (
                 <Surface key={prompt.id} style={{ 
@@ -900,7 +910,7 @@ export const Governance: React.FC = () => {
                         </Text>
                         <Text textStyle="small" style={{ 
                           padding: '1px 6px', 
-                          backgroundColor: prompt.count > 10 ? 'rgba(255, 150, 50, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+                          backgroundColor: prompt.count > 10 ? 'var(--dt-colors-background-status-warning-subdued)' : 'var(--dt-colors-background-status-info-subdued)',
                           color: prompt.count > 10 ? Colors.Text.Warning.Default : Colors.Text.Primary.Default,
                           borderRadius: 3,
                           fontWeight: 600,
@@ -912,9 +922,9 @@ export const Governance: React.FC = () => {
                         {davisScore && (
                           <Text textStyle="small" style={{ 
                             padding: '1px 6px', 
-                            backgroundColor: davisScore.riskScore >= 50 ? 'rgba(255, 60, 60, 0.2)' :
-                                           davisScore.riskScore >= 25 ? 'rgba(255, 180, 60, 0.2)' :
-                                           'rgba(60, 200, 100, 0.2)',
+                            backgroundColor: davisScore.riskScore >= 50 ? 'var(--dt-colors-background-status-critical-subdued)' :
+                                           davisScore.riskScore >= 25 ? 'var(--dt-colors-background-status-warning-subdued)' :
+                                           'var(--dt-colors-background-status-success-subdued)',
                             color: davisScore.riskScore >= 50 ? Colors.Text.Critical.Default :
                                   davisScore.riskScore >= 25 ? Colors.Text.Warning.Default :
                                   Colors.Text.Success.Default,
@@ -982,11 +992,11 @@ export const Governance: React.FC = () => {
                         <Text textStyle="small" style={{ 
                           color: Colors.Text.Critical.Default,
                           fontFamily: 'monospace',
-                          backgroundColor: 'rgba(255, 50, 50, 0.1)',
+                          backgroundColor: 'var(--dt-colors-background-status-critical-subdued)',
                           padding: '4px 6px',
                           borderRadius: 3,
                           fontSize: 10,
-                          borderLeft: '3px solid rgba(255, 50, 50, 0.5)'
+                          borderLeft: '3px solid var(--dt-colors-border-critical-default)'
                         }}>
                           {prompt.completionPreview}
                         </Text>
@@ -1026,10 +1036,10 @@ export const Governance: React.FC = () => {
                                     fontSize: 10,
                                     fontWeight: 500,
                                     cursor: 'help',
-                                    backgroundColor: highestSeverity === 'critical' ? 'rgba(255, 50, 50, 0.2)' :
-                                                   highestSeverity === 'high' ? 'rgba(255, 150, 50, 0.2)' :
-                                                   highestSeverity === 'medium' ? 'rgba(255, 200, 50, 0.2)' :
-                                                   'rgba(100, 180, 255, 0.2)',
+                                    backgroundColor: highestSeverity === 'critical' ? 'var(--dt-colors-background-status-critical-subdued)' :
+                                                   highestSeverity === 'high' ? 'var(--dt-colors-background-status-warning-subdued)' :
+                                                   highestSeverity === 'medium' ? 'var(--dt-colors-background-status-warning-subdued)' :
+                                                   'var(--dt-colors-background-status-info-subdued)',
                                     color: highestSeverity === 'critical' ? Colors.Text.Critical.Default :
                                            highestSeverity === 'high' ? Colors.Text.Warning.Default :
                                            highestSeverity === 'medium' ? 'var(--dt-colors-charts-status-warning-default)' :
@@ -1048,9 +1058,9 @@ export const Governance: React.FC = () => {
                           <Flex flexDirection="column" gap={2} style={{ 
                             marginTop: 2,
                             padding: '4px 8px',
-                            backgroundColor: 'rgba(255, 150, 50, 0.08)',
+                            backgroundColor: 'var(--dt-colors-background-status-warning-subdued)',
                             borderRadius: 4,
-                            borderLeft: '2px solid rgba(255, 150, 50, 0.5)'
+                            borderLeft: '2px solid var(--dt-colors-border-warning-default)'
                           }}>
                             <Text textStyle="small" style={{ fontWeight: 600, fontSize: 9, color: Colors.Text.Warning.Default }}>
                               🔍 Detection Reasons:
@@ -1098,7 +1108,7 @@ export const Governance: React.FC = () => {
                       <Flex flexDirection="column" gap={2} style={{ 
                         marginTop: 4, 
                         padding: '4px 8px', 
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        backgroundColor: 'var(--dt-colors-background-status-info-subdued)',
                         borderRadius: 4
                       }}>
                         <Text textStyle="small" style={{ fontWeight: 600, fontSize: 10 }}>
@@ -1114,8 +1124,34 @@ export const Governance: React.FC = () => {
                   </Flex>
                 </Surface>
                 );
-              })}
+              })}            
             </Flex>
+
+            {/* Prompt Pagination */}
+            {promptTotalPages > 1 && (
+              <Flex justifyContent="space-between" alignItems="center" style={{ marginTop: 8 }}>
+                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
+                  Showing {promptPage * PROMPT_PAGE_SIZE + 1}–{Math.min((promptPage + 1) * PROMPT_PAGE_SIZE, filteredPrompts.length)} of {filteredPrompts.length} patterns
+                </Text>
+                <Flex gap={8} alignItems="center">
+                  <Button
+                    variant="default"
+                    onClick={() => setPromptPage(p => Math.max(0, p - 1))}
+                    disabled={promptPage === 0}
+                  >
+                    Previous
+                  </Button>
+                  <Text textStyle="small">Page {promptPage + 1} / {promptTotalPages}</Text>
+                  <Button
+                    variant="default"
+                    onClick={() => setPromptPage(p => Math.min(promptTotalPages - 1, p + 1))}
+                    disabled={promptPage >= promptTotalPages - 1}
+                  >
+                    Next
+                  </Button>
+                </Flex>
+              </Flex>
+            )}
           </Flex>
         </Surface>
       )}
@@ -1129,20 +1165,90 @@ export const Governance: React.FC = () => {
 };
 
 /**
- * Audit Trail Tab - Shows real GenAI invocation history from Dynatrace
+ * Audit Trail Tab — real GenAI invocation history rendered as a sortable DataTable with pagination
  */
 const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
   const { data: auditData, loading, error } = useAuditTrail(filters);
-  
-  const formatTimestamp = (ts: string) => {
-    return formatDateTime(ts);
-  };
 
-  const getRiskBadge = (hasError: boolean, latencyMs: number) => {
-    if (hasError) return { label: 'ERROR', color: Colors.Text.Critical.Default, bg: 'rgba(255, 50, 50, 0.2)' };
-    if (latencyMs > 5000) return { label: 'SLOW', color: Colors.Text.Warning.Default, bg: 'rgba(255, 180, 50, 0.2)' };
-    return { label: 'OK', color: Colors.Text.Success.Default, bg: 'rgba(50, 200, 100, 0.2)' };
-  };
+  const columns = useMemo<DataTableColumnDef<AuditTrailEvent>[]>(() => [
+    {
+      id: 'timestamp',
+      header: 'Timestamp',
+      accessor: 'timestamp',
+      cell: ({ value }) => (
+        <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
+          {formatDateTime(value as string)}
+        </Text>
+      ),
+    },
+    {
+      id: 'service',
+      header: 'Service',
+      accessor: 'service',
+      cell: ({ value }) => <Text textStyle="small">{(value as string) || '—'}</Text>,
+    },
+    {
+      id: 'provider',
+      header: 'Provider',
+      accessor: 'provider',
+      cell: ({ value }) => (
+        <Text textStyle="small" style={{ textTransform: 'capitalize' }}>{(value as string) || '—'}</Text>
+      ),
+    },
+    {
+      id: 'model',
+      header: 'Model',
+      accessor: 'model',
+      cell: ({ value }) => (
+        <Text textStyle="small" style={{ fontFamily: 'monospace' }}>{(value as string) || 'N/A'}</Text>
+      ),
+    },
+    {
+      id: 'tokens',
+      header: 'Total Tokens',
+      accessor: (row) => row.inputTokens + row.outputTokens,
+      cell: ({ value }) => (
+        <Text textStyle="small">{formatNumber(value as number)}</Text>
+      ),
+    },
+    {
+      id: 'latency',
+      header: 'Latency',
+      accessor: 'latencyMs',
+      cell: ({ value }) => (
+        <Text textStyle="small" style={{
+          color: (value as number) > 5000 ? Colors.Text.Warning.Default : undefined
+        }}>
+          {(value as number).toFixed(0)} ms
+        </Text>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessor: 'hasError',
+      cell: ({ value, row }) => {
+        const hasErr = value as boolean;
+        const latency = row.original.latencyMs;
+        const bg = hasErr
+          ? 'var(--dt-colors-background-status-critical-subdued)'
+          : latency > 5000
+          ? 'var(--dt-colors-background-status-warning-subdued)'
+          : 'var(--dt-colors-background-status-success-subdued)';
+        const color = hasErr
+          ? Colors.Text.Critical.Default
+          : latency > 5000
+          ? Colors.Text.Warning.Default
+          : Colors.Text.Success.Default;
+        const label = hasErr ? 'ERROR' : latency > 5000 ? 'SLOW' : 'OK';
+        return (
+          <Text style={{ padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, backgroundColor: bg, color }}>
+            {label}
+          </Text>
+        );
+      },
+    },
+  ], []);
 
   return (
     <Surface style={{ padding: 16 }}>
@@ -1150,95 +1256,28 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
         <Flex justifyContent="space-between" alignItems="center">
           <Heading level={6}>Audit Trail</Heading>
           <Text textStyle="small" style={{ color: Colors.Text.Neutral.Subdued }}>
-            {loading ? 'Loading...' : `${auditData?.length || 0} events in timeframe`}
+            Real-time log of AI model invocations from gen_ai.* OpenTelemetry spans.
           </Text>
         </Flex>
-        
-        <Text style={{ color: Colors.Text.Neutral.Subdued }}>
-          Real-time audit log of AI model invocations from gen_ai.* OpenTelemetry spans.
-        </Text>
 
         {error && (
-          <Surface style={{ padding: 12, backgroundColor: 'rgba(255, 50, 50, 0.1)' }}>
-            <Text style={{ color: Colors.Text.Critical.Default }}>
-              Error loading audit data: {error.message}
-            </Text>
-          </Surface>
+          <MessageContainer variant="critical">
+            Error loading audit data: {error.message}
+          </MessageContainer>
         )}
 
-        {!loading && (!auditData || auditData.length === 0) && (
-          <Surface style={{ padding: 16, backgroundColor: 'rgba(99, 102, 241, 0.1)' }}>
-            <Flex flexDirection="column" gap={8}>
-              <Text style={{ fontWeight: 600 }}>No audit events found</Text>
-              <Text textStyle="small">
-                Audit logging requires gen_ai.* OpenTelemetry spans to be captured. Ensure your AI services are instrumented.
-              </Text>
-            </Flex>
-          </Surface>
-        )}
-
-        {auditData && auditData.length > 0 && (
-          <Flex flexDirection="column" gap={4}>
-            {/* Header */}
-            <Flex 
-              gap={8} 
-              style={{ 
-                padding: '8px 12px', 
-                backgroundColor: 'var(--dt-colors-background-default-secondary)',
-                borderRadius: 4,
-                fontWeight: 600,
-                fontSize: 11
-              }}
-            >
-              <Flex style={{ flex: 1.5 }}>Timestamp</Flex>
-              <Flex style={{ flex: 1 }}>Provider</Flex>
-              <Flex style={{ flex: 1.5 }}>Model</Flex>
-              <Flex style={{ flex: 0.5, textAlign: 'right' }}>Tokens</Flex>
-              <Flex style={{ flex: 0.5, textAlign: 'right' }}>Latency</Flex>
-              <Flex style={{ flex: 0.5, textAlign: 'center' }}>Status</Flex>
-            </Flex>
-            
-            {/* Rows */}
-            {auditData.slice(0, 50).map((event, idx) => {
-              const risk = getRiskBadge(event.hasError, event.latencyMs);
-              return (
-                <Flex 
-                  key={idx}
-                  gap={8}
-                  style={{ 
-                    padding: '6px 12px',
-                    borderBottom: '1px solid var(--dt-colors-border-neutral-default)',
-                    fontSize: 12
-                  }}
-                >
-                  <Flex style={{ flex: 1.5, color: Colors.Text.Neutral.Subdued }}>
-                    {formatTimestamp(event.timestamp)}
-                  </Flex>
-                  <Flex style={{ flex: 1, textTransform: 'capitalize' }}>{event.provider}</Flex>
-                  <Flex style={{ flex: 1.5, fontFamily: 'monospace', fontSize: 11 }}>{event.model || 'N/A'}</Flex>
-                  <Flex style={{ flex: 0.5, textAlign: 'right' }}>
-                    {formatNumber(event.inputTokens + event.outputTokens)}
-                  </Flex>
-                  <Flex style={{ flex: 0.5, textAlign: 'right' }}>
-                    {event.latencyMs.toFixed(0)}ms
-                  </Flex>
-                  <Flex style={{ flex: 0.5, textAlign: 'center' }}>
-                    <Text style={{ 
-                      padding: '2px 6px', 
-                      borderRadius: 4, 
-                      fontSize: 9,
-                      fontWeight: 600,
-                      backgroundColor: risk.bg,
-                      color: risk.color
-                    }}>
-                      {risk.label}
-                    </Text>
-                  </Flex>
-                </Flex>
-              );
-            })}
-          </Flex>
-        )}
+        <DataTable
+          columns={columns}
+          data={auditData ?? []}
+          loading={loading}
+          fullWidth
+          variant={{ rowDensity: 'condensed' }}
+        >
+          <DataTable.EmptyState>
+            No audit events found. Audit logging requires gen_ai.* OpenTelemetry spans to be captured. Ensure your AI services are instrumented.
+          </DataTable.EmptyState>
+          <DataTable.Pagination defaultPageSize={25} />
+        </DataTable>
       </Flex>
     </Surface>
   );
