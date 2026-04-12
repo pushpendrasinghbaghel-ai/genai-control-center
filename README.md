@@ -133,7 +133,7 @@ Navigation follows the **Observe → Analyze → Act** pattern:
 | 4 | 📊 **Analytics** | `/analytics` | Token efficiency, model ranking, output consistency |
 | 5 | 🔒 **Governance** | `/governance` | PII/injection/audit trail/risk/compliance |
 | 6 | 🔗 **Topology** | `/topology` | Interactive AI service → model → provider graph |
-| 7 | 🤖 **Agents** | `/agents` | Tool usage, loop detection, agent efficiency |
+| 7 | 🤖 **Agents** | `/agents` | Incidents-first: loop detection, context overflow, cost spikes → agent health → tool intelligence |
 | 8 | 🔍 **RAG** | `/vector-db` | Vector store pipeline, embedding trends, latency |
 | 9 | 🔬 **Drift** | `/drift` | Model behavior drift, baseline comparison, alerts |
 | 10 | 🧠 **Intelligence** | `/intelligence` | Davis CoPilot, NL to DQL, conversational analysis |
@@ -180,12 +180,69 @@ Five-tab narrative: **What it costs → Where → Is it worth it → Pay less �
 
 ### 🤖 Agent Tools — AI Agent Observability
 
-Five-tab dashboard:
-- **Overview** — Active agents with token usage, LLM cost, LLM/tool time split, loop detection
-- **Optimizer** — Composite score (reliability 30%, efficiency 30%, latency 25%, retry 15%) with anti-pattern detection
-- **Flows** — Agent handoffs, cross-agent communication, common tool-call sequences
-- **Reliability** — Per-tool error rates, per-agent tool reliability, retry pattern detection
-- **Trends** — Tool calls and agent activity over time
+**5-tab, incidents-first dashboard.** The narrative: *Three things silently destroy AI agent systems — runaway loops, context overflow, and tool failure cascades. Here's which of your agents are hitting them right now.*
+
+**Primary personas:**
+
+| Persona | Goes to first | Key question answered |
+|---------|--------------|----------------------|
+| 🚨 **SRE on-call** | Incidents tab | Is anything broken right now? |
+| 🏗️ **Platform Engineer** | Agent Health | Are my agents passing SLO? |
+| 🔧 **AI Engineer** | Tool Intelligence | Which tools are failing? |
+| 🤖 **ML Engineer** | Trends | Is agent efficiency improving? |
+| 👨‍💻 **Developer** | Investigate | What happened in this specific trace? |
+
+**Five tabs:**
+
+#### Incidents (default landing)
+The "NOW" view — fires only when something needs attention:
+- **Infinite Loop Alerts** — agents calling the same tool >10× in one trace; cost impact shown per incident
+- **Context Window Near-Capacity** — models hitting >90% fill; silent quality degradation invisible to provider dashboards
+- **Cost Spike Alerts** — hours exceeding 2× average spend with token/request context
+- **All-clear state** — when no incidents exist, shows green "All agents healthy" confirmation
+
+#### Agent Health
+Are your agents meeting SLA?
+- **Agent Success Rate** — DonutChart with industry benchmarks (>95% excellent, 85–95% acceptable)
+- **Token Efficiency** — output/input ratio; low ratio = prompt bloat
+- **Estimated AI Spend** — cost per LLM call with total
+- **Avg Response Time** — end-to-end agent latency (Apdex-aligned: <2s excellent, <5s acceptable)
+- **Time Distribution** — LLM vs tool time split DonutChart per agent
+- **Agent Leaderboard** — ranked by success rate with color thresholds
+- **Active Agents Table** — full DataTable with tool calls, token counts, LLM cost, LLM/tool split, trace deep-link
+- **Optimization Advisor** — composite score (reliability 30%, efficiency 30%, latency 25%, retry 15%) with anti-pattern detection
+
+#### Tool Intelligence
+Which tools are failing your agents? (Requires `gen_ai.tool.name` attribute — empty-state guard surfaces instrumentation gap for LangChain/CrewAI deployments)
+- **Agent Handoffs** — cross-agent delegation patterns with self-transfer detection
+- **Agent Flow Efficiency** — repetitive pattern rate, token waste estimate, handoff latency, LLM/tool time ratio
+- **Agent → Service Dependencies** — HTTP/DB/gRPC backends called by agents
+- **Common Tool Flows** — frequent tool-call sequences with topology modal
+- **Agent-Tool Map SVG** — Smartscape-style topology: edge thickness = call volume, red = high errors
+- **Tool Call Frequency** — counts, duration, error rates per tool
+- **Tool Reliability** — per-agent tool usage with retry detection (calls/trace > 1)
+- **Agent → LLM Provider Map** — which provider/model each agent uses, with cost tracking
+
+#### Trends
+Is agent behavior improving or degrading?
+- **Error Rate** — hourly timeseries with avg annotation
+- **Agent Latency** — P50 + P95 dual-series (area/line)
+- **Hourly Cost** — spend trend with breach detection
+- **Token Consumption** — input vs output stacked bar timeseries
+- **Tool Calls Over Time** — volume context for operations
+- **Agent Activity** — per-agent invocation rates (top 6)
+- **Context Window Utilization** — per-model fill % with near-capacity flags
+- **Hourly Cost Table** — breach hours highlighted (>2× avg)
+
+#### Investigate
+Drill into a specific agent run:
+- **Step Tracing** — spans per trace by type (task/tool/workflow/LLM), exit conditions (success/error/timeout/slow)
+- **Multi-Agent Traces** — traces involving 2+ agents with parallelism detection
+- **Cross-Agent Token Attribution** — LLM cost and token breakdown per agent in multi-agent traces
+- **Conversation State** — single-turn vs multi-turn vs runaway (>20 turns) distribution
+- **Context Growth** — token escalation across conversation turns with growth ratio
+
+**Framework detection:** LangChain, CrewAI, Bedrock Agents, Semantic Kernel auto-detected from span attributes.
 
 ### 🔬 Model Drift — Silent Degradation Detection
 

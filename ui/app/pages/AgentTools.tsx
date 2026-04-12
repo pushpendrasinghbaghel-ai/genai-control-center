@@ -456,7 +456,7 @@ const FlowDetailModal: React.FC<FlowDetailModalProps> = ({ flow, onClose }) => {
                       height: 24, 
                       borderRadius: 4,
                       background: FLOW_COLORS[idx % FLOW_COLORS.length],
-                      color: 'white',
+                      color: 'var(--dt-colors-text-inversed-default)',
                       fontSize: 12,
                       fontWeight: 600,
                       flexShrink: 0
@@ -1287,8 +1287,7 @@ const ContextWindowCostTab: React.FC<{
       {
         id: 'timeBucket', header: 'Hour',
         accessor: (r: CostBreachEntry) => {
-          const d = new Date(r.timeBucket);
-          return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          return formatTime(new Date(r.timeBucket));
         },
         columnType: 'text' as const,
       },
@@ -1395,7 +1394,7 @@ export const AgentTools: React.FC = () => {
   const [selectedFlow, setSelectedFlow] = useState<AgentFlow | null>(null);
   
   // Tab navigation state
-  const [activeTab, setActiveTab] = useState<'overview' | 'optimizer' | 'flows' | 'reliability' | 'trends' | 'steps' | 'multiagent' | 'conversations' | 'context-cost'>('overview');
+  const [activeTab, setActiveTab] = useState<'incidents' | 'health' | 'tools' | 'trends' | 'investigate'>('incidents');
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   
   // Section visibility toggles (persisted in localStorage)
@@ -2271,7 +2270,7 @@ export const AgentTools: React.FC = () => {
           </Flex>
         </TitleBar.Title>
         <TitleBar.Subtitle>
-          Monitor AI agent tool usage, detect anomalies, and analyze workflow patterns
+          Incidents first: detect runaway loops, context overflow, and cost spikes — then drill into agent health, tool patterns, and trace-level evidence
         </TitleBar.Subtitle>
         <TitleBar.Suffix>
           <Button 
@@ -2348,15 +2347,11 @@ export const AgentTools: React.FC = () => {
         {/* Tab Navigation */}
         <Flex gap={0} style={{ borderBottom: '1px solid var(--dt-colors-border-neutral-default)' }}>
           {[
-            { key: 'overview' as const, label: 'Overview', icon: <SmartscapeIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'optimizer' as const, label: 'Optimizer', icon: <AiIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'flows' as const, label: 'Flows & Patterns', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'reliability' as const, label: 'Reliability', icon: <CheckmarkIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'incidents' as const, label: 'Incidents', icon: <CriticalIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'health' as const, label: 'Agent Health', icon: <AgentIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'tools' as const, label: 'Tool Intelligence', icon: <SettingIcon style={{ width: 14, height: 14 }} /> },
             { key: 'trends' as const, label: 'Trends', icon: <BarChartIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'steps' as const, label: 'Step Tracing', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'multiagent' as const, label: 'Multi-Agent', icon: <AgentIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'conversations' as const, label: 'Conversations', icon: <ClockIcon style={{ width: 14, height: 14 }} /> },
-            { key: 'context-cost' as const, label: 'Context & Cost', icon: <MoneyIcon style={{ width: 14, height: 14 }} /> },
+            { key: 'investigate' as const, label: 'Investigate', icon: <WorkflowsIcon style={{ width: 14, height: 14 }} /> },
           ].map((tab) => (
             <Button
               key={tab.key}
@@ -2442,9 +2437,192 @@ export const AgentTools: React.FC = () => {
             <LoopAlertBanner loops={suspiciousLoops} />
 
             {/* ============================================ */}
-            {/* OVERVIEW TAB */}
+            {/* INCIDENTS TAB — Loops, Context Overflow, Cost Breaches */}
             {/* ============================================ */}
-            {activeTab === 'overview' && (
+            {activeTab === 'incidents' && (
+              <>
+                {/* All-clear state */}
+                {suspiciousLoops.length === 0 &&
+                  !contextWindowUtil.some(m => m.nearCapacityCount > 0) &&
+                  costBreaches.filter(c => c.hourlyCost > (costBreaches.reduce((s, b) => s + b.hourlyCost, 0) / Math.max(costBreaches.length, 1)) * 2).length === 0 && (
+                  <Surface padding={24}>
+                    <Flex flexDirection="column" justifyContent="center" alignItems="center" gap={12}>
+                      <CheckmarkIcon style={{ color: STATUS_COLORS.ideal, width: 32, height: 32 }} />
+                      <Heading level={5} style={{ color: STATUS_COLORS.ideal }}>All agents healthy</Heading>
+                      <Text style={{ color: 'var(--dt-colors-text-secondary-default)' }}>
+                        No infinite loops, context overflows, or cost breaches detected in the selected timeframe.
+                      </Text>
+                    </Flex>
+                  </Surface>
+                )}
+
+                {/* INCIDENT TYPE 1: Infinite Loop Detection */}
+                {suspiciousLoops.length > 0 && (
+                  <Surface padding={16}>
+                    <Flex flexDirection="column" gap={12}>
+                      <Flex alignItems="center" gap={8}>
+                        <CriticalIcon style={{ color: STATUS_COLORS.critical }} />
+                        <Heading level={5}>Infinite Loop Alerts</Heading>
+                        <Text style={{
+                          padding: '2px 8px', borderRadius: 4,
+                          backgroundColor: 'var(--dt-colors-background-critical-accent)',
+                          color: STATUS_COLORS.critical,
+                          fontSize: 10, fontWeight: 600
+                        }}>
+                          {suspiciousLoops.length} ACTIVE
+                        </Text>
+                        <Tooltip text="Agents calling the same tool >10 times in a single trace. This indicates runaway agent behavior that silently exhausts token budgets.">
+                          <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                        </Tooltip>
+                      </Flex>
+                      <Text style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
+                        These agents are calling the same tool repeatedly in a single trace — a hallmark of infinite loop behavior. Each loop inflates token consumption and cost without delivering user value.
+                      </Text>
+                      <Flex flexDirection="column" gap={8}>
+                        {suspiciousLoops.slice(0, 10).map((loop) => (
+                          <Flex
+                            key={`${loop.traceId}-${loop.toolName}`}
+                            padding={12}
+                            alignItems="center"
+                            justifyContent="space-between"
+                            style={{
+                              background: 'var(--dt-colors-background-critical-subdued)',
+                              borderRadius: 6,
+                              border: `1px solid ${STATUS_COLORS.critical}`
+                            }}
+                          >
+                            <Flex flexDirection="column" gap={2}>
+                              <Text style={{ fontWeight: 600 }}>{loop.toolName}</Text>
+                              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                                Agent: {loop.agentName}
+                              </Text>
+                            </Flex>
+                            <Flex flexDirection="column" alignItems="flex-end" gap={2}>
+                              <Text style={{ fontWeight: 600, color: STATUS_COLORS.critical }}>
+                                {loop.callCount} calls in 1 trace
+                              </Text>
+                              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                                {loop.totalDuration.toFixed(0)}ms total
+                              </Text>
+                            </Flex>
+                          </Flex>
+                        ))}
+                      </Flex>
+                    </Flex>
+                  </Surface>
+                )}
+
+                {/* INCIDENT TYPE 2: Context Window Near-Capacity */}
+                {contextWindowUtil.some(m => m.nearCapacityCount > 0) && (
+                  <Surface padding={16} style={{ borderLeft: `4px solid ${STATUS_COLORS.warning}` }}>
+                    <Flex flexDirection="column" gap={12}>
+                      <Flex alignItems="center" gap={8}>
+                        <WarningIcon style={{ color: STATUS_COLORS.warning }} />
+                        <Heading level={5}>Context Window Near-Capacity</Heading>
+                        <Tooltip text="Models using >90% of their context window silently truncate agent memory on the next iteration, causing quality degradation invisible in provider dashboards.">
+                          <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                        </Tooltip>
+                      </Flex>
+                      <Text style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
+                        These models are filling their context window. When context is 90%+ full, the model silently truncates earlier conversation turns — losing reasoning context and degrading output quality.
+                      </Text>
+                      <Flex flexDirection="column" gap={8}>
+                        {contextWindowUtil.filter(m => m.nearCapacityCount > 0).map((model) => (
+                          <Flex
+                            key={`${model.model}-${model.provider}`}
+                            padding={12}
+                            alignItems="center"
+                            justifyContent="space-between"
+                            style={{
+                              background: 'var(--dt-colors-background-warning-subdued)',
+                              borderRadius: 6,
+                              border: `1px solid ${STATUS_COLORS.warning}`
+                            }}
+                          >
+                            <Flex flexDirection="column" gap={2}>
+                              <Text style={{ fontWeight: 600 }}>{model.model}</Text>
+                              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                                {model.provider} • Avg utilization: {model.avgUtilization.toFixed(1)}%
+                              </Text>
+                            </Flex>
+                            <Flex flexDirection="column" alignItems="flex-end" gap={2}>
+                              <Text style={{ fontWeight: 600, color: STATUS_COLORS.warning }}>
+                                {model.nearCapacityCount} near-capacity requests
+                              </Text>
+                              <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>
+                                Peak: {model.maxUtilization.toFixed(1)}%
+                              </Text>
+                            </Flex>
+                          </Flex>
+                        ))}
+                      </Flex>
+                    </Flex>
+                  </Surface>
+                )}
+
+                {/* INCIDENT TYPE 3: Cost Spike Hours */}
+                {(() => {
+                  if (costBreaches.length < 2) return null;
+                  const avgHourlyCost = costBreaches.reduce((s, c) => s + c.hourlyCost, 0) / costBreaches.length;
+                  const breachHours = costBreaches.filter(c => c.hourlyCost > avgHourlyCost * 2);
+                  if (breachHours.length === 0) return null;
+                  return (
+                    <Surface padding={16} style={{ borderLeft: `4px solid ${STATUS_COLORS.critical}` }}>
+                      <Flex flexDirection="column" gap={12}>
+                        <Flex alignItems="center" gap={8}>
+                          <MoneyIcon style={{ color: STATUS_COLORS.critical }} />
+                          <Heading level={5}>Cost Spike Alerts</Heading>
+                          <Text style={{
+                            padding: '2px 8px', borderRadius: 4,
+                            backgroundColor: 'var(--dt-colors-background-critical-accent)',
+                            color: STATUS_COLORS.critical,
+                            fontSize: 10, fontWeight: 600
+                          }}>
+                            {breachHours.length} BREACH HOURS
+                          </Text>
+                          <Tooltip text="Hours where agent costs exceeded 2x the average hourly spend. These spikes often correlate with runaway loops or unexpected traffic bursts.">
+                            <HelpIcon style={{ width: 14, height: 14, color: 'var(--dt-colors-text-secondary-default)', cursor: 'help' }} />
+                          </Tooltip>
+                        </Flex>
+                        <Text style={{ fontSize: 13, color: 'var(--dt-colors-text-secondary-default)' }}>
+                          {breachHours.length} hour{breachHours.length > 1 ? 's' : ''} exceeded 2× the average hourly spend of {formatCost(avgHourlyCost)}. Peak: {formatCost(Math.max(...breachHours.map(c => c.hourlyCost)))}/hr.
+                        </Text>
+                        <Flex flexDirection="column" gap={8}>
+                          {breachHours.slice(0, 5).map((breach, idx) => (
+                            <Flex
+                              key={idx}
+                              padding={12}
+                              alignItems="center"
+                              justifyContent="space-between"
+                              style={{
+                                background: 'var(--dt-colors-background-critical-subdued)',
+                                borderRadius: 6,
+                                border: `1px solid ${STATUS_COLORS.critical}`
+                              }}
+                            >
+                              <Text style={{ fontWeight: 600 }}>{formatTime(new Date(breach.timeBucket))}</Text>
+                              <Flex gap={16} alignItems="center">
+                                <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                                  {formatNumber(breach.hourlyRequests)} requests • {formatTokens(breach.hourlyTokens)} tokens
+                                </Text>
+                                <Text style={{ fontWeight: 600, color: STATUS_COLORS.critical }}>
+                                  {formatCost(breach.hourlyCost)} ({(breach.hourlyCost / avgHourlyCost).toFixed(1)}× avg)
+                                </Text>
+                              </Flex>
+                            </Flex>
+                          ))}
+                        </Flex>
+                      </Flex>
+                    </Surface>
+                  );
+                })()}
+              </>
+            )}
+
+            {/* ============================================ */}
+            {/* AGENT HEALTH TAB */}
+            {/* ============================================ */}
+            {activeTab === 'health' && (
               <>
                 {/* Summary Metrics - Overview tab only */}
                 {summary && (
@@ -2495,7 +2673,7 @@ export const AgentTools: React.FC = () => {
                         padding: '2px 8px', 
                         borderRadius: '4px', 
                         backgroundColor: 'var(--dt-colors-charts-categorical-color-01-default)',
-                        color: 'white',
+                        color: 'var(--dt-colors-text-inversed-default)',
                         fontSize: '10px',
                         fontWeight: 600
                       }}>
@@ -2807,7 +2985,7 @@ export const AgentTools: React.FC = () => {
               </Surface>
             )}
 
-            {/* Active Agents Table - OVERVIEW TAB */}
+            {/* Active Agents Table - HEALTH TAB */}
             {sectionToggles.activeAgents !== false && (
             <Surface padding={16}>
               <Flex flexDirection="column" gap={12}>
@@ -2859,21 +3037,35 @@ export const AgentTools: React.FC = () => {
               </Flex>
             </Surface>
             )}
+
+            {/* Optimization Advisor */}
+            <OptimizationAdvisor />
               </>
             )}
 
             {/* ============================================ */}
-            {/* OPTIMIZER TAB */}
+            {/* TOOL INTELLIGENCE TAB */}
             {/* ============================================ */}
-            {activeTab === 'optimizer' && (
-              <OptimizationAdvisor />
-            )}
-
-            {/* ============================================ */}
-            {/* FLOWS & PATTERNS TAB */}
-            {/* ============================================ */}
-            {activeTab === 'flows' && (
+            {activeTab === 'tools' && (
               <>
+            {/* OTel Tool Instrumentation empty-state guard */}
+            {filteredToolUsage.length === 0 && agentToolReliability.length === 0 && agentFlows.length === 0 && (
+              <Surface padding={20} style={{ borderLeft: `4px solid ${STATUS_COLORS.neutral}` }}>
+                <Flex flexDirection="column" gap={8}>
+                  <Flex alignItems="center" gap={8}>
+                    <WarningIcon style={{ color: STATUS_COLORS.neutral }} />
+                    <Heading level={5}>OTel Tool Instrumentation Not Detected</Heading>
+                  </Flex>
+                  <Text style={{ fontSize: 13 }}>
+                    Tool-granular data requires the <Text style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>gen_ai.tool.name</Text> span attribute on tool call spans.
+                    LangChain, CrewAI, and Semantic Kernel instrument tools as child trace spans rather than as top-level attributes — this view will show limited data for those frameworks.
+                  </Text>
+                  <Text style={{ fontSize: 12, color: 'var(--dt-colors-text-secondary-default)' }}>
+                    Agent health data (spans, tokens, costs, latency) is fully available in the <Text style={{ fontWeight: 600 }}>Agent Health</Text> tab regardless of instrumentation style.
+                  </Text>
+                </Flex>
+              </Surface>
+            )}
             {/* Agent Handoffs - UNIQUE GCC: Multi-agent orchestration visibility */}
             {sectionToggles.handoffs !== false && (
             <Surface padding={16}>
@@ -2931,7 +3123,7 @@ export const AgentTools: React.FC = () => {
                     padding: '2px 8px', 
                     borderRadius: '4px', 
                     backgroundColor: 'var(--dt-colors-charts-categorical-color-02-default)',
-                    color: 'white',
+                    color: 'var(--dt-colors-text-inversed-default)',
                     fontSize: '10px',
                     fontWeight: 600
                   }}>
@@ -2951,9 +3143,9 @@ export const AgentTools: React.FC = () => {
                         padding: '20px', 
                         flex: '1 1 180px', 
                         minWidth: '180px',
-                        background: flowEfficiencyMetrics.status === 'excellent' ? 'rgba(46, 160, 67, 0.1)' :
-                                    flowEfficiencyMetrics.status === 'good' ? 'rgba(20, 168, 245, 0.1)' :
-                                    flowEfficiencyMetrics.status === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(220, 38, 38, 0.1)'
+                        background: flowEfficiencyMetrics.status === 'excellent' ? 'var(--dt-colors-background-base-positive-subdued)' :
+                                    flowEfficiencyMetrics.status === 'good' ? 'var(--dt-colors-background-base-informative-subdued)' :
+                                    flowEfficiencyMetrics.status === 'warning' ? 'var(--dt-colors-background-base-warning-subdued)' : 'var(--dt-colors-background-base-negative-subdued)'
                       }}>
                         <Flex flexDirection="column" gap={8} alignItems="center">
                           <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)' }}>Flow Efficiency Score</Text>
@@ -3519,9 +3711,9 @@ export const AgentTools: React.FC = () => {
             )}
 
             {/* ============================================ */}
-            {/* RELIABILITY TAB */}
+            {/* RELIABILITY — shows inside Tool Intelligence tab */}
             {/* ============================================ */}
-            {activeTab === 'reliability' && (
+            {activeTab === 'tools' && (
               <>
             {/* Tool Usage Table (Primary View - Scalable) */}
             {sectionToggles.toolFrequency !== false && (
@@ -4085,22 +4277,16 @@ export const AgentTools: React.FC = () => {
             )}
 
             {/* Step Tracing Tab (from Deep Dive) */}
-            {activeTab === 'steps' && (
-              <AgentStepTracingTab agentSteps={agentSteps} exitConditions={exitConditions} />
+            {activeTab === 'investigate' && (
+              <Flex flexDirection="column" gap={16}>
+                <AgentStepTracingTab agentSteps={agentSteps} exitConditions={exitConditions} />
+                <MultiAgentDepthTab multiAgentTraces={multiAgentTraces} crossAgentTokens={crossAgentTokens} parallelismStats={parallelismStats} />
+                <ConversationStateTab contextGrowth={contextGrowth} conversationState={conversationState} />
+              </Flex>
             )}
 
-            {/* Multi-Agent Depth Tab (from Deep Dive) */}
-            {activeTab === 'multiagent' && (
-              <MultiAgentDepthTab multiAgentTraces={multiAgentTraces} crossAgentTokens={crossAgentTokens} parallelismStats={parallelismStats} />
-            )}
-
-            {/* Conversation State Tab (from Deep Dive) */}
-            {activeTab === 'conversations' && (
-              <ConversationStateTab contextGrowth={contextGrowth} conversationState={conversationState} />
-            )}
-
-            {/* Context Window & Cost Tab (from Deep Dive) */}
-            {activeTab === 'context-cost' && (
+            {/* Context Window & Cost — shown at bottom of Trends tab */}
+            {activeTab === 'trends' && (
               <ContextWindowCostTab contextWindowUtil={contextWindowUtil} costBreaches={costBreaches} />
             )}
 
