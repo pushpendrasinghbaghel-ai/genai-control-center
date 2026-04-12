@@ -375,10 +375,13 @@ npm run lint     # ESLint with security plugins
 - 💰 **FinOps — Context Window Creep** — Input/output ratio distribution (1–2x healthy, 5x+ waste) with per-model waste cost
 - 💰 **FinOps — Time-of-Day Heatmap** — 24-bucket hourly aggregation, peak/trough ratio, top-4-hours cost concentration
 - 💰 **FinOps — Model Quality-Need Matching** — MMLU benchmark tier alignment, over-provisioning detection
-- 🔒 **Governance — Prompt Pagination** — 20 patterns/page with filter-aware Prev/Next controls
-- 🔒 **Governance — DataTable Audit Trail** — Replaces hand-rolled flex rows; sortable, 25/page, built-in empty state
 - 🔒 **Governance — Value Narrative Banner** — Explains data provenance (real gen_ai.* spans)
+- 🔒 **Governance — DataTable Audit Trail** — Replaces hand-rolled flex rows; sortable, 25/page, built-in empty state
 - 🎨 **Governance — Strato Compliance** — All rgba() → CSS variable tokens, ul/li → MessageContainer+Flex, getStatusIcon → real Strato icons
+- 🔒 **Prompt Governance — Strato Compliance** — 50+ hardcoded color/opacity violations → CSS variables; all `<pre>` → `<Text>` with monospace; `textStyle="*-emphasized"` → `fontWeight: 600`; `Button variant="accent"` → `"emphasized"`
+- 🔒 **Prompt Governance — Pagination** — Prompts, error spans, and audit trail all paginated at 25 rows/page with Prev/Next controls (was: hard-capped slices)
+- 🔒 **Prompt Governance — Value Narrative Banner** — Detect / Audit / Score three-pillar framing with persona context
+- 🎨 **Prompt Governance — Dark Mode** — All `rgba()` + `color:'white'` + `backgroundColor:'orange'` → proper CSS status tokens that auto-adapt to light/dark theme
 
 ### v3.0.0 (March 2026)
 - MLOps Dashboard, AI Quality Dashboard, Conversation Intelligence, Developer Experience, Security Audit Trail, Provider Status & Failover, Threat Intelligence, Data Playground

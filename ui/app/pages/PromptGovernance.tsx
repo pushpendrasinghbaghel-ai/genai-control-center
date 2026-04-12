@@ -70,9 +70,9 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
         {/* Header Info */}
         <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={16}>
           <Flex flexDirection="column" gap={4}>
-            <Text textStyle="base-emphasized">{prompt.serviceName}</Text>
-            <Text textStyle="small" style={{ opacity: 0.7 }}>{prompt.model} • {prompt.provider}</Text>
-            <Text textStyle="small" style={{ opacity: 0.5 }}>{formatDateTime(prompt.timestamp)}</Text>
+            <Text style={{ fontWeight: 600 }}>{prompt.serviceName}</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>{prompt.model} • {prompt.provider}</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>{formatDateTime(prompt.timestamp)}</Text>
           </Flex>
           {prompt.traceId && (
             <Button onClick={() => openTraceInDistributedTraces(prompt.traceId, prompt.timestamp)}>
@@ -83,17 +83,17 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
 
         {/* Dynatrace Intelligence Analysis */}
         {davisScore && (
-          <Surface style={{ padding: '16px', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+          <Surface style={{ padding: '16px', backgroundColor: 'var(--dt-colors-background-base-subtle)' }}>
             <Flex flexDirection="column" gap={12}>
               <Flex alignItems="center" gap={8}>
                 <InformationIcon />
-                <Text textStyle="base-emphasized">Dynatrace Intelligence Analysis</Text>
+                <Text style={{ fontWeight: 600 }}>Dynatrace Intelligence Analysis</Text>
                 <Text style={{
                   padding: '2px 8px',
                   borderRadius: '12px',
                   backgroundColor: davisScore.riskScore >= 70 ? STATUS_COLORS.poor : 
                                    davisScore.riskScore >= 40 ? STATUS_COLORS.fair : STATUS_COLORS.excellent,
-                  color: 'white',
+                  color: 'var(--dt-colors-text-on-fill-default)',
                   fontSize: '12px',
                   fontWeight: 600
                 }}>
@@ -103,14 +103,14 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
               <Text>{davisScore.explanation}</Text>
               {davisScore.recommendations && davisScore.recommendations.length > 0 && (
                 <Flex flexDirection="column" gap={4}>
-                  <Text textStyle="small-emphasized">Recommendations:</Text>
+                  <Text textStyle="small" style={{ fontWeight: 600 }}>Recommendations:</Text>
                   <Flex gap={8} flexWrap="wrap">
                     {davisScore.recommendations.map((rec, idx) => (
                       <Text key={idx} style={{
                         padding: '4px 8px',
                         borderRadius: '4px',
                         backgroundColor: STATUS_COLORS.fair,
-                        color: 'white',
+                        color: 'var(--dt-colors-text-on-fill-default)',
                         fontSize: '11px'
                       }}>
                         {rec}
@@ -126,7 +126,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
         {/* Detected Flags - ONE badge per category */}
         {prompt.flags.length > 0 && (
           <Flex flexDirection="column" gap={12}>
-            <Text textStyle="base-emphasized">Pattern-based Flags</Text>
+            <Text style={{ fontWeight: 600 }}>Pattern-based Flags</Text>
             <Flex gap={8} flexWrap="wrap">
               {/* Deduplicate flags by type, show one badge per category */}
               {(() => {
@@ -145,7 +145,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                         backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
                                          flag.severity === 'high' ? STATUS_COLORS.poor :
                                          flag.severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
-                        color: 'white',
+                        color: 'var(--dt-colors-text-on-fill-default)',
                         fontSize: '12px',
                         textTransform: 'uppercase'
                       }}>
@@ -160,13 +160,13 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
             {/* Detailed Detection Legend */}
             <Surface style={{ 
               padding: '16px', 
-              backgroundColor: 'rgba(0,0,0,0.03)',
-              borderLeft: '4px solid rgba(100,100,100,0.3)'
+              backgroundColor: 'var(--dt-colors-background-base-subtle)',
+              borderLeft: '4px solid var(--dt-colors-border-neutral-default)'
             }}>
               <Flex flexDirection="column" gap={12}>
                 <Flex alignItems="center" gap={8}>
                   <ResearchIcon />
-                  <Text textStyle="base-emphasized">Detection Details</Text>
+                  <Text style={{ fontWeight: 600 }}>Detection Details</Text>
                 </Flex>
                 <Flex flexDirection="column" gap={8}>
                   {/* Group and explain each flag type */}
@@ -186,20 +186,20 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                             backgroundColor: flags[0].severity === 'critical' ? STATUS_COLORS.poor :
                                              flags[0].severity === 'high' ? STATUS_COLORS.poor :
                                              flags[0].severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
-                            color: 'white',
+                            color: 'var(--dt-colors-text-on-fill-default)',
                             fontSize: '10px',
                             textTransform: 'uppercase'
                           }}>
                             {type}
                           </Text>
-                          <Text textStyle="small-emphasized" style={{ textTransform: 'capitalize' }}>
+                          <Text textStyle="small" style={{ fontWeight: 600, textTransform: 'capitalize' }}>
                             {type.replace(/_/g, ' ')} ({flags.length} detection{flags.length > 1 ? 's' : ''})
                           </Text>
                         </Flex>
                         <Flex flexDirection="column" gap={2} style={{ marginLeft: 16 }}>
                           {flags.map((flag, idx) => (
                             <Flex key={idx} flexDirection="column" gap={2}>
-                              <Text textStyle="small" style={{ color: 'rgba(0,0,0,0.7)' }}>
+                              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-default)' }}>
                                 • <strong style={{ 
                                     color: flag.severity === 'critical' ? STATUS_COLORS.poor : 
                                            flag.severity === 'high' ? STATUS_COLORS.poor : 
@@ -209,7 +209,7 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
                                 </strong> {flag.detail}
                               </Text>
                               {flag.metadata && (
-                                <Text textStyle="small" style={{ color: 'rgba(0,0,0,0.5)', marginLeft: 16, fontStyle: 'italic' }}>
+                                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', marginLeft: 16, fontStyle: 'italic' }}>
                                   {flag.metadata.detectionMethod && (
                                     <>Detection: {flag.metadata.detectionMethod.replace(/_/g, ' ')}</>
                                   )}
@@ -235,22 +235,23 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
 
         {/* Full Prompt Content */}
         <Flex flexDirection="column" gap={8}>
-          <Text textStyle="base-emphasized">Full Prompt</Text>
+          <Text style={{ fontWeight: 600 }}>Full Prompt</Text>
           <Surface style={{ 
             padding: '16px', 
-            backgroundColor: 'rgba(0,0,0,0.03)',
+            backgroundColor: 'var(--dt-colors-background-base-subtle)',
             maxHeight: '300px',
             overflow: 'auto'
           }}>
-            <pre style={{ 
+            <Text style={{ 
               margin: 0, 
               whiteSpace: 'pre-wrap', 
               wordBreak: 'break-word',
               fontFamily: 'monospace',
-              fontSize: '13px'
+              fontSize: '13px',
+              display: 'block'
             }}>
               {prompt.fullPrompt || prompt.promptPreview}
-            </pre>
+            </Text>
           </Surface>
         </Flex>
 
@@ -258,13 +259,13 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
         {(prompt.fullCompletion || prompt.completionPreview) && (
           <Flex flexDirection="column" gap={8}>
             <Flex alignItems="center" gap={8}>
-              <Text textStyle="base-emphasized">Model Response</Text>
+              <Text style={{ fontWeight: 600 }}>Model Response</Text>
               {hasHallucination && (
                 <Text style={{
                   padding: '2px 8px',
                   borderRadius: '4px',
-                  backgroundColor: 'orange',
-                  color: 'white',
+                  backgroundColor: 'var(--dt-colors-background-status-warning-default)',
+                  color: 'var(--dt-colors-text-on-fill-default)',
                   fontSize: '11px'
                 }}>
                   ⚠️ Potential Hallucination
@@ -273,20 +274,21 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
             </Flex>
             <Surface style={{ 
               padding: '16px', 
-              backgroundColor: hasHallucination ? 'rgba(255,165,0,0.1)' : 'rgba(0,0,0,0.03)',
+              backgroundColor: hasHallucination ? 'var(--dt-colors-background-status-warning-subdued)' : 'var(--dt-colors-background-base-subtle)',
               maxHeight: '300px',
               overflow: 'auto',
-              border: hasHallucination ? '2px solid orange' : 'none'
+              border: hasHallucination ? '1px solid var(--dt-colors-border-status-warning-default)' : 'none'
             }}>
-              <pre style={{ 
+              <Text style={{ 
                 margin: 0, 
                 whiteSpace: 'pre-wrap', 
                 wordBreak: 'break-word',
                 fontFamily: 'monospace',
-                fontSize: '13px'
+                fontSize: '13px',
+                display: 'block'
               }}>
                 {prompt.fullCompletion || prompt.completionPreview}
-              </pre>
+              </Text>
             </Surface>
           </Flex>
         )}
@@ -295,33 +297,33 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
         <Flex gap={16} flexWrap="wrap">
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>Input Tokens</Text>
-              <Text textStyle="base-emphasized">{formatNumber(prompt.inputTokens)}</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Input Tokens</Text>
+              <Text style={{ fontWeight: 600 }}>{formatNumber(prompt.inputTokens)}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>Output Tokens</Text>
-              <Text textStyle="base-emphasized">{formatNumber(prompt.outputTokens)}</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Output Tokens</Text>
+              <Text style={{ fontWeight: 600 }}>{formatNumber(prompt.outputTokens)}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>Est. Cost</Text>
-              <Text textStyle="base-emphasized">${prompt.totalCost?.toFixed(4) || 'N/A'}</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Est. Cost</Text>
+              <Text style={{ fontWeight: 600 }}>${prompt.totalCost?.toFixed(4) || 'N/A'}</Text>
             </Flex>
           </Surface>
           <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
             <Flex flexDirection="column" gap={4}>
-              <Text textStyle="small" style={{ opacity: 0.7 }}>Latency</Text>
-              <Text textStyle="base-emphasized">{prompt.latencyMs?.toFixed(0) || 'N/A'}ms</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Latency</Text>
+              <Text style={{ fontWeight: 600 }}>{prompt.latencyMs?.toFixed(0) || 'N/A'}ms</Text>
             </Flex>
           </Surface>
           {prompt.requestCount && prompt.requestCount > 1 && (
             <Surface style={{ padding: '12px', flex: '1 1 120px' }}>
               <Flex flexDirection="column" gap={4}>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>Repeat Count</Text>
-                <Text textStyle="base-emphasized" style={{ color: STATUS_COLORS.excellent }}>
+                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Repeat Count</Text>
+                <Text style={{ fontWeight: 600, color: STATUS_COLORS.excellent }}>
                   {prompt.requestCount}x
                 </Text>
               </Flex>
@@ -332,10 +334,10 @@ function PromptDetailModal({ prompt, davisScore, onClose }: PromptDetailModalPro
         {/* IDs for debugging */}
         <Flex flexDirection="column" gap={4}>
           <Flex alignItems="center" gap={4}>
-            <Text textStyle="small" style={{ opacity: 0.5 }}>Trace ID:</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Trace ID:</Text>
             <TraceLink traceId={prompt.traceId || ''} timestamp={prompt.timestamp} />
           </Flex>
-          <Text textStyle="small" style={{ opacity: 0.5 }}>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
             Span ID: {prompt.spanId || 'N/A'}
           </Text>
         </Flex>
@@ -376,8 +378,8 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
         {/* Header Row */}
         <Flex justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={8}>
           <Flex flexDirection="column" gap={4} style={{ flex: 1 }}>
-            <Text textStyle="base-emphasized">{prompt.serviceName}</Text>
-            <Text textStyle="small" style={{ opacity: 0.7 }}>{prompt.model} • {prompt.provider}</Text>
+            <Text style={{ fontWeight: 600 }}>{prompt.serviceName}</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>{prompt.model} • {prompt.provider}</Text>
           </Flex>
           
           <Flex gap={8} alignItems="center" flexWrap="wrap">
@@ -390,7 +392,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
                   backgroundColor: flag.severity === 'critical' ? STATUS_COLORS.poor :
                                    flag.severity === 'high' ? STATUS_COLORS.poor :
                                    flag.severity === 'medium' ? STATUS_COLORS.fair : STATUS_COLORS.good,
-                  color: 'white',
+                  color: 'var(--dt-colors-text-on-fill-default)',
                   fontSize: '10px',
                   textTransform: 'uppercase',
                   cursor: 'help'
@@ -400,7 +402,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
               </Tooltip>
             ))}
             {uniqueFlags.length > 4 && (
-              <Text textStyle="small" style={{ opacity: 0.7 }}>+{uniqueFlags.length - 4}</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>+{uniqueFlags.length - 4}</Text>
             )}
             
             {/* Davis Score */}
@@ -411,7 +413,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
                   borderRadius: '12px',
                   backgroundColor: davisScore.riskScore >= 70 ? STATUS_COLORS.poor : 
                                    davisScore.riskScore >= 40 ? STATUS_COLORS.fair : STATUS_COLORS.excellent,
-                  color: 'white',
+                  color: 'var(--dt-colors-text-on-fill-default)',
                   fontSize: '10px',
                   fontWeight: 600,
                   cursor: 'help'
@@ -423,7 +425,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
             
             {/* Request count */}
             {prompt.requestCount && prompt.requestCount > 1 && (
-              <Text textStyle="small" style={{ opacity: 0.7 }}>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                 {prompt.requestCount}x
               </Text>
             )}
@@ -450,7 +452,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
         {/* Prompt Preview */}
         <Flex style={{ 
             padding: '8px 12px', 
-            backgroundColor: 'rgba(0,0,0,0.03)',
+            backgroundColor: 'var(--dt-colors-background-base-subtle)',
             borderRadius: '4px',
             fontFamily: 'monospace',
             fontSize: '12px',
@@ -468,15 +470,15 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
         {hasResponse && hasHallucinationFlag && (
           <Flex style={{ 
             padding: '8px 12px', 
-            backgroundColor: 'rgba(255,165,0,0.1)',
+            backgroundColor: 'var(--dt-colors-background-status-warning-subdued)',
             borderRadius: '4px',
             fontFamily: 'monospace',
             fontSize: '11px',
             maxHeight: '50px',
             overflow: 'hidden',
-            border: '1px solid orange'
+            border: '1px solid var(--dt-colors-border-status-warning-default)'
           }}>
-            <Text textStyle="small" style={{ color: 'orange', marginBottom: '4px' }}>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-status-warning-default)', marginBottom: '4px' }}>
               ⚠️ Response (potential hallucination):
             </Text>
             {prompt.completionPreview?.substring(0, 150)}...
@@ -485,7 +487,7 @@ function PromptGovernanceCard({ prompt, davisScore, onViewDetail }: PromptGovern
 
         {/* Timestamp */}
         <Flex justifyContent="flex-end">
-          <Text textStyle="small" style={{ opacity: 0.5, fontSize: '10px' }}>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', fontSize: '10px' }}>
             {formatTime(prompt.timestamp)}
           </Text>
         </Flex>
@@ -539,6 +541,18 @@ export function PromptGovernance() {
   const [detailPrompt, setDetailPrompt] = useState<AnalyzedPrompt | null>(null);
   const [detailError, setDetailError] = useState<GenAIError | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination state
+  const PAGE_SIZE = 25;
+  const [promptPage, setPromptPage] = useState(0);
+  const [errorPage, setErrorPage] = useState(0);
+  const [auditPage, setAuditPage] = useState(0);
+
+  // Reset pages when filter or search changes
+  React.useEffect(() => {
+    setPromptPage(0);
+    setErrorPage(0);
+  }, [governanceFilter, searchQuery]);
 
   // Create Davis score map for quick lookup
   const davisScoreMap = useMemo(() => {
@@ -730,9 +744,27 @@ export function PromptGovernance() {
         availableModels={availableModels || undefined}
       />
 
+      {/* Value Narrative Banner */}
+      <Surface style={{ padding: '12px 16px', borderLeft: '4px solid var(--dt-colors-border-status-info-default)', backgroundColor: 'var(--dt-colors-background-status-info-subdued)' }}>
+        <Flex gap={16} flexWrap="wrap" alignItems="flex-start">
+          <Flex flexDirection="column" gap={2} style={{ flex: '1 1 200px' }}>
+            <Text style={{ fontWeight: 600 }}>🔍 Detect</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>PII, injection, hallucinations and over-cost prompts flagged in real time from gen_ai.* span attributes</Text>
+          </Flex>
+          <Flex flexDirection="column" gap={2} style={{ flex: '1 1 200px' }}>
+            <Text style={{ fontWeight: 600 }}>🛡️ Audit</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Trace-correlated prompt I/O trail for compliance reviews, SLA forensics, and incident remediation</Text>
+          </Flex>
+          <Flex flexDirection="column" gap={2} style={{ flex: '1 1 200px' }}>
+            <Text style={{ fontWeight: 600 }}>🤖 Score</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Davis AI adds semantic risk scoring beyond regex — nuanced detection of context-dependent threats</Text>
+          </Flex>
+        </Flex>
+      </Surface>
+
       {promptsError && (
-        <Surface style={{ padding: '16px', backgroundColor: STATUS_COLORS.poor }}>
-          <Text style={{ color: 'white' }}>Error loading prompts: {promptsError.message}</Text>
+        <Surface style={{ padding: '16px', backgroundColor: 'var(--dt-colors-background-status-critical-subdued)' }}>
+          <Text style={{ color: 'var(--dt-colors-text-status-critical-default)' }}>Error loading prompts: {promptsError.message}</Text>
         </Surface>
       )}
 
@@ -749,7 +781,7 @@ export function PromptGovernance() {
       <Flex gap={16} flexWrap="wrap">
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
-            <Text textStyle="small" style={{ opacity: 0.7 }}>Total Prompts</Text>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Total Prompts</Text>
             <Heading level={3}>{governanceStats.total}</Heading>
             {filteredPrompts.length !== governanceStats.total && (
               <Text textStyle="small" style={{ color: STATUS_COLORS.fair }}>
@@ -761,7 +793,7 @@ export function PromptGovernance() {
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
             <Tooltip text={GOVERNANCE_TOOLTIPS.pii}>
-              <Text textStyle="small" style={{ opacity: 0.7, cursor: 'help' }}>PII Detected</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', cursor: 'help' }}>PII Detected</Text>
             </Tooltip>
             <Heading level={3} style={{ color: governanceStats.pii > 0 ? STATUS_COLORS.poor : 'inherit' }}>
               {governanceStats.pii}
@@ -771,7 +803,7 @@ export function PromptGovernance() {
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
             <Tooltip text={GOVERNANCE_TOOLTIPS.injection}>
-              <Text textStyle="small" style={{ opacity: 0.7, cursor: 'help' }}>Injection Risk</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', cursor: 'help' }}>Injection Risk</Text>
             </Tooltip>
             <Heading level={3} style={{ color: governanceStats.injection > 0 ? STATUS_COLORS.poor : 'inherit' }}>
               {governanceStats.injection}
@@ -781,7 +813,7 @@ export function PromptGovernance() {
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
             <Tooltip text={GOVERNANCE_TOOLTIPS.expensive}>
-              <Text textStyle="small" style={{ opacity: 0.7, cursor: 'help' }}>Expensive</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', cursor: 'help' }}>Expensive</Text>
             </Tooltip>
             <Heading level={3} style={{ color: governanceStats.expensive > 0 ? STATUS_COLORS.fair : 'inherit' }}>
               {governanceStats.expensive}
@@ -791,7 +823,7 @@ export function PromptGovernance() {
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
             <Tooltip text={GOVERNANCE_TOOLTIPS.repetitive}>
-              <Text textStyle="small" style={{ opacity: 0.7, cursor: 'help' }}>Cache Candidates</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', cursor: 'help' }}>Cache Candidates</Text>
             </Tooltip>
             <Heading level={3} style={{ color: STATUS_COLORS.excellent }}>
               {governanceStats.repetitive}
@@ -801,7 +833,7 @@ export function PromptGovernance() {
         <Surface style={{ padding: '16px', flex: '1 1 150px', minWidth: '150px' }}>
           <Flex flexDirection="column" gap={4}>
             <Tooltip text={GOVERNANCE_TOOLTIPS.hallucination}>
-              <Text textStyle="small" style={{ opacity: 0.7, cursor: 'help' }}>Hallucination</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', cursor: 'help' }}>Hallucination</Text>
             </Tooltip>
             <Heading level={3} style={{ color: governanceStats.hallucination > 0 ? STATUS_COLORS.fair : 'inherit' }}>
               {governanceStats.hallucination}
@@ -823,9 +855,9 @@ export function PromptGovernance() {
             <Flex flexDirection="column" gap={2}>
               <Flex alignItems="center" gap={4}>
                 <Text style={{ fontWeight: 600, fontSize: 13 }}>Composite Risk Score</Text>
-                <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--dt-colors-charts-categorical-color-06-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
+                <Text style={{ fontSize: 9, padding: '2px 6px', backgroundColor: 'var(--dt-colors-background-status-info-subdued)', color: 'var(--dt-colors-text-status-info-default)', borderRadius: 10, fontWeight: 600 }}>UNIQUE GCC</Text>
               </Flex>
-              <Text textStyle="small" style={{ opacity: 0.6 }}>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                 Weighted: PII (40%) + Injection (30%) + Cost (15%) + Hallucination (10%) + Errors (5%)
               </Text>
             </Flex>
@@ -839,7 +871,7 @@ export function PromptGovernance() {
               { label: 'Errors', rate: compositeRiskScore.errorRate, weight: '5%' },
             ].map(item => (
               <Flex key={item.label} flexDirection="column" alignItems="center" gap={2}>
-                <Text style={{ fontSize: 10, opacity: 0.5 }}>{item.label} ({item.weight})</Text>
+                <Text style={{ fontSize: 10, color: 'var(--dt-colors-text-neutral-subdued)' }}>{item.label} ({item.weight})</Text>
                 <Text style={{ fontSize: 12, fontWeight: 600, color: item.rate > 0.05 ? STATUS_COLORS.poor : item.rate > 0 ? STATUS_COLORS.fair : STATUS_COLORS.excellent }}>
                   {(item.rate * 100).toFixed(1)}%
                 </Text>
@@ -853,11 +885,11 @@ export function PromptGovernance() {
       <Surface style={{ padding: '16px' }}>
         <Flex justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={16}>
           <Flex gap={8} alignItems="center" flexWrap="wrap">
-            <Text textStyle="small-emphasized">Issue Type:</Text>
+            <Text textStyle="small" style={{ fontWeight: 600 }}>Issue Type:</Text>
             {(['all', 'pii', 'injection', 'expensive', 'repetitive', 'hallucination', 'error'] as const).map(filter => (
               <Button
                 key={filter}
-                variant={governanceFilter === filter ? 'accent' : 'default'}
+                variant={governanceFilter === filter ? 'emphasized' : 'default'}
                 onClick={() => setGovernanceFilter(filter)}
                 style={{ textTransform: 'capitalize' }}
               >
@@ -890,13 +922,13 @@ export function PromptGovernance() {
       </Surface>
 
       {/* How Detection Works */}
-      <Surface style={{ padding: '16px', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+      <Surface style={{ padding: '16px', backgroundColor: 'var(--dt-colors-background-base-subtle)' }}>
         <Flex flexDirection="column" gap={8}>
           <Flex alignItems="center" gap={8}>
             <HelpIcon />
-            <Text textStyle="base-emphasized">How Detection Works</Text>
+            <Text style={{ fontWeight: 600 }}>How Detection Works</Text>
           </Flex>
-          <Text textStyle="small" style={{ opacity: 0.8 }}>
+          <Text textStyle="small">
             <strong>Real-time pattern analysis</strong> on actual prompt content from gen_ai.prompt.*.content spans:
           </Text>
           <Flex gap={16} flexWrap="wrap" style={{ marginTop: '4px' }}>
@@ -913,7 +945,7 @@ export function PromptGovernance() {
               <strong>Repetitive:</strong> 15+ identical prompts (DQL aggregation)
             </Text>
           </Flex>
-          <Text textStyle="small" style={{ opacity: 0.7, marginTop: '4px' }}>
+          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', marginTop: '4px' }}>
             💡 <strong>Dynatrace Intelligence</strong> adds semantic analysis for nuanced risk detection.
           </Text>
         </Flex>
@@ -928,7 +960,7 @@ export function PromptGovernance() {
               <Flex alignItems="center" gap={8}>
                 <CriticalIcon style={{ color: STATUS_COLORS.poor }} />
                 <Heading level={4}>GenAI Error Spans</Heading>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                   {filteredErrors.length} error spans
                 </Text>
               </Flex>
@@ -948,7 +980,7 @@ export function PromptGovernance() {
                 </Flex>
               )}
 
-              {filteredErrors.slice(0, 100).map(error => (
+              {filteredErrors.slice(errorPage * PAGE_SIZE, (errorPage + 1) * PAGE_SIZE).map(error => (
                 <Surface key={error.id} style={{ padding: '16px', borderLeft: `3px solid ${STATUS_COLORS.poor}` }}>
                   <Flex flexDirection="column" gap={12}>
                     {/* Header */}
@@ -956,9 +988,9 @@ export function PromptGovernance() {
                       <Flex flexDirection="column" gap={4}>
                         <Flex alignItems="center" gap={8}>
                           <CriticalIcon style={{ width: 16, height: 16, color: STATUS_COLORS.poor }} />
-                          <Text textStyle="base-emphasized">{error.spanName}</Text>
+                          <Text style={{ fontWeight: 600 }}>{error.spanName}</Text>
                         </Flex>
-                        <Text textStyle="small" style={{ opacity: 0.7 }}>
+                        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                           {error.serviceName} • {error.provider || 'Unknown Provider'} • {error.model || 'Unknown Model'}
                         </Text>
                       </Flex>
@@ -970,43 +1002,47 @@ export function PromptGovernance() {
                     {/* Error Details */}
                     <Flex gap={16} flexWrap="wrap">
                       <Flex flexDirection="column" gap={2}>
-                        <Text textStyle="small" style={{ opacity: 0.5 }}>Error Type</Text>
-                        <Text textStyle="small-emphasized">{error.errorType || 'N/A'}</Text>
+                        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Error Type</Text>
+                        <Text textStyle="small" style={{ fontWeight: 600 }}>{error.errorType || 'N/A'}</Text>
                       </Flex>
                       <Flex flexDirection="column" gap={2}>
-                        <Text textStyle="small" style={{ opacity: 0.5 }}>Latency</Text>
-                        <Text textStyle="small-emphasized">{error.latencyMs.toFixed(0)}ms</Text>
+                        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Latency</Text>
+                        <Text textStyle="small" style={{ fontWeight: 600 }}>{error.latencyMs.toFixed(0)}ms</Text>
                       </Flex>
                       <Flex flexDirection="column" gap={2}>
-                        <Text textStyle="small" style={{ opacity: 0.5 }}>Trace ID</Text>
+                        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Trace ID</Text>
                         <TraceLink traceId={error.traceId} timestamp={error.timestamp} />
                       </Flex>
                     </Flex>
                     
                     {/* Prompt Content if available */}
                     {error.promptContent && (
-                      <Surface style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.03)' }}>
+                      <Surface style={{ padding: '12px', backgroundColor: 'var(--dt-colors-background-base-subtle)' }}>
                         <Flex flexDirection="column" gap={4}>
-                          <Text textStyle="small" style={{ opacity: 0.5 }}>Prompt Content</Text>
-                          <pre style={{ margin: 0, fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                          <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Prompt Content</Text>
+                          <Text style={{ margin: 0, fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace', display: 'block' }}>
                             {error.promptContent.substring(0, 300)}{error.promptContent.length > 300 ? '...' : ''}
-                          </pre>
+                          </Text>
                         </Flex>
                       </Surface>
                     )}
                     
                     {/* Timestamp */}
-                    <Text textStyle="small" style={{ opacity: 0.5, fontSize: '10px' }}>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', fontSize: '10px' }}>
                       {formatDateTime(error.timestamp)}
                     </Text>
                   </Flex>
                 </Surface>
               ))}
 
-              {filteredErrors.length > 100 && (
-                <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
-                  Showing 100 of {filteredErrors.length} errors. Use filters to narrow results.
-                </Text>
+              {filteredErrors.length > PAGE_SIZE && (
+                <Flex justifyContent="space-between" alignItems="center" padding={8}>
+                  <Button variant="default" onClick={() => setErrorPage(p => Math.max(0, p - 1))} disabled={errorPage === 0}>Previous</Button>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
+                    {errorPage * PAGE_SIZE + 1}–{Math.min((errorPage + 1) * PAGE_SIZE, filteredErrors.length)} of {filteredErrors.length} errors
+                  </Text>
+                  <Button variant="default" onClick={() => setErrorPage(p => p + 1)} disabled={(errorPage + 1) * PAGE_SIZE >= filteredErrors.length}>Next</Button>
+                </Flex>
               )}
             </>
           ) : (
@@ -1015,7 +1051,7 @@ export function PromptGovernance() {
               <Flex alignItems="center" gap={8}>
                 <LockIcon />
                 <Heading level={4}>Prompt Analysis</Heading>
-                <Text textStyle="small" style={{ opacity: 0.7 }}>
+                <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                   {filteredPrompts.length} prompts {governanceFilter !== 'all' ? `with ${governanceFilter} flags` : ''}
                 </Text>
               </Flex>
@@ -1043,7 +1079,7 @@ export function PromptGovernance() {
                 </Flex>
               )}
 
-              {filteredPrompts.slice(0, 50).map(prompt => (
+              {filteredPrompts.slice(promptPage * PAGE_SIZE, (promptPage + 1) * PAGE_SIZE).map(prompt => (
                 <PromptGovernanceCard 
                   key={prompt.id} 
                   prompt={prompt}
@@ -1052,10 +1088,14 @@ export function PromptGovernance() {
                 />
               ))}
 
-              {filteredPrompts.length > 50 && (
-                <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
-                  Showing first 50 of {filteredPrompts.length} prompts
-                </Text>
+              {filteredPrompts.length > PAGE_SIZE && (
+                <Flex justifyContent="space-between" alignItems="center" padding={8}>
+                  <Button variant="default" onClick={() => setPromptPage(p => Math.max(0, p - 1))} disabled={promptPage === 0}>Previous</Button>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
+                    {promptPage * PAGE_SIZE + 1}–{Math.min((promptPage + 1) * PAGE_SIZE, filteredPrompts.length)} of {filteredPrompts.length} prompts
+                  </Text>
+                  <Button variant="default" onClick={() => setPromptPage(p => p + 1)} disabled={(promptPage + 1) * PAGE_SIZE >= filteredPrompts.length}>Next</Button>
+                </Flex>
               )}
             </>
           )}
@@ -1069,7 +1109,7 @@ export function PromptGovernance() {
             <Flex alignItems="center" gap={8}>
               <ResearchIcon style={{ color: STATUS_COLORS.good }} />
               <Heading level={4}>Prompt Pattern Analysis</Heading>
-              <Text textStyle="small" style={{ opacity: 0.6 }}>top repeated patterns · efficiency · cache savings</Text>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>top repeated patterns · efficiency · cache savings</Text>
             </Flex>
             {patternInsights.map((p, i) => (
               <Surface key={p.id} style={{
@@ -1087,8 +1127,8 @@ export function PromptGovernance() {
                         background: 'var(--dt-colors-background-base-default)',
                         color: 'var(--dt-colors-text-secondary-default)' }}>#{i + 1}
                       </Text>
-                      {p.hasPii && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: Colors.Charts.Status.Critical.Default + '25', color: Colors.Charts.Status.Critical.Default }}>PII</Text>}
-                      {p.hasInjection && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: Colors.Charts.Status.Warning.Default + '25', color: Colors.Charts.Status.Warning.Default }}>Injection</Text>}
+                      {p.hasPii && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'var(--dt-colors-background-status-critical-subdued)', color: 'var(--dt-colors-text-status-critical-default)' }}>PII</Text>}
+                      {p.hasInjection && <Text style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'var(--dt-colors-background-status-warning-subdued)', color: 'var(--dt-colors-text-status-warning-default)' }}>Injection</Text>}
                       <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.serviceName}</Text>
                     </Flex>
                     <Text style={{ fontSize: 11, color: 'var(--dt-colors-text-secondary-default)', fontFamily: 'monospace', lineHeight: 1.4 }}>{p.preview}</Text>
@@ -1096,24 +1136,24 @@ export function PromptGovernance() {
                   {/* Stats */}
                   <Flex gap={16} flexWrap="wrap" alignItems="center">
                     <Flex flexDirection="column" alignItems="flex-end">
-                      <Text textStyle="small" style={{ opacity: 0.6 }}>Calls</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Calls</Text>
                       <Text style={{ fontWeight: 700, fontSize: 14 }}>{formatNumber(p.count)}</Text>
                     </Flex>
                     <Flex flexDirection="column" alignItems="flex-end">
-                      <Text textStyle="small" style={{ opacity: 0.6 }}>Efficiency</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Efficiency</Text>
                       <Text style={{ fontWeight: 700, color: p.efficiency > 50 ? Colors.Charts.Status.Ideal.Default : Colors.Charts.Status.Warning.Default }}>
                         {p.efficiency}%
                       </Text>
                     </Flex>
                     <Flex flexDirection="column" alignItems="flex-end">
-                      <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Latency</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Avg Latency</Text>
                       <Text style={{ fontWeight: 600 }}>
                         {p.avgLatencyMs >= 1000 ? `${(p.avgLatencyMs / 1000).toFixed(1)}s` : `${Math.round(p.avgLatencyMs)}ms`}
                       </Text>
                     </Flex>
                     {p.cacheSaving > 0.001 && (
                       <Flex flexDirection="column" alignItems="flex-end">
-                        <Text textStyle="small" style={{ opacity: 0.6 }}>Cache Saving</Text>
+                        <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Cache Saving</Text>
                         <Text style={{ fontWeight: 700, color: Colors.Charts.Status.Ideal.Default }}>
                           ${p.cacheSaving.toFixed(3)}
                         </Text>
@@ -1133,7 +1173,7 @@ export function PromptGovernance() {
           <Flex alignItems="center" gap={8}>
             <LockIcon style={{ color: STATUS_COLORS.good }} />
             <Heading level={4}>Prompt I/O Audit Trail</Heading>
-            <Text textStyle="small" style={{ opacity: 0.6 }}>
+            <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
               Trace-correlated prompt inputs &amp; completions for compliance
             </Text>
           </Flex>
@@ -1143,31 +1183,31 @@ export function PromptGovernance() {
             <Flex gap={16} flexWrap="wrap">
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
-                  <Text textStyle="small" style={{ opacity: 0.6 }}>Total Traces</Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Total Traces</Text>
                   <Heading level={4}>{formatNumber(auditSummary.totalEvents)}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
-                  <Text textStyle="small" style={{ opacity: 0.6 }}>Providers</Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Providers</Text>
                   <Heading level={4}>{auditSummary.uniqueProviders}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
-                  <Text textStyle="small" style={{ opacity: 0.6 }}>Models</Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Models</Text>
                   <Heading level={4}>{auditSummary.uniqueModels}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
-                  <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Input Tokens</Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Avg Input Tokens</Text>
                   <Heading level={4}>{formatNumber(auditSummary.avgInputTokens)}</Heading>
                 </Flex>
               </Surface>
               <Surface style={{ padding: '12px 16px', flex: '1 1 120px', minWidth: 120 }}>
                 <Flex flexDirection="column" gap={2}>
-                  <Text textStyle="small" style={{ opacity: 0.6 }}>Avg Output Tokens</Text>
+                  <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Avg Output Tokens</Text>
                   <Heading level={4}>{formatNumber(auditSummary.avgOutputTokens)}</Heading>
                 </Flex>
               </Surface>
@@ -1184,13 +1224,13 @@ export function PromptGovernance() {
           {!auditLoading && auditEntries.length === 0 && (
             <Flex alignItems="center" gap={8} style={{ padding: 16 }}>
               <InformationIcon />
-              <Text style={{ opacity: 0.7 }}>
+              <Text style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                 No prompt I/O data found. Ensure gen_ai.prompt.*.content and gen_ai.completion.*.content attributes are captured in spans.
               </Text>
             </Flex>
           )}
 
-          {auditEntries.slice(0, 50).map((entry, idx) => (
+          {auditEntries.slice(auditPage * PAGE_SIZE, (auditPage + 1) * PAGE_SIZE).map((entry, idx) => (
             <Surface key={`${entry.traceId}-${entry.spanId}-${idx}`} style={{
               padding: 14,
               borderLeft: `3px solid ${STATUS_COLORS.good}`,
@@ -1204,10 +1244,10 @@ export function PromptGovernance() {
                       {entry.provider}
                     </Text>
                     <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{entry.model}</Text>
-                    <Text textStyle="small" style={{ opacity: 0.5 }}>{entry.serviceName}</Text>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>{entry.serviceName}</Text>
                   </Flex>
                   <Flex gap={8} alignItems="center">
-                    <Text textStyle="small" style={{ opacity: 0.5 }}>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
                       {formatDateTime(entry.timestamp)}
                     </Text>
                     {entry.traceId && (
@@ -1221,47 +1261,47 @@ export function PromptGovernance() {
                 {/* Metrics row */}
                 <Flex gap={16} flexWrap="wrap">
                   <Flex gap={4} alignItems="center">
-                    <Text textStyle="small" style={{ opacity: 0.5 }}>Input:</Text>
-                    <Text textStyle="small-emphasized">{formatNumber(entry.inputTokens)} tokens</Text>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Input:</Text>
+                    <Text textStyle="small" style={{ fontWeight: 600 }}>{formatNumber(entry.inputTokens)} tokens</Text>
                   </Flex>
                   <Flex gap={4} alignItems="center">
-                    <Text textStyle="small" style={{ opacity: 0.5 }}>Output:</Text>
-                    <Text textStyle="small-emphasized">{formatNumber(entry.outputTokens)} tokens</Text>
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Output:</Text>
+                    <Text textStyle="small" style={{ fontWeight: 600 }}>{formatNumber(entry.outputTokens)} tokens</Text>
                   </Flex>
                   <Flex gap={4} alignItems="center">
-                    <Text textStyle="small" style={{ opacity: 0.5 }}>Latency:</Text>
-                    <Text textStyle="small-emphasized">
+                    <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Latency:</Text>
+                    <Text textStyle="small" style={{ fontWeight: 600 }}>
                       {entry.latencyMs >= 1000 ? `${(entry.latencyMs / 1000).toFixed(1)}s` : `${Math.round(entry.latencyMs)}ms`}
                     </Text>
                   </Flex>
                   {entry.finishReason && (
                     <Flex gap={4} alignItems="center">
-                      <Text textStyle="small" style={{ opacity: 0.5 }}>Finish:</Text>
-                      <Text textStyle="small-emphasized">{entry.finishReason}</Text>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>Finish:</Text>
+                      <Text textStyle="small" style={{ fontWeight: 600 }}>{entry.finishReason}</Text>
                     </Flex>
                   )}
                 </Flex>
 
                 {/* Prompt content */}
                 {entry.promptPreview && (
-                  <Surface style={{ padding: 10, backgroundColor: 'rgba(0,0,0,0.03)' }}>
+                  <Surface style={{ padding: 10, backgroundColor: 'var(--dt-colors-background-base-subtle)' }}>
                     <Flex flexDirection="column" gap={4}>
-                      <Text textStyle="small" style={{ opacity: 0.5, fontWeight: 600 }}>PROMPT</Text>
-                      <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', fontWeight: 600 }}>PROMPT</Text>
+                      <Text style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4, fontFamily: 'monospace', display: 'block' }}>
                         {entry.promptPreview}{entry.promptPreview.length >= 500 ? '…' : ''}
-                      </pre>
+                      </Text>
                     </Flex>
                   </Surface>
                 )}
 
                 {/* Completion content */}
                 {entry.completionPreview && (
-                  <Surface style={{ padding: 10, backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                  <Surface style={{ padding: 10, backgroundColor: 'var(--dt-colors-background-base-subtle)' }}>
                     <Flex flexDirection="column" gap={4}>
-                      <Text textStyle="small" style={{ opacity: 0.5, fontWeight: 600 }}>COMPLETION</Text>
-                      <pre style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                      <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)', fontWeight: 600 }}>COMPLETION</Text>
+                      <Text style={{ margin: 0, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.4, fontFamily: 'monospace', display: 'block' }}>
                         {entry.completionPreview}{entry.completionPreview.length >= 500 ? '…' : ''}
-                      </pre>
+                      </Text>
                     </Flex>
                   </Surface>
                 )}
@@ -1269,10 +1309,14 @@ export function PromptGovernance() {
             </Surface>
           ))}
 
-          {auditEntries.length > 50 && (
-            <Text textStyle="small" style={{ opacity: 0.7, textAlign: 'center' }}>
-              Showing 50 of {auditEntries.length} audit trail entries. Use timeframe filters to narrow results.
-            </Text>
+          {auditEntries.length > PAGE_SIZE && (
+            <Flex justifyContent="space-between" alignItems="center" padding={8}>
+              <Button variant="default" onClick={() => setAuditPage(p => Math.max(0, p - 1))} disabled={auditPage === 0}>Previous</Button>
+              <Text textStyle="small" style={{ color: 'var(--dt-colors-text-neutral-subdued)' }}>
+                {auditPage * PAGE_SIZE + 1}–{Math.min((auditPage + 1) * PAGE_SIZE, auditEntries.length)} of {auditEntries.length} entries
+              </Text>
+              <Button variant="default" onClick={() => setAuditPage(p => p + 1)} disabled={(auditPage + 1) * PAGE_SIZE >= auditEntries.length}>Next</Button>
+            </Flex>
           )}
         </Flex>
       </Surface>
