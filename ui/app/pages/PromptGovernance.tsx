@@ -543,7 +543,7 @@ export function PromptGovernance() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Pagination state
-  const PAGE_SIZE = 25;
+  const PAGE_SIZE = 10;
   const [promptPage, setPromptPage] = useState(0);
   const [errorPage, setErrorPage] = useState(0);
   const [auditPage, setAuditPage] = useState(0);
