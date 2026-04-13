@@ -1227,9 +1227,9 @@ const AuditTrailTab: React.FC<{ filters: QueryFilters }> = ({ filters }) => {
       id: 'status',
       header: 'Status',
       accessor: 'hasError',
-      cell: ({ value, row }) => {
+      cell: ({ value, rowData }) => {
         const hasErr = value as boolean;
-        const latency = row.original.latencyMs;
+        const latency = (rowData as AuditTrailEvent).latencyMs;
         const bg = hasErr
           ? 'var(--dt-colors-background-status-critical-subdued)'
           : latency > 5000

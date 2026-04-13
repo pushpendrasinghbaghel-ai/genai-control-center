@@ -147,3 +147,19 @@ export function formatLatencyNs(ns: number | string | null | undefined): string 
   if (ns === null || ns === undefined || isNaN(n)) return '0 ms';
   return formatDurationMs(n / 1_000_000);
 }
+
+/**
+ * Format a timestamp as relative time (e.g., "5m ago", "2h ago", "3d ago").
+ * Use instead of hand-rolled relative time helpers.
+ */
+export function formatRelativeTime(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return '—';
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+  return `${Math.floor(mins / 1440)}d ago`;
+}

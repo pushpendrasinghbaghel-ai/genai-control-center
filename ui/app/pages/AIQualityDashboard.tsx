@@ -967,7 +967,7 @@ const InstructionQualityTab: React.FC<{
       {metrics.filter(m => m.hasConstraintData).length > 0 && (
         <Surface style={{ padding: 16 }}>
           <Heading level={6} style={{ marginBottom: 16 }}>Constraint Compliance Leaderboard</Heading>
-          <Flex flexDirection="column" gap={10}>
+          <Flex flexDirection="column" gap={12}>
             {metrics
               .filter(m => m.hasConstraintData)
               .sort((a, b) => b.complianceRate - a.complianceRate)

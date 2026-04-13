@@ -94,12 +94,12 @@ export interface ThreatTrend {
 }
 
 // ============================================
-// DQL Queries (C10: dt.entity.service, H4: aliased bin, C2: sort ASC, M4: gen_ai.completion.0.content)
+// DQL Query Builders (accept timeframe clause from FilterBar)
 // ============================================
 
 /** Fetch recent prompts — sort ASC to catch oldest first (C2: volume evasion defense) */
-const PROMPTS_WITH_CONTEXT_QUERY = `
-fetch spans, from: now()-2h, to: now()
+function buildPromptsQuery(timeClause: string): string {
+  return `fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | filter isNotNull(gen_ai.prompt.0.content)
 | fieldsAdd service_name = coalesce(dt.entity.service, "Unknown")
@@ -108,28 +108,28 @@ fetch spans, from: now()-2h, to: now()
 | fieldsAdd prompt_text = toString(gen_ai.prompt.0.content)
 | fieldsAdd response_text = coalesce(toString(gen_ai.completion.0.content), "")
 | filter prompt_text != ""
-| fields service_name, provider, model, prompt_text, response_text, trace_id, timestamp
-| sort timestamp asc
-| limit 200
-`;
+| fields service_name, provider, model, prompt_text, response_text, trace.id, start_time
+| sort start_time asc
+| limit 50`;
+}
 
-/** Hourly request distribution — 2-day window (M5: more efficient than 7d) */
-const HOURLY_DISTRIBUTION_QUERY = `
-fetch spans, from: now()-2d, to: now()
+/** Hourly request distribution — 2-day window for baseline */
+function buildHourlyDistributionQuery(): string {
+  return `fetch spans, from: now()-2d, to: now()
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
-| fieldsAdd hour_of_day = getHour(timestamp)
+| fieldsAdd hour_of_day = getHour(start_time)
 | summarize request_count = count(), by: { hour_of_day }
-| sort hour_of_day asc
-`;
+| sort hour_of_day asc`;
+}
 
 /** Request velocity per service — H4: bin() aliased to time_bucket */
-const VELOCITY_QUERY = `
-fetch spans, from: now()-2h, to: now()
+function buildVelocityQuery(timeClause: string): string {
+  return `fetch spans, ${timeClause}
 | filter isNotNull(gen_ai.provider.name) OR isNotNull(gen_ai.request.model)
 | fieldsAdd service_name = coalesce(dt.entity.service, "Unknown")
-| summarize request_count = count(), by: { service_name, time_bucket = bin(timestamp, 1h) }
-| sort time_bucket desc
-`;
+| summarize request_count = count(), by: { service_name, time_bucket = bin(start_time, 1h) }
+| sort time_bucket desc`;
+}
 
 // ============================================
 // DQL executor (C6: propagate errors instead of swallowing)
@@ -388,7 +388,7 @@ function getBehavioralContext(
 // Hook (C4, C6, C7, H3, H6, H9 fixes applied)
 // ============================================
 
-export function useAdversarialThreatDetection() {
+export function useAdversarialThreatDetection(timeClause: string = 'from: now()-30m, to: now()') {
   const [findings, setFindings] = useState<ThreatFinding[]>([]);
   const [summary, setSummary] = useState<ThreatSummary | null>(null);
   const [trends, setTrends] = useState<ThreatTrend[]>([]);
@@ -406,9 +406,9 @@ export function useAdversarialThreatDetection() {
     try {
       // Phase 1: Fetch prompts + behavioral context in parallel (C6: check for DQL errors)
       const [promptResult, hourlyResult, velocityResult] = await Promise.all([
-        safeDql(PROMPTS_WITH_CONTEXT_QUERY),
-        safeDql(HOURLY_DISTRIBUTION_QUERY),
-        safeDql(VELOCITY_QUERY),
+        safeDql(buildPromptsQuery(timeClause)),
+        safeDql(buildHourlyDistributionQuery()),
+        safeDql(buildVelocityQuery(timeClause)),
       ]);
 
       // C4: Abort if a newer call has started
@@ -489,7 +489,7 @@ export function useAdversarialThreatDetection() {
         if (!classification || classification.technique === 'safe') return;
 
         // H6: Validate date before using
-        const promptTime = new Date(r.timestamp);
+        const promptTime = new Date(r.start_time);
         if (isNaN(promptTime.getTime())) return;
 
         const serviceName = String(r.service_name || 'Unknown');
@@ -501,7 +501,7 @@ export function useAdversarialThreatDetection() {
           serviceName,
           provider: String(r.provider || 'Unknown'),
           model: String(r.model || 'unknown'),
-          traceId: String(r.trace_id || ''),
+          traceId: String(r['trace.id'] || ''),
           promptPreview: String(r.prompt_text || '').substring(0, 120),
           fullPrompt: String(r.prompt_text || ''),
           response: String(r.response_text || ''),
@@ -567,7 +567,7 @@ export function useAdversarialThreatDetection() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [timeClause]);
 
   useEffect(() => {
     analyze();

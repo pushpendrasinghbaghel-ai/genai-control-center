@@ -38,3 +38,4 @@ export * from './useCostAnomalyRootCause';
 export * from './useContextWindowCreep';
 export * from './useTimeOfDayUsage';
 export * from './useModelQualityNeedMatching';
+export * from './useInstructionQuality';
